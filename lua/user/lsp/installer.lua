@@ -10,6 +10,7 @@ local servers = {
 	cssls = require("user.lsp.config.css"),
 	tsserver = require("user.lsp.config.ts"),
 	gopls = require("user.lsp.config.go"),
+	rust_analyzer = require("user.lsp.config.rust"),
 }
 
 -- automatic install lsp server
