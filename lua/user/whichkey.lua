@@ -7,6 +7,7 @@ local mapping = {
 		"Buffers",
 	},
 	["t"] = { "<cmd>NvimTreeToggle<cr>", "Explorer" },
+	["T"] = { "<cmd>TodoTelescope<cr>", "Todos" },
 	["w"] = { "<cmd>w!<CR>", "Save" },
 	["W"] = { "<cmd>wa!<CR>", "Save All" },
 	["q"] = { "<cmd>q!<CR>", "Quit" },
