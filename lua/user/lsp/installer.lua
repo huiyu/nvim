@@ -7,10 +7,12 @@ end
 local servers = {
 	sumneko_lua = require("user.lsp.config.sumneko_lua"),
 	html = require("user.lsp.config.html"),
-	cssls = require("user.lsp.config.css"),
-	tsserver = require("user.lsp.config.ts"),
-	gopls = require("user.lsp.config.go"),
+	cssls = require("user.lsp.config.cssls"),
+	tsserver = require("user.lsp.config.tsserver"),
+	gopls = require("user.lsp.config.gopls"),
 	rust_analyzer = require("user.lsp.config.rust"),
+	clang = require("user.lsp.config.clang"),
+	pyright = require("user.lsp.config.pyright"),
 }
 
 -- automatic install lsp server
