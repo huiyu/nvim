@@ -6,7 +6,8 @@ local mapping = {
 		"<cmd>lua require('telescope.builtin').buffers(require('telescope.themes').get_dropdown{previewer = false})<cr>",
 		"Buffers",
 	},
-	["t"] = { "<cmd>NvimTreeToggle<cr>", "Explorer" },
+	["e"] = { "<cmd>NvimTreeToggle<cr>", "Explorer" },
+	["t"] = { "<cmd>ToggleTerm direction=float<cr>", "Terminal" }, -- direction = 'vertical' | 'horizontal' | 'tab' | 'float'
 	["T"] = { "<cmd>TodoTelescope<cr>", "Todos" },
 	["w"] = { "<cmd>w!<CR>", "Save" },
 	["W"] = { "<cmd>wa!<CR>", "Save All" },
@@ -18,7 +19,7 @@ local mapping = {
 	["F"] = { "<cmd>Telescope live_grep<cr>", "Find Text" },
 	["r"] = { "<cmd>Telescope oldfiles<cr>", "Recent File" },
 	["p"] = { "<cmd>Telescope project<cr>", "Projects" },
-	["h"] = { "<cmd>Telescope man_pages<cr>", "Man Pages" },
+	["H"] = { "<cmd>Telescope man_pages<cr>", "Man Pages" },
 
 	g = {
 		name = "Git",

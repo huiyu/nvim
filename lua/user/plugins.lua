@@ -46,7 +46,6 @@ return packer.startup(function(use)
 	use("nvim-lua/plenary.nvim") -- Useful lua functions used ny lots of plugins
 
 	-- Colorschemes
-	use("sainnhe/everforest")
 	use("sainnhe/sonokai")
 
 	-- autopair
@@ -106,6 +105,9 @@ return packer.startup(function(use)
 
 	-- todo-comments
 	use("folke/todo-comments.nvim")
+
+	-- toggle terminal
+	use("akinsho/toggleterm.nvim")
 
 	-- Automatically set up your configuration after cloning packer.nvim
 	-- Put this at the end after all plugins
