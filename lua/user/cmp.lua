@@ -27,7 +27,7 @@ cmp.setup({
 
 	formatting = require("user.lsp.ui").formatting,
 
-	-- TODO adjust mapping keybindings
+	-- TODO: adjust mapping keybindings
 	mapping = {
 		["<C-k>"] = cmp.mapping.select_prev_item(),
 		["<C-j>"] = cmp.mapping.select_next_item(),

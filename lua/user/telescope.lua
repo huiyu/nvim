@@ -91,8 +91,7 @@ telescope.setup({
 
 		project = {
 			base_dirs = {
-				{ path = "~/Code/private", max_depath = 4 },
-				{ path = "~/Code/open", max_depath = 4 },
+				{ path = "~/Code/", max_depath = 4 },
 			},
 		},
 		-- Your extension configuration goes here:

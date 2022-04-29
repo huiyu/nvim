@@ -45,7 +45,7 @@ local options = {
 	completeopt = { "menuone", "noselect" }, -- mostly just for cmp
 	signcolumn = "yes", -- always show the sign column, otherwise it would shift the text each time
 	showmode = false, -- we don't need to see things like -- INSERT -- anymore
-	showtabline = 2, -- always show tabs
+	showtabline = 1, -- always show tabs
 }
 
 vim.opt.shortmess:append("c")

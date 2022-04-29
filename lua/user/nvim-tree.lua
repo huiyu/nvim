@@ -24,8 +24,9 @@ local keymaps = {
 	{ key = "s", action = "system_open" },
 }
 
-nvim_tree.setup({
+vim.g.nvim_tree_group_empty = 1
 
+nvim_tree.setup({
 	git = { enable = false },
 	update_cwd = true,
 	update_focused_file = {

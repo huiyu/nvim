@@ -13,6 +13,9 @@ local servers = {
 	rust_analyzer = require("user.lsp.config.rust"),
 	clang = require("user.lsp.config.clang"),
 	pyright = require("user.lsp.config.pyright"),
+	jdtls = require("user.lsp.config.jtdls"),
+	jsonls = require("user.lsp.config.jsonls"),
+	sqlls = require("user.lsp.config.sqlls"),
 }
 
 -- automatic install lsp server
