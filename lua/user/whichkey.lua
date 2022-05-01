@@ -1,5 +1,11 @@
 local whichkey = require("which-key")
 
+whichkey.setup({
+	window = {
+		border = "single",
+	},
+})
+
 local mapping = {
 	["a"] = { "<cmd>Alpha<cr>", "Alpha" },
 	["b"] = {
