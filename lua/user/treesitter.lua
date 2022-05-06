@@ -4,7 +4,6 @@ if not status_ok then
   vim.notify("treesistter not found!")
 end
 
-
 treesitter.setup({
 
   ensure_installed = {
@@ -32,5 +31,5 @@ treesitter.setup({
   },
   indent = {
     enable = true,
-  }
+  },
 })

@@ -1,5 +1,5 @@
 local toggleterm = require("toggleterm")
 
 toggleterm.setup({
-	-- default settings
+  -- default settings
 })

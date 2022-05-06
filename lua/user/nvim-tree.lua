@@ -1,71 +1,71 @@
 local status_ok, nvim_tree = pcall(require, "nvim-tree")
 
 if not status_ok then
-	vim.notify("nvim-tree not found!")
+  vim.notify("nvim-tree not found!")
 end
 
 local keymaps = {
-	-- open file
-	{ key = { "<CR>", "o", "<2-LeftMouse>" }, action = "edit" },
-	-- open file on a split window
-	{ key = "v", action = "vsplit" },
-	{ key = "h", action = "split" },
-	-- show/hide file
-	{ key = "i", action = "toggle_ignored" }, -- Ignore (node_modules)
-	{ key = ".", action = "toggle_dotfiles" }, -- Hide (dotfiles)
-	-- other file ac action
-	{ key = "<F5>", action = "refresh" },
-	{ key = "a", action = "create" },
-	{ key = "d", action = "remove" },
-	{ key = "r", action = "rename" },
-	{ key = "x", action = "cut" },
-	{ key = "c", action = "copy" },
-	{ key = "p", action = "paste" },
-	{ key = "s", action = "system_open" },
+  -- open file
+  { key = { "<CR>", "o", "<2-LeftMouse>" }, action = "edit" },
+  -- open file on a split window
+  { key = "v", action = "vsplit" },
+  { key = "h", action = "split" },
+  -- show/hide file
+  { key = "i", action = "toggle_ignored" }, -- Ignore (node_modules)
+  { key = ".", action = "toggle_dotfiles" }, -- Hide (dotfiles)
+  -- other file ac action
+  { key = "<F5>", action = "refresh" },
+  { key = "a", action = "create" },
+  { key = "d", action = "remove" },
+  { key = "r", action = "rename" },
+  { key = "x", action = "cut" },
+  { key = "c", action = "copy" },
+  { key = "p", action = "paste" },
+  { key = "s", action = "system_open" },
 }
 
 vim.g.nvim_tree_group_empty = 1
 
 nvim_tree.setup({
-	git = { enable = false },
-	update_cwd = true,
-	update_focused_file = {
-		enable = true,
-		update_cwd = true,
-	},
+  git = { enable = false },
+  update_cwd = true,
+  update_focused_file = {
+    enable = true,
+    update_cwd = true,
+  },
 
-	filters = {
-		dotfiles = false,
-		custom = { "node_modules" },
-	},
+  filters = {
+    dotfiles = false,
+    custom = { "node_modules" },
+  },
 
-	view = {
-		width = 40,
-		side = "left",
-		hide_root_folder = false,
+  view = {
+    width = 40,
+    side = "left",
+    hide_root_folder = false,
 
-		-- custom keymaps
-		mappings = {
-			custom_only = false,
-			list = keymaps,
-		},
+    -- custom keymaps
+    mappings = {
+      custom_only = false,
+      list = keymaps,
+    },
 
-		number = false,
-		relativenumber = false,
+    number = false,
+    relativenumber = false,
 
-		signcolumn = "yes",
-	},
+    signcolumn = "yes",
+  },
 
-	actions = {
-		open_file = {
-			resize_window = true,
-			quit_on_open = false,
-		},
-	},
+  actions = {
+    open_file = {
+      resize_window = true,
+      quit_on_open = false,
+    },
+  },
 
-	system_open = {
-		cmd = "open",
-	},
+  system_open = {
+    cmd = "open",
+  },
 })
 
 vim.cmd([[

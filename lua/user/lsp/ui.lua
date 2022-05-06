@@ -11,20 +11,20 @@ for type, icon in pairs(signs) do
 end
 
 -- lspkind
-local lspkind = require('lspkind')
+local lspkind = require("lspkind")
 lspkind.init({
   -- default: true
   -- with_text = true,
   -- defines how annotations are shown
   -- default: symbol
   -- options: 'text', 'text_symbol', 'symbol_text', 'symbol'
-  mode = 'symbol_text',
+  mode = "symbol_text",
   -- default symbol map
   -- can be either 'default' (requires nerd-fonts font) or
   -- 'codicons' for codicon preset (requires vscode-codicons font)
   --
   -- default: 'default'
-  preset = 'codicons',
+  preset = "codicons",
   -- override preset symbols
   --
   -- default: {}
@@ -53,14 +53,13 @@ lspkind.init({
     Struct = "פּ",
     Event = "",
     Operator = "",
-    TypeParameter = ""
+    TypeParameter = "",
   },
 })
 
-
 -- lsp saga
-local lspsaga = require('lspsaga')
-lspsaga.setup {
+local lspsaga = require("lspsaga")
+lspsaga.setup({
   debug = false,
   use_saga_diagnostic_sign = true,
   -- diagnostic sign
@@ -111,18 +110,17 @@ lspsaga.setup {
   diagnostic_prefix_format = "%d. ",
   diagnostic_message_format = "%m %c",
   highlight_prefix = false,
-}
+})
 
 return {
   formatting = {
     format = lspkind.cmp_format({
-      mode = 'symbol_text',
-      maxwidth = 50, 
-      before = function (entry, vim_item)
+      mode = "symbol_text",
+      maxwidth = 50,
+      before = function(entry, vim_item)
         vim_item.menu = "[" .. string.upper(entry.source.name) .. "]"
         return vim_item
-      end
-    })
-  }
+      end,
+    }),
+  },
 }
-
