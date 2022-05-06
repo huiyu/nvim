@@ -35,7 +35,7 @@ nvim_tree.setup({
 	},
 
 	filters = {
-		dotfiles = true,
+		dotfiles = false,
 		custom = { "node_modules" },
 	},
 
@@ -59,7 +59,7 @@ nvim_tree.setup({
 	actions = {
 		open_file = {
 			resize_window = true,
-			quit_on_open = true,
+			quit_on_open = false,
 		},
 	},
 
