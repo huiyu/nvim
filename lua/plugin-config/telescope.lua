@@ -13,6 +13,14 @@ telescope.setup({
     selection_caret = " ",
     path_display = { "smart" },
 
+    file_ignore_patterns = {
+      "./node_modules/*",
+      "node_modules",
+      "^node_modules/*",
+      "node_modules/*",
+      "./.git/*",
+    },
+
     mappings = {
       i = {
         ["<C-n>"] = actions.cycle_history_next,
@@ -27,7 +35,7 @@ telescope.setup({
         ["<Up>"] = actions.move_selection_previous,
 
         ["<CR>"] = actions.select_default,
-        ["<C-x>"] = actions.select_horizontal,
+        ["<C-s>"] = actions.select_horizontal,
         ["<C-v>"] = actions.select_vertical,
         ["<C-t>"] = actions.select_tab,
 
@@ -86,18 +94,22 @@ telescope.setup({
     -- }
     -- Now the picker_config_key will be applied every time you call this
     -- builtin picker
+    live_grep = {
+      additional_args = function(opts)
+        return { "--hidden" }
+      end,
+    },
   },
   extensions = {
-
-    project = {
-      base_dirs = {
-        { path = "~/Code/", max_depath = 4 },
-      },
-    },
     -- Your extension configuration goes here:
     -- extension_name = {
     --   extension_config_key = value,
     -- }
     -- please take a look at the readme of the extension you want to configure
+    project = {
+      base_dirs = {
+        { path = "~/Code/", max_depath = 3 },
+      },
+    },
   },
 })

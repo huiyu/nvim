@@ -1,11 +1,6 @@
-local status_ok, treesitter = pcall(require, "nvim-treesitter.configs")
-
-if not status_ok then
-  vim.notify("treesistter not found!")
-end
+local treesitter = require("nvim-treesitter.configs")
 
 treesitter.setup({
-
   ensure_installed = {
     "json",
     "html",

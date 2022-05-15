@@ -9,7 +9,7 @@ local keymaps = {
   { key = { "<CR>", "o", "<2-LeftMouse>" }, action = "edit" },
   -- open file on a split window
   { key = "v", action = "vsplit" },
-  { key = "h", action = "split" },
+  { key = "s", action = "split" },
   -- show/hide file
   { key = "i", action = "toggle_ignored" }, -- Ignore (node_modules)
   { key = ".", action = "toggle_dotfiles" }, -- Hide (dotfiles)
@@ -21,7 +21,7 @@ local keymaps = {
   { key = "x", action = "cut" },
   { key = "c", action = "copy" },
   { key = "p", action = "paste" },
-  { key = "s", action = "system_open" },
+  { key = "S", action = "system_open" },
 }
 
 vim.g.nvim_tree_group_empty = 1
@@ -41,7 +41,7 @@ nvim_tree.setup({
 
   view = {
     width = 40,
-    side = "left",
+    side = "right",
     hide_root_folder = false,
 
     -- custom keymaps
