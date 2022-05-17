@@ -14,14 +14,22 @@ local keymaps = {
   { key = "i", action = "toggle_ignored" }, -- Ignore (node_modules)
   { key = ".", action = "toggle_dotfiles" }, -- Hide (dotfiles)
   -- other file ac action
+  { key = "<BS>", action = "close_node" },
+  { key = "<Tab>", action = "preview" },
   { key = "R", action = "refresh" },
   { key = "a", action = "create" },
   { key = "d", action = "remove" },
   { key = "r", action = "rename" },
+  { key = "<C-r>", action = "full_rename" },
   { key = "x", action = "cut" },
   { key = "c", action = "copy" },
+  { key = "y", action = "copy_name" },
+  { key = "gy", action = "copy_absolute_path" },
   { key = "p", action = "paste" },
   { key = "S", action = "system_open" },
+  { key = "W", action = "collapse_all" },
+  { key = "<C-k>", action = "toggle_file_info" },
+  { key = ".", action = "run_file_command" },
 }
 
 vim.g.nvim_tree_group_empty = 1
@@ -41,7 +49,7 @@ nvim_tree.setup({
 
   view = {
     width = 40,
-    side = "right",
+    side = "left",
     hide_root_folder = false,
 
     -- custom keymaps
