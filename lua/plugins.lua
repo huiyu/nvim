@@ -91,6 +91,9 @@ return packer.startup(function(use)
   use({ "nvim-lualine/lualine.nvim", requires = { "kyazdani42/nvim-web-devicons" } })
   use("arkav/lualine-lsp-progress")
 
+  -- tabline
+  use("kdheepak/tabline.nvim")
+
   -- indentline
   use("lukas-reineke/indent-blankline.nvim")
 
@@ -108,6 +111,9 @@ return packer.startup(function(use)
 
   -- toggle terminal
   use("akinsho/toggleterm.nvim")
+
+  -- surround
+  use("ur4ltz/surround.nvim")
 
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins
