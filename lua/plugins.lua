@@ -81,18 +81,21 @@ return packer.startup(function(use)
   -- gitsign
   use("lewis6991/gitsigns.nvim")
 
+  -- icons
+  use("kyazdani42/nvim-web-devicons")
+
   -- nvim-tree
-  use({ "kyazdani42/nvim-tree.lua", requires = "kyazdani42/nvim-web-devicons" })
+  use("kyazdani42/nvim-tree.lua")
+
+  -- startup
+  use("goolord/alpha-nvim")
 
   -- which-key
   use("folke/which-key.nvim")
 
   -- lualine
-  use({ "nvim-lualine/lualine.nvim", requires = { "kyazdani42/nvim-web-devicons" } })
+  use("nvim-lualine/lualine.nvim")
   use("arkav/lualine-lsp-progress")
-
-  -- tabline
-  use("kdheepak/tabline.nvim")
 
   -- indentline
   use("lukas-reineke/indent-blankline.nvim")
@@ -114,6 +117,8 @@ return packer.startup(function(use)
 
   -- surround
   use("ur4ltz/surround.nvim")
+
+  use("norcalli/nvim-colorizer.lua")
 
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins

@@ -35,6 +35,7 @@ local keymaps = {
 vim.g.nvim_tree_group_empty = 1
 
 nvim_tree.setup({
+  hijack_netrw = false,
   git = { enable = false },
   update_cwd = true,
   update_focused_file = {
@@ -76,6 +77,8 @@ nvim_tree.setup({
   },
 })
 
+vim.cmd("silent! autocmd! FileExplorer *")
+vim.cmd("autocmd VimEnter * ++once silent! autocmd! FileExplorer *")
 vim.cmd([[
   autocmd BufEnter * ++nested if winnr('$') == 1 && bufname() == 'NvimTree_' . tabpagenr() | quit | endif
 ]])
