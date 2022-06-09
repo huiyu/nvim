@@ -32,8 +32,6 @@ local keymaps = {
   { key = ".", action = "run_file_command" },
 }
 
-vim.g.nvim_tree_group_empty = 1
-
 nvim_tree.setup({
   hijack_netrw = false,
   git = { enable = false },
@@ -42,7 +40,9 @@ nvim_tree.setup({
     enable = true,
     update_cwd = true,
   },
-
+  renderer = {
+    group_empty = true,
+  },
   filters = {
     dotfiles = false,
     custom = { "node_modules" },
