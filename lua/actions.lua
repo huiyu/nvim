@@ -15,7 +15,7 @@ function M.recent_files()
 end
 
 function M.find_text()
-  telescope_builtins.live_grep(get_telescope_theme_opts({ cmd_only = true }))
+  telescope_builtins.live_grep(get_telescope_theme_opts({ cmd_only = true, path_display = { "smart" } }))
 end
 
 function M.find_buffers()
@@ -108,7 +108,6 @@ end
 
 function M.lsp_type_definition()
   telescope_builtins.lsp_type_definitions(get_telescope_theme_opts())
-  require("telescope.builtin").lsp_type_definitions("telescope.themes").get_ivy(extend_telescope_opts(opts))
 end
 
 function M.lsp_implementations()
