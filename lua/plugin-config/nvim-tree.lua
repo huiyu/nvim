@@ -38,7 +38,7 @@ nvim_tree.setup({
   update_cwd = true,
   update_focused_file = {
     enable = true,
-    update_cwd = true,
+    update_cwd = false,
   },
   renderer = {
     group_empty = true,

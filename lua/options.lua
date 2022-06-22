@@ -30,7 +30,7 @@ local options = {
   cursorline = true, -- Highlight the line currently under cursor.
   number = true, -- Show line numbers on the sidebar.
   relativenumber = true, -- " Show line number on the current line and relative numbers on all other lines.
-  mouse = a, -- Enable mouse for scrolling and resizing.
+  mouse = "nv", -- Enable mouse for scrolling and resizing.
   background = "dark", -- Use colors that suit a dark background.
   wrap = false,
 
