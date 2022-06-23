@@ -7,19 +7,23 @@ local telescope_default_opts = {
 }
 
 function M.find_files()
-  telescope_builtins.find_files(get_telescope_theme_opts({ cmd_only = true }))
+  telescope_builtins.find_files(get_telescope_theme_opts({ cwd_only = true }))
 end
 
 function M.recent_files()
-  telescope_builtins.oldfiles(get_telescope_theme_opts({ cmd_only = true }))
+  telescope_builtins.oldfiles(get_telescope_theme_opts({ cwd_only = true }))
+end
+
+function M.all_recent_files()
+  telescope_builtins.oldfiles(get_telescope_theme_opts())
 end
 
 function M.find_text()
-  telescope_builtins.live_grep(get_telescope_theme_opts({ cmd_only = true, path_display = { "smart" } }))
+  telescope_builtins.live_grep(get_telescope_theme_opts({ cwd_only = true, path_display = { "smart" } }))
 end
 
 function M.find_buffers()
-  telescope_builtins.buffers(get_telescope_theme_opts({ cmd_only = true }))
+  telescope_builtins.buffers(get_telescope_theme_opts({ cwd_only = true }))
 end
 
 function M.find_all_buffers()
@@ -36,7 +40,7 @@ end
 
 function M.toggle_terminal()
   -- direction = 'vertical' | 'horizontal' | 'tab' | 'float'
-  vim.api.nvim_command("ToggleTerm direction=float")
+  vim.api.nvim_command("ToggleTerm")
 end
 
 function M.toggle_todos()

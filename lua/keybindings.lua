@@ -39,11 +39,15 @@ whichkey.setup({
   },
 })
 
+local term_keymap = "<cmd>lua require('actions').toggle_terminal()<cr>"
+map("", "<M-t>", term_keymap, opts)
+map("t", "<M-t>", term_keymap, opts)
+map("i", "<M-t>", term_keymap, opts)
+
 local mapping = {
   ["b"] = { "<cmd>lua require('actions').find_buffers()<cr>", "Buffers" },
   ["B"] = { "<cmd>lua require('actions').find_all_buffers()<cr>", "All Buffers" },
-  ["e"] = { "<cmd>lua require('actions').toggle_explorer()<cr>", "Explorer" },
-  ["t"] = { "<cmd>lua require('actions').toggle_terminal()<cr>", "Terminal" },
+  ["t"] = { "<cmd>lua require('actions').toggle_explorer()<cr>", "Explorer" },
   ["T"] = { "<cmd>lua require('actions').toggle_todos()<cr>", "Todos" },
   ["w"] = { "<cmd>w!<CR>", "Save" },
   ["W"] = { "<cmd>wa!<CR>", "Save All" },
@@ -54,6 +58,7 @@ local mapping = {
   ["f"] = { "<cmd>lua require('actions').find_files()<cr>", "Find Files" },
   ["F"] = { "<cmd>lua require('actions').find_text()<cr>", "Find Text" },
   ["r"] = { "<cmd>lua require('actions').recent_files()<cr>", "Recent File" },
+  ["R"] = { "<cmd>lua require('actions').all_recent_files()<cr>", "All Recent File" },
   ["p"] = { "<cmd>lua require('actions').find_projects()<cr>", "Projects" },
 
   ["g"] = {
