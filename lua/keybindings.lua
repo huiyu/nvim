@@ -87,8 +87,8 @@ local mapping = {
 		["+"] = { "<C-w>+", "Increase height" },
 		["-"] = { "<C-w>-", "Descrease height" },
 		["="] = { "<C-w>=", "Equally high and wide" },
-		["<"] = { "<C-w><", "Descrease width" },
-		[">"] = { "<C-w>>", "Increase width" },
+		["<"] = { "<C-w>,", "Descrease width" },
+		[">"] = { "<C-w>.", "Increase width" },
 		["|"] = { "<C-w>|", "Max out the width" },
 		["v"] = { "<cmd>vsplit<cr>", "Split window vertically " },
 		["s"] = { "<cmd>split<cr>", "Split window horizontally" },
@@ -118,7 +118,7 @@ local mapping = {
 		["d"] = { actions.lsp_diagnostics, "Workspace Diagnostics" },
 		["k"] = { "<cmd>lua vim.diagnostic.goto_prev()<cr>", "Prev Diagnostic" },
 		["j"] = { "<cmd>lua vim.diagnostic.goto_next()<cr>", "Next Diagnostic" },
-		["q"] = { "<cmd>lua vim.diagnostic.set_loclist()<cr>", "Quickfix" },
+		["q"] = { "<cmd>lua vim.diagnostic.setloclist()<cr>", "Quickfix" },
 
 		-- Hover
 		["h"] = { "<cmd>Lspsaga hover_doc<cr>", "Help" },

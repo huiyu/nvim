@@ -75,7 +75,7 @@ return packer.startup(function(use)
 	use("neovim/nvim-lspconfig") -- enable lsp
 	use("jose-elias-alvarez/null-ls.nvim")
 	use("onsails/lspkind-nvim")
-	use("tami5/lspsaga.nvim")
+	use("glepnir/lspsaga.nvim")
 	use("MunifTanjim/prettier.nvim")
 	use("williamboman/mason.nvim") -- Portable package manger for LSP servers, DAP servers
 	use("williamboman/mason-lspconfig.nvim") -- Lspconfig extension for mason.nvim
