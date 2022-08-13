@@ -7,6 +7,7 @@ local servers = {
 	sumneko_lua = require("lsp.config.sumneko_lua"),
 	tailwindcss = require("lsp.config.tailwindcss"),
 	tsserver = require("lsp.config.tsserver"),
+	gopls = require("lsp.config.gopls"),
 }
 
 local function keys_of_table(t)
