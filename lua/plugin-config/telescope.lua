@@ -4,6 +4,7 @@ if not status_ok then
 end
 
 local actions = require("telescope.actions")
+local fb_actions = require("telescope._extensions.file_browser.actions")
 
 telescope.setup({
   defaults = {
@@ -115,7 +116,28 @@ telescope.setup({
         { path = "~/Code", max_depath = 2 },
       },
     },
+    file_browser = {
+      hijack_netrw = true,
+      mappings = {
+        ["i"] = {
+          -- Custom insert mode key mappings
+          ["jk"] = function()
+            vim.cmd("normal vbd")
+          end,
+        },
+        ["n"] = {
+          -- Custom normal mode key mappings
+          ["n"] = fb_actions.create,
+          ["h"] = fb_actions.goto_parent_dir,
+          ["r"] = fb_actions.rename,
+          ["/"] = function()
+            vim.cmd("startinsert")
+          end,
+        },
+      },
+    },
   },
 })
 telescope.load_extension("project")
 telescope.load_extension("fzf")
+telescope.load_extension("file_browser")

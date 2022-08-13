@@ -33,6 +33,7 @@ local options = {
   mouse = "nv", -- Enable mouse for scrolling and resizing.
   background = "dark", -- Use colors that suit a dark background.
   wrap = false,
+  showcmd = true,
 
   -- Other Options --
   autoread = true, -- Automatically re-read files if unmodified inside Vim.
@@ -49,6 +50,7 @@ local options = {
 }
 
 vim.opt.shortmess:append("c")
+vim.opt.clipboard:append({ "unnamedplus" }) -- only for macos
 
 for k, v in pairs(options) do
   vim.opt[k] = v
