@@ -3,21 +3,11 @@ local protocol = require("vim.lsp.protocol")
 local mason = require("mason")
 local mason_lspconfig = require("mason-lspconfig")
 
-local servers = {
-	sumneko_lua = require("lsp.config.sumneko_lua"),
-	tailwindcss = require("lsp.config.tailwindcss"),
-	tsserver = require("lsp.config.tsserver"),
-	gopls = require("lsp.config.gopls"),
-}
+local servers = { "sumneko_lua", "tailwindcss", "tsserver", "gopls" }
 
-local function keys_of_table(t)
-	local n = 0
-	local keys = {}
-	for key, _ in pairs(t) do
-		n = n + 1
-		keys[n] = key
-	end
-	return keys
+-- get server opts from `lsp.config` folders
+local get_server_opts = function(server_name)
+	return require("lsp.config." .. server_name)
 end
 
 -- after the language server attaches to the current buffer
@@ -37,7 +27,7 @@ local on_attach =
 	
 mason.setup({})
 mason_lspconfig.setup({
-	ensure_installed = keys_of_table(servers),
+	ensure_installed = servers,
 })
 
 protocol.CompletionItemKind = {
@@ -75,7 +65,7 @@ mason_lspconfig.setup_handlers({
 		local opts = {
 			on_attach = on_attach,
 		}
-		local custom_opts = servers[server_name]
+		local custom_opts = get_server_opts(server_name)
 
 		-- extend default options
 		if custom_opts ~= nil then
