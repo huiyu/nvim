@@ -3,4 +3,3 @@ require("plugins")
 require("keybindings")
 require("colorscheme")
 require("lsp")
-

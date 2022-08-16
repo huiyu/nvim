@@ -15,7 +15,7 @@ if fn.empty(fn.glob(install_path)) > 0 then
 	vim.cmd([[packadd packer.nvim]])
 end
 
--- Autocommand that reloads neovim whenever you save the plugins.lua file
+--- Autocommand that reloads neovim whenever you save the plugins.lua file
 vim.cmd([[
   augroup packer_user_config
   autocmd!
@@ -37,8 +37,6 @@ packer.init({
 		end,
 	},
 })
-
-
 
 -- Install your plugins here
 packer.startup(function(use)
@@ -106,4 +104,18 @@ packer.startup(function(use)
 	end
 end)
 
-require("plugins.config")
+require("plugin.config.autopairs")
+require("plugin.config.colorizer")
+require("plugin.config.comment")
+require("plugin.config.git")
+require("plugin.config.gitsigns")
+require("plugin.config.impatient")
+require("plugin.config.indentline")
+require("plugin.config.lualine")
+require("plugin.config.nvim-tree")
+require("plugin.config.surround")
+require("plugin.config.telescope")
+require("plugin.config.todo-comments")
+require("plugin.config.toggleterm")
+require("plugin.config.transparent")
+require("plugin.config.treesitter")
