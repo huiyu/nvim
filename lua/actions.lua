@@ -28,7 +28,6 @@ function M.file_browser()
 		grouped = true,
 		previewer = false,
 		initial_mode = "normal",
-		layout_config = { height = 40 },
 	})
 end
 
