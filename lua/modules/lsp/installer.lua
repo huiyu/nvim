@@ -7,7 +7,7 @@ local servers = { "sumneko_lua", "tailwindcss", "tsserver", "gopls" }
 
 -- get server opts from `lsp.config` folders
 local get_server_opts = function(server_name)
-	return require("lsp.config." .. server_name)
+	return require("modules.lsp.config." .. server_name)
 end
 
 -- after the language server attaches to the current buffer

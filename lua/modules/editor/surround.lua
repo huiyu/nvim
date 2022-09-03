@@ -1,5 +1,5 @@
 local surround = require("surround")
 
 surround.setup({
-  mappings_style = "surround",
+	mappings_style = "surround",
 })

@@ -1,0 +1,5 @@
+require("modules.editor.autopairs")
+require("modules.editor.comment")
+require("modules.editor.nvim-tree")
+require("modules.editor.surround")
+require("modules.editor.telescope")

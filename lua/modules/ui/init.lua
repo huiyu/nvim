@@ -1,0 +1,6 @@
+require("modules.ui.colorizer")
+require("modules.ui.indentline")
+require("modules.ui.lualine")
+require("modules.ui.todo-comments")
+require("modules.ui.transparent")
+require("modules.ui.treesitter")
