@@ -49,7 +49,7 @@ telescope.setup({
 				["<esc>"] = actions.close,
 				["<C-c>"] = actions.close,
 				["<CR>"] = actions.select_default,
-				["<C-x>"] = actions.select_horizontal,
+				["<C-s>"] = actions.select_horizontal,
 				["<C-v>"] = actions.select_vertical,
 				["<C-t>"] = actions.select_tab,
 				["<Tab>"] = actions.toggle_selection + actions.move_selection_worse,
@@ -84,7 +84,7 @@ telescope.setup({
 		-- Now the picker_config_key will be applied every time you call this
 		-- builtin picker
 		live_grep = {
-			additional_args = function(opts)
+			additional_args = function(_)
 				return { "--hidden" }
 			end,
 		},
@@ -101,13 +101,8 @@ telescope.setup({
 			override_file_sorter = true, -- override the file sorter
 			case_mode = "smart_case", -- or "ignore_case" or "respect_case"
 		},
-		project = {
-			base_dirs = {
-				{ path = "~/Code", max_depath = 2 },
-			},
-		},
 		file_browser = {
-			hijack_netrw = true,
+			hijack_netrw = false,
 			mappings = {
 				["i"] = {
 					-- Custom insert mode key mappings
@@ -128,6 +123,5 @@ telescope.setup({
 		},
 	},
 })
-telescope.load_extension("project")
 telescope.load_extension("fzf")
 telescope.load_extension("file_browser")

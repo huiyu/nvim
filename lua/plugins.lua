@@ -46,7 +46,7 @@ packer.startup(function(use)
 	use("folke/which-key.nvim") -- which key keybindings
 	use({ "svrana/neosolarized.nvim", requires = { "tjdevries/colorbuddy.nvim" } }) -- solarized color scheme
 
-  -- lsp
+	-- lsp
 	use({
 		"neovim/nvim-lspconfig",
 		requires = {
@@ -78,7 +78,6 @@ packer.startup(function(use)
 		"nvim-telescope/telescope.nvim",
 		requires = {
 			"nvim-lua/plenary.nvim",
-			"nvim-telescope/telescope-project.nvim",
 			"nvim-telescope/telescope-file-browser.nvim",
 			{ "nvim-telescope/telescope-fzf-native.nvim", run = "make" },
 		},
