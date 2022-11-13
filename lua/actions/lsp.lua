@@ -8,8 +8,8 @@ function M.code_action()
 	vim.api.nvim_command("Lspsaga code_action")
 end
 
-function M.lsp_formatting()
-	vim.api.buf.lsp_formatting()
+function M.formatting()
+	vim.lsp.buf.format({ timeout_ms = 2000 })
 end
 
 function M.rename()

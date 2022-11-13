@@ -3,11 +3,11 @@ local protocol = require("vim.lsp.protocol")
 local mason = require("mason")
 local mason_lspconfig = require("mason-lspconfig")
 
-local servers = { "sumneko_lua", "tailwindcss", "tsserver", "gopls" }
+local servers = { "sumneko_lua", "tsserver", "gopls" }
 
 -- get server opts from `lsp.config` folders
 local get_server_opts = function(server_name)
-	return require("modules.lsp.config." .. server_name)
+	return require("modules.lsp.lang." .. server_name)
 end
 
 -- after the language server attaches to the current buffer
@@ -19,13 +19,14 @@ local on_attach =
 				group = vim.api.nvim_create_augroup("Format", { clear = true }),
 				buffer = bufnr,
 				callback = function()
-					vim.lsp.buf.formatting_seq_sync()
+					vim.lsp.buf.format({ timeout_ms = 2000 })
 				end,
 			})
 		end
 	end,
 	
-mason.setup({})
+mason.setup()
+
 mason_lspconfig.setup({
 	ensure_installed = servers,
 })
