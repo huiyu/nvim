@@ -17,6 +17,7 @@ local function extend(opts)
 			opts[k] = v
 		end
 	end
+
 	return opts
 end
 
