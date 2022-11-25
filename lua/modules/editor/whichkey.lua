@@ -27,12 +27,13 @@ whichkey.setup({
 	},
 })
 
-local cwd_actions = require("actions.cwd")
-local win_actions = require("actions.window")
-local lsp_actions = require("actions.lsp")
+local cwd = require("utils.cwd")
+local win = require("utils.window")
+local git = require("utils.git")
+local lsp = require("utils.lsp")
 
 local mapping = {
-	["b"] = { cwd_actions.find_buffers, "Buffers" },
+	["b"] = { cwd.find_buffers, "Buffers" },
 	["t"] = { "<cmd>NvimTreeToggle<CR>", "Explorer" },
 	["T"] = { "<cmd>TodoTelescope theme=ivy", "Todos" },
 	["w"] = { "<cmd>w!<CR>", "Save" },
@@ -41,24 +42,24 @@ local mapping = {
 	["Q"] = { "<cmd>wqall!<CR>", "Save All & Quit" },
 	["h"] = { "<cmd>nohlsearch<CR>", "No Highlight" },
 	["H"] = { "<cmd>Telescope man_pages<cr>", "Man Pages" },
-	["f"] = { cwd_actions.find_files, "Find Files" },
-	["F"] = { cwd_actions.find_text, "Find Text" },
-	["r"] = { cwd_actions.recent_files, "Recent File" },
+	["f"] = { cwd.find_files, "Find Files" },
+	["F"] = { cwd.find_text, "Find Text" },
+	["r"] = { cwd.recent_files, "Recent File" },
 
 	["g"] = {
 		name = "Git",
-		["j"] = { "<cmd>lua require 'gitsigns'.next_hunk()<cr>", "Next Hunk" },
-		["k"] = { "<cmd>lua require 'gitsigns'.prev_hunk()<cr>", "Prev Hunk" },
-		["l"] = { "<cmd>lua require 'gitsigns'.blame_line()<cr>", "Blame" },
-		["p"] = { "<cmd>lua require 'gitsigns'.preview_hunk()<cr>", "Preview Hunk" },
-		["r"] = { "<cmd>lua require 'gitsigns'.reset_hunk()<cr>", "Reset Hunk" },
-		["R"] = { "<cmd>lua require 'gitsigns'.reset_buffer()<cr>", "Reset Buffer" },
-		["s"] = { "<cmd>lua require 'gitsigns'.stage_hunk()<cr>", "Stage Hunk" },
-		["u"] = { "<cmd>lua require 'gitsigns'.undo_stage_hunk()<cr>", "Undo Stage Hunk" },
-		["o"] = { "<cmd>lua require('actions').git_status()<cr>", "Open Changed Files" },
-		["b"] = { "<cmd>lua require('actions').git_branches()<cr>", "Checkout Branch" },
-		["c"] = { "<cmd>lua require('actions').git_commits()<cr>", "Checkout commit" },
-		["d"] = { "<cmd>Gitsigns diffthis HEAD<cr>", "Diff" },
+		["j"] = { git.next_hunk, "Next Hunk" },
+		["k"] = { git.prev_hunk, "Prev Hunk" },
+		["l"] = { git.blame_line, "Blame" },
+		["p"] = { git.preview_hunk, "Preview Hunk" },
+		["r"] = { git.reset_hunk, "Reset Hunk" },
+		["R"] = { git.reset_buffer, "Reset Buffer" },
+		["s"] = { git.stage_hunk, "Stage Hunk" },
+		["u"] = { git.undo_stage_hunk, "Undo Stage Hunk" },
+		["o"] = { git.status, "Open Changed Files" },
+		["b"] = { git.branches, "Checkout Branch" },
+		["c"] = { git.commits, "Checkout commit" },
+		["d"] = { git.diffthis, "Diff" },
 	},
 
 	["s"] = {
@@ -71,9 +72,9 @@ local mapping = {
 		["|"] = { "<C-w>|", "Max out the width" },
 		["v"] = { "<cmd>vsplit<cr>", "Split window vertically " },
 		["s"] = { "<cmd>split<cr>", "Split window horizontally" },
-		["c"] = { win_actions.close_current, "Close Curent Window" },
+		["c"] = { win.close_current, "Close Curent Window" },
 		["q"] = { "<C-w>q", "Quit current window" },
-		["o"] = { win_actions.close_others, "Close Other Windows" },
+		["o"] = { win.close_others, "Close Other Windows" },
 		["h"] = { "<C-w>h", "Go to the left window" },
 		["j"] = { "<C-w>j", "Go to the down window" },
 		["k"] = { "<C-w>k", "Go to the up window" },
@@ -84,22 +85,22 @@ local mapping = {
 
 	[","] = {
 		name = "LSP",
-		["a"] = { lsp_actions.code_action, "Code Action" },
-		["f"] = { lsp_actions.formatting, "Format" },
-		["r"] = { lsp_actions.rename, "Rename" },
-		["g"] = { lsp_actions.definitions, "Goto Definitions" },
-		["G"] = { lsp_actions.references, "Goto References" },
-		["t"] = { lsp_actions.type_definitions, "Goto Type Definitions" },
-		["i"] = { lsp_actions.implementations, "Goto Implementations" },
-		["s"] = { lsp_actions.document_symbols, "Document Symbols" },
-		["S"] = { lsp_actions.workspace_symbols, "Workspace Symbols" },
-		["d"] = { lsp_actions.diagnostics, "Workspace Diagnostics" },
-		["k"] = { lsp_actions.prev_diagnostics, "Prev Diagnostic" },
-		["j"] = { lsp_actions.next_disgnostics, "Next Diagnostic" },
-		["q"] = { lsp_actions.quickfix, "Quickfix" },
+		["a"] = { lsp.code_action, "Code Action" },
+		["f"] = { lsp.formatting, "Format" },
+		["r"] = { lsp.rename, "Rename" },
+		["g"] = { lsp.definitions, "Goto Definitions" },
+		["G"] = { lsp.references, "Goto References" },
+		["t"] = { lsp.type_definitions, "Goto Type Definitions" },
+		["i"] = { lsp.implementations, "Goto Implementations" },
+		["s"] = { lsp.document_symbols, "Document Symbols" },
+		["S"] = { lsp.workspace_symbols, "Workspace Symbols" },
+		["d"] = { lsp.diagnostics, "Workspace Diagnostics" },
+		["k"] = { lsp.prev_diagnostics, "Prev Diagnostic" },
+		["j"] = { lsp.next_disgnostics, "Next Diagnostic" },
+		["q"] = { lsp.quickfix, "Quickfix" },
 
 		-- Hover
-		["h"] = { lsp_actions.show_doc, "Help" },
+		["h"] = { lsp.show_doc, "Help" },
 	},
 }
 

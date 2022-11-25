@@ -1,4 +1,4 @@
-local get_opts = require("actions.telescope").get_opts
+local get_opts = require("utils.telescope").get_opts
 local telescope_builtins = require("telescope.builtin")
 local lspsaga_diag = require("lspsaga.diagnostic")
 
@@ -32,17 +32,17 @@ function M.references()
 end
 
 function M.document_symbols()
-	local opts = get_opts({ theme = "ivy" })
+	local opts = get_opts()
 	telescope_builtins.lsp_document_symbols(opts)
 end
 
 function M.workspace_symbols()
-	local opts = get_opts({ theme = "ivy" })
+	local opts = get_opts()
 	telescope_builtins.lsp_workspace_symbols(opts)
 end
 
 function M.diagnostics()
-	local opts = get_opts({ theme = "ivy" })
+	local opts = get_opts()
 	telescope_builtins.lsp_workspace_symbols(opts)
 end
 
