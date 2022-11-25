@@ -1,5 +1,4 @@
 local fn = vim.fn
-
 -- Automatically install packer
 local install_path = fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 if fn.empty(fn.glob(install_path)) > 0 then
@@ -18,6 +17,7 @@ end
 --- Autocommand that reloads neovim whenever you save the plugins.lua file
 vim.cmd([[
   augroup packer_user_config
+
   autocmd!
   autocmd BufWritePost plugins.lua source <afile> | PackerSync
   augroup end
@@ -109,6 +109,13 @@ packer.startup(function(use)
 	use("folke/todo-comments.nvim") -- highlight todo comments
 	use("akinsho/toggleterm.nvim") -- toggle terminal
 	use("ur4ltz/surround.nvim") -- surround plugin
+	use({
+		"ggandor/leap.nvim",
+		requires = {
+			"ggandor/flit.nvim",
+			"ggandor/leap-ast.nvim",
+		},
+	})
 
 	-- Automatically set up your configuration after cloning packer.nvim
 	-- Put this at the end after all plugins
