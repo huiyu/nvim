@@ -51,4 +51,8 @@ M.buffer_commits = function()
 	telescope_builtins.git_bcommits()
 end
 
+M.diffthis = function()
+	gitsign.diffthis()
+end
+
 return M

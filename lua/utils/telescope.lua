@@ -25,13 +25,13 @@ end
 --   theme: default|ivy|cursor|dropdown
 --   opts: see https://github.com/nvim-telescope/telescope.nvim/wiki/Configuration-Recipes
 function M.get_opts(opts)
-	local extend_opts = extend(opts)
+	local _opts = extend(opts)
 
-	local theme = opts["theme"]
+	local theme = _opts["theme"]
 	if theme == nil or theme == "default" then
-		return extend_opts
+		return _opts
 	else
-		return telescope_theme["get_" .. theme](extend_opts)
+		return telescope_theme["get_" .. theme](_opts)
 	end
 end
 

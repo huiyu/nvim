@@ -37,8 +37,6 @@ telescope.setup({
 				["<C-d>"] = actions.preview_scrolling_down,
 				["<PageUp>"] = actions.results_scrolling_up,
 				["<PageDown>"] = actions.results_scrolling_down,
-				["<Tab>"] = actions.toggle_selection + actions.move_selection_worse,
-				["<S-Tab>"] = actions.toggle_selection + actions.move_selection_better,
 				["<C-q>"] = actions.send_to_qflist + actions.open_qflist,
 				["<M-q>"] = actions.send_selected_to_qflist + actions.open_qflist,
 				["<C-l>"] = actions.complete_tag,
@@ -52,8 +50,6 @@ telescope.setup({
 				["<C-s>"] = actions.select_horizontal,
 				["<C-v>"] = actions.select_vertical,
 				["<C-t>"] = actions.select_tab,
-				["<Tab>"] = actions.toggle_selection + actions.move_selection_worse,
-				["<S-Tab>"] = actions.toggle_selection + actions.move_selection_better,
 				["<C-q>"] = actions.send_to_qflist + actions.open_qflist,
 				["<M-q>"] = actions.send_selected_to_qflist + actions.open_qflist,
 
@@ -106,15 +102,16 @@ telescope.setup({
 			mappings = {
 				["i"] = {
 					-- Custom insert mode key mappings
-					["jk"] = function()
-						vim.cmd("normal vbd")
-					end,
 				},
 				["n"] = {
 					-- Custom normal mode key mappings
-					["n"] = fb_actions.create,
-					["h"] = fb_actions.goto_parent_dir,
+					["a"] = fb_actions.create,
 					["r"] = fb_actions.rename,
+					["m"] = fb_actions.move,
+					["y"] = fb_actions.copy,
+					["d"] = fb_actions.remove,
+					["u"] = fb_actions.goto_parent_dir,
+					["U"] = fb_actions.goto_cwd,
 					["/"] = function()
 						vim.cmd("startinsert")
 					end,

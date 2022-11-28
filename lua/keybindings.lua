@@ -6,6 +6,7 @@ local map = vim.api.nvim_set_keymap
 map("", "<space>", "<Nop>", opts)
 map("n", "+", "<C-a>", opts)
 map("n", "-", "<C-x>", opts)
+map("n", "<C-c", "<ESC>", opts)
 
 vim.g.mapleader = " "
 vim.g.maplocalleder = " "
@@ -23,6 +24,7 @@ map("i", "<M-t>", term_keymap, opts)
 -- INSERT MODE KEYMAP
 ----------------------------------
 map("i", "jk", "<ESC>", opts)
+map("i", "<C-c", "<ESC>", opts)
 map("", "<M-CR>", "<cmd>lua require('actions.lsp').code_action()<CR>", opts)
 
 ----------------------------------
