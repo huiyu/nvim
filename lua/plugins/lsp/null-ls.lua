@@ -18,6 +18,8 @@ null_ls.setup({
 		formatting.black.with({ extra_args = { "--fast" } }),
 		diagnostics.flake8,
 	},
+
+	-- https://github.com/jose-elias-alvarez/null-ls.nvim/wiki/Formatting-on-save
 	on_attach = function(client, bufnr)
 		if client.supports_method("textDocument/formatting") then
 			vim.api.nvim_create_autocmd("BufWritePre", {
