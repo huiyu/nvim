@@ -2,7 +2,6 @@ local opts = { noremap = true, silent = true }
 local term_opts = { silent = true }
 
 local map = vim.api.nvim_set_keymap
-
 map("", "<space>", "<Nop>", opts)
 map("n", "+", "<C-a>", opts)
 map("n", "-", "<C-x>", opts)

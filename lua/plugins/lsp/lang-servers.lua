@@ -1,21 +1,7 @@
 local File = require("utils.file")
 local lang_path = vim.fn.stdpath("config") .. "/lua/lang/"
 
-local default_opts = {
-	on_attach = function(client, bufnr)
-		-- formatting
-		if client.server_capabilities.documentFormattingProvider then
-			vim.api.nvim_create_autocmd("BufWritePre", {
-				group = vim.api.nvim_create_augroup("Format", { clear = true }),
-				buffer = bufnr,
-				callback = function()
-					vim.notify("Auto formatting " .. bufnr)
-					vim.lsp.buf.format({ timeout_ms = 2000 })
-				end,
-			})
-		end
-	end,
-}
+local default_opts = {}
 
 local server_files = File:of(lang_path):find(function(file)
 	return file.path:ends_with(".lua")
