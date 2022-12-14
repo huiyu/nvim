@@ -1,5 +1,5 @@
 require("options")
-require("plugins")
+require("plugin-installer")
 require("keybindings")
 require("colorscheme")
-require("modules")
+require("plugins")

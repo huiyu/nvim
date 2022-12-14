@@ -4,6 +4,7 @@ table.insert(runtime_path, "lua/?.lua")
 table.insert(runtime_path, "lua/?/init.lua")
 
 return {
+	server_name = "sumneko_lua",
 	settings = {
 		Lua = {
 			runtime = {

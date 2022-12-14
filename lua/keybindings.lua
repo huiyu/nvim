@@ -11,10 +11,10 @@ map("n", "<C-c", "<ESC>", opts)
 vim.g.mapleader = " "
 vim.g.maplocalleder = " "
 
-local term_keymap = "<cmd>lua require('actions').toggle_terminal()<cr>"
-map("", "<M-t>", term_keymap, opts)
-map("t", "<M-t>", term_keymap, opts)
-map("i", "<M-t>", term_keymap, opts)
+local term_keymap = "<cmd>ToggleTerm<cr>"
+map("", "<C-t>", term_keymap, opts)
+map("t", "<C-t>", term_keymap, opts)
+map("i", "<C-t>", term_keymap, opts)
 
 ----------------------------------
 -- NORMAL MODE KEYMAP

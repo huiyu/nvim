@@ -14,8 +14,9 @@ function M.recent_files()
 end
 
 function M.find_text()
-	local opts = get_opts({ cwd_only = true, path_display = { "smart" } })
-	telescope_builtins.live_grep(opts)
+	-- local opts = get_opts({ cwd_only = true, path_display = { "smart" } })
+	-- telescope_builtins.live_grep(opts)
+  telescope_builtins.live_grep()
 end
 
 function M.find_buffers()
