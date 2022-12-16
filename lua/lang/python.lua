@@ -1,4 +1,3 @@
 return {
-	server_name = "jedi_language_server",
-	single_file_support = true,
+	server_name = "pyright",
 }
