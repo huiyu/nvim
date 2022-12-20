@@ -16,6 +16,10 @@ function M.rename()
 	vim.api.nvim_command("Lspsaga rename")
 end
 
+function M.expolre_associations()
+	vim.api.nvim_command("Lspsaga lsp_finder")
+end
+
 function M.definitions()
 	local opts = get_opts({ theme = "cursor" })
 	telescope_builtins.lsp_definitions(opts)
