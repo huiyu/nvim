@@ -99,6 +99,7 @@ packer.startup(function(use)
 	})
 
 	use({ "nvim-treesitter/nvim-treesitter", run = ":TSUpdate" })
+	use({ "nvim-treesitter/nvim-treesitter-textobjects" })
 	use("dinhhuy258/git.nvim") -- A simple clone of the plugin vim-fugitive
 	use("lewis6991/gitsigns.nvim") -- Git integration for buffers
 	use("norcalli/nvim-colorizer.lua")
