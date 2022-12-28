@@ -118,7 +118,13 @@ telescope.setup({
 				},
 			},
 		},
+		["ui-select"] = {
+			require("telescope.themes").get_dropdown({
+				-- even more opts
+			}),
+		},
 	},
 })
 telescope.load_extension("fzf")
 telescope.load_extension("file_browser")
+telescope.load_extension("ui-select")
