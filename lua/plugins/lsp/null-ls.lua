@@ -27,7 +27,7 @@ null_ls.setup({
 				buffer = bufnr,
 				callback = function()
 					vim.notify("Auto formatting " .. bufnr)
-					require("utils.lsp").formatting()
+          vim.lsp.buf.format()
 				end,
 			})
 		end

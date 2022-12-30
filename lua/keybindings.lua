@@ -79,7 +79,7 @@ local wk = {
 		["H"] = { "<cmd>Telescope man_pages<cr>", "Man Pages" },
 		["f"] = { "<cmd>Telescope find_files cwd_only=true hidden=true path_display={'truncate'}<cr>", "Find Files" },
 		["F"] = { "<cmd>Telescope live_grep cwd_only=true hidden=true path_display={'truncate'}<cr>", "Find Text" },
-		["r"] = { "<cmd>Telescope old_files cwd_only=true hidden=true path_display={'truncate'}<cr>", "Recent Files" },
+		["r"] = { "<cmd>Telescope oldfiles cwd_only=true hidden=true path_display={'truncate'}<cr>", "Recent Files" },
 
 		["g"] = {
 			name = "Git",
