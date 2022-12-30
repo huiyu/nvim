@@ -122,7 +122,7 @@ local wk = {
 		[","] = {
 			name = "LSP",
 			["a"] = { "<cmd>Lspsaga code_action<cr>", "Code Action" },
-			["f"] = { "<cmd>lua vim.lsp.buf.format( timeout_ms = 2000)<cr>", "Format" },
+			["f"] = { "<cmd>lua vim.lsp.buf.format()<cr>", "Format" },
 			["r"] = { "<cmd>Lspsaga rename<cr>", "Rename" },
 			["x"] = { "<cmd>Lspsaga lsp_finder<cr>", "Explore Associations" },
 			["g"] = { "<cmd>Telescope lsp_definitions<cr>", "Goto Definitions" },
@@ -138,6 +138,18 @@ local wk = {
 			["o"] = { "<cmd>Lspsaga outline<cr>", "Quickfix" },
 			["h"] = { "<cmd>Lspsaga hover_doc<cr>", "Help" },
 		},
+	},
+	["]"] = {
+		["m"] = { "<cmd>TSTextobjectGotoNextStart @function.outer<cr>", "Goto next method start" },
+		["M"] = { "<cmd>TSTextobjectGotoNextEnd @function.outer<cr>", "Goto next method end" },
+		["c"] = { "<cmd>TSTextobjectGotoNextStart @class.outer<cr>", "Goto next class start" },
+		["C"] = { "<cmd>TSTextobjectGotoNextEnd @class.outer<cr>", "Goto next class end" },
+	},
+	["["] = {
+		["m"] = { "<cmd>TSTextobjectGotoPreviousStart @function.outer<cr>", "Goto privous method start" },
+		["M"] = { "<cmd>TSTextobjectGotoPreviousEnd @function.outer<cr>", "Goto privous method end" },
+		["c"] = { "<cmd>TSTextobjectGotoPreviousStart @class.outer<cr>", "Goto privous class start" },
+		["C"] = { "<cmd>TSTextobjectGotoPreviousEnd @class.outer<cr>", "Goto privous class end" },
 	},
 }
 

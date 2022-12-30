@@ -67,43 +67,12 @@ treesitter.setup({
 		-- Define mappings to swap the node uner the cursor with next or previous one, like function parameters or arguments
 		swap = {
 			enable = true,
-			swap_next = {
-				["<leader>aj"] = "@parameter.inner",
-			},
-			swap_previous = {
-				["<leader>ak"] = "@parameter.inner",
-			},
 		},
 
 		-- Define own mapping to jump to the next or previous text object.
 		move = {
 			enable = true,
 			set_jumps = true, -- whether to set jumps in the jumplist
-			goto_next_start = {
-				["]m"] = "@function.outer",
-				["]]"] = "@class.outer",
-				goto_next_end = {
-					["]M"] = "@function.outer",
-					["]["] = "@class.outer",
-				},
-				goto_previous_start = {
-					["[m"] = "@function.outer",
-					["[["] = "@class.outer",
-				},
-				goto_previous_end = {
-					["[M"] = "@function.outer",
-					["[]"] = "@class.outer",
-				},
-			},
-		},
-
-		lsp_interop = {
-			enable = true,
-			border = "none",
-			peek_definition_code = {
-				["<leader>df"] = "@function.outer",
-				["<leader>dF"] = "@class.outer",
-			},
 		},
 	},
 })
