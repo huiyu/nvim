@@ -34,8 +34,8 @@ local lsp = require("utils.lsp")
 
 local mapping = {
 	["b"] = { cwd.find_buffers, "Buffers" },
-	["e"] = { "<cmd>Telescope file_browser path=%:p:h theme=dropdown<cr>", "Explore Current Directory" },
-	["E"] = { "<cmd>Telescope file_browser theme=dropdown<cr>", "Explore Working Directory" },
+	["e"] = { "<cmd>Telescope file_browser path=%:p:h<cr>", "Explore Current Directory" },
+	["E"] = { "<cmd>Telescope file_browser<cr>", "Explore Working Directory" },
 	["t"] = { "<cmd>NvimTreeToggle<cr>", "File Tree" },
 	["T"] = { "<cmd>TodoTelescope<cr>", "Todos" },
 	["w"] = { "<cmd>w!<cr>", "Save" },
