@@ -2,6 +2,8 @@ local leap = require("leap")
 
 leap.add_default_mappings()
 
+vim.keymap.del({ "x", "o", "n" }, "s")
+vim.keymap.del({ "x", "o", "n" }, "S")
 vim.keymap.set({ "x", "o", "n" }, "r", "<Plug>(leap-forward-to)")
 vim.keymap.set({ "x", "o", "n" }, "R", "<Plug>(leap-backword-to)")
 

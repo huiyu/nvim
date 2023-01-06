@@ -98,26 +98,6 @@ local wk = {
 			["C"] = { "<cmd>Telescope git_bcommits<cr>", "Checkout buffer commit" },
 			["d"] = { "<cmd>Gitsign diffthis<cr>", "Diff" },
 		},
-		["s"] = {
-			name = "Window",
-			["+"] = { "<C-w>+", "Increase height" },
-			["-"] = { "<C-w>-", "Descrease height" },
-			["="] = { "<C-w>=", "Equally high and wide" },
-			["<"] = { "<C-w>,", "Descrease width" },
-			[">"] = { "<C-w>.", "Increase width" },
-			["|"] = { "<C-w>|", "Max out the width" },
-			["v"] = { "<cmd>vsplit<cr>", "Split window vertically " },
-			["s"] = { "<cmd>split<cr>", "Split window horizontally" },
-			["c"] = { win.close_current, "Close curent window" },
-			["q"] = { "<C-w>q", "Quit current window" },
-			["o"] = { win.close_others, "Close other windows" },
-			["h"] = { "<C-w>h", "Go to the left window" },
-			["j"] = { "<C-w>j", "Go to the down window" },
-			["k"] = { "<C-w>k", "Go to the up window" },
-			["l"] = { "<C-w>l", "Move right" },
-			["w"] = { "<C-w>w", "Switch windows" },
-			["x"] = { "<C-w>x", "Swap current with next" },
-		},
 
 		[","] = {
 			name = "LSP",
@@ -139,12 +119,35 @@ local wk = {
 			["h"] = { "<cmd>Lspsaga hover_doc<cr>", "Help" },
 		},
 	},
+
+	["s"] = {
+		name = "Window",
+		["+"] = { "<C-w>+", "Increase height" },
+		["-"] = { "<C-w>-", "Descrease height" },
+		["="] = { "<C-w>=", "Equally high and wide" },
+		["<"] = { "<C-w><", "Descrease width" },
+		[">"] = { "<C-w>>", "Increase width" },
+		["|"] = { "<C-w>|", "Max out the width" },
+		["v"] = { "<cmd>vsplit<cr>", "Split window vertically " },
+		["s"] = { "<cmd>split<cr>", "Split window horizontally" },
+		["c"] = { win.close_current, "Close curent window" },
+		["q"] = { "<C-w>q", "Quit current window" },
+		["o"] = { win.close_others, "Close other windows" },
+		["h"] = { "<C-w>h", "Go to the left window" },
+		["j"] = { "<C-w>j", "Go to the down window" },
+		["k"] = { "<C-w>k", "Go to the up window" },
+		["l"] = { "<C-w>l", "Move right" },
+		["w"] = { "<C-w>w", "Switch windows" },
+		["x"] = { "<C-w>x", "Swap current with next" },
+	},
+
 	["]"] = {
 		["m"] = { "<cmd>TSTextobjectGotoNextStart @function.outer<cr>", "Goto next method start" },
 		["M"] = { "<cmd>TSTextobjectGotoNextEnd @function.outer<cr>", "Goto next method end" },
 		["c"] = { "<cmd>TSTextobjectGotoNextStart @class.outer<cr>", "Goto next class start" },
 		["C"] = { "<cmd>TSTextobjectGotoNextEnd @class.outer<cr>", "Goto next class end" },
 	},
+
 	["["] = {
 		["m"] = { "<cmd>TSTextobjectGotoPreviousStart @function.outer<cr>", "Goto privous method start" },
 		["M"] = { "<cmd>TSTextobjectGotoPreviousEnd @function.outer<cr>", "Goto privous method end" },
@@ -153,7 +156,6 @@ local wk = {
 	},
 }
 
-wk["s"] = wk["<leader>"]["s"]
 wk[","] = wk["<leader>"][","]
 
 M.whichkey = wk
