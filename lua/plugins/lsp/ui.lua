@@ -58,10 +58,4 @@ lspkind.init({
 })
 
 local lspsaga = require("lspsaga")
-lspsaga.init_lsp_saga({
-	-- "single" | "double" | "rounded" | "bold" | "plus"
-	border_style = "rounded",
-	saga_winblend = 10,
-
-	move_in_saga = { prev = "<C-k>", next = "<C-j>" },
-})
+lspsaga.setup({})

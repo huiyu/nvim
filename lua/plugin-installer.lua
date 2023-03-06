@@ -74,8 +74,6 @@ packer.startup(function(use)
 		},
 	})
 
-	use("github/copilot.vim")
-
 	use({
 		"nvim-telescope/telescope.nvim",
 		requires = {
