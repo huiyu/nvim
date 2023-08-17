@@ -10,7 +10,7 @@ map("n", "<C-c", "<ESC>", opts)
 vim.g.mapleader = " "
 vim.g.maplocalleder = " "
 
-local term_keymap = "<cmd>ToggleTerm<cr>"
+local term_keymap = "<cmd>Lspsaga term_toggle<cr>"
 map("", "<C-t>", term_keymap, opts)
 map("t", "<C-t>", term_keymap, opts)
 map("i", "<C-t>", term_keymap, opts)

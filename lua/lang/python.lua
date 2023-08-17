@@ -1,3 +1,3 @@
 return {
-	server_name = "pyright",
+	server_name = "pylsp",
 }

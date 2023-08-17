@@ -58,4 +58,11 @@ lspkind.init({
 })
 
 local lspsaga = require("lspsaga")
-lspsaga.setup({})
+lspsaga.setup({
+	symbol_in_winbar = {
+		enable = true,
+	},
+	lightbulbs = {
+		true,
+	},
+})

@@ -51,7 +51,7 @@ packer.startup(function(use)
 		"neovim/nvim-lspconfig",
 		requires = {
 			"onsails/lspkind-nvim", -- vscode-like pictograms
-			"glepnir/lspsaga.nvim", -- light-weight lsp ui
+			"nvimdev/lspsaga.nvim", -- light-weight lsp ui
 			"williamboman/mason.nvim", -- Portable package manger for LSP servers, DAP servers
 			"williamboman/mason-lspconfig.nvim",
 			"jose-elias-alvarez/null-ls.nvim",
@@ -114,7 +114,6 @@ packer.startup(function(use)
 	use("numToStr/Comment.nvim") -- comments
 	use("lewis6991/impatient.nvim") -- improve performance
 	use("folke/todo-comments.nvim") -- highlight todo comments
-	use("akinsho/toggleterm.nvim") -- toggle terminal
 	use("ur4ltz/surround.nvim") -- surround plugin
 	use({
 		"ggandor/leap.nvim",
