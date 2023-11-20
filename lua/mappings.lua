@@ -4,11 +4,11 @@ vim.g.mapleader = " "
 vim.g.maplocalleder = "\\"
 
 local maps = (function()
-  local maps = {}
-  for _, mode in ipairs({ "", "n", "i", "v", "x", "s", "o", "!", "i", "l", "c", "t" }) do
-    maps[mode] = {}
-  end
-  return maps
+	local maps = {}
+	for _, mode in ipairs({ "", "n", "i", "v", "x", "s", "o", "!", "i", "l", "c", "t" }) do
+		maps[mode] = {}
+	end
+	return maps
 end)()
 
 --------------------------
@@ -22,6 +22,9 @@ maps.n["<leader>e"] = { "<cmd>ExploreCurrentDirectory<cr>", desc = "Explore curr
 maps.n["<leader>E"] = { "<cmd>ExploreWorkingDirectory<cr>", desc = "Explore working directory" }
 maps.n["<leader>t"] = { "<cmd>NvimTreeToggle<cr>", desc = "File tree" }
 maps.n["<C-t>"] = { "<cmd>ToggleTerm<cr>", desc = "Toggle terminal" }
+maps.i["<C-t>"] = maps.n["<C-t>"]
+maps.t["<C-t>"] = maps.n["<C-t>"]
+maps.v["<C-t>"] = maps.n["<C-t>"]
 maps.n["<leader>h"] = { "<cmd>nohlsearch<cr>", desc = "No hightlight" }
 maps.n["<leader>f"] = { "<cmd>FindFiles<cr>", desc = "Find files" }
 maps.n["<leader>F"] = { "<cmd>FindFiles hidden=true<cr>", desc = "Find files(include hidden)" }
@@ -60,16 +63,16 @@ maps.n["]b"] = { "<cmd>bnext<cr>", desc = "Next buffer" }
 -- Todo
 maps.n["<leader>st"] = { "<cmd>TodoTelescope<cr>", desc = "Todos" }
 maps.n["[t"] = {
-  function()
-    require("todo-comments").jump_prev()
-  end,
-  desc = "Previous todo",
+	function()
+		require("todo-comments").jump_prev()
+	end,
+	desc = "Previous todo",
 }
 maps.n["]t"] = {
-  function()
-    require("todo-comments").jump_next()
-  end,
-  desc = "Next todo",
+	function()
+		require("todo-comments").jump_next()
+	end,
+	desc = "Next todo",
 }
 
 -- Window management
