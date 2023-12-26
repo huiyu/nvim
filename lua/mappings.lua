@@ -29,7 +29,6 @@ maps.n["<leader>h"] = { "<cmd>nohlsearch<cr>", desc = "No hightlight" }
 maps.n["<leader>f"] = { "<cmd>FindFiles<cr>", desc = "Find files" }
 maps.n["<leader>F"] = { "<cmd>FindFiles hidden=true<cr>", desc = "Find files(include hidden)" }
 maps.n["<leader>r"] = { "<cmd>FindRecentFiles<cr>", desc = "Recent files" }
-maps.n["<leader>R"] = { "<cmd>FindFrecentFiles<cr>", desc = "Frecent files" }
 maps.n["<leader>o"] = { "<cmd>Lspsaga outline<cr>", desc = "Outline" }
 maps.n["]]"] = { "<C-i>", desc = "Forward" }
 maps.n["[["] = { "<C-o>", desc = "Backward" }
@@ -156,9 +155,35 @@ maps.n["<leader>gC"] = { "<cmd>Telescope bcommits<cr>", desc = "Buffer commits" 
 maps.n["<leader>gd"] = { "<cmd>Gitsign diffthis<cr>", desc = "Diff" }
 
 -- Debug
-maps.n["<leader>d"] = { desc = "Debug" }
-maps.v["<leader>d"] = maps.n["<leader>d"]
 -- TODO:
+maps.n["<leader>d"] = { desc = "Debug" }
+maps.n["<leader>db"] = { "<cmd>lua require('dap').toggle_breakpoint()<cr>", desc = "Toggle breakpoint" }
+maps.n["<leader>dB"] = {
+	function()
+		require("dap").set_breakpoint(vim.fn.input("Condition: "))
+	end,
+	desc = "Breakpoint condition",
+}
+maps.n["<leader>dc"] = { "<cmd>lua require('dap').continue()<cr>", desc = "Continue" }
+maps.n["<leader>dx"] = { "<cmd>lua require('dap').clear_breakpoints()<cr>", desc = "Clear breakpoints" }
+maps.n["<leader>da"] = { "<cmd>lua require('dap').continue({before=get_args})()<cr>", desc = "Continue with args" }
+maps.n["<leader>di"] = { "<cmd>lua require('dap').step_into()<cr>", desc = "Step into" }
+maps.n["<leader>do"] = { "<cmd>lua require('dap').step_over()<cr>", desc = "Step over" }
+maps.n["<leader>dO"] = { "<cmd>lua require('dap').step_out()<cr>", desc = "Step out" }
+maps.n["<leader>dp"] = { "<cmd>lua require('dap').pause()<cr>", desc = "Pause" }
+maps.n["<leader>dl"] = { "<cmd>lua require('dap').run_last()<cr>", desc = "Run last" }
+maps.n["<leader>dg"] = { "<cmd>lua require('dap').goto_()<cr>", desc = "Goto line (no execute)" }
+maps.n["<leader>dj"] = { "<cmd>lua require('dap').down()<cr>", desc = "Down" }
+maps.n["<leader>dk"] = { "<cmd>lua require('dap').up()<cr>", desc = "Up" }
+maps.n["<leader>dq"] = { "<cmd>lua require('dap').close()<cr>", desc = "Quit" }
+maps.n["<leader>dR"] = { "<cmd>lua require('dap').repl.toggle()<cr>", desc = "Toggle REPL" }
+maps.n["<leader>dr"] = { "<cmd>lua require('dap').restart_frame()<cr>", desc = "Restart" }
+maps.n["<leader>ds"] = { "<cmd>lua require('dap').session()<cr>", desc = "Session" }
+maps.n["<leader>dt"] = { "<cmd>lua require('dap').terminate()<cr>", desc = "Terminate" }
+
+maps.n["<leader>de"] = { "<cmd>lua require('dapui').eval()<cr>", desc = "Eval input" }
+maps.n["<leader>du"] = { "<cmd>lua require('dapui').toggle()<cr>", desc = "Toggle UI" }
+maps.n["<leader>dh"] = { "<cmd>lua require('dap.ui.widgets').hover()<cr>", desc = "Debugger Hover" }
 
 -- Plugin management
 maps.n["<leader>p"] = { desc = "Plugin" }
