@@ -4,7 +4,10 @@ local function custom_telescope_opts(custom_opts)
   custom_opts = custom_opts or {}
   local opts
   if custom_opts.theme == nil then
-    opts = {}
+    opts = {
+      layout_strategy = "vertical",
+      path_display = { "truncate" },
+    }
   elseif custom_opts.theme == "dropdown" then
     opts = require("telescope.themes").get_dropdown({
       layout_config = {
@@ -38,7 +41,6 @@ cmd(
   -- "Telescope file_browser path=%:p:h select_buffer=true",
   function()
     local opts = custom_telescope_opts {
-      theme = "dropdown",
       path = "%:p:h",
       select_buffer = true,
     }
@@ -48,9 +50,7 @@ cmd(
 )
 cmd("ExploreWorkingDirectory",
   function()
-    local opts = custom_telescope_opts {
-      theme = "dropdown",
-    }
+    local opts = custom_telescope_opts {}
     require("telescope").extensions.file_browser.file_browser(opts)
   end,
   { desc = "Explore workspace directory" })
@@ -59,7 +59,6 @@ cmd("FindFiles", function(opts)
   -- merge opts with default
   require("telescope.builtin").find_files(
     vim.tbl_deep_extend("force", custom_telescope_opts {
-      theme = "dropdown",
       cwd_only = true,
       hidden = false,
     }, opts)
@@ -71,7 +70,6 @@ end, {
 
 cmd("FindRecentFiles", function()
   local opts = custom_telescope_opts {
-    theme = "dropdown",
     cwd_only = true,
     hidden = true,
   }
@@ -80,7 +78,6 @@ end, { desc = "Find recent files" })
 
 cmd("FindBuffers", function()
   local opts = custom_telescope_opts {
-    theme = "dropdown",
     cwd_only = true,
     hidden = true,
   }
@@ -109,7 +106,6 @@ cmd("SearchBuffer",
 
 cmd("SearchWord", function()
   local opts = custom_telescope_opts {
-    theme = "dropdown",
     cwd_only = true,
   }
   require("telescope.builtin").live_grep(opts)
@@ -117,7 +113,6 @@ end, { desc = "Search word" })
 
 cmd("SearchWordUnderCursor", function()
   local opts = custom_telescope_opts {
-    theme = "dropdown",
     cwd_only = true,
     path_display = { "truncate" },
   }
