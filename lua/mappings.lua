@@ -4,11 +4,11 @@ vim.g.mapleader = " "
 vim.g.maplocalleder = "\\"
 
 local maps = (function()
-	local maps = {}
-	for _, mode in ipairs({ "", "n", "i", "v", "x", "s", "o", "!", "i", "l", "c", "t" }) do
-		maps[mode] = {}
-	end
-	return maps
+  local maps = {}
+  for _, mode in ipairs({ "", "n", "i", "v", "x", "s", "o", "!", "i", "l", "c", "t" }) do
+    maps[mode] = {}
+  end
+  return maps
 end)()
 
 --------------------------
@@ -29,7 +29,6 @@ maps.n["<leader>h"] = { "<cmd>nohlsearch<cr>", desc = "No hightlight" }
 maps.n["<leader>f"] = { "<cmd>FindFiles<cr>", desc = "Find files" }
 maps.n["<leader>F"] = { "<cmd>FindFiles hidden=true<cr>", desc = "Find files(include hidden)" }
 maps.n["<leader>r"] = { "<cmd>FindRecentFiles<cr>", desc = "Recent files" }
-maps.n["<leader>o"] = { "<cmd>Lspsaga outline<cr>", desc = "Outline" }
 maps.n["]]"] = { "<C-i>", desc = "Forward" }
 maps.n["[["] = { "<C-o>", desc = "Backward" }
 
@@ -47,10 +46,9 @@ maps.n["<leader>qs"] = { "<cmd>SessionSave<cr>", desc = "Save the session" }
 
 -- Search
 maps.n["<leader>s"] = { desc = "Search" }
+maps.n["<leader>ss"] = { "<cmd>SearchBuffer<cr>", desc = "Search buffer" }
 maps.n["<leader>sw"] = { "<cmd>SearchWord<cr>", desc = "Search word" }
-maps.n["<leader>sW"] = { "<cmd>SearchWordUnderCursor<cr>", desc = "Search word under cursor" }
-maps.n["<leader>ss"] = { "<cmd>SearchBufferSymbols<cr>", desc = "Search buffer symbols" }
-maps.n["<leader>sS"] = { "<cmd>SearchWorkspaceSymbols<cr>", desc = "Search workspace symbols" }
+maps.n["<leader>sc"] = { "<cmd>SearchWordUnderCursor<cr>", desc = "Search word under cursor" }
 maps.n["<leader>sh"] = { "<cmd>HelpTags<cr>", desc = "Help tags" }
 maps.n["<leader>sm"] = { "<cmd>ManPages<cr>", desc = "Man pages" }
 
@@ -62,16 +60,16 @@ maps.n["]b"] = { "<cmd>bnext<cr>", desc = "Next buffer" }
 -- Todo
 maps.n["<leader>st"] = { "<cmd>TodoTelescope<cr>", desc = "Todos" }
 maps.n["[t"] = {
-	function()
-		require("todo-comments").jump_prev()
-	end,
-	desc = "Previous todo",
+  function()
+    require("todo-comments").jump_prev()
+  end,
+  desc = "Previous todo",
 }
 maps.n["]t"] = {
-	function()
-		require("todo-comments").jump_next()
-	end,
-	desc = "Next todo",
+  function()
+    require("todo-comments").jump_next()
+  end,
+  desc = "Next todo",
 }
 
 -- Window management
@@ -110,24 +108,25 @@ maps.n["sw"] = { "<C-w>w", desc = "Switch window" }
 
 -- LSP
 maps.n[","] = { desc = "LSP" }
-maps.n[",a"] = { "<cmd>Lspsaga code_action<cr>", desc = "Code action" }
+maps.n[",a"] = { "<cmd>LspCodeAction<cr>", desc = "Code action" }
 maps.n[",f"] = { "<cmd>LspFormatCode<cr>", desc = "Code format" }
 maps.n[",r"] = { "<cmd>LspRename<cr>", desc = "Rename" }
-maps.n[",d"] = { "<cmd>LspDefinition<cr>", desc = "Show definition" }
-maps.n["gd"] = { "<cmd>LspGotoDefinition<cr>", desc = "Goto definition" }
-maps.n[",t"] = { "<cmd>LspTypeDefinition<cr>", desc = "Show type definition" }
-maps.n["gt"] = { "<cmd>LspGotoTypeDefinitioncr>", desc = "Goto type definition" }
+maps.n[",g"] = { "<cmd>LspDefinitions<cr>", desc = "Goto definition" }
+maps.n[",t"] = { "<cmd>LspTypeDefinitions<cr>", desc = "Type definition" }
 maps.n[",e"] = { "<cmd>LspReferences<cr>", desc = "Show references" }
 maps.n[",i"] = { "<cmd>LspImplementations<cr>", desc = "Show implementations" }
 
-maps.n[",c"] = { "<cmd>LspCursorDiagnostics<cr>", desc = "Cursor diagnostics" }
-maps.n[",l"] = { "<cmd>LspLineDiagnostics<cr>", desc = "Line diagnostics" }
-maps.n[",b"] = { "<cmd>LspBufDiagnostics<cr>", desc = "Buffer diagnostics" }
-maps.n[",w"] = { "<cmd>LspWorkspaceDiagnostics<cr>", desc = "Workspace diagnostics" }
-maps.n["[d"] = { "<cmd>LspPrevDiagnostics<cr>", desc = "Prev diagnostic" }
-maps.n["]d"] = { "<cmd>LspNextDiagnostics<cr>", desc = "Next diagnostic" }
-maps.n[",q"] = { "<cmd>lua vim.diagnostic.setloclist()<cr>", desc = "Quickfix" }
-maps.n[",h"] = { "<cmd>Lspsaga hover_doc<cr>", desc = "Help" }
+maps.n[",dd"] = { "<cmd>LspBufferDiagnostics<cr>", desc = "Buffer diagnostics" }
+maps.n[",dw"] = { "<cmd>LspWorkspaceDiagnostics<cr>", desc = "Workspace diagnostics" }
+maps.n["[d"] = { "<cmd>LspPrevDiagnostic<cr>", desc = "Prev diagnostic" }
+maps.n[",dk"] = { "<cmd>LspPrevDiagnostic<cr>", desc = "Prev diagnostic" }
+maps.n["]d"] = { "<cmd>LspNextDiagnostic<cr>", desc = "Next diagnostic" }
+maps.n[",dj"] = { "<cmd>LspNextDiagnostic<cr>", desc = "Next diagnostic" }
+maps.n[",q"] = { "<cmd>LspQuickfix<cr>", desc = "Quickfix" }
+maps.n[",h"] = { "<cmd>LspHoverDoc<cr>", desc = "Hover Doc" }
+maps.n[",,"] = { "<cmd>LspSignatureHelp<cr>", desc = "Signature help" }
+maps.n[",ss"] = { "<cmd>LspBufferSymbols<cr>", desc = "Search buffer symbols" }
+maps.n[",sw"] = { "<cmd>LspWorkspaceSymbols<cr>", desc = "Search workspace symbols" }
 
 maps.n["]m"] = { "<cmd>TSTextobjectGotoNextStart @function.outer<cr>", desc = "Goto next method start" }
 maps.n["[m"] = { "<cmd>TSTextobjectGotoPreviousStart @function.outer<cr>", desc = "Goto privous method start" }
@@ -159,10 +158,10 @@ maps.n["<leader>gd"] = { "<cmd>Gitsign diffthis<cr>", desc = "Diff" }
 maps.n["<leader>d"] = { desc = "Debug" }
 maps.n["<leader>db"] = { "<cmd>lua require('dap').toggle_breakpoint()<cr>", desc = "Toggle breakpoint" }
 maps.n["<leader>dB"] = {
-	function()
-		require("dap").set_breakpoint(vim.fn.input("Condition: "))
-	end,
-	desc = "Breakpoint condition",
+  function()
+    require("dap").set_breakpoint(vim.fn.input("Condition: "))
+  end,
+  desc = "Breakpoint condition",
 }
 maps.n["<leader>dc"] = { "<cmd>lua require('dap').continue()<cr>", desc = "Continue" }
 maps.n["<leader>dx"] = { "<cmd>lua require('dap').clear_breakpoints()<cr>", desc = "Clear breakpoints" }

@@ -11,12 +11,7 @@ return {
   opts = {
     ensure_installed = {
       "json",
-      "html",
-      "css",
       "vim",
-      "go",
-      "javascript",
-      "typescript",
       "tsx",
       "java",
       "kotlin",
