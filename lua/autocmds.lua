@@ -96,7 +96,6 @@ end, { desc = "Man Pages" })
 cmd("SearchBuffer",
   function()
     local opts = custom_telescope_opts {
-      theme = "dropdown",
       cwd_only = true,
       search_dirs = { "%;p" },
     }
@@ -223,7 +222,6 @@ cmd("LspBufferDiagnostics",
   function()
     require("telescope.builtin").diagnostics(
       custom_telescope_opts {
-        theme = "dropdown",
         bufnr = 0,
       })
   end,
@@ -234,7 +232,6 @@ cmd("LspWorkspaceDiagnostics",
   function()
     require("telescope.builtin").diagnostics(
       custom_telescope_opts {
-        theme = "dropdown",
       })
   end, { desc = "Lsp workspace diagnostics" })
 

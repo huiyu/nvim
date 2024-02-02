@@ -116,6 +116,7 @@ maps.n[",t"] = { "<cmd>LspTypeDefinitions<cr>", desc = "Type definition" }
 maps.n[",e"] = { "<cmd>LspReferences<cr>", desc = "Show references" }
 maps.n[",i"] = { "<cmd>LspImplementations<cr>", desc = "Show implementations" }
 
+maps.n[",d"] = { desc = "Diagnostics" }
 maps.n[",dd"] = { "<cmd>LspBufferDiagnostics<cr>", desc = "Buffer diagnostics" }
 maps.n[",dw"] = { "<cmd>LspWorkspaceDiagnostics<cr>", desc = "Workspace diagnostics" }
 maps.n["[d"] = { "<cmd>LspPrevDiagnostic<cr>", desc = "Prev diagnostic" }
@@ -125,6 +126,7 @@ maps.n[",dj"] = { "<cmd>LspNextDiagnostic<cr>", desc = "Next diagnostic" }
 maps.n[",q"] = { "<cmd>LspQuickfix<cr>", desc = "Quickfix" }
 maps.n[",h"] = { "<cmd>LspHoverDoc<cr>", desc = "Hover Doc" }
 maps.n[",,"] = { "<cmd>LspSignatureHelp<cr>", desc = "Signature help" }
+maps.n[",s"] = { desc = "Lsp search" }
 maps.n[",ss"] = { "<cmd>LspBufferSymbols<cr>", desc = "Search buffer symbols" }
 maps.n[",sw"] = { "<cmd>LspWorkspaceSymbols<cr>", desc = "Search workspace symbols" }
 
