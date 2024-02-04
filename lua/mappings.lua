@@ -109,6 +109,7 @@ maps.n["sw"] = { "<C-w>w", desc = "Switch window" }
 -- LSP
 maps.n[","] = { desc = "LSP" }
 maps.n[",a"] = { "<cmd>LspCodeAction<cr>", desc = "Code action" }
+maps.v[",a"] = { "<cmd>LspCodeAction<cr>", desc = "Code action" }
 maps.n[",f"] = { "<cmd>LspFormatCode<cr>", desc = "Code format" }
 maps.n[",r"] = { "<cmd>LspRename<cr>", desc = "Rename" }
 maps.n[",g"] = { "<cmd>LspDefinitions<cr>", desc = "Goto definition" }
