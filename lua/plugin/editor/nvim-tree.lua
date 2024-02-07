@@ -1,7 +1,7 @@
 return {
 	"nvim-tree/nvim-tree.lua",
-	depdendenties = {
-		"nvim-tree/nvim-web/devicons",
+	dependencies = {
+		"nvim-tree/nvim-web-devicons",
 	},
 	opts = function()
 		-- see https://github.com/nvim-tree/nvim-tree.lua/wiki/Migrating-To-on_attach
