@@ -120,6 +120,7 @@ maps.n[",i"] = { "<cmd>LspImplementations<cr>", desc = "Show implementations" }
 maps.n[",d"] = { desc = "Diagnostics" }
 maps.n[",dd"] = { "<cmd>LspBufferDiagnostics<cr>", desc = "Buffer diagnostics" }
 maps.n[",dw"] = { "<cmd>LspWorkspaceDiagnostics<cr>", desc = "Workspace diagnostics" }
+maps.n[",dh"] = { "<cmd>LspHoverDiagnostic<cr>", desc = "Hover diagnostic" }
 maps.n["[d"] = { "<cmd>LspPrevDiagnostic<cr>", desc = "Prev diagnostic" }
 maps.n[",dk"] = { "<cmd>LspPrevDiagnostic<cr>", desc = "Prev diagnostic" }
 maps.n["]d"] = { "<cmd>LspNextDiagnostic<cr>", desc = "Next diagnostic" }

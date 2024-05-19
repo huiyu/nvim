@@ -246,6 +246,11 @@ cmd("LspPrevDiagnostic",
   end,
   { desc = "Lsp prev diagnostic" })
 
+cmd("LspHoverDiagnostic",
+  function()
+    vim.diagnostic.open_float()
+  end, { desc = "Lsp hover diagnostic" })
+
 cmd("LspQuickfix",
   function()
     require("telescope.builtin").quickfix(

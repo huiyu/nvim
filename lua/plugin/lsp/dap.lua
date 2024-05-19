@@ -24,6 +24,9 @@ return {
 			"theHamsta/nvim-dap-virtual-text",
 			opts = {},
 		},
+    {
+      "nvim-neotest/nvim-nio",
+    },
 		{
 			"jay-babu/mason-nvim-dap.nvim",
 			dependencies = "mason.nvim",
