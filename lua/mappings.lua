@@ -141,6 +141,31 @@ maps.n["[c"] = { "<cmd>TSTextobjectGotoPreviousStart @class.outer<cr>", desc = "
 maps.n["]C"] = { "<cmd>TSTextobjectGotoNextEnd @class.outer<cr>", desc = "Goto next class end" }
 maps.n["[C"] = { "<cmd>TSTextobjectGotoPreviousEnd @class.outer<cr>", desc = "Goto privous class end" }
 
+-- GPT
+maps.n["<leader>x"] = { desc = "ChatGPT" }
+maps.n["<leader>xx"] = { "<cmd>ChatGPT<cr>", desc = "Chat" }
+maps.n["<leader>xg"] = { "<cmd>ChatGPTRun grammer_correction<cr>", desc = "Grammar Correctionk" }
+maps.n["<leader>xT"] = { "<cmd>ChatGPTRun translate<cr>", desc = "Translate" }
+maps.n["<leader>xd"] = { "<cmd>ChatGPTRun docstring<cr>", desc = "Docstring" }
+maps.n["<leader>xt"] = { "<cmd>ChatGPTRun add_testing<cr>", desc = "Add Testing" }
+maps.n["<leader>xo"] = { "<cmd>ChatGPTRun optimize_code<cr>", desc = "Optimize code" }
+maps.n["<leader>xs"] = { "<cmd>ChatGPTRun summarize<cjr>", desc = "Summarize" }
+maps.n["<leader>xf"] = { "<cmd>ChatGPTRun fix_bugs<cr>", desc = "Fix bugs" }
+maps.n["<leader>xe"] = { "<cmd>ChatGPTRun explain_code<cr>", desc = "Explain code" }
+maps.n["<leader>xr"] = { "<cmd>ChatGPTRun code_readability_analysis<cr>", desc = "Readability analysis" }
+
+-- Copilot
+maps.n["<leader>c"] = { desc = "Copilot" }
+maps.n["<leader>cc"] = { "<cmd>CopilotChat<cr>", desc = "Chat" }
+maps.n["<leader>ce"] = { "<cmd>CopilotChatExplain<cr>", desc = "Explain" }
+maps.n["<leader>cf"] = { "<cmd>CopilotChatFix<cr>", desc = "Fix bugs" }
+maps.n["<leader>co"] = { "<cmd>CopilotChatOptimize<cr>", desc = "Optimize code" }
+maps.n["<leader>cd"] = { "<cmd>CopilotChatDocs<cr>", desc = "Docs" }
+maps.n["<leader>ct"] = { "<cmd>CopilotChatTests<cr>", desc = "Add Testing" }
+maps.n["<leader>cd"] = { "<cmd>CopilotChatFixDiagnostic<cr>", desc = "Diagnostic" }
+maps.n["<leader>cm"] = { "<cmd>CopilotChatCommit<cr>", desc = "Write Commit Message" }
+maps.n["<leader>cM"] = { "<cmd>CopilotChatCommit<cr>", desc = "Write Commit Message Staged" }
+
 -- Git
 maps.n["<leader>g"] = { desc = "Git" }
 maps.n["<leader>gj"] = { "<cmd>Gitsign next_hunk<cr>", desc = "Next hunk" }
@@ -208,6 +233,7 @@ maps.i["<C-c>"] = { "<ESC>", desc = "Exit insert mode", noremap = true, silent =
 ----------------------------------
 -- VISUAL MODE
 ----------------------------------
+maps.v = maps.n
 maps.v["<"] = { "<gv", desc = "Indent left", noremap = true, silent = true }
 maps.v[">"] = { ">gv", desc = "Indent right", noremap = true, silent = true }
 maps.v["<A-j>"] = { ":m .+1<CR>==", desc = "Move text down", noremap = true, silent = true }
