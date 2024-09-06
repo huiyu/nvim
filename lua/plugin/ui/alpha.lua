@@ -5,10 +5,13 @@ return {
     local dashboard = require("alpha.themes.dashboard")
     local icons = require("util.nerd-font")
     dashboard.section.header.val = {
-      [[  ______ _ _ __ ( )  / \  |_ _|]],
-      [[ |_  / _` | '_ \|/  / _ \  | | ]],
-      [[  / / (_| | | | |  / ___ \ | | ]],
-      [[ /___\__,_|_| |_| /_/   \_\___|]],
+
+      [[ ███████╗ █████╗ ███╗   ██╗ █████╗ ██╗ ]],
+      [[ ╚══███╔╝██╔══██╗████╗  ██║██╔══██╗██║ ]],
+      [[   ███╔╝ ███████║██╔██╗ ██║███████║██║ ]],
+      [[  ███╔╝  ██╔══██║██║╚██╗██║██╔══██║██║ ]],
+      [[ ███████╗██║  ██║██║ ╚████║██║  ██║██║ ]],
+      [[ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝ ]],
     }
     dashboard.section.buttons.val = {
       dashboard.button("<SPC> e  ", icons.FolderOpen .. " Explore files", ":ExploreWorkingDirectory<cr>"),
