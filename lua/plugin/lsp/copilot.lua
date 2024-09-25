@@ -1,56 +1,54 @@
+local api_key = os.getenv("DMX_API_KEY")
+local api_base = os.getenv("DMX_HOST")
+
 return {
-  "yetone/avante.nvim",
-  event = "VeryLazy",
-  lazy = false,
-  opts = {
-    provider = "copilot",
-  },
-  build = ":AvanteBuild",   -- This is optional, recommended tho. Also note that this will block the startup for a bit since we are compiling bindings in Rust.
-  dependencies = {
-    "stevearc/dressing.nvim",
-    "nvim-lua/plenary.nvim",
-    "MunifTanjim/nui.nvim",
-    --- The below dependencies are optional,
-    "nvim-tree/nvim-web-devicons",   -- or echasnovski/mini.icons
-    {
-      "zbirenbaum/copilot.lua",
-      config = function()
-        require("copilot").setup({
-          suggestion = { enabled = false },
-          panel = { enabled = false },
-        })
-      end
+  {
+    "olimorris/codecompanion.nvim",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-treesitter/nvim-treesitter"
     },
-    {
-      "zbirenbaum/copilot-cmp",
-      config = function()
-        require("copilot_cmp").setup()
-      end
-    },
-    {
-      -- support for image pasting
-      "HakonHarnes/img-clip.nvim",
-      event = "VeryLazy",
-      opts = {
-        -- recommended settings
-        default = {
-          embed_image_as_base64 = false,
-          prompt_for_file_name = false,
-          drag_and_drop = {
-            insert_mode = true,
+    opts = function()
+      return {
+        strategies = {
+          chat = {
+            adapter = "dmx_anthropic",
           },
-          -- required for Windows users
-          use_absolute_path = true,
+          inline = {
+            adapter = "dmx_anthropic",
+          }
         },
-      },
-    },
-    {
-      -- Make sure to setup it properly if you have lazy=true
-      'MeanderingProgrammer/render-markdown.nvim',
-      opts = {
-        file_types = { "markdown", "Avante" },
-      },
-      ft = { "markdown", "Avante" },
-    },
-  },
+        adapters = {
+          dmx_deepseek = function()
+            return require("codecompanion.adapters").extend("openai_compatible", {
+              env = {
+                url = api_base,
+                api_key = api_key,
+                chat_url = "/v1/chat/completions",
+              },
+              schema = {
+                model = {
+                  default = "deepseek-v3"
+                }
+              }
+            })
+          end,
+          dmx_anthropic = function()
+            return require("codecompanion.adapters").extend("openai_compatible", {
+              env = {
+                url = api_base,
+                api_key = api_key,
+                chat_url = "/v1/chat/completions",
+              },
+              schema = {
+                model = {
+                  default = "claude-3-7-sonnet-20250219",
+                }
+              }
+            })
+          end,
+        }
+      }
+    end
+  }
 }

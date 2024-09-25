@@ -1,40 +1,56 @@
 return {
   {
+    "neovim/nvim-lspconfig",
+    opts = {
+      servers = {
+        html = {},
+        taiwindcss = {
+          filetypes_exclude = { "markdown" },
+          filetypes_include = {}
+        },
+        vtsls = {
+          -- explicitly add default filetypes, so that we can extend
+          -- them in related extras
+          filetypes = {
+            "javascript",
+            "javascriptreact",
+            "javascript.jsx",
+            "typescript",
+            "typescriptreact",
+            "typescript.tsx",
+          },
+          settings = {
+            complete_function_calls = true,
+            vtsls = {
+              enableMoveToFileCodeAction = true,
+              autoUseWorkspaceTsdk = true,
+              experimental = {
+                maxInlayHintLength = 30,
+                completion = {
+                  enableServerSideFuzzyMatch = true,
+                },
+              },
+            },
+            typescript = {
+              updateImportsOnFileMove = { enabled = "always" },
+              suggest = {
+                completeFunctionCalls = true,
+              },
+              inlayHints = {
+                enumMemberValues = { enabled = true },
+                functionLikeReturnTypes = { enabled = true },
+                parameterNames = { enabled = "literals" },
+                parameterTypes = { enabled = true },
+                propertyDeclarationTypes = { enabled = true },
+                variableTypes = { enabled = false },
+              },
+            },
+          },
+        },
 
-    "nvim-treesitter/nvim-treesitter",
-    opts = function(_, opts)
-      vim.list_extend(opts.ensure_installed, {
-        "html",
-        "css",
-        "javascript",
-        "typescript",
-        "tsx",
-      })
-    end,
-  },
-  {
-    "williamboman/mason-lspconfig.nvim",
-    opts = function(_, opts)
-      local lspconfig = require("lspconfig")
-      opts = opts or {}
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, {
-        "html",
-        "cssls",
-        "ts_ls",
-      })
-      opts.handlers = opts.handlers or {}
-      opts.handlers["cssls"] = function()
-        lspconfig.cssls.setup({})
-      end
-      opts.handlers["html"] = function()
-        lspconfig.html.setup({})
-      end
-      opts.handlers["ts_ls"] = function()
-        lspconfig.ts_ls.setup({})
-      end
-      return opts
-    end,
+      },
+      tools = {},
+    },
   },
   {
     "stevearc/conform.nvim",

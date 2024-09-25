@@ -20,8 +20,14 @@ return {
       defaults = {
         prompt_prefix = " ",
         selection_caret = " ",
-        path_display = { "smart" },
-
+        cwd_only = true,
+        path_display = { "truncate" },
+        layout_strategy = "vertical",
+        layout_config = {
+          vertical = {
+            width = 120
+          },
+        },
         file_ignore_patterns = {
           "./node_modules/*",
           "node_modules",
@@ -63,6 +69,9 @@ return {
             ["<C-q>"] = actions.send_to_qflist + actions.open_qflist,
             ["<M-q>"] = actions.send_selected_to_qflist + actions.open_qflist,
 
+            ["-"] = actions.select_horizontal,
+            ["\\"] = actions.select_vertical,
+
             ["j"] = actions.move_selection_next,
             ["k"] = actions.move_selection_previous,
             ["H"] = actions.move_to_top,
@@ -89,6 +98,9 @@ return {
         -- }
         -- Now the picker_config_key will be applied every time you call this
         -- builtin picker
+        find_files = {
+          find_command = { "rg", "--files", "--hidden", "--no-ignore", "--glob", "!**/.git/*" },
+        },
         live_grep = {
           additional_args = function(_)
             return { "--hidden" }
@@ -102,20 +114,21 @@ return {
         -- }
         -- please take a look at the readme of the extension you want to configure
         fzf = {
-          fuzzy = true,              -- false will only do exact matching
+          fuzzy = true,                   -- false will only do exact matching
           override_generic_sorter = true, -- override the generic sorter
-          override_file_sorter = true, -- override the file sorter
-          case_mode = "smart_case",  -- or "ignore_case" or "respect_case"
+          override_file_sorter = true,    -- override the file sorter
+          case_mode = "smart_case",       -- or "ignore_case" or "respect_case"
         },
         file_browser = {
-          hijack_netrw = false,
+          hijack_netrw = true,
+          hidden = true,
           mappings = {
             ["i"] = {
               -- Custom insert mode key mappings
             },
             ["n"] = {
               -- Custom normal mode key mappings
-              ["a"] = fb_actions.create,
+              ["c"] = fb_actions.create,
               ["r"] = fb_actions.rename,
               ["m"] = fb_actions.move,
               ["y"] = fb_actions.copy,

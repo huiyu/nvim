@@ -1,6 +1,12 @@
 return {
-	"stevearc/conform.nvim",
-	config = function(_, opts)
-		require("conform").setup(opts)
-	end,
+  "stevearc/conform.nvim",
+  opts = {
+    default_format_opts = {
+      lsp_format = "fallback",
+    },
+    format_on_save = {
+      timeout_ms = 1000,
+      lsp_format = "fallback",
+    },
+  },
 }

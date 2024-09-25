@@ -1,0 +1,46 @@
+return {
+  "folke/snacks.nvim",
+  lazy = false,
+  opts = {
+    dashboard = {
+      enabled = true,
+      preset = {
+        keys = {
+          { icon = " ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
+          { icon = " ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
+          { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
+          { icon = " ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
+          { icon = " ", key = "s", desc = "Restore Session", section = "session" },
+          { icon = " ", key = "q", desc = "Quit", action = ":qa" },
+        },
+      },
+      sections = {
+        { section = "terminal",     cmd = "cowsay 'Talk is cheap, show me the code.'", hl = "header", padding = 1, indent = 8 },
+        { section = "keys",         padding = 1 },
+        { section = "recent_files", title = "Recent files",                            cwd = true,    limit = 8,   padding = 1 },
+        { section = "projects",     title = "Projects",                                padding = 1 },
+        {
+          icon = " ",
+          desc = "Browse Repo",
+          padding = 1,
+          key = "b",
+          action = function() Snacks.gitbrowse() end,
+        },
+        {
+          icon = " ",
+          title = "Git Status",
+          section = "terminal",
+          enabled = function()
+            return Snacks.git.get_root() ~= nil
+          end,
+          cmd = "git status --short --branch --renames",
+          height = 5,
+          padding = 1,
+          ttl = 5 * 60,
+          indent = 3,
+        },
+        { section = "startup" },
+      },
+    }
+  }
+}

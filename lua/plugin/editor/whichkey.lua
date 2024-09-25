@@ -1,7 +1,11 @@
 return {
   "folke/which-key.nvim",
   event = "VeryLazy",
-  dependencies = { "echasnovski/mini.nvim" },
+  dependencies = {
+    "echasnovski/mini.nvim",
+    "echasnovski/mini.icons",
+    "nvim-tree/nvim-web-devicons",
+  },
   opts = {
     -- the presets plugin, adds help for a bunch of default keybindings in Neovim
     -- No actual key bindings are created
@@ -25,6 +29,7 @@ return {
       spacing = 3,                    -- spacing between columns
       align = "center",               -- align columns left, center or right
     },
+    sort = { "group", "alphanum" },
   },
   init = function()
     local whichkey = require("which-key")
