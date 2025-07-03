@@ -1,20 +1,37 @@
+---@module "util.common"
+---Common utility functions for table manipulation and data processing
+---
+---Provides a functional programming interface for table operations
+---including mapping, filtering, and searching. Useful for plugin
+---configuration and data transformation tasks.
+---
+---@example
+---local common = require("util.common")
+---local tbl = common.table({a = 1, b = 2, c = 3})
+---local keys = tbl:keys():get() -- {a, b, c}
+---local doubled = tbl:map(function(k, v) return k, v * 2 end):get()
+
 local M = {}
 
+---Determines if a key represents an array element (positive integer index)
+---@param tbl table The table to check against
+---@param key any The key to evaluate
+---@return boolean True if the key is a valid array index
 local function is_array_element(tbl, key)
   if type(key) ~= "number" or key <= 0 or math.floor(key) ~= key then
     return false
   end
-  -- Check if the key is less than or equal to the array length
+  -- Check if the key is within the array bounds
   -- This assumes that the array part of the table is continuous
   return key <= #tbl
 end
 
---- Table manipulation module
--- @module M
-
---- Creates a new table wrapper object
--- @param tbl The table to wrap
--- @return A table wrapper object with various utility methods
+---Creates a new table wrapper object with utility methods
+---@param tbl table The table to wrap
+---@return table A table wrapper with chainable utility methods
+---@example
+---local tbl = M.table({1, 2, 3})
+---local doubled = tbl:map(function(k, v) return k, v * 2 end)
 M.table = function(tbl)
   if type(tbl) ~= "table" then error("Expected a table as the argument", 2) end
   local self = {}
@@ -25,17 +42,22 @@ M.table = function(tbl)
     return tbl
   end
 
-  --- Map function over table elements
-  -- @param func The function to apply to each key-value pair
-  -- @return A new table wrapper with the mapped results
+  ---Map function over table elements
+  ---@param func function Function to apply to each key-value pair (key, value, table) -> (new_key, new_value)
+  ---@return table A new table wrapper with the mapped results
+  ---@example
+  ---tbl:map(function(k, v) return k, v * 2 end) -- Double all values
+  ---tbl:map(function(k, v) return v end) -- Convert to array of values
   function self:map(func)
     if type(func) ~= "function" then error("Expected a function as the argument", 2) end
 
     local result = {}
     for k, v in pairs(tbl) do
       local a, b = func(k, v, tbl)
+      -- If only one return value, treat as array element
       if b == nil and a ~= nil then
         result[#result + 1] = a
+      -- If two return values, treat as key-value pair
       else
         result[a] = b
       end
@@ -71,7 +93,7 @@ M.table = function(tbl)
   -- @param item The value to search for
   -- @return true if the value is found, false otherwise
   function self:containsValue(item)
-    for _, v in ipairs(tbl) do
+    for _, v in pairs(tbl) do
       if item == v then
         return true
       end
@@ -83,20 +105,21 @@ M.table = function(tbl)
   -- @param item The key or value to search for
   -- @return true if the key or value is found, false otherwise
   function self:contains(item)
-    for k, v in ipairs(tbl) do
+    for k, v in pairs(tbl) do
       if is_array_element(tbl, k) then
         if v == item then return true end
       else
         if k == item then return true end
       end
     end
+    return false
   end
 
   --- Check if the table contains a specific key
   -- @param item The key to search for
   -- @return true if the key is found, false otherwise
   function self:containsKey(item)
-    for k, _ in ipairs(tbl) do
+    for k, _ in pairs(tbl) do
       if item == k then
         return true
       end

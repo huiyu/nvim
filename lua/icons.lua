@@ -1,3 +1,14 @@
+---@module "icons"
+---Icon definitions for Neovim UI components
+---
+---Provides consistent icon sets for various plugins and UI elements.
+---Uses Nerd Font symbols for better visual representation.
+---
+---@example
+---local icons = require("icons")
+---print(icons.diagnostics.Error)  -- " "
+---print(icons.git.added)          -- " "
+
 local M = {}
 
 M.dap = {

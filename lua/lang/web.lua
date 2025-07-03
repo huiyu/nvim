@@ -4,7 +4,7 @@ return {
     opts = {
       servers = {
         html = {},
-        taiwindcss = {
+        tailwindcss = {
           filetypes_exclude = { "markdown" },
           filetypes_include = {}
         },

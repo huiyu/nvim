@@ -64,7 +64,7 @@ return {
 
     local mr = require("mason-registry")
     mr.refresh(function()
-      for tool, config in ipairs(normalize_options(opts.tools)) do
+      for tool, config in pairs(normalize_options(opts.tools)) do
         local p = mr.get_package(tool)
         if not p:is_installed() then
           p:install(config)
@@ -78,6 +78,9 @@ return {
       return k, function() require("lspconfig")[k].setup(v) end
     end)
 
-    require("mason-lspconfig").setup_handlers(table_handlers:get())
+    require("mason-lspconfig").setup({
+      automatic_enable = true,
+      handlers = table_handlers:get()
+    })
   end,
 }

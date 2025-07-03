@@ -1,7 +1,7 @@
 --- Keybindings
 --- see https://neovim.io/doc/user/intro.html#vim-modes-intro
 vim.g.mapleader = " "
-vim.g.maplocalleder = "\\"
+vim.g.maplocalleader = "\\"
 
 -- Normal mode
 vim.keymap.set("n", "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, desc = "Move cursor down" })
@@ -50,10 +50,10 @@ return {
   { "<leader>cg", "<cmd>Telescope lsp_definitions<cr>",                                                   desc = "Goto definition",                   mode = { "n", "v" } },
   { "<leader>ct", "<cmd>Telescope lsp_typedefs<cr>",                                                      desc = "Type definition",                   mode = { "n", "v" }, },
   { "<leader>ce", "<cmd>Telescope lsp_references<cr>",                                                    desc = "Show references",                   mode = { "n", "v" }, },
-  { "<leader>ci", "<cmd>Telescope lsp_implementions<cr>",                                                 desc = "Show implementations",              mode = { "n", "v" }, },
+  { "<leader>ci", "<cmd>Telescope lsp_implementations<cr>",                                                 desc = "Show implementations",              mode = { "n", "v" }, },
   { "<leader>cd", function() require("telescope.builtin").diagnostics({ bufnr = 0 }) end,                 desc = "Buffer diagnostics",                mode = { "n", "v" }, },
   { "<leader>cD", "<cmd>Telescope diagnostics<cr>",                                                       desc = "Workspace diagnostics",             mode = { "n", "v" }, },
-  { "<leader>ci", "<cmd>Telescope lsp_incoming_calls<cr>",                                                desc = "Incoming calls",                    mode = { "n", "v" }, },
+  { "<leader>cI", "<cmd>Telescope lsp_incoming_calls<cr>",                                                desc = "Incoming calls",                    mode = { "n", "v" }, },
   { "<leader>co", "<cmd>Telescope lsp_outgoing_calls<cr>",                                                desc = "Outgoing calls",                    mode = { "n", "v" }, },
   { "<leader>cq", "<cmd>Telescope quickfix<cr>",                                                          desc = "Quickfix",                          mode = { "n", "v" }, },
   { "<leader>ch", function() vim.lsp.buf.hover() end,                                                     desc = "Hover doc",                         mode = { "n", "v" }, },
@@ -65,10 +65,10 @@ return {
   { ",g",         "<cmd>Telescope lsp_definitions<cr>",                                                   desc = "Goto definition",                   mode = { "n", "v" }, },
   { ",t",         "<cmd>Telescope lsp_typedefs<cr>",                                                      desc = "Type definition",                   mode = { "n", "v" }, },
   { ",e",         "<cmd>Telescope lsp_references<cr>",                                                    desc = "Show references",                   mode = { "n", "v" }, },
-  { ",i",         "<cmd>Telescope lsp_implementions<cr>",                                                 desc = "Show implementations",              mode = { "n", "v" }, },
+  { ",i",         "<cmd>Telescope lsp_implementations<cr>",                                                 desc = "Show implementations",              mode = { "n", "v" }, },
   { ",d",         function() require("telescope.builtin").diagnostics({ bufnr = 0 }) end,                 desc = "Buffer diagnostics",                mode = { "n", "v" }, },
   { ",D",         "<cmd>Telescope diagnostics<cr>",                                                       desc = "Workspace diagnostics",             mode = { "n", "v" }, },
-  { ",i",         "<cmd>Telescope lsp_incoming_calls<cr>",                                                desc = "Incoming calls",                    mode = { "n", "v" }, },
+  { ",I",         "<cmd>Telescope lsp_incoming_calls<cr>",                                                desc = "Incoming calls",                    mode = { "n", "v" }, },
   { ",o",         "<cmd>Telescope lsp_outgoing_calls<cr>",                                                desc = "Outgoing calls",                    mode = { "n", "v" }, },
   { ",q",         "<cmd>Telescope quickfix<cr>",                                                          desc = "Quickfix",                          mode = { "n", "v" }, },
   { ",h",         function() vim.lsp.buf.hover() end,                                                     desc = "Hover doc",                         mode = { "n", "v" }, },
@@ -79,7 +79,22 @@ return {
   { "<leader>dB", function() require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: ")) end,   desc = "Breakpoint Condition",              mode = { "n", "v" }, },
   { "<leader>db", function() require("dap").toggle_breakpoint() end,                                      desc = "Toggle Breakpoint",                 mode = { "n", "v" }, },
   { "<leader>dc", function() require("dap").continue() end,                                               desc = "Run/Continue",                      mode = { "n", "v" }, },
-  { "<leader>da", function() require("dap").continue({ before = get_args }) end,                          desc = "Run with Args",                     mode = { "n", "v" }, },
+  { "<leader>da", function() 
+    local get_args = function(config)
+      local args = type(config.args) == "function" and (config.args() or {}) or config.args or {}
+      local args_str = type(args) == "table" and table.concat(args, " ") or args
+      config = vim.deepcopy(config)
+      config.args = function()
+        local new_args = vim.fn.expand(vim.fn.input("Run with args: ", args_str))
+        if config.type and config.type == "java" then
+          return new_args
+        end
+        return require("dap.utils").splitstr(new_args)
+      end
+      return config
+    end
+    require("dap").continue({ before = get_args }) 
+  end, desc = "Run with Args", mode = { "n", "v" }, },
   { "<leader>dC", function() require("dap").run_to_cursor() end,                                          desc = "Run to Cursor",                     mode = { "n", "v" }, },
   { "<leader>dg", function() require("dap").goto_() end,                                                  desc = "Go to Line (No Execute)",           mode = { "n", "v" }, },
   { "<leader>di", function() require("dap").step_into() end,                                              desc = "Step Into",                         mode = { "n", "v" }, },
@@ -119,8 +134,8 @@ return {
   { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end,                          desc = "Test current file",                 mode = { "n", "v" } },
   { "<leader>tS", function() require("neotest").summary.toggle() end,                                     desc = "Toggle test summary",               mode = { "n", "v" } },
   { "<leader>to", function() require("neotest").output.open() end,                                        desc = "Toggle test output",                mode = { "n", "v" } },
-  { "<leader>td", function() require("neotest").diagnostic.show() end,                                    desc = "Show test diagnostic",              mode = { "n", "v" } },
-  { "<leader>tD", function() require("neotest").diagnostic.hide() end,                                    desc = "Hide test diagnostic",              mode = { "n", "v" } },
+  { "<leader>tD", function() require("neotest").diagnostic.show() end,                                    desc = "Show test diagnostic",              mode = { "n", "v" } },
+  { "<leader>th", function() require("neotest").diagnostic.hide() end,                                    desc = "Hide test diagnostic",              mode = { "n", "v" } },
 
 
   -- Help
@@ -129,7 +144,7 @@ return {
   { "<leader>hh", "<cmd>Telescope helptags<cr>",                                                          desc = "Help tags",                         mode = { "n", "v" } },
   { "<leader>hm", "<cmd>Telescope manpages<cr>",                                                          desc = "Man pages",                         mode = { "n", "v" } },
   { "<leader>ht", "<cmd>TodoTelescope<cr>",                                                               desc = "Todos",                             mode = { "n", "v" } },
-  { "<leader>hm", "<cmd>Telescope keymaps<cr>",                                                           desc = "Keymaps",                           mode = { "n", "v" } },
+  { "<leader>hk", "<cmd>Telescope keymaps<cr>",                                                           desc = "Keymaps",                           mode = { "n", "v" } },
   { "<leader>hr", "<cmd>Telescope registers<cr>",                                                         desc = "Registers",                         mode = { "n", "v" } },
   { "<leader>hj", "<cmd>Telescope jumplist<cr>",                                                          desc = "Jumps",                             mode = { "n", "v" } },
   { "<leader>hx", "<cmd>Telescope commands<cr>",                                                          desc = "Commands",                          mode = { "n", "v" } },
@@ -142,9 +157,9 @@ return {
   { "<leader>qW", "<cmd>wall<cr>",                                                                        desc = "Save all",                          mode = "n" },
   { "<leader>qq", "<cmd>qall<cr>",                                                                        desc = "Quit",                              mode = "n" },
   { "<leader>qQ", "<cmd>qa!<cr>",                                                                         desc = "Save and quit all",                 mode = "n" },
-  { "<leader>ql", function() require("persistent").load({ last = true }) end,                             desc = "Load last session",                 mode = "n", },
-  { "<leader>q.", function() require("persistent").load() end,                                            desc = "Load current sessions",             mode = "n", },
-  { "<leader>qs", function() require("persistent").save() end,                                            desc = "Save the session",                  mode = "n", },
+  { "<leader>ql", function() require("persistence").load({ last = true }) end,                             desc = "Load last session",                 mode = "n", },
+  { "<leader>q.", function() require("persistence").load() end,                                            desc = "Load current sessions",             mode = "n", },
+  { "<leader>qs", function() require("persistence").save() end,                                            desc = "Save the session",                  mode = "n", },
 
   -- Window
   { "<leader>w",  group = "Window",                                                                       mode = "n" },
@@ -201,7 +216,7 @@ return {
   {
     "[d",
     function()
-      vim.diagnostics.goto_prev()
+      vim.diagnostic.goto_prev()
     end,
     desc = "Prev diagnostic",
     mode = "n",
@@ -209,7 +224,7 @@ return {
   {
     "]d",
     function()
-      vim.diagnostics.goto_next()
+      vim.diagnostic.goto_next()
     end,
     desc = "Next diagnostic",
     mode = "n",

@@ -24,10 +24,10 @@ local function get_win_info(win_id)
   return {
     is_valid = vim.api.nvim_win_is_valid(win_id),
     is_current = ((win_id) == vim.api.nvim_get_current_win()),
-    is_preview = vim.api.nvim_win_get_option(win_id, 'previewwindow'),
-    is_modifiable = vim.api.nvim_buf_get_option(buf_id, 'modifiable'),
-    filetype = vim.api.nvim_buf_get_option(buf_id, 'filetype'),
-    buftype = vim.api.nvim_buf_get_option(buf_id, 'buftype'),
+    is_preview = vim.wo[win_id].previewwindow,
+    is_modifiable = vim.bo[buf_id].modifiable,
+    filetype = vim.bo[buf_id].filetype,
+    buftype = vim.bo[buf_id].buftype,
   }
 end
 
