@@ -1,6 +1,6 @@
 return {
-  "ur4ltz/surround.nvim",
-	opts = {
-		mappings_style = "surround",
-	},
+  "kylechui/nvim-surround",
+  version = "*",
+  event = "VeryLazy",
+  opts = {},
 }
