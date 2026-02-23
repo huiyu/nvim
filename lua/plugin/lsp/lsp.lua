@@ -1,8 +1,3 @@
-local common = require("util.common")
-local runtime_path = vim.split(package.path, ";")
-table.insert(runtime_path, "lua/?.lua")
-table.insert(runtime_path, "lua/?/init.lua")
-
 local function normalize_options(opts)
   local ret = {}
   for name, config in pairs(opts or {}) do
@@ -19,6 +14,12 @@ end
 
 return {
   "neovim/nvim-lspconfig",
+  keys = {
+    { "<leader>ca", function() vim.lsp.buf.code_action() end,    desc = "Code action",    mode = { "n", "v" } },
+    { "<leader>cr", function() vim.lsp.buf.rename() end,         desc = "Rename",         mode = { "n", "v" } },
+    { "<leader>ch", function() vim.lsp.buf.hover() end,          desc = "Hover doc",      mode = { "n", "v" } },
+    { "<leader>cH", function() vim.lsp.buf.signature_help() end, desc = "Signature help", mode = { "n", "v" } },
+  },
   dependencies = {
     { "williamboman/mason.nvim",           opts = {} },
     { "williamboman/mason-lspconfig.nvim", config = function() end },
@@ -31,29 +32,9 @@ return {
       ["lua_ls"] = {
         settings = {
           Lua = {
-            runtime = {
-              -- Tell the language server which version of Lua you're using (most likely LuaJIT in the case of Neovim)
-              version = "LuaJIT",
-              -- Setup your lua path
-              path = runtime_path,
-            },
-            diagnostics = {
-              -- Get the language server to recognize the `vim` global
-              globals = { "vim" },
-            },
-            workspace = {
-              -- Make the server aware of Neovim runtime files
-              library = vim.api.nvim_get_runtime_file("", true),
-              checkThirdParty = false,
-            },
-            -- Do not send telemetry data containing a randomized but unique identifier
-            telemetry = {
-              enable = false,
-            },
+            workspace = { checkThirdParty = false },
+            telemetry = { enable = false },
           },
-        },
-        flags = {
-          debounce_text_changes = 150,
         },
       },
     }
@@ -74,6 +55,7 @@ return {
 
     -- Map LSP servers to their setup functions and configure them using mason-lspconfig
     -- mason-lspconfig: link=https://github.com/williamboman/mason-lspconfig.nvim
+    local common = require("util.common")
     local table_handlers = common.table(normalize_options(opts.servers)):map(function(k, v)
       return k, function() require("lspconfig")[k].setup(v) end
     end)

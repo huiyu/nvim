@@ -9,7 +9,7 @@ return {
     opts = {
       servers = {
         ruff = {
-          cmd_nev = { RUFF_TRACE = "message" },
+          cmd_env = { RUFF_TRACE = "message" },
           init_options = {
             settings = {
               logLevel = "error",
@@ -17,13 +17,12 @@ return {
           },
           keys = {
             {
-              "<leader>co",
+              "<leader>cO",
               lsp.action["source.organizeImports"],
               desc = "Organize Imports",
             }
           }
         },
-        ["pylsp"] = {}
       },
       tools = {
         ["black"] = {}

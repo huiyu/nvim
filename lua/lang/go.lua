@@ -61,7 +61,7 @@ return {
   },
   {
     "nvim-neotest/neotest",
-    optiontal = true,
+    optional = true,
     dependencies = {
       "fredrikaverpil/neotest-golang",
     },

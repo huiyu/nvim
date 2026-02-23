@@ -74,11 +74,6 @@ return {
             },
             format = {
               enabled = true,
-              settings = {
-                -- Custom formatter profile (create this file for custom formatting)
-                url = vim.fn.stdpath("config") .. "/lang/java-google-style.xml",
-                profile = "GoogleStyle",  -- Use Google Java Style Guide
-              },
             },
           },
           signatureHelp = { enabled = true },
