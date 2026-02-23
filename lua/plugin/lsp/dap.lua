@@ -40,6 +40,25 @@ return {
   {
     "mfussenegger/nvim-dap",
     lazy = true,
+    keys = {
+      { "<leader>dB", function() require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: ")) end, desc = "Breakpoint Condition",    mode = { "n", "v" } },
+      { "<leader>db", function() require("dap").toggle_breakpoint() end,                                    desc = "Toggle Breakpoint",       mode = { "n", "v" } },
+      { "<leader>dc", function() require("dap").continue() end,                                             desc = "Run/Continue",            mode = { "n", "v" } },
+      { "<leader>da", function() require("dap").continue({ before = get_args }) end,                        desc = "Run with Args",           mode = { "n", "v" } },
+      { "<leader>dC", function() require("dap").run_to_cursor() end,                                        desc = "Run to Cursor",           mode = { "n", "v" } },
+      { "<leader>dg", function() require("dap").goto_() end,                                                desc = "Go to Line (No Execute)", mode = { "n", "v" } },
+      { "<leader>di", function() require("dap").step_into() end,                                            desc = "Step Into",               mode = { "n", "v" } },
+      { "<leader>dj", function() require("dap").down() end,                                                 desc = "Down",                    mode = { "n", "v" } },
+      { "<leader>dk", function() require("dap").up() end,                                                   desc = "Up",                      mode = { "n", "v" } },
+      { "<leader>dl", function() require("dap").run_last() end,                                             desc = "Run Last",                mode = { "n", "v" } },
+      { "<leader>do", function() require("dap").step_out() end,                                             desc = "Step Out",                mode = { "n", "v" } },
+      { "<leader>dO", function() require("dap").step_over() end,                                            desc = "Step Over",               mode = { "n", "v" } },
+      { "<leader>dP", function() require("dap").pause() end,                                                desc = "Pause",                   mode = { "n", "v" } },
+      { "<leader>dr", function() require("dap").repl.toggle() end,                                          desc = "Toggle REPL",             mode = { "n", "v" } },
+      { "<leader>ds", function() require("dap").session() end,                                              desc = "Session",                 mode = { "n", "v" } },
+      { "<leader>dt", function() require("dap").terminate() end,                                            desc = "Terminate",               mode = { "n", "v" } },
+      { "<leader>dw", function() require("dap.ui.widgets").hover() end,                                     desc = "Widgets",                 mode = { "n", "v" } },
+    },
     dependencies = {
       { "rcarriga/nvim-dap-ui",            dependencies = { "nvim-neotest/nvim-nio" }, config = function() end },
       { "theHamsta/nvim-dap-virtual-text", opts = {} },
@@ -65,7 +84,7 @@ return {
 
       -- Define signs for different debugging states:
       vim.fn.sign_define(
-        "DapStoped",
+        "DapStopped",
         { text = "󰁕", texthl = "DiagnosticWarn", linehl = "DapStoppedLine", numhl = "DapStoppedLine" }
       )
       vim.fn.sign_define("DapBreakpoint", { text = "", texthl = "DiagnosticInfo" })

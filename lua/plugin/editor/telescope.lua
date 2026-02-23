@@ -1,10 +1,48 @@
 return {
   "nvim-telescope/telescope.nvim",
+  cmd = "Telescope",
   dependencies = {
     { "nvim-lua/plenary.nvim" },
     { "nvim-telescope/telescope-file-browser.nvim" },
     { "nvim-telescope/telescope-fzf-native.nvim",  build = "make" },
     { "nvim-telescope/telescope-ui-select.nvim" },
+  },
+
+  keys = {
+    { "<leader>f",  function() require("telescope.builtin").find_files() end,                                                   desc = "Find file",                         mode = { "n", "v" } },
+    { "<leader>b",  function() require("telescope.builtin").buffers() end,                                                      desc = "Find buffer",                       mode = { "n", "v" } },
+    { "<leader>r",  function() require("telescope.builtin").oldfiles({ dir = vim.uv.cwd() }) end,                              desc = "Recent files",                      mode = { "n", "v" } },
+    { "<leader>\\", function() require("telescope.builtin").live_grep() end,                                                    desc = "Search",                            mode = { "n", "v" } },
+    -- Search
+    { "<leader>ss", function() require("telescope.builtin").live_grep({ search_dirs = { vim.fn.expand("%:p") } }) end,          desc = "Search buffer",                     mode = { "n", "v" } },
+    { "<leader>sp", "<cmd>Telescope live_grep<cr>",                                                                             desc = "Search project",                    mode = { "n", "v" } },
+    { "<leader>sm", "<cmd>Telescope lsp_document_symbols<cr>",                                                                  desc = "Search buffer symbols",             mode = { "n", "v" } },
+    { "<leader>sM", "<cmd>Telescope lsp_workspace_symbols<cr>",                                                                 desc = "Search workspace symbols",          mode = { "n", "v" } },
+    { "<leader>st", "<cmd>Telescope treesitter<cr>",                                                                            desc = "Current buffer treesitter symbols", mode = { "n", "v" } },
+    -- Code (telescope LSP pickers)
+    { "<leader>cg", "<cmd>Telescope lsp_definitions<cr>",                                                                       desc = "Goto definition",                   mode = { "n", "v" } },
+    { "<leader>ct", "<cmd>Telescope lsp_typedefs<cr>",                                                                          desc = "Type definition",                   mode = { "n", "v" } },
+    { "<leader>ce", "<cmd>Telescope lsp_references<cr>",                                                                        desc = "Show references",                   mode = { "n", "v" } },
+    { "<leader>ci", "<cmd>Telescope lsp_implementations<cr>",                                                                   desc = "Show implementations",              mode = { "n", "v" } },
+    { "<leader>cd", function() require("telescope.builtin").diagnostics({ bufnr = 0 }) end,                                    desc = "Buffer diagnostics",                mode = { "n", "v" } },
+    { "<leader>cD", "<cmd>Telescope diagnostics<cr>",                                                                           desc = "Workspace diagnostics",             mode = { "n", "v" } },
+    { "<leader>cI", "<cmd>Telescope lsp_incoming_calls<cr>",                                                                    desc = "Incoming calls",                    mode = { "n", "v" } },
+    { "<leader>co", "<cmd>Telescope lsp_outgoing_calls<cr>",                                                                    desc = "Outgoing calls",                    mode = { "n", "v" } },
+    { "<leader>cq", "<cmd>Telescope quickfix<cr>",                                                                              desc = "Quickfix",                          mode = { "n", "v" } },
+    -- Git (telescope git pickers)
+    { "<leader>gf", "<cmd>Telescope git_files<cr>",                                                                             desc = "List files",                        mode = { "n", "v" } },
+    { "<leader>go", "<cmd>Telescope git_status<cr>",                                                                            desc = "Status",                            mode = { "n", "v" } },
+    { "<leader>gb", "<cmd>Telescope git_branches<cr>",                                                                          desc = "Branches",                          mode = { "n", "v" } },
+    { "<leader>gc", "<cmd>Telescope git_bcommits<cr>",                                                                          desc = "Buffer commits",                    mode = { "n", "v" } },
+    { "<leader>gC", "<cmd>Telescope git_commits<cr>",                                                                           desc = "Project commits",                   mode = { "n", "v" } },
+    -- Help (telescope pickers)
+    { "<leader>hh", "<cmd>Telescope helptags<cr>",                                                                              desc = "Help tags",                         mode = { "n", "v" } },
+    { "<leader>hm", "<cmd>Telescope manpages<cr>",                                                                              desc = "Man pages",                         mode = { "n", "v" } },
+    { "<leader>hk", "<cmd>Telescope keymaps<cr>",                                                                               desc = "Keymaps",                           mode = { "n", "v" } },
+    { "<leader>hr", "<cmd>Telescope registers<cr>",                                                                             desc = "Registers",                         mode = { "n", "v" } },
+    { "<leader>hj", "<cmd>Telescope jumplist<cr>",                                                                              desc = "Jumps",                             mode = { "n", "v" } },
+    { "<leader>hx", "<cmd>Telescope commands<cr>",                                                                              desc = "Commands",                          mode = { "n", "v" } },
+    { "<leader>hX", "<cmd>Telescope commands_history<cr>",                                                                      desc = "Commands history",                  mode = { "n", "v" } },
   },
 
   opts = function()
