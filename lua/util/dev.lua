@@ -156,7 +156,7 @@ function M.system_info()
   local info = {
     neovim_version = vim.version(),
     lua_version = _VERSION,
-    os = vim.loop.os_uname(),
+    os = vim.uv.os_uname(),
     config_path = vim.fn.stdpath("config"),
     data_path = vim.fn.stdpath("data"),
     log_level = logger.get_level(),

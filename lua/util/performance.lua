@@ -35,7 +35,7 @@ Timer.__index = Timer
 function Timer:new(name)
   local timer = {
     name = name,
-    start_time = vim.loop.hrtime(),
+    start_time = vim.uv.hrtime(),
     end_time = nil,
   }
   setmetatable(timer, Timer)
@@ -50,7 +50,7 @@ function Timer:stop()
     return self:duration()
   end
   
-  self.end_time = vim.loop.hrtime()
+  self.end_time = vim.uv.hrtime()
   local duration = self:duration()
   
   logger.debug("Timer %s: %.2f ms", self.name, duration)
@@ -69,7 +69,7 @@ end
 function Timer:duration()
   if not self.end_time then
     -- Return current duration if not stopped
-    return (vim.loop.hrtime() - self.start_time) / 1000000
+    return (vim.uv.hrtime() - self.start_time) / 1000000
   end
   return (self.end_time - self.start_time) / 1000000
 end
@@ -121,13 +121,13 @@ function M.profile_startup()
     return
   end
   
-  local start_time = vim.loop.hrtime()
+  local start_time = vim.uv.hrtime()
   logger.debug("Startup profiling enabled")
   
   -- Profile VimEnter
   vim.api.nvim_create_autocmd("VimEnter", {
     callback = function()
-      startup_time = (vim.loop.hrtime() - start_time) / 1000000
+      startup_time = (vim.uv.hrtime() - start_time) / 1000000
       logger.info("Startup time: %.2f ms", startup_time)
       
       -- Store startup profile

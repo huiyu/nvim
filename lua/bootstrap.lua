@@ -17,7 +17,7 @@ local fn = vim.fn
 local install_path = fn.stdpath("data") .. "/lazy/lazy.nvim"
 
 -- Auto-install lazy.nvim if not present
-if not vim.loop.fs_stat(install_path) then
+if not vim.uv.fs_stat(install_path) then
   logger.debug("Installing lazy.nvim plugin manager...")
   
   local result = fn.system({
@@ -60,11 +60,14 @@ local success, error_msg = pcall(function()
       lazy = true,     -- Enable lazy loading for better performance
       version = false, -- Use latest versions instead of tagged releases
     },
+    rocks = {
+      enabled = false, -- Disable Luarocks integration until broken rockspecs are fixed (e.g. nvim-dap-python)
+    },
     install = {
       -- Install missing plugins on startup
       missing = true,
       -- Use a more conservative install approach
-      colorscheme = { "solarized" },
+      colorscheme = { "solarized-osaka" },
     },
     checker = { 
       enabled = true,  -- Automatically check for plugin updates

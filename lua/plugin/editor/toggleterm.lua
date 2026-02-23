@@ -1,6 +1,6 @@
 return {
-	"akinsho/toggleterm.nvim",
-	opts = {
-		direction = "float",
-	},
+  "akinsho/toggleterm.nvim",
+  opts = {
+    direction = "float",
+  },
 }

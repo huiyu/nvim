@@ -22,6 +22,11 @@ cmd("WindowCloseCurrent", function()
   require("util.window").close_current()
 end, { desc = "Close current window" })
 
--- Performance optimization: Removed auto-update on startup
--- Manual plugin updates can be performed with :Lazy update
--- This prevents slow startups caused by network requests
+-- Set cwd when opening a directory
+autocmd("VimEnter", {
+  callback = function(data)
+    if vim.fn.isdirectory(data.file) == 1 then
+      vim.cmd.cd(data.file)
+    end
+  end
+})

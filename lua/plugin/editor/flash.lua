@@ -13,7 +13,7 @@ return {
     require("flash").setup({
       modes = {
         char = {
-          keys = { "f", "F", "t", "T", "L", "H" },
+          keys = { "f", "F", "t", "T" },
         }
       }
     })

@@ -4,9 +4,9 @@ local options = {
   smartindent = true,  -- Make indenting smarter again
   expandtab = true,  -- convert tabs to spaces
   shiftround = true, -- When shifting lines, round the indentation to the nearest multiple of “shiftwidth.”
-  shiftwidth = 2,    -- When shifting, indent using four spaces.
+  shiftwidth = 2,    -- When shifting, indent using two spaces.
   smarttab = true,   -- Insert “tabstop” number of spaces when the “tab” key is pressed.
-  tabstop = 2,       -- Indent using four spaces.
+  tabstop = 2,       -- Indent using two spaces.
 
   -- Search Options --
   hlsearch = true,   -- Enable search highlighting.
@@ -49,7 +49,6 @@ local options = {
 }
 
 vim.opt.shortmess:append("c")
-vim.opt.clipboard:append({ "unnamedplus" }) -- only for macos
 
 for k, v in pairs(options) do
   vim.opt[k] = v
@@ -58,16 +57,3 @@ end
 -- Disable netrw
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
-
-
-vim.api.nvim_create_autocmd("VimEnter", {
-  callback = function(data)
-    -- Check if the entered path is a directory
-    local directory = vim.fn.isdirectory(data.file) == 1
-
-    if directory then
-      -- Change the current working directory to the entered path
-      vim.cmd.cd(data.file)
-    end
-  end
-})
