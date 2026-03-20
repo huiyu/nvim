@@ -106,7 +106,7 @@ nvim
 | [neotest](https://github.com/nvim-neotest/neotest) | Testing framework |
 | [fidget](https://github.com/j-hui/fidget.nvim) | LSP progress notifications |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua development (type completion) |
-| [copilot](https://github.com/coder/claudecode.nvim) | AI code assistance (Claude Code) |
+| [claudecode](https://github.com/coder/claudecode.nvim) | AI code assistance (Claude Code) |
 
 #### Version Control
 
@@ -136,6 +136,7 @@ Leader key: `Space` | Local leader: `\`
 | Key | Mode | Action |
 |-----|------|--------|
 | `jk` / `<C-c>` | Insert | Exit insert mode |
+| `<Esc><Esc>` / `jk` | Terminal | Exit terminal mode |
 | `j` / `k` | Normal | Smart cursor movement (respects wrapped lines) |
 | `<` / `>` | Visual | Indent and reselect |
 | `<A-j>` / `<A-k>` | Visual | Move selected lines up/down |
@@ -156,6 +157,21 @@ Leader key: `Space` | Local leader: `\`
 | `<leader>st` | Treesitter symbols |
 | `<leader>sr` | Search and replace |
 | `<leader>sw` | Replace current word |
+
+#### AI / Claude Code (`<leader>a`)
+
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>ac` | Normal | Toggle Claude |
+| `<leader>af` | Normal | Focus Claude |
+| `<leader>ar` | Normal | Resume Claude |
+| `<leader>aR` | Normal | Continue Claude |
+| `<leader>am` | Normal | Select model |
+| `<leader>ab` | Normal | Add current buffer |
+| `<leader>as` | Visual | Send to Claude |
+| `<leader>aa` | Normal | Accept diff |
+| `<leader>ad` | Normal | Deny diff |
+| `<leader>aS` | Normal | Add file from tree |
 
 #### Code (`<leader>c`)
 
@@ -186,10 +202,14 @@ Leader key: `Space` | Local leader: `\`
 | `<leader>dc` | Run / Continue |
 | `<leader>da` | Run with args |
 | `<leader>dC` | Run to cursor |
+| `<leader>dg` | Go to line (no execute) |
 | `<leader>di` | Step into |
+| `<leader>dj` | Down |
+| `<leader>dk` | Up |
 | `<leader>dO` | Step over |
 | `<leader>do` | Step out |
 | `<leader>dP` | Pause |
+| `<leader>ds` | Session |
 | `<leader>dt` | Terminate |
 | `<leader>dr` | Toggle REPL |
 | `<leader>dl` | Run last |
@@ -242,13 +262,16 @@ Leader key: `Space` | Local leader: `\`
 
 | Key | Action |
 |-----|--------|
-| `<C-h/j/k/l>` | Navigate windows |
+| `<C-h/j/k/l>` | Navigate windows (normal + terminal) |
 | `<leader>wv` | Split vertically |
 | `<leader>ws` | Split horizontally |
 | `<leader>wc` | Close window |
 | `<leader>wo` | Close other windows |
+| `<leader>wh/j/k/l` | Go to left/lower/upper/right window |
+| `<leader>ww` | Switch window |
 | `<leader>w+` / `<leader>w-` | Adjust height |
 | `<leader>w>` / `<leader>w<` | Adjust width |
+| `<leader>w\|` | Max out width |
 | `<leader>w=` | Equalize windows |
 
 #### Buffer Navigation
@@ -270,6 +293,7 @@ Leader key: `Space` | Local leader: `\`
 | `S` | Normal/Visual/Operator | Flash Treesitter |
 | `r` | Operator | Remote Flash |
 | `R` | Operator/Visual | Treesitter search |
+| `<C-s>` | Command | Toggle Flash search |
 
 #### Folding
 
@@ -482,6 +506,7 @@ Leader 键: `Space` | Local Leader: `\`
 | 键位 | 模式 | 功能 |
 |------|------|------|
 | `jk` / `<C-c>` | 插入 | 退出插入模式 |
+| `<Esc><Esc>` / `jk` | 终端 | 退出终端模式 |
 | `j` / `k` | 普通 | 智能光标移动（支持折行） |
 | `<` / `>` | 可视 | 缩进并保持选中 |
 | `<A-j>` / `<A-k>` | 可视 | 上下移动选中行 |
@@ -502,6 +527,21 @@ Leader 键: `Space` | Local Leader: `\`
 | `<leader>st` | Treesitter 符号 |
 | `<leader>sr` | 搜索替换 |
 | `<leader>sw` | 替换当前单词 |
+
+#### AI / Claude Code (`<leader>a`)
+
+| 键位 | 模式 | 功能 |
+|------|------|------|
+| `<leader>ac` | 普通 | 切换 Claude |
+| `<leader>af` | 普通 | 聚焦 Claude |
+| `<leader>ar` | 普通 | 恢复 Claude |
+| `<leader>aR` | 普通 | 继续 Claude |
+| `<leader>am` | 普通 | 选择模型 |
+| `<leader>ab` | 普通 | 添加当前缓冲区 |
+| `<leader>as` | 可视 | 发送到 Claude |
+| `<leader>aa` | 普通 | 接受 diff |
+| `<leader>ad` | 普通 | 拒绝 diff |
+| `<leader>aS` | 普通 | 从文件树添加文件 |
 
 #### 代码 (`<leader>c`)
 
@@ -532,10 +572,14 @@ Leader 键: `Space` | Local Leader: `\`
 | `<leader>dc` | 运行 / 继续 |
 | `<leader>da` | 带参数运行 |
 | `<leader>dC` | 运行到光标 |
+| `<leader>dg` | 跳转到行（不执行） |
 | `<leader>di` | 步入 |
+| `<leader>dj` | 向下 |
+| `<leader>dk` | 向上 |
 | `<leader>dO` | 步过 |
 | `<leader>do` | 步出 |
 | `<leader>dP` | 暂停 |
+| `<leader>ds` | 会话 |
 | `<leader>dt` | 终止 |
 | `<leader>dr` | 切换 REPL |
 | `<leader>dl` | 重新运行 |
@@ -588,13 +632,16 @@ Leader 键: `Space` | Local Leader: `\`
 
 | 键位 | 功能 |
 |------|------|
-| `<C-h/j/k/l>` | 窗口导航 |
+| `<C-h/j/k/l>` | 窗口导航（普通 + 终端模式） |
 | `<leader>wv` | 垂直分屏 |
 | `<leader>ws` | 水平分屏 |
 | `<leader>wc` | 关闭窗口 |
 | `<leader>wo` | 关闭其他窗口 |
+| `<leader>wh/j/k/l` | 跳转到左/下/上/右窗口 |
+| `<leader>ww` | 切换窗口 |
 | `<leader>w+` / `<leader>w-` | 调整高度 |
 | `<leader>w>` / `<leader>w<` | 调整宽度 |
+| `<leader>w\|` | 最大化宽度 |
 | `<leader>w=` | 均分窗口 |
 
 #### 缓冲区导航
@@ -616,6 +663,7 @@ Leader 键: `Space` | Local Leader: `\`
 | `S` | 普通/可视/操作符 | Flash Treesitter |
 | `r` | 操作符 | Remote Flash |
 | `R` | 操作符/可视 | Treesitter 搜索 |
+| `<C-s>` | 命令 | 切换 Flash 搜索 |
 
 #### 折叠
 

@@ -11,6 +11,10 @@ vim.keymap.set("n", "k", "v:count == 0 ? 'gk' : 'k'", { expr = true, desc = "Mov
 vim.keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode", noremap = true, silent = true })
 vim.keymap.set("i", "<C-c>", "<ESC>", { desc = "Exit insert mode", noremap = true, silent = true })
 
+-- Terminal mode: escape to normal mode (enables <leader> in terminal buffers)
+vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
+vim.keymap.set("t", "jk", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
+
 -- Visual & Select mode mappings
 vim.keymap.set("v", "<", "<gv", { desc = "Indent left", noremap = true, silent = true })
 vim.keymap.set("v", ">", ">gv", { desc = "Indent right", noremap = true, silent = true })
@@ -58,10 +62,10 @@ return {
   { "<leader>ww", "<C-w>w",                      desc = "Switch window",             mode = "n" },
 
   -- Window navigation (Ctrl+hjkl)
-  { "<C-h>", "<C-w>h", desc = "Go to left window",  mode = "n" },
-  { "<C-j>", "<C-w>j", desc = "Go to lower window", mode = "n" },
-  { "<C-k>", "<C-w>k", desc = "Go to upper window", mode = "n" },
-  { "<C-l>", "<C-w>l", desc = "Go to right window", mode = "n" },
+  { "<C-h>", "<C-w>h", desc = "Go to left window",  mode = { "n", "t" } },
+  { "<C-j>", "<C-w>j", desc = "Go to lower window", mode = { "n", "t" } },
+  { "<C-k>", "<C-w>k", desc = "Go to upper window", mode = { "n", "t" } },
+  { "<C-l>", "<C-w>l", desc = "Go to right window", mode = { "n", "t" } },
 
   -- Buffer/diagnostic navigation (built-in)
   { "[b", "<cmd>bprev<cr>",                              desc = "Previous buffer",  mode = "n" },

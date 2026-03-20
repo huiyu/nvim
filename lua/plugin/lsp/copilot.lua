@@ -25,9 +25,10 @@ return {
       { "<leader>aa", "<cmd>ClaudeCodeDiffAccept<cr>",    desc = "Accept diff" },
       { "<leader>ad", "<cmd>ClaudeCodeDiffDeny<cr>",      desc = "Deny diff" },
       {
-        "<leader>as",
+        "<leader>aS",
         "<cmd>ClaudeCodeTreeAdd<cr>",
-        desc = "Add file",
+        desc = "Add file from tree",
+        mode = "n",
         ft = { "NvimTree", "neo-tree", "oil", "minifiles", "snacks_explorer" },
       },
     },
