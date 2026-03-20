@@ -137,6 +137,7 @@ Leader key: `Space` | Local leader: `\`
 |-----|------|--------|
 | `jk` / `<C-c>` | Insert | Exit insert mode |
 | `<Esc><Esc>` / `jk` | Terminal | Exit terminal mode |
+| `<S-CR>` | Terminal | Newline in terminal apps (e.g. Claude Code) |
 | `j` / `k` | Normal | Smart cursor movement (respects wrapped lines) |
 | `<` / `>` | Visual | Indent and reselect |
 | `<A-j>` / `<A-k>` | Visual | Move selected lines up/down |
@@ -337,6 +338,17 @@ Leader key: `Space` | Local leader: `\`
 | `<leader>e` | File tree |
 | `<leader>E` | File explorer |
 
+### Terminal Integration (iTerm2)
+
+When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requires iTerm2 configuration because Neovim's built-in terminal cannot distinguish `Shift+Enter` from `Enter` by default.
+
+**iTerm2 setup**: Settings → Profiles → Keys → Key Mappings → Add:
+- **Shortcut**: `Shift + Return`
+- **Action**: `Send Escape Sequence`
+- **Value**: `[13;2u`
+
+This sends the CSI u encoded Shift+Enter (`\x1b[13;2u`) which Neovim recognizes as `<S-CR>` and forwards to the terminal app. Works in both iTerm2 directly and inside Neovim's terminal.
+
 ### Environment Variables
 
 | Variable | Description |
@@ -507,6 +519,7 @@ Leader 键: `Space` | Local Leader: `\`
 |------|------|------|
 | `jk` / `<C-c>` | 插入 | 退出插入模式 |
 | `<Esc><Esc>` / `jk` | 终端 | 退出终端模式 |
+| `<S-CR>` | 终端 | 终端应用内换行（如 Claude Code） |
 | `j` / `k` | 普通 | 智能光标移动（支持折行） |
 | `<` / `>` | 可视 | 缩进并保持选中 |
 | `<A-j>` / `<A-k>` | 可视 | 上下移动选中行 |
@@ -706,6 +719,17 @@ Leader 键: `Space` | Local Leader: `\`
 |------|------|
 | `<leader>e` | 文件树 |
 | `<leader>E` | 文件浏览器 |
+
+### 终端集成（iTerm2）
+
+在 Neovim 内运行终端应用（如 Claude Code）时，`Shift+Enter` 换行需要配置 iTerm2，因为 Neovim 内置终端默认无法区分 `Shift+Enter` 和 `Enter`。
+
+**iTerm2 配置**：Settings → Profiles → Keys → Key Mappings → 添加：
+- **Shortcut**：`Shift + Return`
+- **Action**：`Send Escape Sequence`
+- **Value**：`[13;2u`
+
+此配置让 iTerm2 发送 CSI u 编码的 Shift+Enter（`\x1b[13;2u`），Neovim 识别为 `<S-CR>` 后转发给终端应用。在 iTerm2 直接运行和 Neovim 终端内均可正常工作。
 
 ### 环境变量
 

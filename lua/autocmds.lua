@@ -22,6 +22,16 @@ cmd("WindowCloseCurrent", function()
   require("util.window").close_current()
 end, { desc = "Close current window" })
 
+-- Enter normal mode when switching to a terminal window
+-- Fixes cursor position jumping when refocusing terminal windows (e.g. Claude Code)
+autocmd("BufEnter", {
+  group = augroup("terminal_normal_mode", { clear = true }),
+  pattern = "term://*",
+  callback = function()
+    vim.cmd("stopinsert")
+  end,
+})
+
 -- Set cwd when opening a directory
 autocmd("VimEnter", {
   callback = function(data)

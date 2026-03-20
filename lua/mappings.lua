@@ -14,6 +14,13 @@ vim.keymap.set("i", "<C-c>", "<ESC>", { desc = "Exit insert mode", noremap = tru
 -- Terminal mode: escape to normal mode (enables <leader> in terminal buffers)
 vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
 vim.keymap.set("t", "jk", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
+-- Pass Shift+Enter to terminal apps (e.g. Claude Code uses it for newline)
+-- Neovim's terminal cannot distinguish Shift+Enter from Enter by default.
+-- iTerm2 setup required: Settings → Profiles → Keys → Key Mappings →
+--   Shortcut: Shift+Return, Action: Send Escape Sequence, Value: [13;2u
+vim.keymap.set("t", "<S-CR>", function()
+  vim.fn.chansend(vim.b.terminal_job_id, "\x1b[13;2u")
+end, { noremap = true, silent = true })
 
 -- Visual & Select mode mappings
 vim.keymap.set("v", "<", "<gv", { desc = "Indent left", noremap = true, silent = true })
