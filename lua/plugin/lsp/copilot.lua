@@ -7,6 +7,9 @@ return {
         split_side = "right",
         split_width_percentage = 0.40,
         provider = "snacks",
+        snacks_win_opts = {
+          auto_insert = false,
+        },
       },
       diff_opts = {
         auto_close_on_accept = true,

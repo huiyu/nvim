@@ -22,16 +22,6 @@ cmd("WindowCloseCurrent", function()
   require("util.window").close_current()
 end, { desc = "Close current window" })
 
--- Enter normal mode when switching to a terminal window
--- Fixes cursor position jumping when refocusing terminal windows (e.g. Claude Code)
-autocmd("BufEnter", {
-  group = augroup("terminal_normal_mode", { clear = true }),
-  pattern = "term://*",
-  callback = function()
-    vim.cmd("stopinsert")
-  end,
-})
-
 -- Optimize terminal buffer settings for TUI apps (e.g. Claude Code)
 -- Disables line numbers and scrolloff to prevent rendering glitches
 autocmd("TermOpen", {
