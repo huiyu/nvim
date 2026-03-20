@@ -32,6 +32,19 @@ autocmd("BufEnter", {
   end,
 })
 
+-- Optimize terminal buffer settings for TUI apps (e.g. Claude Code)
+-- Disables line numbers and scrolloff to prevent rendering glitches
+autocmd("TermOpen", {
+  group = augroup("terminal_ui_fix", { clear = true }),
+  callback = function()
+    vim.opt_local.number = false
+    vim.opt_local.relativenumber = false
+    vim.opt_local.scrolloff = 0
+    vim.opt_local.sidescrolloff = 0
+    vim.opt_local.signcolumn = "no"
+  end,
+})
+
 -- Set cwd when opening a directory
 autocmd("VimEnter", {
   callback = function(data)
