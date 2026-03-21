@@ -27,7 +27,7 @@ vim.keymap.set("v", "<", "<gv", { desc = "Indent left", noremap = true, silent =
 vim.keymap.set("v", ">", ">gv", { desc = "Indent right", noremap = true, silent = true })
 vim.keymap.set({ "v", "x" }, "<A-j>", ":m .+1<CR>==", { desc = "Move text down", noremap = true, silent = true })
 vim.keymap.set({ "v", "x" }, "<A-k>", ":m .-2<CR>==", { desc = "Move text up", noremap = true, silent = true })
-vim.keymap.set("v", "p", '"_dP', { desc = "Paste without yanking", noremap = true, silent = true })
+-- Note: visual paste handled by yanky.nvim (provides yank history cycling)
 
 return {
   -- Which-key group labels

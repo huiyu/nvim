@@ -6,6 +6,8 @@ return {
     { "<leader>E", function() require("snacks").explorer({ layout = { preset = "default" }, auto_close = true }) end, desc = "File explorer", mode = { "n", "v" } },
   },
   opts = {
+    indent = { enabled = true },
+    scroll = { enabled = true },
     dashboard = {
       enabled = true,
       preset = {
