@@ -6,7 +6,7 @@ return {
     "nvim-tree/nvim-web-devicons",
   },
   keys = {
-    { "<leader>hR", "<cmd>RenderMarkdown toggle<cr>", desc = "Toggle Markdown render", mode = "n" },
+    { "<leader>uR", "<cmd>RenderMarkdown toggle<cr>", desc = "Toggle Markdown render", mode = "n" },
   },
   opts = {},
 }

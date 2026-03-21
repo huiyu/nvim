@@ -2,12 +2,17 @@ return {
   "folke/noice.nvim",
   event = "VeryLazy",
   dependencies = {
-    -- if you lazy-load any plugin below, make sure to add proper `module="..."` entries
     "MunifTanjim/nui.nvim",
-    -- OPTIONAL:
-    --   `nvim-notify` is only needed, if you want to use the notification view.
-    --   If not available, we use `mini` as the fallback
     "rcarriga/nvim-notify",
+  },
+  keys = {
+    { "<leader>snl", function() require("noice").cmd("last") end,    desc = "Noice last message" },
+    { "<leader>snh", function() require("noice").cmd("history") end, desc = "Noice history" },
+    { "<leader>sna", function() require("noice").cmd("all") end,     desc = "Noice all" },
+    { "<leader>snd", function() require("noice").cmd("dismiss") end, desc = "Dismiss all" },
+    { "<leader>snt", function() require("noice").cmd("pick") end,    desc = "Noice picker" },
+    { "<C-f>", function() if not require("noice.lsp").scroll(4) then return "<C-f>" end end,  mode = { "i", "n", "s" }, expr = true, desc = "Scroll forward" },
+    { "<C-b>", function() if not require("noice.lsp").scroll(-4) then return "<C-b>" end end, mode = { "i", "n", "s" }, expr = true, desc = "Scroll backward" },
   },
   opts = {
     lsp = {
@@ -16,13 +21,12 @@ return {
         ["vim.lsp.util.stylize_markdown"] = true,
       },
     },
-    -- you can enable a preset for easier configuration
     presets = {
-      bottom_search = true,      -- use a classic bottom cmdline for search
-      command_palette = true,    -- position the cmdline and popupmenu together
-      long_message_to_split = true, -- long messages will be sent to a split
-      inc_rename = true,         -- enables an input dialog for inc-rename.nvim
-      lsp_doc_border = false,    -- add a border to hover docs and signature help
+      bottom_search = true,
+      command_palette = true,
+      long_message_to_split = true,
+      inc_rename = true,
+      lsp_doc_border = false,
     },
   },
 }

@@ -66,3 +66,6 @@ end
 -- Disable netrw
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
+
+-- Autoformat on save (toggle with <leader>uf)
+vim.g.autoformat = true

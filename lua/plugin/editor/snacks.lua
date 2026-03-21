@@ -4,6 +4,9 @@ return {
   keys = {
     { "<leader>e", function() require("snacks").explorer() end,                                                       desc = "File tree",     mode = { "n", "v" } },
     { "<leader>E", function() require("snacks").explorer({ layout = { preset = "default" }, auto_close = true }) end, desc = "File explorer", mode = { "n", "v" } },
+    { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
+    { "<leader>un", function() Snacks.notifier.hide() end,        desc = "Dismiss notifications" },
+    { "<C-/>",     function() Snacks.terminal() end,              desc = "Toggle terminal",  mode = { "n", "t" } },
   },
   opts = {
     indent = { enabled = true },
@@ -12,12 +15,12 @@ return {
       enabled = true,
       preset = {
         keys = {
-          { icon = " ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
-          { icon = " ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
-          { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
-          { icon = " ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
-          { icon = " ", key = "s", desc = "Restore Session", section = "session" },
-          { icon = " ", key = "q", desc = "Quit", action = ":qa" },
+          { icon = " ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
+          { icon = " ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
+          { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
+          { icon = " ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
+          { icon = " ", key = "s", desc = "Restore Session", section = "session" },
+          { icon = " ", key = "q", desc = "Quit", action = ":qa" },
         },
       },
       sections = {
@@ -26,14 +29,14 @@ return {
         { section = "recent_files", title = "Recent files",                            cwd = true,    limit = 8,   padding = 1 },
         { section = "projects",     title = "Projects",                                padding = 1 },
         {
-          icon = " ",
+          icon = " ",
           desc = "Browse Repo",
           padding = 1,
           key = "b",
           action = function() Snacks.gitbrowse() end,
         },
         {
-          icon = " ",
+          icon = " ",
           title = "Git Status",
           section = "terminal",
           enabled = function()

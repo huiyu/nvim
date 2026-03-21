@@ -9,40 +9,49 @@ return {
   },
 
   keys = {
-    { "<leader>f",  function() require("telescope.builtin").find_files() end,                                                   desc = "Find file",                         mode = { "n", "v" } },
-    { "<leader>b",  function() require("telescope.builtin").buffers() end,                                                      desc = "Find buffer",                       mode = { "n", "v" } },
-    { "<leader>r",  function() require("telescope.builtin").oldfiles({ dir = vim.uv.cwd() }) end,                              desc = "Recent files",                      mode = { "n", "v" } },
-    { "<leader>\\", function() require("telescope.builtin").live_grep() end,                                                    desc = "Search",                            mode = { "n", "v" } },
+    -- Top-level shortcuts
+    { "<leader><space>", function() require("telescope.builtin").find_files() end,  desc = "Find files" },
+    { "<leader>/",       function() require("telescope.builtin").live_grep() end,   desc = "Grep" },
+    { "<leader>,",       function() require("telescope.builtin").buffers() end,     desc = "Buffers" },
+    { "<leader>:",       function() require("telescope.builtin").command_history() end, desc = "Command history" },
+
+    -- Find/Files
+    { "<leader>ff", function() require("telescope.builtin").find_files() end,                                     desc = "Find files" },
+    { "<leader>fb", function() require("telescope.builtin").buffers() end,                                        desc = "Buffers" },
+    { "<leader>fr", function() require("telescope.builtin").oldfiles({ cwd_only = true }) end,                    desc = "Recent files" },
+    { "<leader>fg", "<cmd>Telescope git_files<cr>",                                                               desc = "Git files" },
+    { "<leader>fc", function() require("telescope.builtin").find_files({ cwd = vim.fn.stdpath("config") }) end,   desc = "Config files" },
+    { "<leader>fn", "<cmd>enew<cr>",                                                                              desc = "New file" },
+    { "<leader>ft", function() Snacks.terminal() end,                                                             desc = "Terminal (root)" },
+    { "<leader>fT", function() Snacks.terminal(nil, { cwd = vim.uv.cwd() }) end,                                 desc = "Terminal (cwd)" },
+    { "<leader>fp", function() Snacks.dashboard.pick("projects") end,                                             desc = "Projects" },
+
     -- Search
-    { "<leader>ss", function() require("telescope.builtin").live_grep({ search_dirs = { vim.fn.expand("%:p") } }) end,          desc = "Search buffer",                     mode = { "n", "v" } },
-    { "<leader>sp", "<cmd>Telescope live_grep<cr>",                                                                             desc = "Search project",                    mode = { "n", "v" } },
-    { "<leader>sm", "<cmd>Telescope lsp_document_symbols<cr>",                                                                  desc = "Search buffer symbols",             mode = { "n", "v" } },
-    { "<leader>sM", "<cmd>Telescope lsp_workspace_symbols<cr>",                                                                 desc = "Search workspace symbols",          mode = { "n", "v" } },
-    { "<leader>st", "<cmd>Telescope treesitter<cr>",                                                                            desc = "Current buffer treesitter symbols", mode = { "n", "v" } },
-    -- Code (telescope LSP pickers)
-    { "<leader>cg", "<cmd>Telescope lsp_definitions<cr>",                                                                       desc = "Goto definition",                   mode = { "n", "v" } },
-    { "<leader>ct", "<cmd>Telescope lsp_typedefs<cr>",                                                                          desc = "Type definition",                   mode = { "n", "v" } },
-    { "<leader>ce", "<cmd>Telescope lsp_references<cr>",                                                                        desc = "Show references",                   mode = { "n", "v" } },
-    { "<leader>ci", "<cmd>Telescope lsp_implementations<cr>",                                                                   desc = "Show implementations",              mode = { "n", "v" } },
-    { "<leader>cd", function() require("telescope.builtin").diagnostics({ bufnr = 0 }) end,                                    desc = "Buffer diagnostics",                mode = { "n", "v" } },
-    { "<leader>cD", "<cmd>Telescope diagnostics<cr>",                                                                           desc = "Workspace diagnostics",             mode = { "n", "v" } },
-    { "<leader>cI", "<cmd>Telescope lsp_incoming_calls<cr>",                                                                    desc = "Incoming calls",                    mode = { "n", "v" } },
-    { "<leader>co", "<cmd>Telescope lsp_outgoing_calls<cr>",                                                                    desc = "Outgoing calls",                    mode = { "n", "v" } },
-    { "<leader>cq", "<cmd>Telescope quickfix<cr>",                                                                              desc = "Quickfix",                          mode = { "n", "v" } },
+    { "<leader>ss", function() require("telescope.builtin").live_grep({ search_dirs = { vim.fn.expand("%:p") } }) end, desc = "Search buffer" },
+    { "<leader>sg", "<cmd>Telescope live_grep<cr>",                                                               desc = "Grep (root)" },
+    { "<leader>sG", function() require("telescope.builtin").live_grep({ cwd = vim.uv.cwd() }) end,               desc = "Grep (cwd)" },
+    { "<leader>sB", function() require("telescope.builtin").live_grep({ grep_open_files = true }) end,            desc = "Grep open buffers" },
+    { "<leader>sw", function() require("telescope.builtin").grep_string() end,                                    desc = "Word under cursor",     mode = { "n", "v" } },
+    { "<leader>sb", function() require("telescope.builtin").current_buffer_fuzzy_find() end,                      desc = "Buffer lines" },
+    { "<leader>sm", "<cmd>Telescope marks<cr>",                                                                   desc = "Marks" },
+    { "<leader>sR", "<cmd>Telescope resume<cr>",                                                                  desc = "Resume" },
+    { "<leader>sh", "<cmd>Telescope help_tags<cr>",                                                               desc = "Help pages" },
+    { "<leader>sk", "<cmd>Telescope keymaps<cr>",                                                                 desc = "Keymaps" },
+    { "<leader>sM", "<cmd>Telescope man_pages<cr>",                                                               desc = "Man pages" },
+    { "<leader>s\"", "<cmd>Telescope registers<cr>",                                                              desc = "Registers" },
+    { "<leader>sj", "<cmd>Telescope jumplist<cr>",                                                                desc = "Jumps" },
+    { "<leader>sc", "<cmd>Telescope command_history<cr>",                                                         desc = "Command history" },
+    { "<leader>sC", "<cmd>Telescope commands<cr>",                                                                desc = "Commands" },
+    { "<leader>sd", function() require("telescope.builtin").diagnostics({ bufnr = 0 }) end,                      desc = "Buffer diagnostics" },
+    { "<leader>sD", "<cmd>Telescope diagnostics<cr>",                                                             desc = "Workspace diagnostics" },
+    { "<leader>ss", "<cmd>Telescope lsp_document_symbols<cr>",                                                    desc = "Symbols (buffer)" },
+    { "<leader>sS", "<cmd>Telescope lsp_workspace_symbols<cr>",                                                   desc = "Symbols (workspace)" },
+
     -- Git (telescope git pickers)
-    { "<leader>gf", "<cmd>Telescope git_files<cr>",                                                                             desc = "List files",                        mode = { "n", "v" } },
-    { "<leader>go", "<cmd>Telescope git_status<cr>",                                                                            desc = "Status",                            mode = { "n", "v" } },
-    { "<leader>gb", "<cmd>Telescope git_branches<cr>",                                                                          desc = "Branches",                          mode = { "n", "v" } },
-    { "<leader>gc", "<cmd>Telescope git_bcommits<cr>",                                                                          desc = "Buffer commits",                    mode = { "n", "v" } },
-    { "<leader>gC", "<cmd>Telescope git_commits<cr>",                                                                           desc = "Project commits",                   mode = { "n", "v" } },
-    -- Help (telescope pickers)
-    { "<leader>hh", "<cmd>Telescope helptags<cr>",                                                                              desc = "Help tags",                         mode = { "n", "v" } },
-    { "<leader>hm", "<cmd>Telescope manpages<cr>",                                                                              desc = "Man pages",                         mode = { "n", "v" } },
-    { "<leader>hk", "<cmd>Telescope keymaps<cr>",                                                                               desc = "Keymaps",                           mode = { "n", "v" } },
-    { "<leader>hr", "<cmd>Telescope registers<cr>",                                                                             desc = "Registers",                         mode = { "n", "v" } },
-    { "<leader>hj", "<cmd>Telescope jumplist<cr>",                                                                              desc = "Jumps",                             mode = { "n", "v" } },
-    { "<leader>hx", "<cmd>Telescope commands<cr>",                                                                              desc = "Commands",                          mode = { "n", "v" } },
-    { "<leader>hX", "<cmd>Telescope commands_history<cr>",                                                                      desc = "Commands history",                  mode = { "n", "v" } },
+    { "<leader>gs", "<cmd>Telescope git_status<cr>",   desc = "Status" },
+    { "<leader>gb", "<cmd>Telescope git_branches<cr>", desc = "Branches" },
+    { "<leader>gc", "<cmd>Telescope git_bcommits<cr>", desc = "Buffer commits" },
+    { "<leader>gC", "<cmd>Telescope git_commits<cr>",  desc = "Project commits" },
   },
 
   opts = function()
@@ -56,8 +65,8 @@ return {
 
     return {
       defaults = {
-        prompt_prefix = " ",
-        selection_caret = " ",
+        prompt_prefix = " ",
+        selection_caret = " ",
         cwd_only = true,
         path_display = { "truncate" },
         layout_strategy = "vertical",
@@ -129,13 +138,6 @@ return {
         },
       },
       pickers = {
-        -- Default configuration for builtin pickers goes here:
-        -- picker_name = {
-        --   picker_config_key = value,
-        --   ...
-        -- }
-        -- Now the picker_config_key will be applied every time you call this
-        -- builtin picker
         find_files = {
           find_command = { "rg", "--files", "--hidden", "--no-ignore", "--glob", "!**/.git/*" },
         },
@@ -146,26 +148,18 @@ return {
         },
       },
       extensions = {
-        -- Your extension configuration goes here:
-        -- extension_name = {
-        --   extension_config_key = value,
-        -- }
-        -- please take a look at the readme of the extension you want to configure
         fzf = {
-          fuzzy = true,                   -- false will only do exact matching
-          override_generic_sorter = true, -- override the generic sorter
-          override_file_sorter = true,    -- override the file sorter
-          case_mode = "smart_case",       -- or "ignore_case" or "respect_case"
+          fuzzy = true,
+          override_generic_sorter = true,
+          override_file_sorter = true,
+          case_mode = "smart_case",
         },
         file_browser = {
           hijack_netrw = true,
           hidden = true,
           mappings = {
-            ["i"] = {
-              -- Custom insert mode key mappings
-            },
+            ["i"] = {},
             ["n"] = {
-              -- Custom normal mode key mappings
               ["c"] = fb_actions.create,
               ["r"] = fb_actions.rename,
               ["m"] = fb_actions.move,
@@ -180,9 +174,7 @@ return {
           },
         },
         ["ui-select"] = {
-          require("telescope.themes").get_dropdown({
-            -- even more opts
-          }),
+          require("telescope.themes").get_dropdown({}),
         },
       },
     }
