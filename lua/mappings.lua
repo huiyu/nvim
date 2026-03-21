@@ -38,6 +38,7 @@ return {
   { "<leader>t",  group = "Test" },
   { "<leader>h",  group = "Help",         mode = { "n", "v" } },
   { "<leader>x",  group = "Diagnostics",  mode = "n" },
+  { "<leader>a",  group = "AI/Claude Code" },
   { "<leader>q",  group = "Quit/Session", mode = "n" },
   { "<leader>w",  group = "Window",       mode = "n" },
 
