@@ -77,6 +77,7 @@ return {
   { "<leader>u",     group = "Toggle/UI" },
   { "<leader>x",     group = "Diagnostics",     mode = "n" },
   { "<leader>a",     group = "AI/Claude Code" },
+  { "<leader>r",     group = "Refactor",        mode = { "n", "v" } },
   { "<leader>q",     group = "Quit/Session",    mode = "n" },
   { "<leader>w",     group = "Window",          mode = "n" },
   { "<leader>sn",    group = "Noice" },
