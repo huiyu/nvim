@@ -27,7 +27,6 @@ return {
     { "<leader>fp", function() Snacks.dashboard.pick("projects") end,                                             desc = "Projects" },
 
     -- Search
-    { "<leader>ss", function() require("telescope.builtin").live_grep({ search_dirs = { vim.fn.expand("%:p") } }) end, desc = "Search buffer" },
     { "<leader>sg", "<cmd>Telescope live_grep<cr>",                                                               desc = "Grep (root)" },
     { "<leader>sG", function() require("telescope.builtin").live_grep({ cwd = vim.uv.cwd() }) end,               desc = "Grep (cwd)" },
     { "<leader>sB", function() require("telescope.builtin").live_grep({ grep_open_files = true }) end,            desc = "Grep open buffers" },

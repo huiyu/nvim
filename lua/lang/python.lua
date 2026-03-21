@@ -31,7 +31,7 @@ return {
           },
           keys = {
             {
-              "<leader>cO",
+              "<leader>co",
               lsp.action["source.organizeImports"],
               desc = "Organize Imports",
             }
