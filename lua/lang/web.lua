@@ -4,13 +4,17 @@ return {
     opts = {
       servers = {
         html = {},
+        cssls = {},
+        eslint = {
+          settings = {
+            workingDirectories = { mode = "auto" },
+          },
+        },
         tailwindcss = {
           filetypes_exclude = { "markdown" },
           filetypes_include = {}
         },
         vtsls = {
-          -- explicitly add default filetypes, so that we can extend
-          -- them in related extras
           filetypes = {
             "javascript",
             "javascriptreact",
@@ -47,9 +51,11 @@ return {
             },
           },
         },
-
       },
-      tools = {},
+      tools = {
+        ["eslint-lsp"] = {},
+        ["css-lsp"] = {},
+      },
     },
   },
   {

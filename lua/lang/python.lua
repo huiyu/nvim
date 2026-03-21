@@ -2,12 +2,26 @@ local lsp = require("util.lsp")
 return {
   {
     "nvim-treesitter/nvim-treesitter",
-    opts = { ensure_installed = { "ninja", "rst" } }
+    opts = { ensure_installed = { "python", "ninja", "rst" } }
   },
   {
     "neovim/nvim-lspconfig",
     opts = {
       servers = {
+        basedpyright = {
+          settings = {
+            basedpyright = {
+              analysis = {
+                typeCheckingMode = "basic",
+                autoImportCompletions = true,
+                diagnosticSeverityOverrides = {
+                  reportMissingImports = "error",
+                  reportUndefinedVariable = "error",
+                },
+              },
+            },
+          },
+        },
         ruff = {
           cmd_env = { RUFF_TRACE = "message" },
           init_options = {
@@ -25,7 +39,8 @@ return {
         },
       },
       tools = {
-        ["black"] = {}
+        ["basedpyright"] = {},
+        ["black"] = {},
       }
     },
   },
@@ -36,8 +51,20 @@ return {
       formatters_by_ft = {
         ["python"] = { "black" }
       }
-
     }
+  },
+  {
+    "linux-cultist/venv-selector.nvim",
+    branch = "regexp",
+    ft = "python",
+    dependencies = {
+      "neovim/nvim-lspconfig",
+      "nvim-telescope/telescope.nvim",
+    },
+    opts = {},
+    keys = {
+      { "<leader>cv", "<cmd>VenvSelect<cr>", desc = "Select virtualenv", ft = "python" },
+    },
   },
   {
     "mfussenegger/nvim-dap-python",
@@ -46,12 +73,9 @@ return {
       local python = vim.fn.expand("~/.local/share/nvim/mason/packages/debugpy/venv/bin/python")
       require("dap-python").setup(python)
     end,
-    -- Consider the mappings at
-    -- https://github.com/mfussenegger/nvim-dap-python?tab=readme-ov-file#mappings
     dependencies = {
       "mfussenegger/nvim-dap",
     },
-
   },
   {
     "mfussenegger/nvim-dap",

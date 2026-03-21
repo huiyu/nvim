@@ -27,6 +27,7 @@ return {
                 rangeVariableTypes = true,
               },
               analyses = {
+                fieldalignment = true,
                 nilness = true,
                 unusedparams = true,
                 unusedwrite = true,
@@ -41,13 +42,19 @@ return {
           },
         }
       },
-      tools = { ["goimports"] = {}, ["gofumpt"] = {} }
+      tools = {
+        ["goimports"] = {},
+        ["gofumpt"] = {},
+        ["gomodifytags"] = {},
+        ["impl"] = {},
+        ["golangci-lint"] = {},
+      }
     },
   },
   {
     "nvim-treesitter/nvim-treesitter",
     opts = {
-      ensure_installed = { "go", "gowork", "gomod", "gosum", }
+      ensure_installed = { "go", "gowork", "gomod", "gosum" }
     },
   },
   {
@@ -60,6 +67,15 @@ return {
     },
   },
   {
+    "mfussenegger/nvim-lint",
+    optional = true,
+    opts = {
+      linters_by_ft = {
+        go = { "golangcilint" },
+      },
+    },
+  },
+  {
     "nvim-neotest/neotest",
     optional = true,
     dependencies = {
@@ -68,9 +84,7 @@ return {
     opts = {
       adapters = {
         ["neotest-golang"] = {
-          -- Here we can set options for neotest-golang, e.g.
-          -- go_test_args = { "-v", "-race", "-count=1", "-timeout=60s" },
-          dap_go_enabled = true, -- requires leoluz/nvim-dap-go
+          dap_go_enabled = true,
         },
       },
     }
