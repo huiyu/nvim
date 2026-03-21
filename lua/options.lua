@@ -13,6 +13,8 @@ local options = {
   ignorecase = true, -- Ignore case when searching
   incsearch = true,  -- Incremental search that shows partial matches
   smartcase = true,  -- Automatic switch to case sensitive when search query contains an uppercase letter
+  grepprg = "rg --vimgrep", -- Use ripgrep for :grep
+  grepformat = "%f:%l:%c:%m", -- Parse ripgrep output
 
   -- Performance Options --
   updatetime = 300, -- faster completion (4000ms default)
@@ -20,9 +22,10 @@ local options = {
   -- Text Rendering Options --
   encoding = "utf-8", -- " Use unicode file encoding
   fileencoding = "utf-8",
-  scrolloff = 1,      -- The number of screen lines to keep above below the cursor
+  scrolloff = 4,      -- The number of screen lines to keep above below the cursor
   sidescrolloff = 5,  -- The number of screen columns to keep to the left and right of the cursor.
   termguicolors = true,
+  inccommand = "nosplit", -- Live preview for substitution commands
 
   -- User Interface Options --
   wildmenu = true,       -- Display command line’s tab complete options as a menu.
@@ -35,7 +38,10 @@ local options = {
   showcmd = true,
 
   -- Other Options --
+  autowrite = true,                        -- Auto save when switching buffers or leaving vim
   autoread = true,                         -- Automatically re-read files if unmodified inside Vim.
+  undofile = true,                         -- Persist undo history across sessions
+  undolevels = 10000,                      -- Maximum number of undo levels
   backup = false,                          -- Disable backup
   hidden = true,                           -- Hide files in the background instead of closing them.
   swapfile = false,                        -- Disable swap file
@@ -46,9 +52,12 @@ local options = {
   signcolumn = "yes",                      -- always show the sign column, otherwise it would shift the text each time
   showmode = false,                        -- we don't need to see things like -- INSERT -- anymore
   showtabline = 1,                         -- always show tabs
+  laststatus = 3,                          -- Global statusline (single statusline for all windows)
+  conceallevel = 2,                        -- Hide markup syntax in markdown etc.
 }
 
 vim.opt.shortmess:append("c")
+vim.opt.smoothscroll = true
 
 for k, v in pairs(options) do
   vim.opt[k] = v
