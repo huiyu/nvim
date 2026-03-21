@@ -9,7 +9,7 @@ return {
   opts = {
     -- the presets plugin, adds help for a bunch of default keybindings in Neovim
     -- No actual key bindings are created
-    preset = "helix",
+    preset = "classic",
     presets = {
       operators = true,    -- adds help for operators like d, y, ... and registers them for motion / text object completion
       motions = true,      -- adds help for motions

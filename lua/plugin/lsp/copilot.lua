@@ -3,6 +3,10 @@ return {
     "coder/claudecode.nvim",
     dependencies = { "folke/snacks.nvim" },
     opts = {
+      -- Wrap claude in tmux to handle DEC mode 2026 (synchronized output)
+      -- This fixes TUI rendering glitches in Neovim's built-in terminal
+      -- Session name based on cwd basename so each project gets its own session
+      terminal_cmd = "tmux new-session -A -s claude-$(basename $PWD) claude",
       terminal = {
         split_side = "right",
         split_width_percentage = 0.40,
