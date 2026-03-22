@@ -3,10 +3,8 @@ return {
     "coder/claudecode.nvim",
     dependencies = { "folke/snacks.nvim" },
     opts = {
-      -- Wrap claude in tmux to handle DEC mode 2026 (synchronized output)
-      -- This fixes TUI rendering glitches in Neovim's built-in terminal
-      -- Kill existing session first to ensure fresh env vars (SSE port, etc.)
-      terminal_cmd = "tmux kill-session -t claude-$(basename $PWD) 2>/dev/null; tmux new-session -s claude-$(basename $PWD) claude",
+      -- terminal_cmd: use default (claude) without tmux wrapper
+      -- tmux breaks env var passing (CLAUDE_CODE_SSE_PORT) needed for send/selection
       terminal = {
         split_side = "right",
         split_width_percentage = 0.40,
