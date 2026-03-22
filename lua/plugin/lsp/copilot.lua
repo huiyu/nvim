@@ -3,8 +3,9 @@ return {
     "coder/claudecode.nvim",
     dependencies = { "folke/snacks.nvim" },
     opts = {
-      -- terminal_cmd: use default (claude) without tmux wrapper
-      -- tmux breaks env var passing (CLAUDE_CODE_SSE_PORT) needed for send/selection
+      -- Wrap in tmux to fix DEC mode 2026 rendering glitches
+      -- Use -e to explicitly pass env vars that claudecode.nvim needs
+      terminal_cmd = "tmux kill-session -t claude-nvim 2>/dev/null; tmux new-session -s claude-nvim -e CLAUDE_CODE_SSE_PORT=$CLAUDE_CODE_SSE_PORT -e ENABLE_IDE_INTEGRATION=$ENABLE_IDE_INTEGRATION claude",
       terminal = {
         split_side = "right",
         split_width_percentage = 0.40,
