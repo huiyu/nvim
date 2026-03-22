@@ -85,7 +85,60 @@ return {
 
   -- Top-level shortcuts
   { "<leader>l",  "<cmd>Lazy<cr>",       desc = "Lazy",  mode = "n" },
-  { "<leader>?",  "<cmd>Telescope keymaps<cr>", desc = "Keymaps", mode = "n" },
+  { "<leader>sk", "<cmd>Telescope keymaps<cr>", desc = "Keymaps", mode = "n" },
+  { "<leader>?", function()
+    local lines = {
+      "  Trigger Key Reference",
+      "  ══════════════════════════════════════════",
+      "",
+      "  <leader>        Main command palette",
+      "  g               Goto / LSP (gd gr gI gy gD K gK gS)",
+      "  s / S           Flash jump / Treesitter jump",
+      "  [ / ]           Prev / Next navigation",
+      "                    b:buffer  d:diag  e:error  w:warn",
+      "                    h:hunk  q:qfix  t:todo  y:yank  B:move",
+      "  z               Folds / Spelling (zR zM zK)",
+      "  <C-w>           Window operations",
+      "  r / R           Flash remote (operator mode)",
+      "",
+      "  ── Ctrl ─────────────────────────────────",
+      "  <C-/>            Toggle terminal",
+      "  <C-s>            Save file (all modes)",
+      "  <C-h/j/k/l>     Window navigation",
+      "  <C-Up/Down/L/R>  Window resize",
+      "  <C-a> / <C-x>   Increment / Decrement",
+      "",
+      "  ── Alt / Shift ──────────────────────────",
+      "  <A-j> / <A-k>   Move line (n, i, v)",
+      "  <S-h> / <S-l>   Prev / Next buffer",
+      "",
+      "  ── Yanky ────────────────────────────────",
+      "  y / p / P        Yank / Put (with history)",
+      "  [y / ]y          Cycle yank history",
+      "",
+      "  Press prefix key + wait → which-key popup",
+      "  Press q or <Esc> to close",
+    }
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].bufhidden = "wipe"
+    local width = 50
+    local height = #lines
+    vim.api.nvim_open_win(buf, true, {
+      relative = "editor",
+      width = width,
+      height = height,
+      col = math.floor((vim.o.columns - width) / 2),
+      row = math.floor((vim.o.lines - height) / 2),
+      style = "minimal",
+      border = "rounded",
+      title = " Keybinding Guide ",
+      title_pos = "center",
+    })
+    vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = buf, silent = true })
+    vim.keymap.set("n", "<Esc>", "<cmd>close<cr>", { buffer = buf, silent = true })
+  end, desc = "Keybinding guide", mode = "n" },
 
   -- Quick splits
   { "<leader>-",  "<cmd>split<cr>",  desc = "Split below", mode = "n" },
