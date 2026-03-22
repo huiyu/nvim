@@ -13,6 +13,7 @@ return {
         provider = "snacks",
         snacks_win_opts = {
           auto_insert = false,
+          width = 90,
         },
       },
       diff_opts = {
