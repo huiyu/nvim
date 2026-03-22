@@ -8,15 +8,15 @@
 
 ## English
 
-A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/folke/lazy.nvim). Features lazy-loaded plugins, distributed keybinding architecture, and support for Go, Python, Java, Web, and Bash development.
+A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/folke/lazy.nvim). Aligned with [LazyVim](https://www.lazyvim.org/) conventions for keybindings and plugin choices, with support for Go, Python, Java, Web, Bash, JSON, and YAML development.
 
 ### Requirements
 
 - **Neovim** >= 0.10.0
 - **Git**
 - A [Nerd Font](https://www.nerdfonts.com/) for icon display
-- **ripgrep** (`rg`) for Telescope live grep
-- **fd** for Telescope file finder
+- **ripgrep** (`rg`) for grep and live search
+- **fd** for file finder
 - Language toolchains as needed (Go, Python, Node.js, Java)
 
 ### Installation
@@ -39,23 +39,23 @@ nvim
 ├── init.lua                  # Entry point
 ├── lua/
 │   ├── options.lua           # Vim options
-│   ├── mappings.lua          # Core keymaps + which-key groups
+│   ├── mappings.lua          # Core keymaps + which-key groups + toggle/UI
 │   ├── autocmds.lua          # Autocommands
 │   ├── bootstrap.lua         # lazy.nvim setup
 │   ├── lang/                 # Language-specific configs
 │   │   ├── bash.lua
 │   │   ├── go.lua
 │   │   ├── java.lua
+│   │   ├── json.lua
 │   │   ├── python.lua
-│   │   └── web.lua
+│   │   ├── web.lua
+│   │   └── yaml.lua
 │   ├── plugin/
 │   │   ├── editor/           # Editor enhancement plugins
 │   │   ├── lsp/              # LSP, completion, formatting, debugging
 │   │   ├── ui/               # UI and theme plugins
 │   │   └── vcs/              # Git integration
 │   └── util/                 # Utility modules
-├── after/ftplugin/           # Filetype overrides
-└── test/                     # Config tests
 ```
 
 ### Plugins
@@ -66,13 +66,15 @@ nvim
 |--------|-------------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
 | [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line |
-| [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs |
-| [noice](https://github.com/folke/noice.nvim) | Enhanced cmdline, messages, popupmenu |
+| [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick |
+| [noice](https://github.com/folke/noice.nvim) | Enhanced cmdline, messages, notifications |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
+| [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | Modern code folding |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME highlights |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor |
 | [colorizer](https://github.com/norcalli/nvim-colorizer.lua) | Color code highlighting |
+| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering |
 
 #### Editor
 
@@ -81,16 +83,20 @@ nvim
 | [telescope](https://github.com/nvim-telescope/telescope.nvim) | Fuzzy finder |
 | [flash](https://github.com/folke/flash.nvim) | Fast navigation with labels |
 | [which-key](https://github.com/folke/which-key.nvim) | Keybinding help popup |
-| [snacks](https://github.com/folke/snacks.nvim) | Dashboard, file explorer |
+| [snacks](https://github.com/folke/snacks.nvim) | Dashboard, file explorer, terminal, indent guides, smooth scroll, notifications |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
 | [trouble](https://github.com/folke/trouble.nvim) | Diagnostics panel |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
+| [harpoon](https://github.com/ThePrimeagen/harpoon) | Quick file navigation (`<leader>1-9`) |
+| [yanky](https://github.com/gbprod/yanky.nvim) | Yank history ring |
+| [dial](https://github.com/monaqa/dial.nvim) | Enhanced increment/decrement (booleans, dates, etc.) |
+| [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | Extract function/variable, inline |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | Enhanced text objects |
+| [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | Toggle single-line/multi-line (`gS`) |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | Surround manipulation |
 | [mini.comment](https://github.com/echasnovski/mini.comment) | Comment toggle |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | Auto-close pairs |
 | [persistence](https://github.com/folke/persistence.nvim) | Session management |
-| [toggleterm](https://github.com/akinsho/toggleterm.nvim) | Floating terminal |
 | [guess-indent](https://github.com/NMAC427/guess-indent.nvim) | Auto-detect indentation |
 
 #### LSP & Development
@@ -99,12 +105,13 @@ nvim
 |--------|-------------|
 | [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | LSP configuration |
 | [mason](https://github.com/williamboman/mason.nvim) | LSP/DAP/linter/formatter installer |
-| [blink.cmp](https://github.com/saghen/blink.cmp) | Completion engine (Rust-based) |
-| [conform](https://github.com/stevearc/conform.nvim) | Code formatting |
+| [blink.cmp](https://github.com/saghen/blink.cmp) | Completion engine with [friendly-snippets](https://github.com/rafamadriz/friendly-snippets) |
+| [conform](https://github.com/stevearc/conform.nvim) | Code formatting (with autoformat toggle) |
 | [nvim-lint](https://github.com/mfussenegger/nvim-lint) | Linting |
 | [nvim-dap](https://github.com/mfussenegger/nvim-dap) | Debug Adapter Protocol |
 | [neotest](https://github.com/nvim-neotest/neotest) | Testing framework |
-| [fidget](https://github.com/j-hui/fidget.nvim) | LSP progress notifications |
+| [neogen](https://github.com/danymat/neogen) | Generate annotations/docstrings |
+| [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema validation |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua development (type completion) |
 | [claudecode](https://github.com/coder/claudecode.nvim) | AI code assistance (Claude Code) |
 
@@ -117,237 +124,93 @@ nvim
 
 ### Language Support
 
-| Language | LSP | Formatter | Test | Debug |
-|----------|-----|-----------|------|-------|
-| Go | gopls | goimports, gofumpt | neotest-go | nvim-dap-go |
-| Python | pyright | ruff | neotest-python | nvim-dap-python |
-| Java | jdtls | google-java-format | - | - |
-| TypeScript/JS | ts_ls | prettierd | - | - |
-| HTML/CSS | html, cssls, tailwindcss | prettierd | - | - |
-| Bash | bashls | shfmt | - | - |
-| Lua | lua_ls | stylua | - | - |
+| Language | LSP | Formatter | Linter | Test | Debug |
+|----------|-----|-----------|--------|------|-------|
+| Go | gopls | goimports, gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
+| Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
+| Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
+| TypeScript/JS | vtsls | prettier | eslint | - | - |
+| HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
+| JSON | jsonls + SchemaStore | prettier | - | - | - |
+| YAML | yamlls + SchemaStore | prettier | - | - | - |
+| Bash | bashls | shfmt | - | - | - |
+| Lua | lua_ls | - | - | - | - |
 
 ### Keybinding Reference
 
-Leader key: `Space` | Local leader: `\`
+**Leader**: `Space` | **Local leader**: `\` | **Keybinding guide**: `<leader>?`
 
-#### General
+#### Trigger Key Prefixes
 
-| Key | Mode | Action |
-|-----|------|--------|
-| `jk` / `<C-c>` | Insert | Exit insert mode |
-| `<Esc><Esc>` / `jk` | Terminal | Exit terminal mode |
-| `<S-CR>` | Terminal | Newline in terminal apps (e.g. Claude Code) |
-| `j` / `k` | Normal | Smart cursor movement (respects wrapped lines) |
-| `<` / `>` | Visual | Indent and reselect |
-| `<A-j>` / `<A-k>` | Visual | Move selected lines up/down |
-| `p` | Visual | Paste without overwriting register |
+Press any prefix and wait for which-key popup to see available keys.
 
-#### Search (`<leader>s`)
+| Prefix | Category |
+|--------|----------|
+| `<leader>` | Main command palette (all groups below) |
+| `g` | Goto / LSP (`gd` definition, `gr` references, `K` hover, `gI` impl, `gy` type def, `gD` declaration, `gK` signature, `gS` splitjoin) |
+| `s` / `S` | Flash jump / Treesitter jump |
+| `[` / `]` | Prev / Next navigation (`b` buffer, `d` diagnostic, `e` error, `w` warning, `h` hunk, `q` quickfix, `t` todo, `y` yank, `B` move buffer) |
+| `z` | Folds / Spelling (`zR` open all, `zM` close all, `zK` peek) |
+| `<C-w>` | Window operations |
 
-| Key | Action |
-|-----|--------|
-| `<leader>f` | Find file |
-| `<leader>b` | Find buffer |
-| `<leader>r` | Recent files |
-| `<leader>\` | Live grep (project) |
-| `<leader>ss` | Search current buffer |
-| `<leader>sp` | Search project |
-| `<leader>sm` | Buffer symbols |
-| `<leader>sM` | Workspace symbols |
-| `<leader>st` | Treesitter symbols |
-| `<leader>sr` | Search and replace |
-| `<leader>sw` | Replace current word |
-
-#### AI / Claude Code (`<leader>a`)
-
-| Key | Mode | Action |
-|-----|------|--------|
-| `<leader>ac` | Normal | Toggle Claude |
-| `<leader>af` | Normal | Focus Claude |
-| `<leader>ar` | Normal | Resume Claude |
-| `<leader>aR` | Normal | Continue Claude |
-| `<leader>am` | Normal | Select model |
-| `<leader>ab` | Normal | Add current buffer |
-| `<leader>as` | Visual | Send to Claude |
-| `<leader>aa` | Normal | Accept diff |
-| `<leader>ad` | Normal | Deny diff |
-| `<leader>aS` | Normal | Add file from tree |
-
-#### Code (`<leader>c`)
+#### Top-level Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `<leader>ca` | Code action |
-| `<leader>cr` | Rename |
-| `<leader>cf` | Format |
-| `<leader>ch` | Hover doc |
-| `<leader>cH` | Signature help |
-| `<leader>cg` | Go to definition |
-| `<leader>ct` | Type definition |
-| `<leader>ce` | References |
-| `<leader>ci` | Implementations |
-| `<leader>cd` | Buffer diagnostics |
-| `<leader>cD` | Workspace diagnostics |
-| `<leader>cI` | Incoming calls |
-| `<leader>co` | Outgoing calls |
-| `<leader>cq` | Quickfix |
-| `<leader>cS` | Code outline (Aerial) |
+| `<C-s>` | Save file (all modes) |
+| `<Esc>` | Clear search highlight |
+| `<C-/>` | Toggle terminal |
+| `<C-h/j/k/l>` | Window navigation |
+| `<C-Up/Down/Left/Right>` | Window resize |
+| `<A-j>` / `<A-k>` | Move line up/down (n, i, v) |
+| `<S-h>` / `<S-l>` | Prev / Next buffer |
+| `<leader><space>` | Find files |
+| `<leader>/` | Grep |
+| `<leader>,` | Buffers |
+| `<leader>:` | Command history |
+| `<leader>?` | Keybinding guide |
+| `<leader>l` | Lazy (plugin manager) |
+| `<leader>n` | Notification history |
+| `<leader>e` / `<leader>E` | File tree / File explorer |
+| `<leader>-` / `<leader>\|` | Split below / right |
+| `<leader>1-9` | Harpoon: jump to file 1-9 |
+| `<leader>h` / `<leader>H` | Harpoon quick menu / add file |
 
-#### Debug (`<leader>d`)
+#### Leader Groups
 
-| Key | Action |
-|-----|--------|
-| `<leader>db` | Toggle breakpoint |
-| `<leader>dB` | Conditional breakpoint |
-| `<leader>dc` | Run / Continue |
-| `<leader>da` | Run with args |
-| `<leader>dC` | Run to cursor |
-| `<leader>dg` | Go to line (no execute) |
-| `<leader>di` | Step into |
-| `<leader>dj` | Down |
-| `<leader>dk` | Up |
-| `<leader>dO` | Step over |
-| `<leader>do` | Step out |
-| `<leader>dP` | Pause |
-| `<leader>ds` | Session |
-| `<leader>dt` | Terminate |
-| `<leader>dr` | Toggle REPL |
-| `<leader>dl` | Run last |
-| `<leader>dw` | Widgets |
+| Group | Key | Description |
+|-------|-----|-------------|
+| Find/Files | `<leader>f` | `ff` files, `fb` buffers, `fr` recent, `fg` git files, `fc` config, `fn` new, `ft/fT` terminal, `fp` projects |
+| Search | `<leader>s` | `sg` grep, `sw` word, `sb` buffer lines, `sm` marks, `sR` resume, `sh` help, `sk` keymaps, `sr` replace, `sW` replace word, `st/sT` todos, `ss/sS` symbols, `sn` noice |
+| Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (Trouble), `cv` select venv |
+| Buffer | `<leader>b` | `bd` delete, `bo` delete others, `bD` delete+window, `bl/br` delete left/right, `bj` pick, `bp` pin, `bP` close unpinned |
+| Debug | `<leader>d` | `db` breakpoint, `dc` continue, `di` step into, `do` step out, `dO` step over, `dt` terminate, `dl` run last |
+| Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage, `gu` undo stage, `gd` diff, `gv/gV` diffview, `gB` browse |
+| Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output |
+| Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
+| Diagnostics | `<leader>x` | `xx/xX` diagnostics, `xL` loclist, `xQ` quickfix, `xt/xT` todos |
+| Refactor | `<leader>r` | `rf` extract function, `rx` extract variable, `ri` inline, `rb` extract block, `rs` select |
+| AI | `<leader>a` | `ac` toggle, `af` focus, `ar` resume, `aR` continue, `am` model, `ab` add buffer, `as` send, `aa/ad` accept/deny diff |
+| Window | `<leader>w` | `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
+| Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
+| Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `l/f` last/first, `o` close others |
 
-#### Git (`<leader>g`)
-
-| Key | Action |
-|-----|--------|
-| `<leader>gj` / `<leader>gk` | Next / Previous hunk |
-| `<leader>gs` | Stage hunk |
-| `<leader>gu` | Undo stage |
-| `<leader>gr` | Reset hunk |
-| `<leader>gR` | Reset buffer |
-| `<leader>gp` | Preview hunk |
-| `<leader>gl` | Blame line |
-| `<leader>gL` | Blame buffer |
-| `<leader>gd` | Diff |
-| `<leader>gv` | Diff view |
-| `<leader>gV` | File history |
-| `<leader>go` | Git status |
-| `<leader>gb` | Branches |
-| `<leader>gc` | Buffer commits |
-| `<leader>gC` | Project commits |
-| `<leader>gf` | Git files |
-
-#### Test (`<leader>t`)
+#### Yanky (Enhanced Yank/Paste)
 
 | Key | Action |
 |-----|--------|
-| `<leader>tm` | Test current method |
-| `<leader>td` | Debug current method |
-| `<leader>tf` | Test current file |
-| `<leader>tS` | Toggle test summary |
-| `<leader>to` | Toggle test output |
-| `<leader>tD` | Show test diagnostic |
-| `<leader>th` | Hide test diagnostic |
-
-#### Diagnostics (`<leader>x`)
-
-| Key | Action |
-|-----|--------|
-| `<leader>xx` | Toggle diagnostics |
-| `<leader>xX` | Buffer diagnostics |
-| `<leader>xL` | Location list |
-| `<leader>xQ` | Quickfix list |
-| `<leader>xs` | Symbols |
-
-#### Window (`<leader>w`) & Navigation
-
-| Key | Action |
-|-----|--------|
-| `<C-h/j/k/l>` | Navigate windows (normal + terminal) |
-| `<leader>wv` | Split vertically |
-| `<leader>ws` | Split horizontally |
-| `<leader>wc` | Close window |
-| `<leader>wo` | Close other windows |
-| `<leader>wh/j/k/l` | Go to left/lower/upper/right window |
-| `<leader>ww` | Switch window |
-| `<leader>w+` / `<leader>w-` | Adjust height |
-| `<leader>w>` / `<leader>w<` | Adjust width |
-| `<leader>w\|` | Max out width |
-| `<leader>w=` | Equalize windows |
-
-#### Buffer Navigation
-
-| Key | Action |
-|-----|--------|
-| `[b` / `]b` | Previous / Next buffer |
-| `<S-h>` / `<S-l>` | Previous / Next buffer (bufferline) |
-| `<leader>bp` | Pin buffer |
-| `<leader>bP` | Close unpinned buffers |
-| `[d` / `]d` | Previous / Next diagnostic |
-| `[t` / `]t` | Previous / Next TODO |
-
-#### Flash Navigation
-
-| Key | Mode | Action |
-|-----|------|--------|
-| `s` | Normal/Visual/Operator | Flash jump |
-| `S` | Normal/Visual/Operator | Flash Treesitter |
-| `r` | Operator | Remote Flash |
-| `R` | Operator/Visual | Treesitter search |
-| `<C-s>` | Command | Toggle Flash search |
-
-#### Folding
-
-| Key | Action |
-|-----|--------|
-| `zR` | Open all folds |
-| `zM` | Close all folds |
-| `zK` | Peek fold |
-
-#### Session & Quit (`<leader>q`)
-
-| Key | Action |
-|-----|--------|
-| `<leader>qs` | Save session |
-| `<leader>q.` | Load current dir session |
-| `<leader>ql` | Load last session |
-| `<leader>qw` | Save file |
-| `<leader>qW` | Save all files |
-| `<leader>qq` | Quit |
-| `<leader>qQ` | Force quit all |
-| `<leader>qu` | Update plugins |
-
-#### Help (`<leader>h`)
-
-| Key | Action |
-|-----|--------|
-| `<leader>hn` | Clear search highlight |
-| `<leader>hh` | Help tags |
-| `<leader>hm` | Man pages |
-| `<leader>hk` | Keymaps |
-| `<leader>hr` | Registers |
-| `<leader>hj` | Jumps |
-| `<leader>hx` | Commands |
-| `<leader>hX` | Command history |
-| `<leader>ht` | TODOs |
-
-#### File Explorer
-
-| Key | Action |
-|-----|--------|
-| `<leader>e` | File tree |
-| `<leader>E` | File explorer |
+| `y` / `p` / `P` | Yank / Put (with history) |
+| `[y` / `]y` | Cycle through yank history |
+| `<leader>p` | Open yank history (Telescope) |
 
 ### Terminal Integration (iTerm2)
 
-When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requires iTerm2 configuration because Neovim's built-in terminal cannot distinguish `Shift+Enter` from `Enter` by default.
+When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requires iTerm2 configuration:
 
 **iTerm2 setup**: Settings → Profiles → Keys → Key Mappings → Add:
 - **Shortcut**: `Shift + Return`
 - **Action**: `Send Escape Sequence`
 - **Value**: `[13;2u`
-
-This sends the CSI u encoded Shift+Enter (`\x1b[13;2u`) which Neovim recognizes as `<S-CR>` and forwards to the terminal app. Works in both iTerm2 directly and inside Neovim's terminal.
 
 ### Environment Variables
 
@@ -357,28 +220,9 @@ This sends the CSI u encoded Shift+Enter (`\x1b[13;2u`) which Neovim recognizes 
 
 ### Customization
 
-**Add a new plugin** — create a file in the appropriate `lua/plugin/*/` directory:
+**Add a plugin** — create a file in the appropriate `lua/plugin/*/` directory.
 
-```lua
--- lua/plugin/editor/my-plugin.lua
-return {
-  "author/plugin-name",
-  event = "VeryLazy",  -- or cmd, keys, ft for lazy loading
-  opts = {},
-}
-```
-
-**Add language support** — create a file in `lua/lang/`:
-
-```lua
--- lua/lang/rust.lua
-return {
-  {
-    "neovim/nvim-lspconfig",
-    opts = { servers = { rust_analyzer = {} } },
-  },
-}
-```
+**Add language support** — create a file in `lua/lang/`.
 
 **Add an LSP server** — edit `lua/plugin/lsp/lsp.lua`, add to the `servers` table.
 
@@ -390,89 +234,64 @@ return {
 
 ## 中文
 
-基于 Lua 和 [lazy.nvim](https://github.com/folke/lazy.nvim) 构建的现代 Neovim 配置。支持插件懒加载、分布式键位架构，以及 Go、Python、Java、Web、Bash 开发。
+基于 Lua 和 [lazy.nvim](https://github.com/folke/lazy.nvim) 构建的现代 Neovim 配置。键位和插件选择与 [LazyVim](https://www.lazyvim.org/) 对齐，支持 Go、Python、Java、Web、Bash、JSON、YAML 开发。
 
 ### 环境要求
 
 - **Neovim** >= 0.10.0
 - **Git**
-- [Nerd Font](https://www.nerdfonts.com/) 字体（用于图标显示）
-- **ripgrep** (`rg`) 用于 Telescope 全文搜索
-- **fd** 用于 Telescope 文件查找
+- [Nerd Font](https://www.nerdfonts.com/)（图标显示）
+- **ripgrep** (`rg`) 全文搜索
+- **fd** 文件查找
 - 按需安装语言工具链（Go、Python、Node.js、Java）
 
 ### 安装
 
 ```bash
-# 备份现有配置
 mv ~/.config/nvim ~/.config/nvim.backup
-
-# 克隆仓库
 git clone <repository-url> ~/.config/nvim
-
-# 启动 Neovim — lazy.nvim 会自动安装所有插件
 nvim
-```
-
-### 项目结构
-
-```
-~/.config/nvim/
-├── init.lua                  # 入口文件
-├── lua/
-│   ├── options.lua           # Vim 选项设置
-│   ├── mappings.lua          # 核心键位映射 + which-key 分组
-│   ├── autocmds.lua          # 自动命令
-│   ├── bootstrap.lua         # lazy.nvim 初始化
-│   ├── lang/                 # 语言专属配置
-│   │   ├── bash.lua
-│   │   ├── go.lua
-│   │   ├── java.lua
-│   │   ├── python.lua
-│   │   └── web.lua
-│   ├── plugin/
-│   │   ├── editor/           # 编辑器增强插件
-│   │   ├── lsp/              # LSP、补全、格式化、调试
-│   │   ├── ui/               # 界面和主题插件
-│   │   └── vcs/              # Git 集成
-│   └── util/                 # 工具模块
-├── after/ftplugin/           # 文件类型覆盖配置
-└── test/                     # 配置测试
 ```
 
 ### 插件列表
 
-#### 界面 (UI)
+#### 界面
 
 | 插件 | 说明 |
 |------|------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
 | [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏 |
-| [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页 |
-| [noice](https://github.com/folke/noice.nvim) | 增强命令行、消息、弹出菜单 |
+| [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择） |
+| [noice](https://github.com/folke/noice.nvim) | 增强命令行、消息、通知 |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
+| [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | 现代代码折叠 |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME 高亮 |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮 |
 | [colorizer](https://github.com/norcalli/nvim-colorizer.lua) | 颜色代码高亮 |
+| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染 |
 
-#### 编辑器 (Editor)
+#### 编辑器
 
 | 插件 | 说明 |
 |------|------|
 | [telescope](https://github.com/nvim-telescope/telescope.nvim) | 模糊查找器 |
 | [flash](https://github.com/folke/flash.nvim) | 快速跳转导航 |
 | [which-key](https://github.com/folke/which-key.nvim) | 键位提示弹窗 |
-| [snacks](https://github.com/folke/snacks.nvim) | 启动页、文件浏览器 |
-| [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 / 符号导航 |
+| [snacks](https://github.com/folke/snacks.nvim) | 启动页、文件浏览器、终端、缩进线、平滑滚动、通知 |
+| [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
 | [trouble](https://github.com/folke/trouble.nvim) | 诊断面板 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
+| [harpoon](https://github.com/ThePrimeagen/harpoon) | 常用文件快速跳转（`<leader>1-9`） |
+| [yanky](https://github.com/gbprod/yanky.nvim) | Yank 历史环 |
+| [dial](https://github.com/monaqa/dial.nvim) | 增强递增/递减（布尔值、日期等） |
+| [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | 提取函数/变量、内联 |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | 增强文本对象 |
+| [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | 单行/多行切换（`gS`） |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | 包围符号操作 |
 | [mini.comment](https://github.com/echasnovski/mini.comment) | 注释切换 |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | 自动配对括号 |
 | [persistence](https://github.com/folke/persistence.nvim) | 会话管理 |
-| [toggleterm](https://github.com/akinsho/toggleterm.nvim) | 浮动终端 |
 | [guess-indent](https://github.com/NMAC427/guess-indent.nvim) | 自动检测缩进 |
 
 #### LSP 与开发工具
@@ -481,12 +300,13 @@ nvim
 |------|------|
 | [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | LSP 配置 |
 | [mason](https://github.com/williamboman/mason.nvim) | LSP/DAP/Linter/Formatter 安装管理 |
-| [blink.cmp](https://github.com/saghen/blink.cmp) | 补全引擎（Rust 实现） |
-| [conform](https://github.com/stevearc/conform.nvim) | 代码格式化 |
+| [blink.cmp](https://github.com/saghen/blink.cmp) | 补全引擎，含 [friendly-snippets](https://github.com/rafamadriz/friendly-snippets) |
+| [conform](https://github.com/stevearc/conform.nvim) | 代码格式化（支持自动格式化开关） |
 | [nvim-lint](https://github.com/mfussenegger/nvim-lint) | 代码检查 |
 | [nvim-dap](https://github.com/mfussenegger/nvim-dap) | 调试适配器协议 |
 | [neotest](https://github.com/nvim-neotest/neotest) | 测试框架 |
-| [fidget](https://github.com/j-hui/fidget.nvim) | LSP 进度通知 |
+| [neogen](https://github.com/danymat/neogen) | 自动生成注释/文档 |
+| [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema 验证 |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua 开发（类型补全） |
 | [claudecode](https://github.com/coder/claudecode.nvim) | AI 代码助手（Claude Code） |
 
@@ -495,276 +315,87 @@ nvim
 | 插件 | 说明 |
 |------|------|
 | [gitsigns](https://github.com/lewis6991/gitsigns.nvim) | Git 标记、块操作、blame |
-| [diffview](https://github.com/sindrets/diffview.nvim) | Diff 与文件历史查看 |
+| [diffview](https://github.com/sindrets/diffview.nvim) | Diff 与文件历史 |
 
 ### 语言支持
 
-| 语言 | LSP | 格式化 | 测试 | 调试 |
-|------|-----|--------|------|------|
-| Go | gopls | goimports, gofumpt | neotest-go | nvim-dap-go |
-| Python | pyright | ruff | neotest-python | nvim-dap-python |
-| Java | jdtls | google-java-format | - | - |
-| TypeScript/JS | ts_ls | prettierd | - | - |
-| HTML/CSS | html, cssls, tailwindcss | prettierd | - | - |
-| Bash | bashls | shfmt | - | - |
-| Lua | lua_ls | stylua | - | - |
+| 语言 | LSP | 格式化 | 检查 | 测试 | 调试 |
+|------|-----|--------|------|------|------|
+| Go | gopls | goimports, gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
+| Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
+| Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
+| TypeScript/JS | vtsls | prettier | eslint | - | - |
+| HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
+| JSON | jsonls + SchemaStore | prettier | - | - | - |
+| YAML | yamlls + SchemaStore | prettier | - | - | - |
+| Bash | bashls | shfmt | - | - | - |
+| Lua | lua_ls | - | - | - | - |
 
 ### 键位参考
 
-Leader 键: `Space` | Local Leader: `\`
+**Leader**: `Space` | **Local Leader**: `\` | **键位指南**: `<leader>?`
 
-#### 通用
+#### 触发键前缀
 
-| 键位 | 模式 | 功能 |
-|------|------|------|
-| `jk` / `<C-c>` | 插入 | 退出插入模式 |
-| `<Esc><Esc>` / `jk` | 终端 | 退出终端模式 |
-| `<S-CR>` | 终端 | 终端应用内换行（如 Claude Code） |
-| `j` / `k` | 普通 | 智能光标移动（支持折行） |
-| `<` / `>` | 可视 | 缩进并保持选中 |
-| `<A-j>` / `<A-k>` | 可视 | 上下移动选中行 |
-| `p` | 可视 | 粘贴且不覆盖寄存器 |
+按任意前缀稍等即可看到 which-key 弹窗。
 
-#### 搜索 (`<leader>s`)
+| 前缀 | 类别 |
+|------|------|
+| `<leader>` | 主命令面板 |
+| `g` | 跳转 / LSP（`gd` 定义, `gr` 引用, `K` 悬浮, `gI` 实现, `gy` 类型, `gD` 声明, `gK` 签名, `gS` 单行切换） |
+| `s` / `S` | Flash 跳转 / Treesitter 跳转 |
+| `[` / `]` | 前/后导航（`b` buffer, `d` 诊断, `e` 错误, `w` 警告, `h` hunk, `q` quickfix, `t` todo, `y` yank, `B` 移动 buffer） |
+| `z` | 折叠 / 拼写 |
+| `<C-w>` | 窗口操作 |
+
+#### 顶层快捷键
 
 | 键位 | 功能 |
 |------|------|
-| `<leader>f` | 查找文件 |
-| `<leader>b` | 查找缓冲区 |
-| `<leader>r` | 最近文件 |
-| `<leader>\` | 全文搜索（项目） |
-| `<leader>ss` | 搜索当前缓冲区 |
-| `<leader>sp` | 搜索项目 |
-| `<leader>sm` | 缓冲区符号 |
-| `<leader>sM` | 工作区符号 |
-| `<leader>st` | Treesitter 符号 |
-| `<leader>sr` | 搜索替换 |
-| `<leader>sw` | 替换当前单词 |
+| `<C-s>` | 保存（所有模式） |
+| `<Esc>` | 清除搜索高亮 |
+| `<C-/>` | 切换终端 |
+| `<C-h/j/k/l>` | 窗口导航 |
+| `<A-j>` / `<A-k>` | 移动行（n, i, v） |
+| `<S-h>` / `<S-l>` | 上/下一个 buffer |
+| `<leader><space>` | 查找文件 |
+| `<leader>/` | 全文搜索 |
+| `<leader>,` | 缓冲区列表 |
+| `<leader>:` | 命令历史 |
+| `<leader>?` | 键位指南 |
+| `<leader>l` | Lazy 插件管理 |
+| `<leader>n` | 通知历史 |
+| `<leader>e` / `<leader>E` | 文件树 / 文件浏览器 |
+| `<leader>-` / `<leader>\|` | 水平 / 垂直分屏 |
+| `<leader>1-9` | Harpoon 跳转到文件 |
 
-#### AI / Claude Code (`<leader>a`)
+#### Leader 分组
 
-| 键位 | 模式 | 功能 |
-|------|------|------|
-| `<leader>ac` | 普通 | 切换 Claude |
-| `<leader>af` | 普通 | 聚焦 Claude |
-| `<leader>ar` | 普通 | 恢复 Claude |
-| `<leader>aR` | 普通 | 继续 Claude |
-| `<leader>am` | 普通 | 选择模型 |
-| `<leader>ab` | 普通 | 添加当前缓冲区 |
-| `<leader>as` | 可视 | 发送到 Claude |
-| `<leader>aa` | 普通 | 接受 diff |
-| `<leader>ad` | 普通 | 拒绝 diff |
-| `<leader>aS` | 普通 | 从文件树添加文件 |
-
-#### 代码 (`<leader>c`)
-
-| 键位 | 功能 |
-|------|------|
-| `<leader>ca` | 代码操作 |
-| `<leader>cr` | 重命名 |
-| `<leader>cf` | 格式化 |
-| `<leader>ch` | 悬浮文档 |
-| `<leader>cH` | 签名帮助 |
-| `<leader>cg` | 跳转到定义 |
-| `<leader>ct` | 类型定义 |
-| `<leader>ce` | 引用 |
-| `<leader>ci` | 实现 |
-| `<leader>cd` | 缓冲区诊断 |
-| `<leader>cD` | 工作区诊断 |
-| `<leader>cI` | 调入调用 |
-| `<leader>co` | 调出调用 |
-| `<leader>cq` | Quickfix |
-| `<leader>cS` | 代码大纲 (Aerial) |
-
-#### 调试 (`<leader>d`)
-
-| 键位 | 功能 |
-|------|------|
-| `<leader>db` | 切换断点 |
-| `<leader>dB` | 条件断点 |
-| `<leader>dc` | 运行 / 继续 |
-| `<leader>da` | 带参数运行 |
-| `<leader>dC` | 运行到光标 |
-| `<leader>dg` | 跳转到行（不执行） |
-| `<leader>di` | 步入 |
-| `<leader>dj` | 向下 |
-| `<leader>dk` | 向上 |
-| `<leader>dO` | 步过 |
-| `<leader>do` | 步出 |
-| `<leader>dP` | 暂停 |
-| `<leader>ds` | 会话 |
-| `<leader>dt` | 终止 |
-| `<leader>dr` | 切换 REPL |
-| `<leader>dl` | 重新运行 |
-| `<leader>dw` | 变量检查 |
-
-#### Git (`<leader>g`)
-
-| 键位 | 功能 |
-|------|------|
-| `<leader>gj` / `<leader>gk` | 下一个 / 上一个 hunk |
-| `<leader>gs` | 暂存 hunk |
-| `<leader>gu` | 撤销暂存 |
-| `<leader>gr` | 重置 hunk |
-| `<leader>gR` | 重置缓冲区 |
-| `<leader>gp` | 预览 hunk |
-| `<leader>gl` | 行 blame |
-| `<leader>gL` | 缓冲区 blame |
-| `<leader>gd` | Diff |
-| `<leader>gv` | Diff 视图 |
-| `<leader>gV` | 文件历史 |
-| `<leader>go` | Git 状态 |
-| `<leader>gb` | 分支 |
-| `<leader>gc` | 缓冲区提交 |
-| `<leader>gC` | 项目提交 |
-| `<leader>gf` | Git 文件 |
-
-#### 测试 (`<leader>t`)
-
-| 键位 | 功能 |
-|------|------|
-| `<leader>tm` | 测试当前方法 |
-| `<leader>td` | 调试当前方法 |
-| `<leader>tf` | 测试当前文件 |
-| `<leader>tS` | 切换测试摘要 |
-| `<leader>to` | 切换测试输出 |
-| `<leader>tD` | 显示测试诊断 |
-| `<leader>th` | 隐藏测试诊断 |
-
-#### 诊断 (`<leader>x`)
-
-| 键位 | 功能 |
-|------|------|
-| `<leader>xx` | 切换诊断 |
-| `<leader>xX` | 缓冲区诊断 |
-| `<leader>xL` | 位置列表 |
-| `<leader>xQ` | Quickfix 列表 |
-| `<leader>xs` | 符号 |
-
-#### 窗口 (`<leader>w`) 与导航
-
-| 键位 | 功能 |
-|------|------|
-| `<C-h/j/k/l>` | 窗口导航（普通 + 终端模式） |
-| `<leader>wv` | 垂直分屏 |
-| `<leader>ws` | 水平分屏 |
-| `<leader>wc` | 关闭窗口 |
-| `<leader>wo` | 关闭其他窗口 |
-| `<leader>wh/j/k/l` | 跳转到左/下/上/右窗口 |
-| `<leader>ww` | 切换窗口 |
-| `<leader>w+` / `<leader>w-` | 调整高度 |
-| `<leader>w>` / `<leader>w<` | 调整宽度 |
-| `<leader>w\|` | 最大化宽度 |
-| `<leader>w=` | 均分窗口 |
-
-#### 缓冲区导航
-
-| 键位 | 功能 |
-|------|------|
-| `[b` / `]b` | 上一个 / 下一个缓冲区 |
-| `<S-h>` / `<S-l>` | 上一个 / 下一个缓冲区 (bufferline) |
-| `<leader>bp` | 固定缓冲区 |
-| `<leader>bP` | 关闭未固定缓冲区 |
-| `[d` / `]d` | 上一个 / 下一个诊断 |
-| `[t` / `]t` | 上一个 / 下一个 TODO |
-
-#### Flash 快速导航
-
-| 键位 | 模式 | 功能 |
-|------|------|------|
-| `s` | 普通/可视/操作符 | Flash 跳转 |
-| `S` | 普通/可视/操作符 | Flash Treesitter |
-| `r` | 操作符 | Remote Flash |
-| `R` | 操作符/可视 | Treesitter 搜索 |
-| `<C-s>` | 命令 | 切换 Flash 搜索 |
-
-#### 折叠
-
-| 键位 | 功能 |
-|------|------|
-| `zR` | 打开所有折叠 |
-| `zM` | 关闭所有折叠 |
-| `zK` | 预览折叠 |
-
-#### 会话与退出 (`<leader>q`)
-
-| 键位 | 功能 |
-|------|------|
-| `<leader>qs` | 保存会话 |
-| `<leader>q.` | 加载当前目录会话 |
-| `<leader>ql` | 加载上次会话 |
-| `<leader>qw` | 保存文件 |
-| `<leader>qW` | 保存所有文件 |
-| `<leader>qq` | 退出 |
-| `<leader>qQ` | 强制退出全部 |
-| `<leader>qu` | 更新插件 |
-
-#### 帮助 (`<leader>h`)
-
-| 键位 | 功能 |
-|------|------|
-| `<leader>hn` | 清除搜索高亮 |
-| `<leader>hh` | 帮助标签 |
-| `<leader>hm` | Man 手册 |
-| `<leader>hk` | 键位映射 |
-| `<leader>hr` | 寄存器 |
-| `<leader>hj` | 跳转列表 |
-| `<leader>hx` | 命令 |
-| `<leader>hX` | 命令历史 |
-| `<leader>ht` | TODO 列表 |
-
-#### 文件浏览器
-
-| 键位 | 功能 |
-|------|------|
-| `<leader>e` | 文件树 |
-| `<leader>E` | 文件浏览器 |
+| 分组 | 键 | 说明 |
+|------|----|------|
+| 查找 | `<leader>f` | `ff` 文件, `fb` buffer, `fr` 最近, `fg` git 文件, `fc` 配置, `fn` 新建, `ft/fT` 终端, `fp` 项目 |
+| 搜索 | `<leader>s` | `sg` grep, `sw` 当前词, `sb` buffer 行, `sm` 标记, `sR` 恢复, `sh` 帮助, `sk` 键位, `sr` 替换, `st/sT` todo, `ss/sS` 符号, `sn` noice |
+| 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号, `cv` 虚拟环境 |
+| Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bl/br` 删除左/右, `bj` 选择, `bp` 固定 |
+| 调试 | `<leader>d` | `db` 断点, `dc` 继续, `di` 步入, `do` 步出, `dO` 步过, `dt` 终止, `dl` 重跑 |
+| Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存, `gd` diff, `gv/gV` diff 视图, `gB` 浏览 |
+| 测试 | `<leader>t` | `tm` 测试方法, `td` 调试方法, `tf` 测试文件, `tS` 摘要, `to` 输出 |
+| 切换 | `<leader>u` | `uf` 自动格式化, `us` 拼写, `uw` 换行, `ul/uL` 行号, `ud` 诊断, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` 背景, `un` 关闭通知, `uR` markdown 渲染 |
+| 诊断 | `<leader>x` | `xx/xX` 诊断, `xL` loclist, `xQ` quickfix, `xt/xT` todo |
+| 重构 | `<leader>r` | `rf` 提取函数, `rx` 提取变量, `ri` 内联, `rb` 提取块, `rs` 选择 |
+| AI | `<leader>a` | `ac` 切换, `af` 聚焦, `ar` 恢复, `am` 模型, `ab` 添加 buffer, `as` 发送, `aa/ad` 接受/拒绝 diff |
+| 窗口 | `<leader>w` | `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
+| 退出 | `<leader>q` | `qq/qQ` 退出, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
+| 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个 |
 
 ### 终端集成（iTerm2）
 
-在 Neovim 内运行终端应用（如 Claude Code）时，`Shift+Enter` 换行需要配置 iTerm2，因为 Neovim 内置终端默认无法区分 `Shift+Enter` 和 `Enter`。
+在 Neovim 内运行终端应用（如 Claude Code）时，`Shift+Enter` 需配置 iTerm2：
 
-**iTerm2 配置**：Settings → Profiles → Keys → Key Mappings → 添加：
+Settings → Profiles → Keys → Key Mappings → 添加：
 - **Shortcut**：`Shift + Return`
 - **Action**：`Send Escape Sequence`
 - **Value**：`[13;2u`
-
-此配置让 iTerm2 发送 CSI u 编码的 Shift+Enter（`\x1b[13;2u`），Neovim 识别为 `<S-CR>` 后转发给终端应用。在 iTerm2 直接运行和 Neovim 终端内均可正常工作。
-
-### 环境变量
-
-| 变量 | 说明 |
-|------|------|
-| `NVIM_DEV=1` | 启用开发工具（`:DevReload`、`:DevTest`、`:DevValidate`、`:DevInfo`、`:DevPlugins`、`:DevProfile`） |
-
-### 自定义
-
-**添加插件** — 在对应 `lua/plugin/*/` 目录下创建文件：
-
-```lua
--- lua/plugin/editor/my-plugin.lua
-return {
-  "author/plugin-name",
-  event = "VeryLazy",  -- 或 cmd, keys, ft 实现懒加载
-  opts = {},
-}
-```
-
-**添加语言支持** — 在 `lua/lang/` 目录下创建文件：
-
-```lua
--- lua/lang/rust.lua
-return {
-  {
-    "neovim/nvim-lspconfig",
-    opts = { servers = { rust_analyzer = {} } },
-  },
-}
-```
-
-**添加 LSP 服务器** — 编辑 `lua/plugin/lsp/lsp.lua`，添加到 `servers` 表中。
-
-**添加格式化工具** — 编辑 `lua/plugin/lsp/conform.lua`，添加到 `formatters_by_ft`。
 
 ---
 
