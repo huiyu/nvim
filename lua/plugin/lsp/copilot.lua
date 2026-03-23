@@ -6,9 +6,14 @@ return {
       -- Wrap in tmux to fix DEC mode 2026 rendering glitches
       -- Use -e to explicitly pass env vars that claudecode.nvim needs
       -- Use PID-based session name so multiple Neovim instances don't conflict
-      terminal_cmd = ("tmux kill-session -t claude-nvim-%d 2>/dev/null; tmux new-session -s claude-nvim-%d -e CLAUDE_CODE_SSE_PORT=$CLAUDE_CODE_SSE_PORT -e ENABLE_IDE_INTEGRATION=$ENABLE_IDE_INTEGRATION claude"):format(
-        vim.fn.getpid(), vim.fn.getpid()
-      ),
+      terminal_cmd = (
+        "tmux kill-session -t claude-nvim-%d 2>/dev/null; tmux new-session -s claude-nvim-%d"
+        .. " -e CLAUDE_CODE_SSE_PORT=$CLAUDE_CODE_SSE_PORT -e ENABLE_IDE_INTEGRATION=$ENABLE_IDE_INTEGRATION"
+        .. " claude"
+        .. (vim.env.CLAUDE_PLUGIN_DIR
+          and (" " .. table.concat(vim.tbl_map(function(d) return "--plugin-dir " .. d end, vim.split(vim.env.CLAUDE_PLUGIN_DIR, ",")), " "))
+          or "")
+      ):format(vim.fn.getpid(), vim.fn.getpid()),
       terminal = {
         split_side = "right",
         split_width_percentage = 0.40,

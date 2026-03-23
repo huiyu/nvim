@@ -6,6 +6,19 @@ vim.g.maplocalleader = "\\"
 -- Save file
 vim.keymap.set({ "i", "x", "n", "s" }, "<C-s>", "<cmd>w<cr><esc>", { desc = "Save file" })
 
+-- Open URL under cursor, or current file with system default app
+vim.keymap.set("n", "gx", function()
+  local word = vim.fn.expand("<cfile>")
+  if word:match("^https?://") then
+    vim.ui.open(word)
+  else
+    local file = vim.fn.expand("%:p")
+    if file ~= "" then
+      vim.ui.open(file)
+    end
+  end
+end, { desc = "Open URL or file with system app" })
+
 -- Clear search highlight on Escape
 vim.keymap.set({ "i", "n" }, "<Esc>", "<cmd>nohlsearch<cr><Esc>", { desc = "Escape and clear hlsearch" })
 
@@ -35,6 +48,8 @@ end, { noremap = true, silent = true })
 -- Visual & Select mode
 vim.keymap.set("v", "<", "<gv", { desc = "Indent left", noremap = true, silent = true })
 vim.keymap.set("v", ">", ">gv", { desc = "Indent right", noremap = true, silent = true })
+vim.keymap.set("v", "<leader>y", "y", { desc = "Yank to register" })
+vim.keymap.set("v", "<leader>Y", '"+y', { desc = "Yank to clipboard" })
 -- Note: visual paste handled by yanky.nvim (provides yank history cycling)
 
 -- Window navigation (Ctrl+hjkl)
@@ -73,7 +88,7 @@ return {
   { "<leader>b",     group = "Buffer" },
   { "<leader>d",     group = "Debug",           mode = { "n", "v" } },
   { "<leader>g",     group = "Git",             mode = { "n", "v" } },
-  { "<leader>t",     group = "Test" },
+  { "<leader>t",     group = "Test",           mode = { "n", "v" } },
   { "<leader>u",     group = "Toggle/UI" },
   { "<leader>x",     group = "Diagnostics",     mode = "n" },
   { "<leader>a",     group = "AI/Claude Code",  mode = { "n", "v" } },

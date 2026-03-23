@@ -6,7 +6,7 @@ return {
     { "<leader>E", function() require("snacks").explorer({ layout = { preset = "default" }, auto_close = true }) end, desc = "File explorer", mode = { "n", "v" } },
     { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
     { "<leader>un", function() Snacks.notifier.hide() end,        desc = "Dismiss notifications" },
-    { "<C-/>",     function() Snacks.terminal() end,              desc = "Toggle terminal",  mode = { "n", "t" } },
+    { "<C-/>",     function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 } }) end, desc = "Toggle terminal",  mode = { "n", "t" } },
   },
   opts = {
     indent = { enabled = true },
