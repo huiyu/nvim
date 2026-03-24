@@ -41,6 +41,10 @@ vim.keymap.set("i", "<C-c>", "<ESC>", { desc = "Exit insert mode", noremap = tru
 -- Terminal mode
 vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
 vim.keymap.set("t", "jk", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
+vim.keymap.set("t", "<C-q>", function()
+  vim.cmd("bdelete!")
+end, { desc = "Close terminal", noremap = true, silent = true })
+vim.keymap.set("n", "<leader>Tx", "<cmd>bdelete!<cr>", { desc = "Close terminal" })
 vim.keymap.set("t", "<S-CR>", function()
   vim.fn.chansend(vim.b.terminal_job_id, "\x1b[13;2u")
 end, { noremap = true, silent = true })
@@ -53,10 +57,10 @@ vim.keymap.set("v", "<leader>Y", '"+y', { desc = "Yank to clipboard" })
 -- Note: visual paste handled by yanky.nvim (provides yank history cycling)
 
 -- Window navigation (Ctrl+hjkl)
-vim.keymap.set({ "n", "t" }, "<C-h>", "<C-w>h", { desc = "Go to left window" })
-vim.keymap.set({ "n", "t" }, "<C-j>", "<C-w>j", { desc = "Go to lower window" })
-vim.keymap.set({ "n", "t" }, "<C-k>", "<C-w>k", { desc = "Go to upper window" })
-vim.keymap.set({ "n", "t" }, "<C-l>", "<C-w>l", { desc = "Go to right window" })
+vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Go to left window" })
+vim.keymap.set("n", "<C-j>", "<C-w>j", { desc = "Go to lower window" })
+vim.keymap.set("n", "<C-k>", "<C-w>k", { desc = "Go to upper window" })
+vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Go to right window" })
 
 -- Window resize (Ctrl+arrows)
 vim.keymap.set("n", "<C-Up>", "<cmd>resize +2<cr>", { desc = "Increase window height" })
@@ -88,7 +92,8 @@ return {
   { "<leader>b",     group = "Buffer" },
   { "<leader>d",     group = "Debug",           mode = { "n", "v" } },
   { "<leader>g",     group = "Git",             mode = { "n", "v" } },
-  { "<leader>t",     group = "Test",           mode = { "n", "v" } },
+  { "<leader>t",     group = "Test",            mode = { "n", "v" } },
+  { "<leader>T",     group = "Terminal" },
   { "<leader>u",     group = "Toggle/UI" },
   { "<leader>x",     group = "Diagnostics",     mode = "n" },
   { "<leader>a",     group = "AI/Claude Code",  mode = { "n", "v" } },
@@ -118,6 +123,9 @@ return {
       "",
       "  ── Ctrl ─────────────────────────────────",
       "  <C-/>            Toggle terminal",
+      "  <leader>T1-9     Terminal 1-9 (create/switch)",
+      "  <leader>Tx       Close terminal",
+      "  <C-q>            Close terminal (in term mode)",
       "  <C-s>            Save file (all modes)",
       "  <C-h/j/k/l>     Window navigation",
       "  <C-Up/Down/L/R>  Window resize",

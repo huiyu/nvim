@@ -10,7 +10,12 @@ return {
       local jdtls = require("jdtls")
       local mason_registry = require("mason-registry")
 
-      local jdtls_install = mason_registry.get_package("jdtls"):get_install_path()
+      local jdtls_pkg = mason_registry.get_package("jdtls")
+      if not jdtls_pkg:is_installed() then
+        vim.notify("jdtls not installed. Run :MasonInstall jdtls", vim.log.levels.WARN)
+        return
+      end
+      local jdtls_install = jdtls_pkg:get_install_path()
       local system = vim.fn.has("mac") == 1 and "mac" or "linux"
 
       -- Collect debug and test bundles
@@ -127,12 +132,12 @@ return {
     end,
   },
   {
-    "williamboman/mason.nvim",
+    "neovim/nvim-lspconfig",
     opts = {
-      ensure_installed = {
-        "jdtls",
-        "java-debug-adapter",
-        "java-test",
+      tools = {
+        ["jdtls"] = {},
+        ["java-debug-adapter"] = {},
+        ["java-test"] = {},
       },
     },
   },

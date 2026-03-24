@@ -61,7 +61,18 @@ return {
       "neovim/nvim-lspconfig",
       "nvim-telescope/telescope.nvim",
     },
-    opts = {},
+    opts = {
+      search = {
+        anaconda_envs = {
+          command = "$FD 'bin/python$' /opt/homebrew/anaconda3/envs --no-ignore-vcs --full-path --color never",
+          type = "anaconda",
+        },
+        anaconda_base = {
+          command = "$FD '/python$' /opt/homebrew/anaconda3/bin --full-path --color never",
+          type = "anaconda",
+        },
+      },
+    },
     keys = {
       { "<leader>cv", "<cmd>VenvSelect<cr>", desc = "Select virtualenv", ft = "python" },
     },
