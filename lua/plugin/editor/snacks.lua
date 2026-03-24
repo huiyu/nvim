@@ -2,7 +2,7 @@ return {
   "folke/snacks.nvim",
   lazy = false,
   keys = {
-    { "<leader>e", function() require("snacks").explorer() end,                                                       desc = "File tree",     mode = { "n", "v" } },
+    { "<leader>e", function() require("snacks").explorer() end, desc = "File tree", mode = { "n", "v" } },
     { "<leader>E", function() require("snacks").explorer({ layout = { preset = "default" }, auto_close = true }) end, desc = "File explorer", mode = { "n", "v" } },
     { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
     { "<leader>un", function() Snacks.notifier.hide() end,        desc = "Dismiss notifications" },

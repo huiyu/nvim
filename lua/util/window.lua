@@ -61,4 +61,70 @@ function M.close_others()
   end
 end
 
+--- Iterate non-floating windows with winfixwidth/winfixheight, yielding {win, width?, height?}
+--- Uses stored target (_fixed_width_target / _fixed_height_target) when available,
+--- otherwise records current size as the target for future use.
+local function get_fixed_panels()
+  local panels = {}
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_config(win).relative == "" then
+      local entry = {}
+      if vim.wo[win].winfixwidth then
+        local target = vim.w[win]._fixed_width_target
+        if not target then
+          target = vim.api.nvim_win_get_width(win)
+          vim.w[win]._fixed_width_target = target
+        end
+        entry.width = target
+      end
+      if vim.wo[win].winfixheight then
+        local target = vim.w[win]._fixed_height_target
+        if not target then
+          target = vim.api.nvim_win_get_height(win)
+          vim.w[win]._fixed_height_target = target
+        end
+        entry.height = target
+      end
+      if entry.width or entry.height then
+        entry.win = win
+        panels[#panels + 1] = entry
+      end
+    end
+  end
+  return panels
+end
+
+--- Restore fixed panels to their target sizes (no equalization).
+--- Use after window open/close to enforce sidebar widths.
+function M.restore_fixed_panels()
+  for _, entry in ipairs(get_fixed_panels()) do
+    if vim.api.nvim_win_is_valid(entry.win) then
+      if entry.width then
+        vim.api.nvim_win_set_width(entry.win, entry.width)
+      end
+      if entry.height then
+        vim.api.nvim_win_set_height(entry.win, entry.height)
+      end
+    end
+  end
+end
+
+--- Equalize window sizes while preserving winfixwidth/winfixheight windows.
+--- Runs wincmd = then restores fixed panels to their target sizes.
+--- Use on VimResized to redistribute editor space proportionally.
+function M.equalize_respecting_fixed()
+  local panels = get_fixed_panels()
+  vim.cmd("wincmd =")
+  for _, entry in ipairs(panels) do
+    if vim.api.nvim_win_is_valid(entry.win) then
+      if entry.width then
+        vim.api.nvim_win_set_width(entry.win, entry.width)
+      end
+      if entry.height then
+        vim.api.nvim_win_set_height(entry.win, entry.height)
+      end
+    end
+  end
+end
+
 return M

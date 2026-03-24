@@ -98,15 +98,46 @@ autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
   end,
 })
 
--- Resize splits when window is resized
+-- Resize splits when window is resized (respects winfixwidth/winfixheight)
 autocmd("VimResized", {
   group = augroup("resize_splits", { clear = true }),
   callback = function()
     local current_tab = vim.fn.tabpagenr()
-    vim.cmd("tabdo wincmd =")
+    local total_tabs = vim.fn.tabpagenr("$")
+    for tab = 1, total_tabs do
+      vim.cmd("tabnext " .. tab)
+      require("util.window").equalize_respecting_fixed()
+    end
     vim.cmd("tabnext " .. current_tab)
   end,
 })
+
+-- Restore fixed-width panels when split count changes (open/close splits)
+-- Only restores fixed panels (no equalization) to avoid disrupting manual resizes
+do
+  local function count_splits()
+    local count = 0
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.api.nvim_win_get_config(win).relative == "" then
+        count = count + 1
+      end
+    end
+    return count
+  end
+  local prev_split_count = count_splits()
+  autocmd({ "WinNew", "WinClosed" }, {
+    group = augroup("restore_fixed_panels", { clear = true }),
+    callback = function()
+      vim.schedule(function()
+        local cur_count = count_splits()
+        if cur_count ~= prev_split_count then
+          prev_split_count = cur_count
+          require("util.window").restore_fixed_panels()
+        end
+      end)
+    end,
+  })
+end
 
 -- Wrap and spell check in text filetypes
 autocmd("FileType", {

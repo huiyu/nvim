@@ -166,12 +166,12 @@ return {
   -- Window management
   { "<leader>wd", "<cmd>WindowCloseCurrent<cr>", desc = "Delete window",       mode = "n" },
   { "<leader>wo", "<cmd>WindowCloseOthers<cr>",  desc = "Close other windows", mode = "n" },
-  { "<leader>w=", "<C-w>=",                      desc = "Equalize windows",    mode = "n" },
+  { "<leader>w=", function() require("util.window").equalize_respecting_fixed() end, desc = "Equalize windows", mode = "n" },
   { "<leader>wm", function()
     local win = vim.api.nvim_get_current_win()
     local is_zoomed = vim.w[win].zoomed
     if is_zoomed then
-      vim.cmd("wincmd =")
+      require("util.window").equalize_respecting_fixed()
       vim.w[win].zoomed = false
     else
       vim.cmd("wincmd _ | wincmd |")
