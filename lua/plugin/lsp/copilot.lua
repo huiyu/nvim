@@ -16,11 +16,11 @@ return {
       ):format(vim.fn.getpid(), vim.fn.getpid()),
       terminal = {
         split_side = "right",
-        split_width_percentage = 0.40,
         provider = "snacks",
         snacks_win_opts = {
           auto_insert = false,
           width = 90,
+          wo = { winfixwidth = true },
         },
       },
       diff_opts = {
