@@ -6,12 +6,29 @@ vim.g.maplocalleader = "\\"
 -- Save file
 vim.keymap.set({ "i", "x", "n", "s" }, "<C-s>", "<cmd>w<cr><esc>", { desc = "Save file" })
 
--- Open URL under cursor, or current file with system default app
+-- Open URL under cursor or on current line with system default app
 vim.keymap.set("n", "gx", function()
-  local word = vim.fn.expand("<cfile>")
-  if word:match("^https?://") then
-    vim.ui.open(word)
+  -- First try <cfile> (works when cursor is directly on a URL/path)
+  local cfile = vim.fn.expand("<cfile>")
+  if cfile:match("^https?://") then
+    vim.ui.open(cfile)
+    return
+  end
+  -- Search the current line for a URL (find the nearest one to cursor)
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1 -- 1-indexed
+  local best_url, best_dist = nil, math.huge
+  for url, s, e in line:gmatch("()(https?://[%w%-%._~:/?#%[%]@!$&'()*+,;%%=]+)()") do
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local dist = (col < url) and (url - col) or (col > e - 1) and (col - e + 1) or 0
+    if dist < best_dist then
+      best_url, best_dist = s, dist
+    end
+  end
+  if best_url then
+    vim.ui.open(best_url)
   else
+    -- Fallback: open current file with system app
     local file = vim.fn.expand("%:p")
     if file ~= "" then
       vim.ui.open(file)
