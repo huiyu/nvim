@@ -58,6 +58,7 @@ local options = {
 
 vim.opt.shortmess:append("c")
 vim.opt.smoothscroll = true
+vim.opt.spelllang = { "en_us", "cjk" }  -- Skip CJK characters in spell check
 
 for k, v in pairs(options) do
   vim.opt[k] = v

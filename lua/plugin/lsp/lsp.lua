@@ -75,7 +75,9 @@ return {
     end)
 
     require("mason-lspconfig").setup({
-      automatic_enable = true,
+      automatic_enable = {
+        exclude = { "jdtls" },
+      },
       handlers = table_handlers:get()
     })
   end,
