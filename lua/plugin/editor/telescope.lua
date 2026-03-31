@@ -66,6 +66,7 @@ return {
       defaults = {
         prompt_prefix = " ",
         selection_caret = " ",
+        entry_prefix = " ",
         cwd_only = true,
         path_display = { "truncate" },
         layout_strategy = "vertical",
@@ -144,6 +145,10 @@ return {
           additional_args = function(_)
             return { "--hidden" }
           end,
+        },
+        lsp_document_symbols = {
+          symbol_width = 50,
+          symbol_type_width = 12,
         },
       },
       extensions = {

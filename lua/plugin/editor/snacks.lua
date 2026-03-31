@@ -7,6 +7,7 @@ return {
     { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
     { "<leader>un", function() Snacks.notifier.hide() end,        desc = "Dismiss notifications" },
     { "<C-/>",      function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 } }) end, desc = "Toggle terminal", mode = { "n", "t" } },
+    { "<C-_>",      function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 } }) end, desc = "Toggle terminal", mode = { "n", "t" } },
     { "<leader>T1", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term1" }) end, desc = "Terminal 1" },
     { "<leader>T2", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term2" }) end, desc = "Terminal 2" },
     { "<leader>T3", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term3" }) end, desc = "Terminal 3" },
@@ -18,6 +19,7 @@ return {
     { "<leader>T9", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term9" }) end, desc = "Terminal 9" },
   },
   opts = {
+    notifier = { enabled = false },
     indent = { enabled = true },
     scroll = { enabled = true },
     dashboard = {
