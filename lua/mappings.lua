@@ -119,10 +119,10 @@ return {
   { "<leader>w",     group = "Window",          mode = "n" },
   { "<leader>sn",    group = "Noice" },
   { "<leader><tab>", group = "Tab" },
+  { "gr",            group = "LSP" },
 
   -- Top-level shortcuts
   { "<leader>l",  "<cmd>Lazy<cr>",       desc = "Lazy",  mode = "n" },
-  { "<leader>sk", "<cmd>Telescope keymaps<cr>", desc = "Keymaps", mode = "n" },
   { "<leader>?", function()
     local lines = {
       "  Trigger Key Reference",

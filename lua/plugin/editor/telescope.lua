@@ -46,6 +46,17 @@ return {
     { "<leader>ss", "<cmd>Telescope lsp_document_symbols<cr>",                                                    desc = "Symbols (buffer)" },
     { "<leader>sS", "<cmd>Telescope lsp_workspace_symbols<cr>",                                                   desc = "Symbols (workspace)" },
 
+    -- Code (LSP symbols)
+    { "<leader>cs", "<cmd>Telescope lsp_document_symbols<cr>",          desc = "Document Symbols" },
+    { "<leader>cS", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", desc = "Workspace Symbols" },
+
+    -- Diagnostics
+    { "<leader>xx", "<cmd>Telescope diagnostics<cr>",                   desc = "Diagnostics" },
+    { "<leader>xX", function() require("telescope.builtin").diagnostics({ bufnr = 0 }) end, desc = "Buffer diagnostics" },
+    { "<leader>xd", vim.diagnostic.open_float,                           desc = "Line diagnostics" },
+    { "<leader>xL", "<cmd>Telescope loclist<cr>",                       desc = "Location list" },
+    { "<leader>xQ", "<cmd>Telescope quickfix<cr>",                      desc = "Quickfix list" },
+
     -- Git (telescope git pickers)
     { "<leader>gs", "<cmd>Telescope git_status<cr>",   desc = "Status" },
     { "<leader>gb", "<cmd>Telescope git_branches<cr>", desc = "Branches" },

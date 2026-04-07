@@ -39,7 +39,6 @@ return {
         },
       },
       tools = {
-        ["basedpyright"] = {},
         ["black"] = {},
       }
     },
