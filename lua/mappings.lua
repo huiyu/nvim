@@ -120,6 +120,7 @@ return {
   { "<leader>sn",    group = "Noice" },
   { "<leader><tab>", group = "Tab" },
   { "gr",            group = "LSP" },
+  { "<leader>cR", function() require("util.lsp").rebuild_index() end, desc = "Rebuild LSP index", mode = "n" },
 
   -- Top-level shortcuts
   { "<leader>l",  "<cmd>Lazy<cr>",       desc = "Lazy",  mode = "n" },
