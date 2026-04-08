@@ -1,3 +1,25 @@
+---Clear gopls cache and restart LSP to force a full re-index.
+---Useful after large refactors, branch switches, or rebases.
+local function rebuild_gopls()
+  local cache_dir = vim.fn.expand("~/Library/Caches/gopls")
+  if vim.fn.isdirectory(cache_dir) == 1 then
+    vim.fn.delete(cache_dir, "rf")
+  end
+  vim.cmd("LspRestart")
+  vim.notify("gopls cache cleared and LSP restarted", vim.log.levels.INFO)
+end
+
+vim.api.nvim_create_user_command("GoplsRebuildIndex", rebuild_gopls, {
+  desc = "Clear gopls cache and restart LSP",
+})
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "go",
+  callback = function(ev)
+    vim.keymap.set("n", "<leader>cR", rebuild_gopls, { buffer = ev.buf, desc = "Rebuild gopls index" })
+  end,
+})
+
 return {
   {
     "neovim/nvim-lspconfig",

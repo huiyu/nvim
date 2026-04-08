@@ -167,27 +167,4 @@ function M.buf_command(command, ...)
   return success
 end
 
----Restart all LSP clients and clear gopls cache to force a full re-index.
----Useful after large refactors, branch switches, or rebases.
-function M.rebuild_index()
-  -- Clear gopls cache
-  local cache_dir = vim.fn.expand("~/Library/Caches/gopls")
-  if vim.fn.isdirectory(cache_dir) == 1 then
-    vim.fn.delete(cache_dir, "rf")
-    logger.info("Cleared gopls cache: %s", cache_dir)
-  end
-
-  -- Stop all LSP clients, then restart
-  vim.lsp.stop_client(vim.lsp.get_clients(), true)
-  vim.defer_fn(function()
-    vim.cmd("edit")
-    vim.notify("LSP index rebuilt", vim.log.levels.INFO)
-  end, 500)
-end
-
--- User command
-vim.api.nvim_create_user_command("LspRebuildIndex", function()
-  M.rebuild_index()
-end, { desc = "Clear LSP cache and restart all clients" })
-
 return M
