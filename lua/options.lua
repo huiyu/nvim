@@ -60,6 +60,11 @@ vim.opt.shortmess:append("c")
 vim.opt.smoothscroll = true
 vim.opt.spelllang = { "en_us", "cjk" }  -- Skip CJK characters in spell check
 
+-- Under Ghostty, disable nvim's title updates; ghostty.zsh shell hook manages them
+if vim.env.TERM_PROGRAM == "ghostty" then
+  options.title = false
+end
+
 for k, v in pairs(options) do
   vim.opt[k] = v
 end
