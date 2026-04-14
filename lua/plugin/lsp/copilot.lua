@@ -3,19 +3,9 @@ return {
     "coder/claudecode.nvim",
     dependencies = { "folke/snacks.nvim" },
     opts = {
-      -- Wrap in tmux to fix DEC mode 2026 rendering glitches
-      -- Use -e to explicitly pass env vars that claudecode.nvim needs
-      -- Use PID-based session name so multiple Neovim instances don't conflict
-      terminal_cmd = (
-        "tmux kill-session -t claude-nvim-%d 2>/dev/null; tmux new-session -s claude-nvim-%d"
-        .. " -e CLAUDE_CODE_SSE_PORT=$CLAUDE_CODE_SSE_PORT -e ENABLE_IDE_INTEGRATION=$ENABLE_IDE_INTEGRATION"
-        .. " -e FORCE_CODE_TERMINAL=$FORCE_CODE_TERMINAL"
-        .. " -e no_proxy=localhost,127.0.0.1"
-        .. " claude"
-        .. (vim.env.CLAUDE_PLUGIN_DIR
-          and (" " .. table.concat(vim.tbl_map(function(d) return "--plugin-dir " .. d end, vim.split(vim.env.CLAUDE_PLUGIN_DIR, ",")), " "))
-          or "")
-      ):format(vim.fn.getpid(), vim.fn.getpid()),
+      terminal_cmd = "claude" .. (vim.env.CLAUDE_PLUGIN_DIR
+        and (" " .. table.concat(vim.tbl_map(function(d) return "--plugin-dir " .. d end, vim.split(vim.env.CLAUDE_PLUGIN_DIR, ",")), " "))
+        or ""),
       terminal = {
         split_side = "right",
         provider = "snacks",
