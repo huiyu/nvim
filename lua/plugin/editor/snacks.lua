@@ -6,9 +6,14 @@ return {
       "<leader>e",
       function()
         require("snacks").explorer({
+          focus = "list",
           on_show = function()
-            -- Fix layout: ensure bottom terminal spans full width when explorer opens after terminal
+            -- Fix layout: ensure bottom terminal spans full width when explorer opens after terminal.
+            -- Use nvim_win_call so wincmd J runs in the terminal window's context WITHOUT
+            -- changing the globally-focused window (which would steal focus from the picker
+            -- and cause E21 when keystrokes hit a non-modifiable buffer).
             vim.defer_fn(function()
+              local layout_changed = false
               for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
                 if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_config(win).relative == "" then
                   local buf = vim.api.nvim_win_get_buf(win)
@@ -16,17 +21,21 @@ return {
                     local col = vim.api.nvim_win_get_position(win)[2]
                     if col > 0 then
                       local height = vim.api.nvim_win_get_height(win)
-                      local cur_win = vim.api.nvim_get_current_win()
-                      vim.api.nvim_set_current_win(win)
-                      vim.cmd("wincmd J")
-                      vim.api.nvim_win_set_height(win, height)
-                      vim.api.nvim_set_current_win(cur_win)
-                      vim.schedule(function()
-                        require("util.window").restore_fixed_panels()
+                      vim.api.nvim_win_call(win, function()
+                        vim.cmd("wincmd J")
                       end)
+                      if vim.api.nvim_win_is_valid(win) then
+                        vim.api.nvim_win_set_height(win, height)
+                      end
+                      layout_changed = true
                     end
                   end
                 end
+              end
+              if layout_changed then
+                vim.schedule(function()
+                  require("util.window").restore_fixed_panels()
+                end)
               end
             end, 10)
           end,
@@ -35,20 +44,20 @@ return {
       desc = "File tree",
       mode = { "n", "v" },
     },
-    { "<leader>E", function() require("snacks").explorer({ layout = { preset = "default" }, auto_close = true }) end, desc = "File explorer", mode = { "n", "v" } },
+    { "<leader>E", function() require("snacks").explorer({ layout = { preset = "default" }, auto_close = true, focus = "list" }) end, desc = "File explorer", mode = { "n", "v" } },
     { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
     { "<leader>un", function() Snacks.notifier.hide() end,        desc = "Dismiss notifications" },
-    { "<C-/>",      function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 } }) end, desc = "Toggle terminal", mode = { "n", "t" } },
-    { "<C-_>",      function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 } }) end, desc = "Toggle terminal", mode = { "n", "t" } },
-    { "<leader>T1", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term1" }) end, desc = "Terminal 1" },
-    { "<leader>T2", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term2" }) end, desc = "Terminal 2" },
-    { "<leader>T3", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term3" }) end, desc = "Terminal 3" },
-    { "<leader>T4", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term4" }) end, desc = "Terminal 4" },
-    { "<leader>T5", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term5" }) end, desc = "Terminal 5" },
-    { "<leader>T6", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term6" }) end, desc = "Terminal 6" },
-    { "<leader>T7", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term7" }) end, desc = "Terminal 7" },
-    { "<leader>T8", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term8" }) end, desc = "Terminal 8" },
-    { "<leader>T9", function() Snacks.terminal(nil, { win = { position = "bottom", height = 25 }, id = "term9" }) end, desc = "Terminal 9" },
+    { "<C-/>",      function() require("util.terminal").toggle() end,              desc = "Toggle terminal",   mode = { "n", "t" } },
+    { "<C-_>",      function() require("util.terminal").toggle() end,              desc = "Toggle terminal",   mode = { "n", "t" } },
+    { "<leader>T1", function() require("util.terminal").toggle("term1") end,       desc = "Terminal 1" },
+    { "<leader>T2", function() require("util.terminal").toggle("term2") end,       desc = "Terminal 2" },
+    { "<leader>T3", function() require("util.terminal").toggle("term3") end,       desc = "Terminal 3" },
+    { "<leader>T4", function() require("util.terminal").toggle("term4") end,       desc = "Terminal 4" },
+    { "<leader>T5", function() require("util.terminal").toggle("term5") end,       desc = "Terminal 5" },
+    { "<leader>T6", function() require("util.terminal").toggle("term6") end,       desc = "Terminal 6" },
+    { "<leader>T7", function() require("util.terminal").toggle("term7") end,       desc = "Terminal 7" },
+    { "<leader>T8", function() require("util.terminal").toggle("term8") end,       desc = "Terminal 8" },
+    { "<leader>T9", function() require("util.terminal").toggle("term9") end,       desc = "Terminal 9" },
   },
   opts = {
     notifier = { enabled = false },
