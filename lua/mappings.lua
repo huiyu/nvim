@@ -73,11 +73,27 @@ vim.keymap.set("v", "<leader>y", "y", { desc = "Yank to register" })
 vim.keymap.set("v", "<leader>Y", '"+y', { desc = "Yank to clipboard" })
 -- Note: visual paste handled by yanky.nvim (provides yank history cycling)
 
--- Window navigation (Ctrl+hjkl)
-vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Go to left window" })
-vim.keymap.set("n", "<C-j>", "<C-w>j", { desc = "Go to lower window" })
-vim.keymap.set("n", "<C-k>", "<C-w>k", { desc = "Go to upper window" })
-vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Go to right window" })
+-- Window navigation (Ctrl+hjkl) — skip terminal windows so navigation stays
+-- within editor splits. Use <C-/> to jump to the terminal explicitly.
+local function nav_skip_terminal(direction)
+  return function()
+    local start = vim.api.nvim_get_current_win()
+    vim.cmd("wincmd " .. direction)
+    local cur = vim.api.nvim_get_current_win()
+    -- If we landed on a terminal, keep stepping; bail out if we loop back.
+    while cur ~= start and vim.bo[vim.api.nvim_win_get_buf(cur)].buftype == "terminal" do
+      vim.cmd("wincmd " .. direction)
+      local next_win = vim.api.nvim_get_current_win()
+      if next_win == cur then break end
+      cur = next_win
+    end
+  end
+end
+
+vim.keymap.set("n", "<C-h>", nav_skip_terminal("h"), { desc = "Go to left window" })
+vim.keymap.set("n", "<C-j>", nav_skip_terminal("j"), { desc = "Go to lower window" })
+vim.keymap.set("n", "<C-k>", nav_skip_terminal("k"), { desc = "Go to upper window" })
+vim.keymap.set("n", "<C-l>", nav_skip_terminal("l"), { desc = "Go to right window" })
 
 -- Window resize (Ctrl+arrows)
 vim.keymap.set("n", "<C-Up>", "<cmd>resize +2<cr>", { desc = "Increase window height" })
