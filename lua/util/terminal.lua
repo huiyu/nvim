@@ -1,5 +1,36 @@
 local M = {}
 
+-- Coalesce streamed bracketed pastes in :term buffers.
+--
+-- nvim's TUI splits bracketed pastes larger than ~64KB across multiple
+-- vim.paste() invocations (phase 1 start, 2 continue, 3 end) and the default
+-- impl emits one chansend per phase. TUIs like Claude Code interpret each
+-- chansend as a separate paste event, producing fragmented output like
+-- `[Pasted text #1][Pasted text #5]...` with raw characters leaking between.
+--
+-- We override vim.paste only for terminal buffers: single-chunk pastes
+-- (phase == -1) pass through unchanged, while streamed phases are buffered
+-- and handed back to the default impl as one phase=-1 call. All bracketed-
+-- paste marker emission and line-ending handling stays owned by the
+-- default implementation.
+function M.setup_paste_coalesce()
+  local chunks = {}
+  local orig_paste = vim.paste
+  vim.paste = function(lines, phase)
+    if vim.bo.buftype ~= "terminal" or phase == -1 then
+      return orig_paste(lines, phase)
+    end
+    if phase == 1 then chunks = {} end
+    for _, line in ipairs(lines) do chunks[#chunks + 1] = line end
+    if phase == 3 then
+      local buffered = chunks
+      chunks = {}
+      return orig_paste(buffered, -1)
+    end
+    return true
+  end
+end
+
 -- Toggle Snacks bottom terminal. When a right-side winfixwidth panel (e.g. Claude Code)
 -- exists, Snacks' botright split puts the terminal across the full width, squeezing the
 -- right panel into a half-height stack. To match the "terminal-first" layout we instead
