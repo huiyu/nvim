@@ -9,6 +9,9 @@ return {
 		require("solarized-osaka").setup(opts)
 		vim.cmd([[colorscheme solarized-osaka]])
 
+		-- Strengthen Visual selection: transparent bg makes the default too faint
+		vim.api.nvim_set_hl(0, "Visual", { bg = "#264F78", fg = "NONE" })
+
 		-- Fix built-in terminal colors so tools like Claude Code have distinguishable highlighting
 		vim.g.terminal_color_0 = "#073642" -- black (base02, standard Solarized)
 		vim.g.terminal_color_8 = "#657b83" -- bright black (base00)

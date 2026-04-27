@@ -92,6 +92,7 @@ return {
           "^node_modules/*",
           "node_modules/*",
           "./.git/*",
+          "%.class$",
         },
 
         mappings = {

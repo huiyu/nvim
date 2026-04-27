@@ -12,7 +12,14 @@ return {
     { "<leader>gS", "<cmd>Gitsigns stage_hunk<cr>",     desc = "Stage hunk",       mode = { "n", "v" } },
     { "<leader>gu", "<cmd>Gitsigns undo_stage_hunk<cr>", desc = "Undo stage hunk" },
     { "<leader>gd", "<cmd>Gitsigns diffthis<cr>",       desc = "Diff" },
+    { "<leader>gb", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle line blame" },
     { "<leader>gB", function() Snacks.gitbrowse() end,  desc = "Git browse (open)" },
   },
-  opts = {},
+  opts = {
+    current_line_blame = true,
+    current_line_blame_opts = {
+      delay = 300,
+      virt_text_pos = "eol",
+    },
+  },
 }
