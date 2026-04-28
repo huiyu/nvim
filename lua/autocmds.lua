@@ -161,4 +161,15 @@ autocmd("BufWritePre", {
   end,
 })
 
+-- Kill orphan nvim --embed processes spawned by Claude Code CLI on exit.
+-- Claude CLI spawns `nvim --embed` internally, which ignores SIGTERM and
+-- becomes orphaned when the parent nvim exits uncleanly (e.g. tab closed).
+autocmd("VimLeavePre", {
+  group = augroup("claude_cleanup", { clear = true }),
+  callback = function()
+    local pid = vim.fn.getpid()
+    vim.fn.system({ "pkill", "-9", "-P", tostring(pid), "-f", "nvim --embed" })
+  end,
+})
+
 require("util.terminal").setup_paste_coalesce()
