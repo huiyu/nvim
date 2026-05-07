@@ -174,7 +174,7 @@ nvim
 | 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号, `cv` 虚拟环境 |
 | Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bD` 删除+窗口, `bl/br` 删除左/右, `bj` 选择, `bp` 固定, `bP` 关闭未固定 |
 | 调试 | `<leader>d` | `db` 断点, `dc` 继续, `di` 步入, `do` 步出, `dO` 步过, `dt` 终止, `dl` 重跑 |
-| Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存, `gu` 撤销暂存, `gd` diff, `gv/gV` diff 视图, `gB` 浏览 |
+| Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存, `gu` 撤销暂存, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gB` 浏览 |
 | 测试 | `<leader>t` | `tm` 测试方法, `td` 调试方法, `tf` 测试文件, `tS` 摘要, `to` 输出 |
 | 切换 | `<leader>u` | `uf/uF` 自动格式化, `us` 拼写, `uw` 换行, `ul/uL` 行号, `ud` 诊断, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` 背景, `un` 关闭通知, `uR` markdown 渲染 |
 | 诊断 | `<leader>x` | `xx/xX` 诊断, `xL` loclist, `xQ` quickfix, `xt/xT` todo |
@@ -182,7 +182,7 @@ nvim
 | AI | `<leader>a` | `ac` 切换, `af` 聚焦, `ar` 恢复, `aR` 继续, `am` 模型, `ab` 添加 buffer, `as` 发送, `aa/ad` 接受/拒绝 diff |
 | 窗口 | `<leader>w` | `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
 | 退出 | `<leader>q` | `qq/qQ` 退出, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
-| 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `l/f` 最后/第一个, `o` 关闭其他 |
+| 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `l/f` 最后/第一个, `o` 关闭其他, `s` 列出全部 |
 
 #### Yanky（增强复制/粘贴）
 

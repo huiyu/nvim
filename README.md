@@ -179,7 +179,7 @@ Press any prefix and wait for which-key popup to see available keys.
 | Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (Trouble), `cv` select venv |
 | Buffer | `<leader>b` | `bd` delete, `bo` delete others, `bD` delete+window, `bl/br` delete left/right, `bj` pick, `bp` pin, `bP` close unpinned |
 | Debug | `<leader>d` | `db` breakpoint, `dc` continue, `di` step into, `do` step out, `dO` step over, `dt` terminate, `dl` run last |
-| Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage, `gu` undo stage, `gd` diff, `gv/gV` diffview, `gB` browse |
+| Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage, `gu` undo stage, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gB` browse |
 | Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output |
 | Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
 | Diagnostics | `<leader>x` | `xx/xX` diagnostics, `xL` loclist, `xQ` quickfix, `xt/xT` todos |
@@ -187,7 +187,7 @@ Press any prefix and wait for which-key popup to see available keys.
 | AI | `<leader>a` | `ac` toggle, `af` focus, `ar` resume, `aR` continue, `am` model, `ab` add buffer, `as` send, `aa/ad` accept/deny diff |
 | Window | `<leader>w` | `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
 | Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
-| Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `l/f` last/first, `o` close others |
+| Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `l/f` last/first, `o` close others, `s` list all |
 
 #### Yanky (Enhanced Yank/Paste)
 

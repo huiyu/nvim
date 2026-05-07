@@ -205,6 +205,7 @@ return {
   { "<leader>qQ", "<cmd>qa!<cr>",   desc = "Force quit all", mode = "n" },
 
   -- Window management
+  { "<leader>ww", "<C-w>p",                       desc = "Other window",        mode = "n" },
   { "<leader>wd", "<cmd>WindowCloseCurrent<cr>", desc = "Delete window",       mode = "n" },
   { "<leader>wo", "<cmd>WindowCloseOthers<cr>",  desc = "Close other windows", mode = "n" },
   { "<leader>w=", function() require("util.window").equalize_respecting_fixed() end, desc = "Equalize windows", mode = "n" },
@@ -228,6 +229,7 @@ return {
   { "<leader><tab>l",     "<cmd>tablast<cr>",    desc = "Last tab" },
   { "<leader><tab>f",     "<cmd>tabfirst<cr>",   desc = "First tab" },
   { "<leader><tab>o",     "<cmd>tabonly<cr>",     desc = "Close other tabs" },
+  { "<leader><tab>s",     "<cmd>tabs<cr>",        desc = "List all tabs" },
 
   -- Toggle/UI
   { "<leader>uf", function()
