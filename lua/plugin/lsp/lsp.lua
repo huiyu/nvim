@@ -55,6 +55,7 @@ return {
         ["lua_ls"] = {
           settings = {
             Lua = {
+              diagnostics = { globals = { "vim", "Snacks" } },
               workspace = { checkThirdParty = false },
               telemetry = { enable = false },
             },
