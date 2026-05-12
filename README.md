@@ -11,7 +11,13 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 - A [Nerd Font](https://www.nerdfonts.com/) for icon display
 - **ripgrep** (`rg`) for grep and live search
 - **fd** for file finder
-- Language toolchains as needed (Go, Python, Node.js, Java)
+- Language toolchains, **only if you want the matching Mason packages to install**:
+  - **Go** — required for `gopls`, `goimports`, `gofumpt`, `gomodifytags`, `impl`, `delve`
+  - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
+  - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
+  - **JDK 17+** — required for `jdtls` (Java)
+
+If a Mason package fails to install, run `:Mason` (UI) or `:MasonLog` (raw log) to see the underlying error. The most common cause is a missing toolchain from the list above.
 
 ### Installation
 
@@ -20,7 +26,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 mv ~/.config/nvim ~/.config/nvim.backup
 
 # Clone
-git clone <repository-url> ~/.config/nvim
+git clone https://github.com/huiyu/nvim.git ~/.config/nvim
 
 # Launch Neovim — lazy.nvim auto-installs all plugins
 nvim
@@ -67,7 +73,7 @@ nvim
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | Modern code folding |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME highlights |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor |
-| [colorizer](https://github.com/norcalli/nvim-colorizer.lua) | Color code highlighting |
+| [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Color code highlighting |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering |
 
 #### Editor
@@ -169,12 +175,13 @@ Press any prefix and wait for which-key popup to see available keys.
 | `<leader>-` / `<leader>\|` | Split below / right |
 | `<leader>1-9` | Harpoon: jump to file 1-9 |
 | `<leader>h` / `<leader>H` | Harpoon quick menu / add file |
+| `<leader>p` | Yank history (Telescope) — see [Yanky](#yanky-enhanced-yankpaste) |
 
 #### Leader Groups
 
 | Group | Key | Description |
 |-------|-----|-------------|
-| Find/Files | `<leader>f` | `ff` files, `fb` buffers, `fr` recent, `fg` git files, `fc` config, `fn` new, `ft/fT` terminal, `fp` projects |
+| Find/Files | `<leader>f` | `ff` files, `fF` files (incl. ignored), `fb` buffers, `fr` recent, `fg` git files, `fc` config, `fn` new, `ft/fT` terminal, `fp` projects |
 | Search | `<leader>s` | `sg` grep, `sw` word, `sb` buffer lines, `sm` marks, `sR` resume, `sh` help, `sk` keymaps, `sr` replace, `sW` replace word, `st/sT` todos, `ss/sS` symbols, `sn` noice |
 | Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (Trouble), `cv` select venv |
 | Buffer | `<leader>b` | `bd` delete, `bo` delete others, `bD` delete+window, `bl/br` delete left/right, `bj` pick, `bp` pin, `bP` close unpinned |
@@ -183,7 +190,7 @@ Press any prefix and wait for which-key popup to see available keys.
 | Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output |
 | Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
 | Diagnostics | `<leader>x` | `xx/xX` diagnostics, `xL` loclist, `xQ` quickfix, `xt/xT` todos |
-| Refactor | `<leader>r` | `rf` extract function, `rx` extract variable, `ri` inline, `rb` extract block, `rs` select |
+| Refactor | `<leader>r` | `rf` extract function, `rF` extract function to file, `rx` extract variable, `ri` inline, `rb` extract block, `rB` extract block to file, `rs` select |
 | AI | `<leader>a` | `ac` toggle, `af` focus, `ar` resume, `aR` continue, `am` model, `ab` add buffer, `as` send, `aa/ad` accept/deny diff |
 | Window | `<leader>w` | `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
 | Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |

@@ -35,11 +35,16 @@ local function build_terminal_cmd()
 end
 
 -- Detached watchdog: polls our nvim pid and tears down the dedicated tmux
--- server when nvim dies. Needed because VimLeavePre cleanup runs as a child
--- of nvim and gets killed alongside it on SIGHUP (e.g. host terminal tab
--- close), so its kill-server never completes. The watchdog is spawned via
--- `setsid` to leave nvim's process group/session, making it immune to the
--- SIGHUP cascade. Also sweeps stale sockets from prior crashes.
+-- server when nvim dies. Needed because when claude is launched via tmux
+-- (see build_terminal_cmd above), abruptly closing the host terminal window
+-- leaves the tmux server alive — the `client-detached -> kill-server` hook
+-- only fires on a graceful detach, and VimLeavePre cleanup runs as a child
+-- of nvim and gets killed alongside it on SIGHUP (e.g. terminal tab close),
+-- so its kill-server never completes. Without this watchdog, orphaned tmux
+-- servers (and the claude processes inside them) accumulate across crashes
+-- and forced window closes. The watchdog is spawned via `setsid` to leave
+-- nvim's process group/session, making it immune to the SIGHUP cascade.
+-- Also sweeps stale sockets from prior crashes on startup.
 if vim.fn.executable("tmux") == 1 then
   vim.api.nvim_create_autocmd("VimEnter", {
     group = vim.api.nvim_create_augroup("ClaudeTmuxWatchdog", { clear = true }),

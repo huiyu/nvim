@@ -11,13 +11,19 @@
 - [Nerd Font](https://www.nerdfonts.com/)（图标显示）
 - **ripgrep** (`rg`) 全文搜索
 - **fd** 文件查找
-- 按需安装语言工具链（Go、Python、Node.js、Java）
+- 语言工具链，**只有想用对应的 Mason 包时才需要**：
+  - **Go** — `gopls`、`goimports`、`gofumpt`、`gomodifytags`、`impl`、`delve` 都依赖
+  - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
+  - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
+  - **JDK 17+** — `jdtls`（Java）需要
+
+如果 Mason 安装失败，运行 `:Mason`（UI）或 `:MasonLog`（原始日志）查看具体错误。最常见的原因是上面这些工具链没装。
 
 ### 安装
 
 ```bash
 mv ~/.config/nvim ~/.config/nvim.backup
-git clone <repository-url> ~/.config/nvim
+git clone https://github.com/huiyu/nvim.git ~/.config/nvim
 nvim
 ```
 
@@ -62,7 +68,7 @@ nvim
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | 现代代码折叠 |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME 高亮 |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮 |
-| [colorizer](https://github.com/norcalli/nvim-colorizer.lua) | 颜色代码高亮 |
+| [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | 颜色代码高亮 |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染 |
 
 #### 编辑器
@@ -164,12 +170,13 @@ nvim
 | `<leader>-` / `<leader>\|` | 水平 / 垂直分屏 |
 | `<leader>1-9` | Harpoon 跳转到文件 |
 | `<leader>h` / `<leader>H` | Harpoon 快捷菜单 / 添加文件 |
+| `<leader>p` | Yank 历史（Telescope）— 见 [Yanky](#yanky增强复制粘贴) |
 
 #### Leader 分组
 
 | 分组 | 键 | 说明 |
 |------|----|------|
-| 查找 | `<leader>f` | `ff` 文件, `fb` buffer, `fr` 最近, `fg` git 文件, `fc` 配置, `fn` 新建, `ft/fT` 终端, `fp` 项目 |
+| 查找 | `<leader>f` | `ff` 文件, `fF` 文件（含 ignored）, `fb` buffer, `fr` 最近, `fg` git 文件, `fc` 配置, `fn` 新建, `ft/fT` 终端, `fp` 项目 |
 | 搜索 | `<leader>s` | `sg` grep, `sw` 当前词, `sb` buffer 行, `sm` 标记, `sR` 恢复, `sh` 帮助, `sk` 键位, `sr` 替换, `sW` 替换词, `st/sT` todo, `ss/sS` 符号, `sn` noice |
 | 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号, `cv` 虚拟环境 |
 | Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bD` 删除+窗口, `bl/br` 删除左/右, `bj` 选择, `bp` 固定, `bP` 关闭未固定 |
