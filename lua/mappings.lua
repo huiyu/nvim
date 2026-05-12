@@ -62,6 +62,11 @@ vim.keymap.set("t", "<C-q>", function()
   vim.cmd("bdelete!")
 end, { desc = "Close terminal", noremap = true, silent = true })
 vim.keymap.set("n", "<leader>Tx", "<cmd>bdelete!<cr>", { desc = "Close terminal" })
+-- Manual SIGWINCH nudge: fixes stale TUI rendering (e.g. claude statusline
+-- overlapping prompt's last row) that wake/resize hooks didn't catch.
+vim.keymap.set("n", "<leader>Tr", function()
+  require("util.terminal").refresh_terminal_tuis()
+end, { desc = "Refresh terminal TUIs" })
 vim.keymap.set("t", "<S-CR>", function()
   vim.fn.chansend(vim.b.terminal_job_id, "\x1b[13;2u")
 end, { noremap = true, silent = true })

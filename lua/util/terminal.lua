@@ -32,9 +32,11 @@ function M.setup_paste_coalesce()
 end
 
 -- Nudge all terminal windows by 1 row so the TUI inside emits a SIGWINCH and
--- repaints. edgy's layout reshuffle can leave existing TUIs (notably tmux-
--- wrapped claude) rendered at stale dimensions when a new terminal opens.
-local function refresh_terminal_tuis()
+-- repaints. Used after events that can leave TUIs (claude, lazygit, etc.)
+-- rendered at stale dimensions: a new bottom terminal opening (edgy reshuffle),
+-- or macOS sleep/wake where the resize chain can drop events between the host
+-- terminal, nvim, and the inner TUI.
+function M.refresh_terminal_tuis()
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     if vim.api.nvim_win_is_valid(win) then
       local buf = vim.api.nvim_win_get_buf(win)
@@ -57,7 +59,7 @@ function M.toggle(id)
   local opts = { win = { position = "bottom", height = 25 } }
   if id then opts.id = id end
   Snacks.terminal(nil, opts)
-  vim.defer_fn(refresh_terminal_tuis, 100)
+  vim.defer_fn(M.refresh_terminal_tuis, 100)
 end
 
 return M
