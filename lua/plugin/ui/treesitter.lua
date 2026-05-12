@@ -1,149 +1,170 @@
+-- Parsers we want available everywhere.
+local ensure_installed = {
+  "bash",
+  "c",
+  "diff",
+  "html",
+  "css",
+  "javascript",
+  "jsdoc",
+  "json",
+  -- jsonc has no separate parser in nvim-treesitter 'main'; the plugin
+  -- already aliases the `jsonc` filetype to the `json` parser.
+  "lua",
+  "luadoc",
+  "luap",
+  "markdown",
+  "markdown_inline",
+  "printf",
+  "python",
+  "query",
+  "regex",
+  "toml",
+  "tsx",
+  "typescript",
+  "vim",
+  "vimdoc",
+  "xml",
+  "yaml",
+}
+
 return {
   {
     "nvim-treesitter/nvim-treesitter",
+    branch = "main",
+    -- The rewritten 'main' branch does not support lazy-loading.
+    lazy = false,
     build = ":TSUpdate",
-    init = function(plugin)
-      require("lazy.core.loader").add_to_rtp(plugin)
-      require("nvim-treesitter.query_predicates")
+    config = function()
+      local nts = require("nvim-treesitter")
+      nts.setup({
+        install_dir = vim.fn.stdpath("data") .. "/site",
+      })
+
+      -- Install any missing parsers from the desired list (async).
+      local installed = {}
+      for _, p in ipairs(nts.get_installed("parsers") or {}) do
+        installed[p] = true
+      end
+      local missing = {}
+      for _, p in ipairs(ensure_installed) do
+        if not installed[p] then
+          table.insert(missing, p)
+        end
+      end
+      if #missing > 0 then
+        -- First launch (or after extending the list): block once so highlight is
+        -- ready when the first buffer opens. Subsequent starts skip this path.
+        nts.install(missing):wait(300000)
+      end
+
+      -- Enable highlight + indent + fold for buffers whose parser is available.
+      vim.api.nvim_create_autocmd("FileType", {
+        group = vim.api.nvim_create_augroup("user_treesitter", { clear = true }),
+        callback = function(args)
+          local buf = args.buf
+          local ft = vim.bo[buf].filetype
+          local lang = vim.treesitter.language.get_lang(ft) or ft
+          if not lang or lang == "" then
+            return
+          end
+
+          if not pcall(vim.treesitter.language.add, lang) then
+            -- Auto-install on demand if the parser is supported but missing
+            -- (this replaces the old `auto_install = true` option).
+            local available = {}
+            for _, p in ipairs(nts.get_available()) do
+              available[p] = true
+            end
+            if available[lang] then
+              nts.install({ lang })
+            end
+            return
+          end
+
+          pcall(vim.treesitter.start, buf, lang)
+          vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+          vim.wo[0][0].foldexpr = "v:lua.vim.treesitter.foldexpr()"
+        end,
+      })
     end,
-    opts_extend = { "ensure_installed" },
-    opts = {
-      ensure_installed = {
-        "bash",
-        "c",
-        "diff",
-        "html",
-        "css",
-        "javascript",
-        "jsdoc",
-        "json",
-        "jsonc",
-        "lua",
-        "luadoc",
-        "luap",
-        "markdown",
-        "markdown_inline",
-        "printf",
-        "python",
-        "query",
-        "regex",
-        "toml",
-        "tsx",
-        "typescript",
-        "vim",
-        "vimdoc",
-        "xml",
-        "yaml",
-      },
-      auto_install = true,
-      highlight = {
-        enable = true,
-      },
-      indent = {
-        enable = true,
-      },
-      textobjects = {
-
+  },
+  {
+    "nvim-treesitter/nvim-treesitter-textobjects",
+    branch = "main",
+    event = "VeryLazy",
+    dependencies = { "nvim-treesitter/nvim-treesitter" },
+    config = function()
+      require("nvim-treesitter-textobjects").setup({
         select = {
-          enable = true,
-
           -- Automatically jump forward to textobj, similar to targets.vim
           lookahead = true,
-
-          keymaps = {
-            ["af"] = { query = "@function.outer", desc = "Select outer part of a function region" },
-            ["if"] = { query = "@function.inner", desc = "Select inner part of a function region" },
-            ["ac"] = { query = "@class.outer", desc = "Select outer part of a class region" },
-            ["ic"] = { query = "@class.inner", desc = "Select inner part of a class region" },
-          },
-
-          -- You can choose the select mode (default is charwise 'v')
-          --
-          -- Can also be a function which gets passed a table with the keys
-          -- * query_string: eg '@function.inner'
-          -- * method: eg 'v' or 'o'
-          -- and should return the mode ('v', 'V', or '<c-v>') or a table
-          -- mapping query_strings to modes.
           selection_modes = {
             ["@parameter.outer"] = "v", -- charwise
             ["@function.outer"] = "V",  -- linewise
             ["@class.outer"] = "<c-v>", -- blockwise
           },
-          -- If you set this to `true` (default is `false`) then any textobject is
-          -- extended to include preceding or succeeding whitespace. Succeeding
-          -- whitespace has priority in order to act similarly to eg the built-in
-          -- `ap`.
-          --
-          -- Can also be a function which gets passed a table with the keys
-          -- * query_string: eg '@function.inner'
-          -- * selection_mode: eg 'v'
-          -- and should return true of false
+          -- Extend the textobject to include surrounding whitespace
+          -- (succeeding whitespace has priority, mirroring built-in `ap`).
           include_surrounding_whitespace = true,
         },
-
-        -- Define mappings to swap the node uner the cursor with next or previous one, like function parameters or arguments
-        swap = {
-          enable = true,
-        },
-
-        -- Define own mapping to jump to the next or previous text object.
         move = {
-          enable = true,
           set_jumps = true, -- whether to set jumps in the jumplist
-          goto_next_start = {
-            ["]m"] = "@function.outer",
-            ["]c"] = "@class.outer",
-          },
-          goto_next_end = {
-            ["]M"] = "@function.outer",
-            ["]C"] = "@class.outer",
-          },
-          goto_previous_start = {
-            ["[m"] = "@function.outer",
-            ["[c"] = "@class.outer",
-          },
-          goto_previous_end = {
-            ["[M"] = "@function.outer",
-            ["[C"] = "@class.outer",
-          },
         },
-      },
-    },
-    config = function(_, opts)
-      require("nvim-treesitter.configs").setup(opts)
-    end,
-  },
-  {
-    "nvim-treesitter/nvim-treesitter-textobjects",
-    event = "VeryLazy",
-    enabled = true,
-    config = function()
-      -- When in diff mode, we want to use the default
-      -- vim text objects c & C instead of the treesitter ones.
-      local move = require("nvim-treesitter.textobjects.move") ---@type table<string,fun(...)>
-      local configs = require("nvim-treesitter.configs")
-      for name, fn in pairs(move) do
-        if name:find("goto") == 1 then
-          move[name] = function(q, ...)
-            if vim.wo.diff then
-              local config = configs.get_module("textobjects.move")[name] ---@type table<string,string>
-              for key, query in pairs(config or {}) do
-                if q == query and key:find("[%]%[][cC]") then
-                  vim.cmd("normal! " .. key)
-                  return
-                end
-              end
-            end
-            return fn(q, ...)
+      })
+
+      local select = require("nvim-treesitter-textobjects.select")
+      local move = require("nvim-treesitter-textobjects.move")
+
+      -- Select mappings (visual + operator-pending).
+      local select_maps = {
+        ["af"] = { "@function.outer", "Select outer part of a function region" },
+        ["if"] = { "@function.inner", "Select inner part of a function region" },
+        ["ac"] = { "@class.outer", "Select outer part of a class region" },
+        ["ic"] = { "@class.inner", "Select inner part of a class region" },
+      }
+      for lhs, spec in pairs(select_maps) do
+        vim.keymap.set({ "x", "o" }, lhs, function()
+          select.select_textobject(spec[1], "textobjects")
+        end, { desc = spec[2] })
+      end
+
+      -- In diff mode, fall back to built-in `]c`/`[c` (diff-hunk jumps)
+      -- instead of jumping to the next/previous class textobject.
+      local function diff_aware(fn, capture, lhs)
+        return function()
+          if vim.wo.diff and lhs:find("[%]%[][cC]") then
+            vim.cmd("normal! " .. lhs)
+            return
           end
+          fn(capture, "textobjects")
         end
       end
-    end
+
+      local move_maps = {
+        { "]m", "@function.outer", move.goto_next_start },
+        { "]c", "@class.outer",    move.goto_next_start },
+        { "]M", "@function.outer", move.goto_next_end },
+        { "]C", "@class.outer",    move.goto_next_end },
+        { "[m", "@function.outer", move.goto_previous_start },
+        { "[c", "@class.outer",    move.goto_previous_start },
+        { "[M", "@function.outer", move.goto_previous_end },
+        { "[C", "@class.outer",    move.goto_previous_end },
+      }
+      for _, m in ipairs(move_maps) do
+        local lhs, capture, fn = m[1], m[2], m[3]
+        vim.keymap.set(
+          { "n", "x", "o" },
+          lhs,
+          diff_aware(fn, capture, lhs),
+          { desc = capture }
+        )
+      end
+    end,
   },
   {
     "windwp/nvim-ts-autotag",
     event = "VeryLazy",
-    opts = {}
-  }
-
+    opts = {},
+  },
 }
