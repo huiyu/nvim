@@ -17,6 +17,11 @@ return {
 
     -- Find/Files
     { "<leader>ff", function() require("telescope.builtin").find_files() end,                                     desc = "Find files" },
+    { "<leader>fF", function()
+        require("telescope.builtin").find_files({
+          find_command = { "rg", "--files", "--hidden", "--no-ignore", "--glob", "!**/.git/*" },
+        })
+      end, desc = "Find files (incl. ignored)" },
     { "<leader>fb", function() require("telescope.builtin").buffers() end,                                        desc = "Buffers" },
     { "<leader>fr", function() require("telescope.builtin").oldfiles({ cwd_only = true }) end,                    desc = "Recent files" },
     { "<leader>fg", "<cmd>Telescope git_files<cr>",                                                               desc = "Git files" },
@@ -86,12 +91,11 @@ return {
             width = 120
           },
         },
+        -- Telescope post-filters results (Lua patterns). Keep this minimal —
+        -- rg already respects .gitignore so most large dirs (node_modules,
+        -- dist, target, .venv, etc.) never reach here.
         file_ignore_patterns = {
-          "./node_modules/*",
-          "node_modules",
-          "^node_modules/*",
-          "node_modules/*",
-          "./.git/*",
+          "%.git/",
           "%.class$",
         },
 
@@ -151,11 +155,13 @@ return {
       },
       pickers = {
         find_files = {
-          find_command = { "rg", "--files", "--hidden", "--no-ignore", "--glob", "!**/.git/*" },
+          -- Respect .gitignore (skip node_modules/dist/target/.venv/...) while
+          -- still showing dotfiles. Use <leader>fF to bypass .gitignore.
+          find_command = { "rg", "--files", "--hidden", "--glob", "!**/.git/*" },
         },
         live_grep = {
           additional_args = function(_)
-            return { "--hidden" }
+            return { "--hidden", "--glob", "!**/.git/*" }
           end,
         },
         lsp_document_symbols = {
