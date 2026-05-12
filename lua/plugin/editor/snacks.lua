@@ -6,6 +6,7 @@ return {
       "<leader>e",
       function()
         require("snacks").explorer({
+          hidden = true,
           focus = "list",
           on_show = function(picker)
             -- Fix layout: ensure bottom terminal spans full width when explorer
@@ -46,7 +47,8 @@ return {
       desc = "File tree",
       mode = { "n", "v" },
     },
-    { "<leader>E", function() require("snacks").explorer({ layout = { preset = "default" }, auto_close = true, focus = "list" }) end, desc = "File explorer", mode = { "n", "v" } },
+    { "<leader>E", function() require("snacks").explorer({ hidden = true, layout = { preset = "default" }, auto_close = true, focus = "list" }) end, desc = "File explorer", mode = { "n", "v" } },
+    { "<leader>fe", function() require("snacks").explorer({ hidden = true, ignored = true, layout = { preset = "default" }, auto_close = true, focus = "list" }) end, desc = "File explorer (with ignored)", mode = { "n", "v" } },
     { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
     { "<leader>un", function() Snacks.notifier.hide() end,        desc = "Dismiss notifications" },
     { "<leader>gg", function() Snacks.terminal("lazygit", { cwd = Snacks.git.get_root(), interactive = true, win = { style = "float", width = 0.9, height = 0.9 } }) end, desc = "Lazygit", mode = { "n" } },
