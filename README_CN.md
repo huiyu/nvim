@@ -199,7 +199,9 @@ nvim
 | `[y` / `]y` | 循环 yank 历史 |
 | `<leader>p` | 打开 yank 历史（Telescope） |
 
-### 终端集成（iTerm2）
+### 终端集成
+
+#### `Shift+Enter`（iTerm2）
 
 在 Neovim 内运行终端应用（如 Claude Code）时，`Shift+Enter` 需配置 iTerm2：
 
@@ -208,11 +210,27 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 - **Action**：`Send Escape Sequence`
 - **Value**：`[13;2u`
 
+#### Claude Code 的 tmux 包裹
+
+通过 [claudecode.nvim](https://github.com/coder/claudecode.nvim) 调起 Claude Code 时，默认会在一个专用的 tmux server 中启动——见 `lua/plugin/lsp/copilot.lua`。
+
+**原因**：Claude 的 Ink TUI 用 DEC mode 2026（Synchronized Output）实现原子帧更新。Neovim 的 `:terminal` buffer 不识别这个协议，**不包 tmux 会出现帧间撕裂**——状态栏双渲染、行间内容串到下一行。tmux 在中间消化掉 2026 序列、自己做整帧合成、再把普通 ANSI 输出给 `:terminal`，渲染就干净了。（与宿主终端无关：Ghostty / WezTerm / iTerm2 都会撞同一个问题，因为出问题的是 nvim `:terminal`。）
+
+**代价**：包了 tmux 之后，tmux、宿主终端、Claude 的 `string-width` 三方对 CJK 宽字符的宽度判定可能不一致，带框 UI（TODO、diff 预览、session recap）会出现轻微错位。相比不包时的撕裂，可接受程度高得多。
+
+**覆盖配置**：
+- `CLAUDE_WRAP_TMUX=0 nvim` — 一次性 A/B 测试
+- `vim.g.claude_wrap_tmux = false` 写入 `init.lua` — 永久关闭
+- 默认：开
+
+**提示——抑制 recap CJK 错位框**：Claude Code 的 session recap 是最显眼的 CJK 错位受害者。在 `~/.claude/settings.json` 设置 `"awaySummaryEnabled": false` 可关闭。注意这是 Claude Code 的全局配置，不属于 nvim。
+
 ### 环境变量
 
 | 变量 | 说明 |
 |------|------|
 | `NVIM_DEV=1` | 启用开发工具（`:DevReload`、`:DevTest`、`:DevValidate`、`:DevInfo`、`:DevPlugins`、`:DevProfile`） |
+| `CLAUDE_WRAP_TMUX` | `1`/`0` — 覆盖 Claude Code 的 tmux 包裹默认行为。默认开。详见 [Claude Code 的 tmux 包裹](#claude-code-的-tmux-包裹)。 |
 
 ### 自定义
 

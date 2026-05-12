@@ -204,7 +204,9 @@ Press any prefix and wait for which-key popup to see available keys.
 | `[y` / `]y` | Cycle through yank history |
 | `<leader>p` | Open yank history (Telescope) |
 
-### Terminal Integration (iTerm2)
+### Terminal Integration
+
+#### `Shift+Enter` (iTerm2)
 
 When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requires iTerm2 configuration:
 
@@ -213,11 +215,27 @@ When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requi
 - **Action**: `Send Escape Sequence`
 - **Value**: `[13;2u`
 
+#### Claude Code tmux wrapper
+
+Claude Code is launched inside a dedicated tmux server when run via [claudecode.nvim](https://github.com/coder/claudecode.nvim) — see `lua/plugin/lsp/copilot.lua`.
+
+**Why**: Claude's Ink-based TUI emits DEC mode 2026 (Synchronized Output) escape sequences for atomic frame updates. Nvim's `:terminal` buffer does not understand this protocol, so without the wrapper you get mid-frame tearing — status bar double-renders, lines bleeding into adjacent rows. tmux absorbs the 2026 sequences, composes whole frames, and emits plain ANSI that nvim's `:terminal` can render cleanly. (This is independent of the host terminal: Ghostty / WezTerm / iTerm2 all hit the same issue because the broken layer is nvim's `:terminal`, not them.)
+
+**Trade-off**: Inside the wrapped tmux, CJK wide-character widths can disagree between tmux, the host terminal, and Claude's `string-width` library. This produces minor misalignment in box-bordered UI (TODO list, diff preview, session recap). Much less disruptive than the tearing without the wrapper.
+
+**Overrides**:
+- `CLAUDE_WRAP_TMUX=0 nvim` — disable for one-off A/B testing
+- `vim.g.claude_wrap_tmux = false` in `init.lua` — disable permanently
+- Default: on
+
+**Tip — suppress the recap CJK box**: Claude Code's session recap is the most visible CJK width offender. Set `"awaySummaryEnabled": false` in `~/.claude/settings.json` to suppress it. This is Claude Code's global config, not nvim's.
+
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `NVIM_DEV=1` | Enable dev tools (`:DevReload`, `:DevTest`, `:DevValidate`, `:DevInfo`, `:DevPlugins`, `:DevProfile`) |
+| `CLAUDE_WRAP_TMUX` | `1`/`0` — override default Claude Code tmux wrap. Default on. See [Claude Code tmux wrapper](#claude-code-tmux-wrapper). |
 
 ### Customization
 

@@ -1,20 +1,40 @@
+-- Whether to wrap claude in a dedicated tmux server when launching the
+-- terminal. Precedence: env var > vim.g > default.
+--   CLAUDE_WRAP_TMUX=1 nvim    -> force on
+--   CLAUDE_WRAP_TMUX=0 nvim    -> force off (one-off A/B testing)
+--   vim.g.claude_wrap_tmux = false in init.lua -> persistent opt-out
+-- Default is ON: claude's Ink TUI emits DEC mode 2026 (Synchronized Output)
+-- sequences, which nvim's :terminal buffer does not understand. Without the
+-- wrapper you get visible mid-frame tearing (status bar double-render, lines
+-- bleeding into the next). tmux absorbs the 2026 protocol and emits already-
+-- composed plain ANSI to nvim :terminal. Trade-off: minor CJK width
+-- misalignment in box-bordered UI inside the wrapped tmux — acceptable
+-- vs. the tearing without it.
+local function should_wrap_tmux()
+  local env = vim.env.CLAUDE_WRAP_TMUX
+  if env == "1" or env == "true" then return true end
+  if env == "0" or env == "false" then return false end
+  return vim.g.claude_wrap_tmux ~= false
+end
+
 local function build_terminal_cmd()
   local plugin_args = vim.env.CLAUDE_PLUGIN_DIR
     and (" " .. table.concat(vim.tbl_map(function(d) return "--plugin-dir " .. d end, vim.split(vim.env.CLAUDE_PLUGIN_DIR, ",")), " "))
     or ""
   local claude_cmd = "claude" .. plugin_args
 
-  -- Fall back to a plain claude invocation when tmux is unavailable.
-  if vim.fn.executable("tmux") ~= 1 then
+  -- Skip the wrapper unless tmux is available AND wrapping is explicitly enabled.
+  if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then
     return claude_cmd
   end
 
-  -- Wrap in tmux to work around iTerm2's DEC mode 2026 rendering glitches.
-  -- Use a dedicated tmux server (-L <socket>) so our hooks and sessions are
-  -- fully isolated from the user's regular tmux usage, and so kill-server
-  -- on client-detached cannot leak into unrelated sessions. When the host
-  -- terminal is closed, the client detaches, the hook tears down the server,
-  -- and claude exits with it — no orphaned sessions.
+  -- Rationale for the wrapper lives in should_wrap_tmux above. Implementation
+  -- notes below.
+  --
+  -- Dedicated tmux server (-L <socket>) isolates our hooks and sessions from
+  -- the user's regular tmux. The client-detached -> kill-server hook tears
+  -- down this server when the host terminal closes, so claude exits with it
+  -- and we never leak into unrelated sessions.
   --
   -- Wrap in `sh -c '...' _` so that cmd args appended by claudecode.nvim
   -- (e.g. --resume, --continue) land inside the claude invocation via "$@"
@@ -29,6 +49,10 @@ local function build_terminal_cmd()
     claude_cmd .. ' "$@"',
     "\\; set-option -g destroy-unattached on",
     "\\; set-option -g exit-empty on",
+    -- Hide status bar in wrapper tmux: avoids periodic status redraws
+    -- and stale-frame artifacts on resize (host's tmux.conf still loads,
+    -- but status is overridden here per-server).
+    "\\; set-option -g status off",
     "\\; set-hook -g client-detached kill-server",
   }, " ")
   return "sh -c '" .. inner .. "' _"
@@ -45,7 +69,7 @@ end
 -- and forced window closes. The watchdog is spawned via `setsid` to leave
 -- nvim's process group/session, making it immune to the SIGHUP cascade.
 -- Also sweeps stale sockets from prior crashes on startup.
-if vim.fn.executable("tmux") == 1 then
+if vim.fn.executable("tmux") == 1 and should_wrap_tmux() then
   vim.api.nvim_create_autocmd("VimEnter", {
     group = vim.api.nvim_create_augroup("ClaudeTmuxWatchdog", { clear = true }),
     callback = function()
