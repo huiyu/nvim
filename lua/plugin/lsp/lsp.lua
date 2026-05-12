@@ -93,9 +93,13 @@ return {
         end,
       })
 
-      -- Register LSP server configs via vim.lsp.config() (Neovim 0.11+ / mason-lspconfig v2)
+      -- Register LSP server configs via vim.lsp.config() (Neovim 0.11+ / mason-lspconfig v2).
+      -- Re-enable after registering settings: mason-lspconfig's automatic_enable
+      -- may have enabled the server earlier with empty config, so we re-enable
+      -- here to make the just-registered settings actually take effect.
       for name, config in pairs(normalize_options(opts.servers)) do
         vim.lsp.config(name, config)
+        vim.lsp.enable(name)
       end
 
       -- Auto-install tools (formatters, linters, etc.) via Mason registry
