@@ -23,9 +23,19 @@ local function build_terminal_cmd()
     or ""
   local claude_cmd = "claude" .. plugin_args
 
+  -- nvim defaults TERM=xterm-256color for :terminal children, but xterm-256color
+  -- claims more capabilities than nvim's libvterm actually implements. Ink emits
+  -- ANSI sequences for those claimed-but-unsupported features → libvterm renders
+  -- incomplete frames → drift, residue, cumulative degradation (huiyu/nvim#2).
+  -- Forcing TERM to whatever nvim's own terminal advertises (e.g. xterm-ghostty
+  -- in Ghostty) gives Ink a conservative terminfo that matches libvterm's actual
+  -- capabilities. nvim's own vim.env.TERM is the original host-terminal TERM —
+  -- nvim only overrides it for :terminal children, not its own env.
+  local term = vim.env.TERM or "xterm-256color"
+
   -- Skip the wrapper unless tmux is available AND wrapping is explicitly enabled.
   if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then
-    return claude_cmd
+    return "env TERM=" .. term .. " " .. claude_cmd
   end
 
   -- Rationale for the wrapper lives in should_wrap_tmux above. Implementation
@@ -41,7 +51,15 @@ local function build_terminal_cmd()
   -- rather than after the trailing tmux set-hook.
   local socket = "claude-nvim-" .. vim.fn.getpid()
   local inner = table.concat({
-    "tmux -L " .. socket .. " new-session -A -s main",
+    "tmux -L " .. socket,
+    -- Set default-terminal BEFORE new-session so claude inside the pane sees
+    -- the conservative TERM directly. tmux otherwise injects its own default
+    -- (tmux-256color) into the pane env regardless of the outer TERM we set
+    -- via env(1), which puts us right back into the "terminfo claims more
+    -- than libvterm implements" trap that caused huiyu/nvim#2.
+    "set-option -g default-terminal '" .. term .. "'",
+    "\\;",
+    "new-session -A -s main",
     "-e CLAUDE_CODE_SSE_PORT=$CLAUDE_CODE_SSE_PORT",
     "-e ENABLE_IDE_INTEGRATION=$ENABLE_IDE_INTEGRATION",
     "-e FORCE_CODE_TERMINAL=$FORCE_CODE_TERMINAL",
@@ -60,7 +78,7 @@ local function build_terminal_cmd()
     "\\; set-option -g status off",
     "\\; set-hook -g client-detached kill-server",
   }, " ")
-  return "sh -c '" .. inner .. "' _"
+  return "env TERM=" .. term .. " sh -c '" .. inner .. "' _"
 end
 
 -- Detached watchdog: polls our nvim pid and tears down the dedicated tmux
