@@ -62,6 +62,11 @@ vim.keymap.set("t", "<C-q>", function()
   vim.cmd("bdelete!")
 end, { desc = "Close terminal", noremap = true, silent = true })
 vim.keymap.set("n", "<leader>Tx", "<cmd>bdelete!<cr>", { desc = "Close terminal" })
+-- Drift fix: shrink/restore terminal windows in one tick to force libvterm to
+-- truncate its grid (the only resize op that actually invalidates stale cells).
+vim.keymap.set("n", "<leader>Td", function()
+  require("util.terminal").fix_drift()
+end, { desc = "Fix terminal TUI drift" })
 vim.keymap.set("t", "<S-CR>", function()
   vim.fn.chansend(vim.b.terminal_job_id, "\x1b[13;2u")
 end, { noremap = true, silent = true })

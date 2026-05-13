@@ -52,6 +52,31 @@ local function refresh_terminal_tuis()
   end
 end
 
+-- Manual drift fix for TUI :terminal contents (claude in particular).
+-- libvterm's grid only invalidates on shrink, not on grow: a height nudge
+-- of +1/-1 leaves stale cells untouched, but shrinking forces row truncation
+-- which clears the residue. Both nvim_win_set_height calls run in the same
+-- event-loop tick, so nvim never paints the intermediate shrunken state —
+-- visually the window doesn't move. See issue #2 for the full mechanism.
+function M.fix_drift()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      if vim.bo[buf].buftype == "terminal" then
+        local h = vim.api.nvim_win_get_height(win)
+        local shrink = math.min(5, h - 1)
+        if shrink >= 1 then
+          local orig_fh = vim.wo[win].winfixheight
+          vim.wo[win].winfixheight = false
+          pcall(vim.api.nvim_win_set_height, win, h - shrink)
+          pcall(vim.api.nvim_win_set_height, win, h)
+          vim.wo[win].winfixheight = orig_fh
+        end
+      end
+    end
+  end
+end
+
 -- Toggle Snacks bottom terminal. edgy.nvim manages placement and sizing.
 function M.toggle(id)
   local opts = { win = { position = "bottom", height = 25 } }
