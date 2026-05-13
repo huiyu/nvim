@@ -46,6 +46,11 @@ local function build_terminal_cmd()
     "-e ENABLE_IDE_INTEGRATION=$ENABLE_IDE_INTEGRATION",
     "-e FORCE_CODE_TERMINAL=$FORCE_CODE_TERMINAL",
     "-e no_proxy=localhost,127.0.0.1",
+    -- Fullscreen / alt-screen rendering: doesn't fix the resize drift bugs
+    -- (see huiyu/nvim#2) but keeps scrollback memory bounded and enables
+    -- mouse support inside the TUI. Hardcoded =1 so it doesn't depend on
+    -- the user's shell env (tmux only forwards what's whitelisted via -e).
+    "-e CLAUDE_CODE_NO_FLICKER=1",
     claude_cmd .. ' "$@"',
     "\\; set-option -g destroy-unattached on",
     "\\; set-option -g exit-empty on",
