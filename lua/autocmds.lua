@@ -98,28 +98,6 @@ autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
   end,
 })
 
--- Refresh terminal TUIs after long focus loss (macOS sleep/wake, etc.).
--- Resize events can get lost across the host terminal -> nvim -> pty -> TUI
--- chain on resume, leaving claude/lazygit/etc. rendered at stale dimensions
--- (input box drifts, cursor reports wrong cell). Gate on >10s focus loss so
--- short alt-tab cycles don't cause the 1-row nudge flicker.
-do
-  local last_focus_lost = nil
-  autocmd("FocusLost", {
-    group = augroup("terminal_refresh_on_wake", { clear = true }),
-    callback = function() last_focus_lost = vim.uv.now() end,
-  })
-  autocmd("FocusGained", {
-    group = augroup("terminal_refresh_on_wake", { clear = false }),
-    callback = function()
-      if last_focus_lost and (vim.uv.now() - last_focus_lost) > 10000 then
-        require("util.terminal").refresh_terminal_tuis()
-      end
-      last_focus_lost = nil
-    end,
-  })
-end
-
 -- Resize splits when window is resized (respects winfixwidth/winfixheight)
 autocmd("VimResized", {
   group = augroup("resize_splits", { clear = true }),
