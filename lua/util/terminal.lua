@@ -52,29 +52,35 @@ local function refresh_terminal_tuis()
   end
 end
 
--- Manual drift fix for TUI :terminal contents (claude in particular).
--- libvterm's grid only invalidates on shrink, not on grow: a height nudge
--- of +1/-1 leaves stale cells untouched, but shrinking forces row truncation
--- which clears the residue. Both nvim_win_set_height calls run in the same
--- event-loop tick, so nvim never paints the intermediate shrunken state —
--- visually the window doesn't move. See issue #2 for the full mechanism.
+-- Manual drift fix for the current :terminal window (claude in particular).
+-- libvterm's grid only invalidates on shrink, not on grow. Shrinking forces
+-- row truncation, which clears the residue cells; growing back restores the
+-- original window size after Ink has fully re-rendered to the shrunken size.
+--
+-- Uses ex commands (`:resize`) and an explicit 200ms gap between them so the
+-- behavior matches what works when typed manually — both commands going
+-- through the same code path the user invokes, and enough wall-clock time
+-- between them for Ink to fully process the shrink SIGWINCH and stabilize
+-- its renderer before the grow event hits.
+--
+-- See issue #2 for the full mechanism. The 200ms is visible (window briefly
+-- smaller) but the alternatives (shorter delays) leave drift artifacts.
 function M.fix_drift()
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if vim.api.nvim_win_is_valid(win) then
-      local buf = vim.api.nvim_win_get_buf(win)
-      if vim.bo[buf].buftype == "terminal" then
-        local h = vim.api.nvim_win_get_height(win)
-        local shrink = math.min(5, h - 1)
-        if shrink >= 1 then
-          local orig_fh = vim.wo[win].winfixheight
-          vim.wo[win].winfixheight = false
-          pcall(vim.api.nvim_win_set_height, win, h - shrink)
-          pcall(vim.api.nvim_win_set_height, win, h)
-          vim.wo[win].winfixheight = orig_fh
-        end
-      end
-    end
+  local win = vim.api.nvim_get_current_win()
+  local buf = vim.api.nvim_win_get_buf(win)
+  if vim.bo[buf].buftype ~= "terminal" then
+    vim.notify("fix_drift: current window is not a :terminal", vim.log.levels.WARN)
+    return
   end
+  local orig_fh = vim.wo[win].winfixheight
+  vim.wo[win].winfixheight = false
+  vim.api.nvim_win_call(win, function() vim.cmd("resize -5") end)
+  vim.defer_fn(function()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_call(win, function() vim.cmd("resize +5") end)
+      vim.wo[win].winfixheight = orig_fh
+    end
+  end, 200)
 end
 
 -- Toggle Snacks bottom terminal. edgy.nvim manages placement and sizing.
