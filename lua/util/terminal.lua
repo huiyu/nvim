@@ -31,27 +31,6 @@ function M.setup_paste_coalesce()
   end
 end
 
--- Nudge all terminal windows by 1 row so the TUI inside emits a SIGWINCH and
--- repaints. edgy's layout reshuffle can leave existing TUIs (notably tmux-
--- wrapped claude) rendered at stale dimensions when a new terminal opens.
-local function refresh_terminal_tuis()
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if vim.api.nvim_win_is_valid(win) then
-      local buf = vim.api.nvim_win_get_buf(win)
-      if vim.bo[buf].buftype == "terminal" then
-        local orig_fh = vim.wo[win].winfixheight
-        vim.wo[win].winfixheight = false
-        local h = vim.api.nvim_win_get_height(win)
-        if h > 1 then
-          pcall(vim.api.nvim_win_set_height, win, h - 1)
-          pcall(vim.api.nvim_win_set_height, win, h)
-        end
-        vim.wo[win].winfixheight = orig_fh
-      end
-    end
-  end
-end
-
 -- Manual drift fix for the current :terminal window (claude in particular).
 -- libvterm's grid only invalidates on shrink, not on grow. Shrinking forces
 -- row truncation, which clears the residue cells; growing back restores the
@@ -88,7 +67,6 @@ function M.toggle(id)
   local opts = { win = { position = "bottom", height = 25 } }
   if id then opts.id = id end
   Snacks.terminal(nil, opts)
-  vim.defer_fn(refresh_terminal_tuis, 100)
 end
 
 return M
