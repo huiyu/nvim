@@ -145,4 +145,24 @@ autocmd("VimLeavePre", {
   end,
 })
 
-require("util.terminal").setup_paste_coalesce()
+-- DISABLED 2026-05-18 — observation period before full removal.
+--
+-- Originally added to coalesce streamed bracketed pastes into Claude Code's
+-- :terminal so it would see one paste event instead of N fragmented
+-- `[Pasted text #1][Pasted text #5]...` placeholders (commit 22425b8).
+--
+-- Verified Claude Code no longer needs this — a multi-KB paste arrives as
+-- one clean event without the helper.
+--
+-- Also: the helper itself had a cross-phase line-continuation bug. nvim's
+-- paste protocol says lines[1] of phase N continues lines[#] of phase N-1
+-- (chunking happens at byte boundaries, not line boundaries). The helper
+-- appended each phase's lines as separate entries, so any single-line paste
+-- crossing a phase boundary (e.g. a 68-byte file path) gained a spurious
+-- `\n` at the chunk split — visible as zsh executing the path as two
+-- commands after `<leader>fy` + paste.
+--
+-- Keep the function body in util/terminal.lua for reference. If a few
+-- weeks of normal Claude usage stays clean, delete this block and the
+-- function together.
+-- require("util.terminal").setup_paste_coalesce()

@@ -1,7 +1,17 @@
 local M = {}
 
--- Coalesce streamed bracketed pastes in :term buffers.
+-- DISABLED 2026-05-18 (call site in autocmds.lua is commented out).
 --
+-- Has a cross-phase line-continuation bug: nvim's paste protocol says
+-- lines[1] of phase N continues lines[#] of phase N-1 (chunking is at
+-- byte boundaries), but the impl below appends each phase's lines as
+-- separate entries — so single-line pastes crossing a phase boundary
+-- gain a spurious `\n` at the chunk split.
+--
+-- Kept for reference during an observation period; delete this function
+-- and the call site together if Claude Code paste stays clean.
+--
+-- Original purpose: coalesce streamed bracketed pastes in :term buffers.
 -- nvim's TUI splits bracketed pastes larger than ~64KB across multiple
 -- vim.paste() invocations (phase 1 start, 2 continue, 3 end) and the default
 -- impl emits one chansend per phase. TUIs like Claude Code interpret each
