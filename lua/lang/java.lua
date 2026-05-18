@@ -41,8 +41,12 @@ return {
       -- Lombok
       local lombok_path = jdtls_install .. "/lombok.jar"
 
-      local java_home = vim.fn.expand("~/.sdkman/candidates/java/21.0.7-zulu")
+      local java_home = vim.fn.expand("~/.sdkman/candidates/java/current")
       local java_bin = java_home .. "/bin/java"
+      if vim.fn.executable(java_bin) ~= 1 then
+        vim.notify("jdtls: java not found at " .. java_bin, vim.log.levels.ERROR)
+        return
+      end
 
       local config = {
         cmd = {
@@ -132,7 +136,10 @@ return {
         end)
       end
 
-      jdtls.start_or_attach(config)
+      local ok, err = pcall(jdtls.start_or_attach, config)
+      if not ok then
+        vim.notify("jdtls.start_or_attach error: " .. tostring(err), vim.log.levels.ERROR)
+      end
     end,
   },
   {
