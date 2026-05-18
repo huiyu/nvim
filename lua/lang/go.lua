@@ -17,6 +17,10 @@ vim.api.nvim_create_autocmd("FileType", {
   pattern = "go",
   callback = function(ev)
     vim.keymap.set("n", "<leader>cR", rebuild_gopls, { buffer = ev.buf, desc = "Rebuild gopls index" })
+    vim.keymap.set("n", "<leader>cx", function()
+      vim.cmd("write")
+      vim.cmd("split | terminal go run " .. vim.fn.shellescape(vim.fn.expand("%:p")))
+    end, { buffer = ev.buf, desc = "Run current file (go run)" })
   end,
 })
 
