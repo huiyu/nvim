@@ -19,7 +19,16 @@ return {
       z = true,            -- bindings for folds, spelling and others prefixed with z
       g = true,            -- bindings for prefixed with g
     },
-    sort = { "group", "alphanum" },
+    -- Custom order: groups (+xxx) first, then alphanum (lowercase before
+    -- uppercase), special chars last. which-key's built-in `group` sorter
+    -- returns 1 for groups → groups come last under default a<b sort, so we
+    -- invert it here.
+    sort = {
+      function(item) return item.group and 0 or 1 end, -- groups first
+      "alphanum",                                       -- alphanum before symbols
+      "case",                                           -- lowercase before uppercase
+      "natural",                                        -- natural order of remaining
+    },
   },
   init = function()
     local whichkey = require("which-key")

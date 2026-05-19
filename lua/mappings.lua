@@ -122,7 +122,17 @@ vim.keymap.set("n", "]w", function() vim.diagnostic.goto_next({ severity = vim.d
 vim.keymap.set("n", "[q", "<cmd>cprev<cr>zz", { desc = "Prev quickfix" })
 vim.keymap.set("n", "]q", "<cmd>cnext<cr>zz", { desc = "Next quickfix" })
 
-return {
+-- Hide noisy individual keymaps from the which-key popup. They still work,
+-- just not listed (Harpoon numeric jumps are accessed via <leader>h menu;
+-- <leader>? is the standalone keybinding-guide popup).
+local hidden = {
+  { "<leader>?", hidden = true },
+  { "<leader>1", hidden = true }, { "<leader>2", hidden = true }, { "<leader>3", hidden = true },
+  { "<leader>4", hidden = true }, { "<leader>5", hidden = true }, { "<leader>6", hidden = true },
+  { "<leader>7", hidden = true }, { "<leader>8", hidden = true }, { "<leader>9", hidden = true },
+}
+
+local spec = {
   -- Which-key group labels
   { "<leader>f",     group = "Find/Files" },
   { "<leader>s",     group = "Search",          mode = { "n", "v" } },
@@ -205,6 +215,9 @@ return {
   { "<leader>-",  "<cmd>split<cr>",  desc = "Split below", mode = "n" },
   { "<leader>|",  "<cmd>vsplit<cr>", desc = "Split right",  mode = "n" },
 
+  -- Alternate file (last buffer) — Doom's SPC `
+  { "<leader>`",  "<C-^>",            desc = "Last buffer",  mode = "n" },
+
   -- Quit/Session
   { "<leader>qq", "<cmd>qall<cr>",  desc = "Quit all",       mode = "n" },
   { "<leader>qQ", "<cmd>qa!<cr>",   desc = "Force quit all", mode = "n" },
@@ -267,3 +280,5 @@ return {
     vim.o.background = vim.o.background == "dark" and "light" or "dark"
   end, desc = "Toggle dark/light background" },
 }
+
+return vim.list_extend(spec, hidden)
