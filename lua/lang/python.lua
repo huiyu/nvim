@@ -57,7 +57,7 @@ return {
     ft = "python",
     dependencies = {
       "neovim/nvim-lspconfig",
-      "nvim-telescope/telescope.nvim",
+      "folke/snacks.nvim",
     },
     opts = {
       search = {

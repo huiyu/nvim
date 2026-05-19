@@ -18,14 +18,8 @@ return {
     {
       "<leader>gM",
       function()
-        -- Fuzzy pick a git ref (branches, tags, recent commits) then diff against it
-        local pickers = require("telescope.pickers")
-        local finders = require("telescope.finders")
-        local actions = require("telescope.actions")
-        local action_state = require("telescope.actions.state")
-        local conf = require("telescope.config").values
-
-        -- Gather branches, tags, and recent commits
+        -- Fuzzy pick a git ref (branches, tags, recent commits) then diff against it.
+        -- Goes through vim.ui.select, which snacks.picker (ui_select=true) intercepts.
         local refs = {}
         local branches = vim.fn.systemlist("git branch --all --format='%(refname:short)'")
         for _, b in ipairs(branches) do
@@ -41,32 +35,14 @@ return {
           table.insert(refs, { ref = hash, display = " " .. c })
         end
 
-        pickers
-          .new({}, {
-            prompt_title = "Diff against",
-            finder = finders.new_table({
-              results = refs,
-              entry_maker = function(entry)
-                return {
-                  value = entry.ref,
-                  display = entry.display,
-                  ordinal = entry.display,
-                }
-              end,
-            }),
-            sorter = conf.generic_sorter({}),
-            attach_mappings = function(prompt_bufnr)
-              actions.select_default:replace(function()
-                actions.close(prompt_bufnr)
-                local selection = action_state.get_selected_entry()
-                if selection then
-                  vim.cmd("tabnew | DiffviewOpen " .. selection.value)
-                end
-              end)
-              return true
-            end,
-          })
-          :find()
+        vim.ui.select(refs, {
+          prompt = "Diff against",
+          format_item = function(item) return item.display end,
+        }, function(choice)
+          if choice then
+            vim.cmd("tabnew | DiffviewOpen " .. choice.ref)
+          end
+        end)
       end,
       desc = "Diff against commit/branch",
       mode = "n",

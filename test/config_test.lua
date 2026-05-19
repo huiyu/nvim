@@ -40,8 +40,8 @@ test.describe("Configuration Validation", function()
     -- Test a few key plugin files
     local plugin_files = {
       "plugin.lsp.lsp",
-      "plugin.ui.solarized", 
-      "plugin.editor.telescope",
+      "plugin.ui.solarized",
+      "plugin.editor.snacks",
       "lang.java",
     }
     

@@ -11,7 +11,7 @@ local SPECIAL_FILETYPES = {
   'fugitive', 'git', 'gitcommit',                            -- Git related
   'help',                                                    -- Help documentation
   'qf', 'quickfix', 'locationlist',                          -- Quickfix/Location list
-  'telescope', 'TelescopePrompt', 'fzf',                     -- Fuzzy finders
+  'snacks_picker_input', 'snacks_picker_list', 'snacks_picker_preview', 'fzf', -- Fuzzy finders
   'dashboard', 'startify', 'alpha',                          -- Start pages
   'lspinfo', 'mason', 'lazy', 'packer',                      -- Plugin/LSP management
   'terminal', 'toggleterm',                                  -- Terminals

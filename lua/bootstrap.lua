@@ -50,7 +50,7 @@ local success, error_msg = pcall(function()
   require("lazy").setup({
     spec = {
       -- Plugin modules organized by functionality
-      { import = "plugin.editor" },  -- Editor enhancement plugins (telescope, surround, etc.)
+      { import = "plugin.editor" },  -- Editor enhancement plugins (snacks, surround, etc.)
       { import = "plugin.lsp" },     -- LSP, completion, and development tools
       { import = "plugin.ui" },      -- UI enhancements and themes
       { import = "plugin.vcs" },     -- Version control integration
