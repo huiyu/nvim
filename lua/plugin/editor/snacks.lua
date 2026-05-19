@@ -164,14 +164,7 @@ return {
         },
       },
       sections = {
-        function()
-          local out = vim.fn.system("cowsay 'Talk is cheap, show me the code.'")
-          return {
-            align = "center",
-            padding = 1,
-            text = { { out, hl = "header" } },
-          }
-        end,
+        { section = "terminal", cmd = "cowsay 'Talk is cheap, show me the code.'", hl = "header", padding = 1, indent = 8, ttl = 60 * 60 },
         { section = "keys",         padding = 1 },
         { section = "recent_files", title = "Recent files",                            cwd = true,    limit = 8,   padding = 1 },
         { section = "projects",     title = "Projects",                                padding = 1 },
@@ -182,17 +175,17 @@ return {
           key = "b",
           action = function() Snacks.gitbrowse() end,
         },
-        function()
-          if not Snacks.git.get_root() then return nil end
-          local out = vim.fn.system("git status --short --branch --renames 2>/dev/null")
-          return {
-            icon = " ",
-            title = "Git Status",
-            padding = 1,
-            indent = 3,
-            text = { { out } },
-          }
-        end,
+        {
+          icon = " ",
+          title = "Git Status",
+          section = "terminal",
+          enabled = function() return Snacks.git.get_root() ~= nil end,
+          cmd = "git status --short --branch --renames",
+          height = 5,
+          padding = 1,
+          ttl = 5 * 60,
+          indent = 3,
+        },
         { section = "startup" },
       },
     }
