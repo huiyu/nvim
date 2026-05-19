@@ -6,16 +6,29 @@
 
 ### 环境要求
 
+**必装：**
 - **Neovim** >= 0.10.0
 - **Git**
 - [Nerd Font](https://www.nerdfonts.com/)（图标显示）
-- **ripgrep** (`rg`) 全文搜索
-- **fd** 文件查找
-- 语言工具链，**只有想用对应的 Mason 包时才需要**：
-  - **Go** — `gopls`、`goimports`、`gofumpt`、`gomodifytags`、`impl`、`delve` 都依赖
-  - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
-  - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
-  - **JDK 17+** — `jdtls`（Java）需要
+- **ripgrep** (`rg`) — `Snacks.picker.grep` / `live_grep` / `:grep` 的底层
+- **fd** — 文件查找（`venv-selector` 和部分 picker 用到）
+
+**可选（按功能）：**
+- **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg`（项目）/ `<leader>gf`（当前文件历史）
+- **[tmux](https://github.com/tmux/tmux)** — 把 Claude Code TUI 包到 `:terminal` 里，防止闪屏；自动检测（详见[终端集成](#终端集成)）
+- **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** — 启动页 banner（缺失会静默跳过，不致命）
+
+**macOS 一键安装：**
+```bash
+brew install neovim git ripgrep fd lazygit tmux cowsay
+brew install --cask font-jetbrains-mono-nerd-font  # 任意 Nerd Font 都行
+```
+
+**语言工具链** — *只有想用对应的 Mason 包时才需要：*
+- **Go** — `gopls`、`goimports`、`gofumpt`、`gomodifytags`、`impl`、`delve` 都依赖
+- **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
+- **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
+- **JDK 17+** — `jdtls`（Java）需要。本配置假设走 [SDKMAN!](https://sdkman.io/)，路径写死在 `~/.sdkman/candidates/java/current`（见 [`lua/lang/java.lua`](lua/lang/java.lua)）
 
 如果 Mason 安装失败，运行 `:Mason`（UI）或 `:MasonLog`（原始日志）查看具体错误。最常见的原因是上面这些工具链没装。
 
@@ -75,10 +88,9 @@ nvim
 
 | 插件 | 说明 |
 |------|------|
-| [telescope](https://github.com/nvim-telescope/telescope.nvim) | 模糊查找器 |
 | [flash](https://github.com/folke/flash.nvim) | 快速跳转导航 |
 | [which-key](https://github.com/folke/which-key.nvim) | 键位提示弹窗 |
-| [snacks](https://github.com/folke/snacks.nvim) | 启动页、文件浏览器、终端、缩进线、平滑滚动、通知 |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker（模糊查找）、启动页、文件浏览器、终端、缩进线、平滑滚动、通知、重命名 |
 | [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
 | [trouble](https://github.com/folke/trouble.nvim) | 诊断面板 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
@@ -159,10 +171,13 @@ nvim
 | `<C-Up/Down/Left/Right>` | 窗口大小调整 |
 | `<A-j>` / `<A-k>` | 移动行（n, i, v） |
 | `<S-h>` / `<S-l>` | 上/下一个 buffer |
-| `<leader><space>` | 查找文件 |
-| `<leader>/` | 全文搜索 |
+| `<leader><space>` | 智能查找（buffers + 最近 + cwd 文件，按 frecency 加权） |
+| `<leader>.` | 在 cwd 查找文件 |
+| `<leader>/` | 搜索项目（grep） |
 | `<leader>,` | 缓冲区列表 |
 | `<leader>:` | 命令历史 |
+| `<leader>'` | 恢复上次 picker |
+| `<leader>\`` | 上一个 buffer（alternate） |
 | `<leader>?` | 键位指南 |
 | `<leader>l` | Lazy 插件管理 |
 | `<leader>n` | 通知历史 |
@@ -170,24 +185,25 @@ nvim
 | `<leader>-` / `<leader>\|` | 水平 / 垂直分屏 |
 | `<leader>1-9` | Harpoon 跳转到文件 |
 | `<leader>h` / `<leader>H` | Harpoon 快捷菜单 / 添加文件 |
-| `<leader>p` | Yank 历史（Telescope）— 见 [Yanky](#yanky增强复制粘贴) |
+| `<leader>p` | Yank 历史 — 见 [Yanky](#yanky增强复制粘贴) |
 
 #### Leader 分组
 
 | 分组 | 键 | 说明 |
 |------|----|------|
-| 查找 | `<leader>f` | `ff` 文件, `fF` 文件（含 ignored）, `fb` buffer, `fr` 最近, `fg` git 文件, `fc` 配置, `fn` 新建, `ft/fT` 终端, `fp` 项目 |
-| 搜索 | `<leader>s` | `sg` grep, `sw` 当前词, `sb` buffer 行, `sm` 标记, `sR` 恢复, `sh` 帮助, `sk` 键位, `sr` 替换, `sW` 替换词, `st/sT` todo, `ss/sS` 符号, `sn` noice |
-| 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号, `cv` 虚拟环境 |
+| 查找 | `<leader>f` | `ff` cwd 文件, `fF` 当前 buffer 目录, `fd` 浏览目录, `fe` 浏览器（含被忽略文件）, `fr` 最近, `fb` buffer, `fg` git 文件, `fp` 项目, `fc` nvim 配置, `fn` 新建, `fs/fS` 保存/另存为, `fR` 重命名, `fD` 删除, `fy/fY` 复制路径（绝对/项目相对）, `ft/fT` 终端 |
+| 搜索 | `<leader>s` | `sb` buffer, `sB` 所有开启 buffer, `sd` 当前目录, `sp` 项目, `sw` 当前词, `ss/sS` 符号（buffer/workspace）, `sR` 恢复, `sh` 帮助, `sk` 键位, `sm` 标记, `sj` 跳转, `sc/sC` 命令历史/命令, `s"` 寄存器, `sM` man, `sr/sW` 替换, `st/sT` todo, `sn{a,d,h,l,t}` noice（全部/清除/历史/最新/picker） |
+| 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号（buffer/workspace）, `cv` 虚拟环境（py）, `cp` Markdown 预览（md）, `cx` 运行当前文件（go）, `cR` 重建 gopls 索引（go） |
 | Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bD` 删除+窗口, `bl/br` 删除左/右, `bj` 选择, `bp` 固定, `bP` 关闭未固定 |
-| 调试 | `<leader>d` | `db` 断点, `dc` 继续, `di` 步入, `do` 步出, `dO` 步过, `dt` 终止, `dl` 重跑 |
+| 调试 | `<leader>d` | `db/dB` 断点/条件断点, `dc/da` 继续/带参运行, `dC` 运行到光标, `dg` 跳到行（不执行）, `di` 步入, `do` 步出, `dO` 步过, `dj/dk` 上/下栈帧, `dP` 暂停, `dr` REPL, `ds` 会话, `dw` 悬浮 widget, `dt` 终止, `dl` 重跑 |
 | Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存, `gu` 撤销暂存, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gB` 浏览 |
-| 测试 | `<leader>t` | `tm` 测试方法, `td` 调试方法, `tf` 测试文件, `tS` 摘要, `to` 输出 |
+| 测试 | `<leader>t` | `tm` 测试方法, `td` 调试方法, `tf` 测试文件, `tS` 摘要, `to` 输出, `tD/th` 显示/隐藏诊断 |
+| 终端 | `<leader>T` | `T1-9` 切换专用终端 1-9, `Td` 修复 claude TUI 漂移, `Tx` 关闭终端 buffer |
 | 切换 | `<leader>u` | `uf/uF` 自动格式化, `us` 拼写, `uw` 换行, `ul/uL` 行号, `ud` 诊断, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` 背景, `un` 关闭通知, `uR` markdown 渲染 |
-| 诊断 | `<leader>x` | `xx/xX` 诊断, `xL` loclist, `xQ` quickfix, `xt/xT` todo |
+| 诊断 | `<leader>x` | `xx/xX` 诊断（项目/buffer）, `xL/xQ` loclist/quickfix picker, `xl/xq` 切换 loclist/quickfix 窗口, `xt/xT` todo |
 | 重构 | `<leader>r` | `rf` 提取函数, `rF` 提取到文件, `rx` 提取变量, `ri` 内联, `rb` 提取块, `rB` 提取块到文件, `rs` 选择 |
-| AI | `<leader>a` | `ac` 切换, `af` 聚焦, `ar` 恢复, `aR` 继续, `am` 模型, `ab` 添加 buffer, `as` 发送, `aa/ad` 接受/拒绝 diff |
-| 窗口 | `<leader>w` | `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
+| AI | `<leader>a` | `ac` 切换, `af` 聚焦, `ar` 恢复, `aR` 继续, `am` 模型, `ab` 添加 buffer, `aS` 从文件树添加, `as` 发送（v）, `aa/ad` 接受/拒绝 diff |
+| 窗口 | `<leader>w` | `ww` 切到其它窗口, `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
 | 退出 | `<leader>q` | `qq/qQ` 退出, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
 | 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `l/f` 最后/第一个, `o` 关闭其他, `s` 列出全部 |
 
@@ -197,7 +213,9 @@ nvim
 |------|------|
 | `y` / `p` / `P` | Yank / Put（带历史） |
 | `[y` / `]y` | 循环 yank 历史 |
-| `<leader>p` | 打开 yank 历史（Telescope） |
+| `<leader>p` | 打开 yank 历史（`:YankyRingHistory`，走 snacks ui-select） |
+| `<leader>y`（v） | 选区 yank 到匿名寄存器 |
+| `<leader>Y`（v） | 选区 yank 到系统剪贴板（`+`） |
 
 ### 终端集成
 

@@ -6,16 +6,29 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 
 ### Requirements
 
+**Required:**
 - **Neovim** >= 0.10.0
 - **Git**
 - A [Nerd Font](https://www.nerdfonts.com/) for icon display
-- **ripgrep** (`rg`) for grep and live search
-- **fd** for file finder
-- Language toolchains, **only if you want the matching Mason packages to install**:
-  - **Go** — required for `gopls`, `goimports`, `gofumpt`, `gomodifytags`, `impl`, `delve`
-  - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
-  - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
-  - **JDK 17+** — required for `jdtls` (Java)
+- **ripgrep** (`rg`) — powers `Snacks.picker.grep` / `live_grep` / `:grep`
+- **fd** — file finder (used by `venv-selector` and some pickers)
+
+**Optional (feature-specific):**
+- **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg` (project) / `<leader>gf` (file history)
+- **[tmux](https://github.com/tmux/tmux)** — wraps Claude Code TUI inside `:terminal` to prevent flicker; auto-detected (see [Terminal Integration](#terminal-integration))
+- **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** — dashboard banner (silently skipped if missing, but the banner section is empty)
+
+**Quick install (macOS):**
+```bash
+brew install neovim git ripgrep fd lazygit tmux cowsay
+brew install --cask font-jetbrains-mono-nerd-font  # or any Nerd Font
+```
+
+**Language toolchains** — *only if you want the matching Mason packages to install:*
+- **Go** — required for `gopls`, `goimports`, `gofumpt`, `gomodifytags`, `impl`, `delve`
+- **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
+- **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
+- **JDK 17+** — required for `jdtls` (Java). This config expects [SDKMAN!](https://sdkman.io/) at `~/.sdkman/candidates/java/current` (see [`lua/lang/java.lua`](lua/lang/java.lua))
 
 If a Mason package fails to install, run `:Mason` (UI) or `:MasonLog` (raw log) to see the underlying error. The most common cause is a missing toolchain from the list above.
 
@@ -80,10 +93,9 @@ nvim
 
 | Plugin | Description |
 |--------|-------------|
-| [telescope](https://github.com/nvim-telescope/telescope.nvim) | Fuzzy finder |
 | [flash](https://github.com/folke/flash.nvim) | Fast navigation with labels |
 | [which-key](https://github.com/folke/which-key.nvim) | Keybinding help popup |
-| [snacks](https://github.com/folke/snacks.nvim) | Dashboard, file explorer, terminal, indent guides, smooth scroll, notifications |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker (fuzzy finder), dashboard, file explorer, terminal, indent guides, smooth scroll, notifications, rename |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
 | [trouble](https://github.com/folke/trouble.nvim) | Diagnostics panel |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
@@ -164,10 +176,13 @@ Press any prefix and wait for which-key popup to see available keys.
 | `<C-Up/Down/Left/Right>` | Window resize |
 | `<A-j>` / `<A-k>` | Move line up/down (n, i, v) |
 | `<S-h>` / `<S-l>` | Prev / Next buffer |
-| `<leader><space>` | Find files |
-| `<leader>/` | Grep |
+| `<leader><space>` | Smart find (buffers + recent + cwd files, frecency-boosted) |
+| `<leader>.` | Find file in cwd |
+| `<leader>/` | Search project (grep) |
 | `<leader>,` | Buffers |
 | `<leader>:` | Command history |
+| `<leader>'` | Resume last picker |
+| `<leader>\`` | Last buffer (alternate) |
 | `<leader>?` | Keybinding guide |
 | `<leader>l` | Lazy (plugin manager) |
 | `<leader>n` | Notification history |
@@ -175,24 +190,25 @@ Press any prefix and wait for which-key popup to see available keys.
 | `<leader>-` / `<leader>\|` | Split below / right |
 | `<leader>1-9` | Harpoon: jump to file 1-9 |
 | `<leader>h` / `<leader>H` | Harpoon quick menu / add file |
-| `<leader>p` | Yank history (Telescope) — see [Yanky](#yanky-enhanced-yankpaste) |
+| `<leader>p` | Yank history — see [Yanky](#yanky-enhanced-yankpaste) |
 
 #### Leader Groups
 
 | Group | Key | Description |
 |-------|-----|-------------|
-| Find/Files | `<leader>f` | `ff` files, `fF` files (incl. ignored), `fb` buffers, `fr` recent, `fg` git files, `fc` config, `fn` new, `ft/fT` terminal, `fp` projects |
-| Search | `<leader>s` | `sg` grep, `sw` word, `sb` buffer lines, `sm` marks, `sR` resume, `sh` help, `sk` keymaps, `sr` replace, `sW` replace word, `st/sT` todos, `ss/sS` symbols, `sn` noice |
-| Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (Trouble), `cv` select venv |
+| Find/Files | `<leader>f` | `ff` files in cwd, `fF` from buffer dir, `fd` browse directory, `fe` explorer (with ignored), `fr` recent, `fb` buffers, `fg` git files, `fp` projects, `fc` nvim config, `fn` new, `fs/fS` save/save-as, `fR` rename, `fD` delete, `fy/fY` yank path (abs/project), `ft/fT` terminal |
+| Search | `<leader>s` | `sb` buffer, `sB` open buffers, `sd` current dir, `sp` project, `sw` word, `ss/sS` symbols (buffer/workspace), `sR` resume, `sh` help, `sk` keymaps, `sm` marks, `sj` jumps, `sc/sC` cmd history/cmds, `s"` registers, `sM` man, `sr/sW` replace, `st/sT` todos, `sn{a,d,h,l,t}` noice (all/dismiss/history/last/pick) |
+| Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (buffer/workspace), `cv` select venv (py), `cp` markdown preview (md), `cx` run current file (go), `cR` rebuild gopls index (go) |
 | Buffer | `<leader>b` | `bd` delete, `bo` delete others, `bD` delete+window, `bl/br` delete left/right, `bj` pick, `bp` pin, `bP` close unpinned |
-| Debug | `<leader>d` | `db` breakpoint, `dc` continue, `di` step into, `do` step out, `dO` step over, `dt` terminate, `dl` run last |
+| Debug | `<leader>d` | `db/dB` breakpoint/conditional, `dc/da` continue/with-args, `dC` run to cursor, `dg` goto line, `di` step into, `do` step out, `dO` step over, `dj/dk` down/up frame, `dP` pause, `dr` REPL, `ds` session, `dw` widgets, `dt` terminate, `dl` run last |
 | Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage, `gu` undo stage, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gB` browse |
-| Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output |
+| Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output, `tD/th` show/hide diagnostic |
+| Terminal | `<leader>T` | `T1-9` open/toggle dedicated terminals, `Td` fix claude TUI drift, `Tx` close terminal buffer |
 | Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
-| Diagnostics | `<leader>x` | `xx/xX` diagnostics, `xL` loclist, `xQ` quickfix, `xt/xT` todos |
+| Diagnostics | `<leader>x` | `xx/xX` diagnostics (project/buffer), `xL/xQ` loclist/quickfix picker, `xl/xq` toggle loclist/quickfix window, `xt/xT` todos |
 | Refactor | `<leader>r` | `rf` extract function, `rF` extract function to file, `rx` extract variable, `ri` inline, `rb` extract block, `rB` extract block to file, `rs` select |
-| AI | `<leader>a` | `ac` toggle, `af` focus, `ar` resume, `aR` continue, `am` model, `ab` add buffer, `as` send, `aa/ad` accept/deny diff |
-| Window | `<leader>w` | `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
+| AI | `<leader>a` | `ac` toggle, `af` focus, `ar` resume, `aR` continue, `am` model, `ab` add buffer, `aS` add file from tree, `as` send (v), `aa/ad` accept/deny diff |
+| Window | `<leader>w` | `ww` other window, `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
 | Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
 | Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `l/f` last/first, `o` close others, `s` list all |
 
@@ -202,7 +218,9 @@ Press any prefix and wait for which-key popup to see available keys.
 |-----|--------|
 | `y` / `p` / `P` | Yank / Put (with history) |
 | `[y` / `]y` | Cycle through yank history |
-| `<leader>p` | Open yank history (Telescope) |
+| `<leader>p` | Open yank history (`:YankyRingHistory` via snacks ui-select) |
+| `<leader>y` (v) | Yank selection to unnamed register |
+| `<leader>Y` (v) | Yank selection to system clipboard (`+`) |
 
 ### Terminal Integration
 
