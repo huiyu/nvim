@@ -153,39 +153,96 @@ return {
     },
     dashboard = {
       enabled = true,
+      width = 70,
       preset = {
         keys = {
-          { icon = " ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
-          { icon = " ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
-          { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
-          { icon = " ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
-          { icon = " ", key = "s", desc = "Restore Session", section = "session" },
-          { icon = " ", key = "q", desc = "Quit", action = ":qa" },
+          { icon = "󰈞 ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
+          { icon = "󰊄 ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
+          { icon = "󰋚 ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
+          { icon = "󰚩 ", key = "a", desc = "Claude Code", action = ":ClaudeCode" },
+          { icon = "󱉭 ", key = "p", desc = "Projects", action = ":lua Snacks.picker.projects()" },
+          { icon = "󰙅 ", key = "e", desc = "Explorer", action = ":lua Snacks.explorer({hidden=true, layout={preset='default'}, auto_close=true, focus='list'})" },
+          { icon = "󰒓 ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
+          { icon = "󰒲 ", key = "l", desc = "Lazy", action = ":Lazy" },
+          { icon = "󰦛 ", key = "s", desc = "Restore Session", section = "session" },
+          { icon = "󰩈 ", key = "q", desc = "Quit", action = ":qa" },
         },
       },
       sections = {
-        { section = "terminal", cmd = "cowsay 'Talk is cheap, show me the code.'", hl = "header", padding = 1, indent = 8, ttl = 60 * 60 },
-        { section = "keys",         padding = 1 },
-        { section = "recent_files", title = "Recent files",                            cwd = true,    limit = 8,   padding = 1 },
-        { section = "projects",     title = "Projects",                                padding = 1 },
+        -- Left pane (pane 1): cowsay banner (rainbow via lolcat) + keys
+        { section = "terminal", cmd = "cowsay 'Talk is cheap, show me the code.' | lolcat -f", padding = 1 },
+        { section = "keys", gap = 1, padding = 1 },
+
+        -- Right pane (pane 2): decoration + browse repo + gh + git status
         {
-          icon = " ",
+          pane = 2,
+          section = "terminal",
+          cmd = "echo '████ ████ ████ ████ ████ ████ ████' | lolcat -f",
+          height = 1,
+          padding = 1,
+          enabled = vim.fn.executable("lolcat") == 1,
+        },
+        {
+          pane = 2,
+          icon = "󰊤 ",
           desc = "Browse Repo",
           padding = 1,
           key = "b",
           action = function() Snacks.gitbrowse() end,
         },
-        {
-          icon = " ",
-          title = "Git Status",
-          section = "terminal",
-          enabled = function() return Snacks.git.get_root() ~= nil end,
-          cmd = "git status --short --branch --renames",
-          height = 5,
-          padding = 1,
-          ttl = 5 * 60,
-          indent = 3,
-        },
+        function()
+          local in_git = Snacks.git.get_root() ~= nil
+          local has_gh = vim.fn.executable("gh") == 1
+          -- gh-notify is an extension; detect once at dashboard load
+          local has_gh_notify = has_gh
+            and vim.fn.system("gh extension list 2>/dev/null"):find("gh%-notify") ~= nil
+          local cmds = {
+            {
+              title = "Notifications",
+              cmd = "gh notify -s -a -n5",
+              action = function() vim.ui.open("https://github.com/notifications") end,
+              key = "n",
+              icon = "󰂚 ",
+              height = 5,
+              enabled = has_gh_notify,
+            },
+            {
+              title = "Open Issues",
+              cmd = "gh issue list -L 3",
+              key = "i",
+              action = function() vim.fn.jobstart("gh issue list --web", { detach = true }) end,
+              icon = "󰨰 ",
+              height = 7,
+              enabled = has_gh,
+            },
+            {
+              icon = "󰜘 ",
+              title = "Open PRs",
+              cmd = "gh pr list -L 3",
+              key = "P",
+              action = function() vim.fn.jobstart("gh pr list --web", { detach = true }) end,
+              height = 7,
+              enabled = has_gh,
+            },
+            {
+              icon = "󰊢 ",
+              title = "Git Status",
+              cmd = "git --no-pager diff --stat -B -M -C",
+              height = 10,
+            },
+          }
+          return vim.tbl_map(function(cmd)
+            return vim.tbl_extend("force", {
+              pane = 2,
+              section = "terminal",
+              enabled = in_git and (cmd.enabled ~= false),
+              padding = 1,
+              ttl = 5 * 60,
+              indent = 3,
+            }, cmd)
+          end, cmds)
+        end,
+
         { section = "startup" },
       },
     }
