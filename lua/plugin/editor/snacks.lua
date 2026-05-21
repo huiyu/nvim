@@ -1,3 +1,51 @@
+-- Lock the dashboard buffer against scrolling: the layout is centered on open
+-- and any viewport shift breaks the panes. We can't use FileType because
+-- snacks sets `eventignore = "all"` while assigning the dashboard filetype,
+-- so we hook the `SnacksDashboardOpened` user event it fires afterwards.
+vim.api.nvim_create_autocmd("User", {
+  pattern = "SnacksDashboardOpened",
+  callback = function()
+    local buf = vim.api.nvim_get_current_buf()
+    if vim.bo[buf].filetype ~= "snacks_dashboard" then return end
+    vim.b[buf].snacks_scroll = false
+    local map_opts = { buffer = buf, silent = true, nowait = true }
+    for _, key in ipairs({
+      "j", "k", "<Down>", "<Up>",
+      "<C-d>", "<C-u>", "<C-f>", "<C-b>", "<C-e>", "<C-y>",
+      "<ScrollWheelUp>", "<ScrollWheelDown>",
+      "gg", "G", "H", "M", "L",
+      "<PageUp>", "<PageDown>",
+    }) do
+      vim.keymap.set("n", key, "<Nop>", map_opts)
+    end
+    -- Belt and suspenders: any WinScrolled on this buffer restores the
+    -- initial topline so external scroll sources (mouse-drag, plugins) can't
+    -- shift the layout either.
+    local view
+    vim.schedule(function()
+      local win = vim.fn.bufwinid(buf)
+      if win ~= -1 then
+        view = vim.api.nvim_win_call(win, vim.fn.winsaveview)
+      end
+    end)
+    local restoring = false
+    vim.api.nvim_create_autocmd("WinScrolled", {
+      buffer = buf,
+      callback = function()
+        if restoring or not view then return end
+        restoring = true
+        vim.schedule(function()
+          local win = vim.fn.bufwinid(buf)
+          if win ~= -1 then
+            vim.api.nvim_win_call(win, function() vim.fn.winrestview(view) end)
+          end
+          restoring = false
+        end)
+      end,
+    })
+  end,
+})
+
 return {
   "folke/snacks.nvim",
   lazy = false,
@@ -170,16 +218,17 @@ return {
       },
       sections = {
         -- Left pane (pane 1): cowsay banner (rainbow via lolcat) + keys
-        { section = "terminal", cmd = "cowsay 'Talk is cheap, show me the code.' | lolcat -f", padding = 1 },
+        { section = "terminal", cmd = "cowsay 'Talk is cheap, show me the code.' | lolcat -f", padding = 1, indent = 15 },
         { section = "keys", gap = 1, padding = 1 },
 
         -- Right pane (pane 2): decoration + browse repo + gh + git status
         {
           pane = 2,
           section = "terminal",
-          cmd = "echo '████ ████ ████ ████ ████ ████ ████' | lolcat -f",
-          height = 1,
+          cmd = [[printf '\n\n████ ████ ████ ████ ████ ████ ████\n\n       Welcome back, Jeff\n       %s\n\n████ ████ ████ ████ ████ ████ ████\n' "$(date '+%A, %B %d')" | lolcat -f]],
+          height = 8,
           padding = 1,
+          indent = 18,
           enabled = vim.fn.executable("lolcat") == 1,
         },
         {
