@@ -240,7 +240,10 @@ return {
           action = function() Snacks.gitbrowse() end,
         },
         function()
-          local in_git = Snacks.git.get_root() ~= nil
+          -- Snacks.git.get_root() returns non-nil inside bare-repo controller dirs
+          -- (e.g. ~/repo/ with .git pointing to .bare/), but those aren't worktrees.
+          local toplevel = vim.fn.system({ "git", "rev-parse", "--is-inside-work-tree" })
+          local in_git = vim.v.shell_error == 0 and vim.trim(toplevel) == "true"
           local has_gh = vim.fn.executable("gh") == 1
           -- gh-notify is an extension; detect once at dashboard load
           local has_gh_notify = has_gh
