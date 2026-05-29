@@ -248,6 +248,10 @@ return {
           -- gh-notify is an extension; detect once at dashboard load
           local has_gh_notify = has_gh
             and vim.fn.system("gh extension list 2>/dev/null"):find("gh%-notify") ~= nil
+          -- gh subcommands fatal with "no git remotes found" when cwd has no
+          -- github remote (e.g. fresh `git init` without `git remote add`).
+          local has_gh_remote = in_git
+            and vim.fn.system("git remote -v 2>/dev/null"):find("github") ~= nil
           local cmds = {
             {
               title = "Notifications",
@@ -256,7 +260,7 @@ return {
               key = "n",
               icon = "󰂚 ",
               height = 5,
-              enabled = has_gh_notify,
+              enabled = has_gh_notify and has_gh_remote,
             },
             {
               title = "Open Issues",
@@ -265,7 +269,7 @@ return {
               action = function() vim.fn.jobstart("gh issue list --web", { detach = true }) end,
               icon = "󰨰 ",
               height = 7,
-              enabled = has_gh,
+              enabled = has_gh and has_gh_remote,
             },
             {
               icon = "󰜘 ",
@@ -274,7 +278,7 @@ return {
               key = "P",
               action = function() vim.fn.jobstart("gh pr list --web", { detach = true }) end,
               height = 7,
-              enabled = has_gh,
+              enabled = has_gh and has_gh_remote,
             },
             {
               icon = "󰊢 ",
