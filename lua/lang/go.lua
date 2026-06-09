@@ -1,3 +1,5 @@
+local lsp = require("util.lsp")
+
 ---Clear gopls cache and restart LSP to force a full re-index.
 ---Useful after large refactors, branch switches, or rebases.
 local function rebuild_gopls()
@@ -13,10 +15,35 @@ vim.api.nvim_create_user_command("GoplsRebuildIndex", rebuild_gopls, {
   desc = "Clear gopls cache and restart LSP",
 })
 
+-- Run gopls `source.organizeImports` synchronously before save, replacing the
+-- standalone `goimports` formatter (which timed out on cold cache / big modcache).
+-- Runs before conform's BufWritePre so gofumpt formats the import-sorted buffer.
+vim.api.nvim_create_autocmd("BufWritePre", {
+  pattern = "*.go",
+  group = vim.api.nvim_create_augroup("go_organize_imports", { clear = true }),
+  callback = function()
+    local clients = vim.lsp.get_clients({ bufnr = 0, name = "gopls" })
+    if #clients == 0 then return end
+    local enc = clients[1].offset_encoding or "utf-16"
+    local params = vim.lsp.util.make_range_params(0, enc)
+    params.context = { only = { "source.organizeImports" }, diagnostics = {} }
+    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 3000)
+    for _, res in pairs(result or {}) do
+      for _, action in pairs(res.result or {}) do
+        if action.edit then
+          vim.lsp.util.apply_workspace_edit(action.edit, enc)
+        end
+      end
+    end
+  end,
+})
+
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "go",
   callback = function(ev)
     vim.keymap.set("n", "<leader>cR", rebuild_gopls, { buffer = ev.buf, desc = "Rebuild gopls index" })
+    vim.keymap.set("n", "<leader>co", lsp.action["source.organizeImports"],
+      { buffer = ev.buf, desc = "Organize Imports" })
     vim.keymap.set("n", "<leader>cx", function()
       vim.cmd("write")
       vim.cmd("split | terminal go run " .. vim.fn.shellescape(vim.fn.expand("%:p")))
@@ -69,7 +96,7 @@ return {
         }
       },
       tools = {
-        ["goimports"] = {},
+        -- goimports removed; gopls `source.organizeImports` handles imports on save.
         ["gofumpt"] = {},
         ["gomodifytags"] = {},
         ["impl"] = {},
@@ -88,7 +115,7 @@ return {
     optional = true,
     opts = {
       formatters_by_ft = {
-        go = { "goimports", "gofumpt" },
+        go = { "gofumpt" },
       },
     },
   },
