@@ -26,6 +26,7 @@ return {
         "basedpyright",
         "ruff",
         "gopls",
+        "clangd",
         "html",
         "cssls",
         "eslint",
