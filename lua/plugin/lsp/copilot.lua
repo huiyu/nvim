@@ -51,7 +51,11 @@ local function build_terminal_cmd()
   -- rather than after the trailing tmux set-hook.
   local socket = "claude-nvim-" .. vim.fn.getpid()
   local inner = table.concat({
-    "tmux -L " .. socket,
+    -- `-f /dev/null`: don't load the host ~/.config/tmux/tmux.conf into this
+    -- wrapper server. The host conf binds prefix-free Alt keys (window/pane
+    -- navigation) that would otherwise be swallowed here instead of reaching
+    -- claude. This server sets every option it needs explicitly below.
+    "tmux -f /dev/null -L " .. socket,
     -- Set default-terminal BEFORE new-session so claude inside the pane sees
     -- the conservative TERM directly. tmux otherwise injects its own default
     -- (tmux-256color) into the pane env regardless of the outer TERM we set
