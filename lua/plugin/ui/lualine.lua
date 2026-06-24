@@ -16,6 +16,19 @@ return {
 					"filename",
 					file_status = true, -- displays file status (readonly status, modified status)
 					path = 0, -- 0 = just filename, 1 = relative path, 2 = absolute path
+					fmt = function(name)
+						if vim.bo.buftype ~= "terminal" then
+							return name
+						end
+						-- Terminal buffers are named `term://<cwd>//<pid>:<cmd>`; the
+						-- wrapped Claude command makes that unreadably long. Collapse
+						-- it to a clean label instead of dumping the whole command.
+						local bufname = vim.api.nvim_buf_get_name(0)
+						if bufname:match("claude") then
+							return " Claude"
+						end
+						return " " .. (vim.b.term_title or "terminal")
+					end,
 				},
 			},
 			lualine_x = {
