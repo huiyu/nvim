@@ -9,11 +9,12 @@ vim.api.nvim_create_autocmd("User", {
     if vim.bo[buf].filetype ~= "snacks_dashboard" then return end
     vim.b[buf].snacks_scroll = false
     local map_opts = { buffer = buf, silent = true, nowait = true }
+    -- Only disable keys that genuinely scroll the viewport. j/k/arrows/gg/G are
+    -- left alone so snacks' built-in cursor navigation between menu items still
+    -- works (it snaps the cursor to the nearest actionable key).
     for _, key in ipairs({
-      "j", "k", "<Down>", "<Up>",
       "<C-d>", "<C-u>", "<C-f>", "<C-b>", "<C-e>", "<C-y>",
       "<ScrollWheelUp>", "<ScrollWheelDown>",
-      "gg", "G", "H", "M", "L",
       "<PageUp>", "<PageDown>",
     }) do
       vim.keymap.set("n", key, "<Nop>", map_opts)
@@ -212,6 +213,10 @@ return {
           { icon = "󰙅 ", key = "e", desc = "Explorer", action = ":lua Snacks.explorer({hidden=true, layout={preset='default'}, auto_close=true, focus='list'})" },
           { icon = "󰒓 ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
           { icon = "󰒲 ", key = "l", desc = "Lazy", action = ":Lazy" },
+          -- Repo/GitHub jumps: open the repo / issues list / PRs list in browser.
+          { icon = "󰊤 ", key = "b", desc = "Browse Repo", action = ":lua Snacks.gitbrowse()" },
+          { icon = "󰨰 ", key = "i", desc = "Open Issues", action = ":lua vim.fn.jobstart('gh issue list --web', {detach=true})" },
+          { icon = "󰜘 ", key = "o", desc = "Open PRs", action = ":lua vim.fn.jobstart('gh pr list --web', {detach=true})" },
           { icon = "󰦛 ", key = "s", desc = "Restore Session", section = "session" },
           { icon = "󰩈 ", key = "q", desc = "Quit", action = ":qa" },
         },
@@ -230,14 +235,6 @@ return {
           padding = 1,
           indent = 18,
           enabled = vim.fn.executable("lolcat") == 1,
-        },
-        {
-          pane = 2,
-          icon = "󰊤 ",
-          desc = "Browse Repo",
-          padding = 1,
-          key = "b",
-          action = function() Snacks.gitbrowse() end,
         },
         function()
           -- Snacks.git.get_root() returns non-nil inside bare-repo controller dirs
@@ -265,8 +262,15 @@ return {
             {
               title = "Open Issues",
               cmd = "gh issue list -L 3",
-              key = "i",
-              action = function() vim.fn.jobstart("gh issue list --web", { detach = true }) end,
+              -- Capital I prompts for a number and opens that issue in the browser
+              -- (lowercase i on the left opens the full issues list instead).
+              key = "I",
+              action = function()
+                vim.ui.input({ prompt = "Open issue #" }, function(n)
+                  n = n and n:match("%d+")
+                  if n then vim.fn.jobstart({ "gh", "issue", "view", n, "--web" }, { detach = true }) end
+                end)
+              end,
               icon = "󰨰 ",
               height = 7,
               enabled = has_gh and has_gh_remote,
@@ -275,8 +279,15 @@ return {
               icon = "󰜘 ",
               title = "Open PRs",
               cmd = "gh pr list -L 3",
+              -- Capital P prompts for a number and opens that PR in the browser
+              -- (lowercase o on the left opens the full PR list instead).
               key = "P",
-              action = function() vim.fn.jobstart("gh pr list --web", { detach = true }) end,
+              action = function()
+                vim.ui.input({ prompt = "Open PR #" }, function(n)
+                  n = n and n:match("%d+")
+                  if n then vim.fn.jobstart({ "gh", "pr", "view", n, "--web" }, { detach = true }) end
+                end)
+              end,
               height = 7,
               enabled = has_gh and has_gh_remote,
             },
