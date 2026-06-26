@@ -262,15 +262,11 @@ return {
             {
               title = "Open Issues",
               cmd = "gh issue list -L 3",
-              -- Capital I prompts for a number and opens that issue in the browser
-              -- (lowercase i on the left opens the full issues list instead).
+              -- Capital I opens snacks' native GitHub issue picker (fuzzy + live
+              -- preview); <cr> shows the action menu, <a-b> opens in the browser.
+              -- Lowercase i on the left opens the full issues list webpage.
               key = "I",
-              action = function()
-                vim.ui.input({ prompt = "Open issue #" }, function(n)
-                  n = n and n:match("%d+")
-                  if n then vim.fn.jobstart({ "gh", "issue", "view", n, "--web" }, { detach = true }) end
-                end)
-              end,
+              action = function() Snacks.picker.gh_issue() end,
               icon = "󰨰 ",
               height = 7,
               enabled = has_gh and has_gh_remote,
@@ -279,15 +275,11 @@ return {
               icon = "󰜘 ",
               title = "Open PRs",
               cmd = "gh pr list -L 3",
-              -- Capital P prompts for a number and opens that PR in the browser
-              -- (lowercase o on the left opens the full PR list instead).
-              key = "P",
-              action = function()
-                vim.ui.input({ prompt = "Open PR #" }, function(n)
-                  n = n and n:match("%d+")
-                  if n then vim.fn.jobstart({ "gh", "pr", "view", n, "--web" }, { detach = true }) end
-                end)
-              end,
+              -- Capital O opens snacks' native GitHub PR picker (fuzzy + live
+              -- preview/diff); <cr> shows the action menu, <a-b> opens in the
+              -- browser. Lowercase o on the left opens the full PR list webpage.
+              key = "O",
+              action = function() Snacks.picker.gh_pr() end,
               height = 7,
               enabled = has_gh and has_gh_remote,
             },
