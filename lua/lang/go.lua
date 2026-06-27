@@ -101,6 +101,8 @@ return {
         ["gomodifytags"] = {},
         ["impl"] = {},
         ["golangci-lint"] = {},
+        -- delve (dlv) is the Go debug adapter used by nvim-dap-go; mason puts it on PATH.
+        ["delve"] = {},
       }
     },
   },
@@ -143,15 +145,13 @@ return {
     }
   },
   {
-    "mfussenegger/nvim-dap",
-    opts = {
-      handlers = {
-        delve = {}
-      }
-    }
-  },
-  {
+    -- Go debugging is owned by nvim-dap-go (also used by neotest-golang via
+    -- dap_go_enabled). It loads on Go files so the adapter/configs are ready
+    -- for a standalone `<leader>dc`. delve is installed through the `tools`
+    -- list above; the mason-nvim-dap `delve` handler is intentionally dropped
+    -- to avoid registering the Go adapter/configs twice.
     "leoluz/nvim-dap-go",
+    ft = "go",
     config = true,
     dependencies = {
       "mfussenegger/nvim-dap",

@@ -1,4 +1,7 @@
--- Parsers we want available everywhere.
+-- Baseline parsers wanted everywhere, regardless of which language modules load.
+-- Language-specific parsers are contributed by the matching `lua/lang/*.lua`
+-- file via `opts.ensure_installed` (e.g. js/ts in lang/typescript.lua, html/css
+-- in lang/frontend.lua) and merged in below.
 local ensure_installed = {
   "bash",
   "c",
@@ -7,10 +10,6 @@ local ensure_installed = {
   "gomod",
   "gosum",
   "gowork",
-  "html",
-  "css",
-  "javascript",
-  "jsdoc",
   "json",
   -- jsonc has no separate parser in nvim-treesitter 'main'; the plugin
   -- already aliases the `jsonc` filetype to the `json` parser.
@@ -24,8 +23,6 @@ local ensure_installed = {
   "query",
   "regex",
   "toml",
-  "tsx",
-  "typescript",
   "vim",
   "vimdoc",
   "xml",
@@ -39,11 +36,27 @@ return {
     -- The rewritten 'main' branch does not support lazy-loading.
     lazy = false,
     build = ":TSUpdate",
-    config = function()
+    -- `opts` lists are replaced (not merged) by lazy unless extended here, so
+    -- parsers contributed by lang/*.lua accumulate instead of clobbering.
+    opts_extend = { "ensure_installed" },
+    config = function(_, opts)
       local nts = require("nvim-treesitter")
       nts.setup({
         install_dir = vim.fn.stdpath("data") .. "/site",
       })
+
+      -- Merge the baseline list with parsers contributed by language modules
+      -- (lang/*.lua add them through `opts.ensure_installed`), de-duplicating
+      -- so a parser listed in both places is only requested once.
+      local want, seen = {}, {}
+      for _, list in ipairs({ ensure_installed, opts.ensure_installed or {} }) do
+        for _, p in ipairs(list) do
+          if not seen[p] then
+            seen[p] = true
+            table.insert(want, p)
+          end
+        end
+      end
 
       -- Install any missing parsers from the desired list (async).
       local installed = {}
@@ -51,7 +64,7 @@ return {
         installed[p] = true
       end
       local missing = {}
-      for _, p in ipairs(ensure_installed) do
+      for _, p in ipairs(want) do
         if not installed[p] then
           table.insert(missing, p)
         end
@@ -88,7 +101,7 @@ return {
 
           pcall(vim.treesitter.start, buf, lang)
           vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
-          vim.wo[0][0].foldexpr = "v:lua.vim.treesitter.foldexpr()"
+          -- Folding is owned by ufo (see plugin/ui/ufo.lua); no foldexpr here.
         end,
       })
     end,
@@ -137,7 +150,7 @@ return {
       -- instead of jumping to the next/previous class textobject.
       local function diff_aware(fn, capture, lhs)
         return function()
-          if vim.wo.diff and lhs:find("[%]%[][cC]") then
+          if vim.wo.diff and lhs:find("[%]%[]c") then
             vim.cmd("normal! " .. lhs)
             return
           end

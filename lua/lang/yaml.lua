@@ -21,10 +21,11 @@ return {
               },
             },
           },
-          on_new_config = function(new_config)
-            new_config.settings.yaml.schemas = vim.tbl_deep_extend(
+          -- See json.lua: before_init is honored by vim.lsp.config; on_new_config is not.
+          before_init = function(_, config)
+            config.settings.yaml.schemas = vim.tbl_deep_extend(
               "force",
-              new_config.settings.yaml.schemas or {},
+              config.settings.yaml.schemas or {},
               require("schemastore").yaml.schemas()
             )
           end,
@@ -41,6 +42,15 @@ return {
             },
           },
         },
+      },
+    },
+  },
+  {
+    "stevearc/conform.nvim",
+    optional = true,
+    opts = {
+      formatters_by_ft = {
+        ["yaml"] = { "prettier" },
       },
     },
   },

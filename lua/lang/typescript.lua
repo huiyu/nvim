@@ -1,18 +1,18 @@
+-- TypeScript / JavaScript *language* support.
+--
+-- This file owns the language itself and is runtime-agnostic: the same setup
+-- applies whether the code targets Node, the browser, Deno or Bun. Web-frontend
+-- tooling (HTML / CSS / Tailwind) lives in `lang/frontend.lua`, not here.
 return {
+  -- LSP: vtsls (a vscode-tsserver wrapper) for JS/TS, plus ESLint.
   {
     "neovim/nvim-lspconfig",
     opts = {
       servers = {
-        html = {},
-        cssls = {},
         eslint = {
           settings = {
             workingDirectories = { mode = "auto" },
           },
-        },
-        tailwindcss = {
-          filetypes_exclude = { "markdown" },
-          filetypes_include = {}
         },
         vtsls = {
           filetypes = {
@@ -53,11 +53,22 @@ return {
         },
       },
       tools = {
-        ["eslint-lsp"] = {},
-        ["css-lsp"] = {},
+        -- prettier is the configured formatter for js/ts/json/yaml/css/etc.;
+        -- install it via mason so formatting does not depend on a global PATH binary.
+        -- (eslint/cssls and the other servers are installed from `servers` by
+        -- mason-lspconfig, so they are not duplicated here.)
+        ["prettier"] = {},
       },
     },
   },
+
+  -- Treesitter parsers for the language.
+  {
+    "nvim-treesitter/nvim-treesitter",
+    opts = { ensure_installed = { "javascript", "jsdoc", "typescript", "tsx" } },
+  },
+
+  -- Formatting via prettier.
   {
     "stevearc/conform.nvim",
     optional = true,
@@ -67,18 +78,25 @@ return {
         ["javascriptreact"] = { "prettier" },
         ["typescript"] = { "prettier" },
         ["typescriptreact"] = { "prettier" },
-        ["vue"] = { "prettier" },
-        ["css"] = { "prettier" },
-        ["scss"] = { "prettier" },
-        ["less"] = { "prettier" },
-        ["html"] = { "prettier" },
-        ["json"] = { "prettier" },
-        ["jsonc"] = { "prettier" },
-        ["yaml"] = { "prettier" },
-        ["markdown"] = { "prettier" },
-        ["markdown.mdx"] = { "prettier" },
-        ["graphql"] = { "prettier" },
-        ["handlebars"] = { "prettier" },
+      },
+    },
+  },
+
+  -- Debugging via vscode-js-debug (mason package: js-debug-adapter).
+  --
+  -- A single adapter covers BOTH runtimes: `pwa-node` for Node processes and
+  -- `pwa-chrome` for the browser. The runtime is selected by the launch config,
+  -- not by the plugin, which is exactly why debugging belongs to the *language*
+  -- rather than to "web" or "node". The `js` handler makes mason install the
+  -- adapter and register the default Node launch/attach configs for JS/TS files.
+  --
+  -- For TypeScript with source maps or a custom runtime (tsx / ts-node), add a
+  -- project-level `.vscode/launch.json`; it is picked up via `dap.ext.vscode`.
+  {
+    "mfussenegger/nvim-dap",
+    opts = {
+      handlers = {
+        ["js"] = {},
       },
     },
   },

@@ -1,7 +1,9 @@
 return {
   {
     "nvim-treesitter/nvim-treesitter",
-    opts = { ensure_installed = { "json", "json5", "jsonc" } },
+    -- jsonc has no dedicated parser; nvim-treesitter aliases the jsonc filetype
+    -- to the json parser, so listing it here only triggers an "unsupported" warning.
+    opts = { ensure_installed = { "json", "json5" } },
   },
   {
     "b0o/SchemaStore.nvim",
@@ -13,9 +15,12 @@ return {
     opts = {
       servers = {
         jsonls = {
-          on_new_config = function(new_config)
-            new_config.settings.json.schemas = new_config.settings.json.schemas or {}
-            vim.list_extend(new_config.settings.json.schemas, require("schemastore").json.schemas())
+          -- Inject SchemaStore catalogs via before_init (a real LSP ClientConfig
+          -- hook). The old nvim-lspconfig `on_new_config` is ignored by the
+          -- native vim.lsp.config API this config uses.
+          before_init = function(_, config)
+            config.settings.json.schemas = config.settings.json.schemas or {}
+            vim.list_extend(config.settings.json.schemas, require("schemastore").json.schemas())
           end,
           settings = {
             json = {
@@ -24,6 +29,16 @@ return {
             },
           },
         },
+      },
+    },
+  },
+  {
+    "stevearc/conform.nvim",
+    optional = true,
+    opts = {
+      formatters_by_ft = {
+        ["json"] = { "prettier" },
+        ["jsonc"] = { "prettier" },
       },
     },
   },

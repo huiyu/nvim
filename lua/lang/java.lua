@@ -41,10 +41,22 @@ return {
       -- Lombok
       local lombok_path = jdtls_install .. "/lombok.jar"
 
-      local java_home = vim.fn.expand("~/.sdkman/candidates/java/current")
-      local java_bin = java_home .. "/bin/java"
-      if vim.fn.executable(java_bin) ~= 1 then
-        vim.notify("jdtls: java not found at " .. java_bin, vim.log.levels.ERROR)
+      -- Resolve a java binary portably: $JAVA_HOME, then sdkman, then PATH.
+      local function find_java()
+        local candidates = {}
+        if vim.env.JAVA_HOME and vim.env.JAVA_HOME ~= "" then
+          table.insert(candidates, vim.env.JAVA_HOME .. "/bin/java")
+        end
+        table.insert(candidates, vim.fn.expand("~/.sdkman/candidates/java/current/bin/java"))
+        for _, bin in ipairs(candidates) do
+          if vim.fn.executable(bin) == 1 then return bin end
+        end
+        return vim.fn.executable("java") == 1 and vim.fn.exepath("java") or nil
+      end
+
+      local java_bin = find_java()
+      if not java_bin then
+        vim.notify("jdtls: no java found (checked $JAVA_HOME, sdkman, PATH)", vim.log.levels.ERROR)
         return
       end
 
@@ -151,5 +163,9 @@ return {
         ["java-test"] = {},
       },
     },
+  },
+  {
+    "nvim-treesitter/nvim-treesitter",
+    opts = { ensure_installed = { "java" } },
   },
 }
