@@ -1,32 +1,22 @@
--- Baseline parsers wanted everywhere, regardless of which language modules load.
--- Language-specific parsers are contributed by the matching `lua/lang/*.lua`
--- file via `opts.ensure_installed` (e.g. js/ts in lang/typescript.lua, html/css
--- in lang/frontend.lua) and merged in below.
+-- Editor-core parsers wanted everywhere, independent of which language modules
+-- load. Language-specific parsers are OWNED by the matching `lua/lang/*.lua`
+-- (contributed via `opts.ensure_installed` and merged in below), so this list is
+-- deliberately limited to parsers that no language module declares — single
+-- source of truth, mirroring how mason-lspconfig derives servers from lang/.
 local ensure_installed = {
-  "bash",
-  "c",
   "diff",
-  "go",
-  "gomod",
-  "gosum",
-  "gowork",
-  "json",
-  -- jsonc has no separate parser in nvim-treesitter 'main'; the plugin
-  -- already aliases the `jsonc` filetype to the `json` parser.
   "lua",
   "luadoc",
   "luap",
   "markdown",
   "markdown_inline",
   "printf",
-  "python",
   "query",
   "regex",
   "toml",
   "vim",
   "vimdoc",
   "xml",
-  "yaml",
 }
 
 return {

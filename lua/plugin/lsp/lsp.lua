@@ -101,7 +101,27 @@ return {
         capabilities = require("blink.cmp").get_lsp_capabilities(nil, true),
       })
 
+      -- Tripwire for LazyVim/old-lspconfig server keys that this native
+      -- vim.lsp.config loader silently ignores (a recurring source of dropped
+      -- config — see ruff `keys`, tailwind `filetypes_exclude`, json/yaml
+      -- `on_new_config` history). Warn instead of failing silently.
+      local UNSUPPORTED_SERVER_KEYS = {
+        keys = "use a FileType/LspAttach autocmd",
+        filetypes_exclude = "set an explicit `filetypes` list",
+        filetypes_include = "set an explicit `filetypes` list",
+        on_new_config = "use `before_init`",
+        root_pattern = "use `root_markers`/`root_dir`",
+      }
+
       for name, config in pairs(normalize_options(opts.servers)) do
+        for key, hint in pairs(UNSUPPORTED_SERVER_KEYS) do
+          if config[key] ~= nil then
+            vim.notify(
+              ("lsp: server %q sets unsupported key %q — %s"):format(name, key, hint),
+              vim.log.levels.WARN
+            )
+          end
+        end
         vim.lsp.config(name, config)
         vim.lsp.enable(name)
       end
@@ -113,8 +133,22 @@ return {
         mr.refresh(function()
           for tool, config in pairs(normalize_options(opts.tools)) do
             local ok, p = pcall(mr.get_package, tool)
-            if ok and not p:is_installed() then
-              p:install(config)
+            if not ok then
+              vim.schedule(function()
+                vim.notify(("mason: unknown tool %q"):format(tool), vim.log.levels.WARN)
+              end)
+            elseif not p:is_installed() then
+              -- Report async install failures instead of silently no-op'ing.
+              p:install(config, function(success, err)
+                if not success then
+                  vim.schedule(function()
+                    vim.notify(
+                      ("mason: failed to install %q: %s"):format(tool, tostring(err)),
+                      vim.log.levels.ERROR
+                    )
+                  end)
+                end
+              end)
             end
           end
         end)
