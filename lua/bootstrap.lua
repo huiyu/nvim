@@ -70,8 +70,9 @@ local success, error_msg = pcall(function()
       colorscheme = { "solarized-osaka" },
     },
     checker = { 
-      enabled = true,  -- Automatically check for plugin updates
-      frequency = 3600 -- Check every hour
+      enabled = true,   -- Check for plugin updates...
+      notify = false,   -- ...silently (no toast); review/apply with :Lazy
+      frequency = 86400 -- once a day
     },
     performance = {
       cache = {

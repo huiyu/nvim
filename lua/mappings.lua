@@ -37,7 +37,9 @@ vim.keymap.set("n", "gx", function()
 end, { desc = "Open URL or file with system app" })
 
 -- Clear search highlight on Escape
-vim.keymap.set({ "i", "n" }, "<Esc>", "<cmd>nohlsearch<cr><Esc>", { desc = "Escape and clear hlsearch" })
+-- Normal mode only: mapping bare <Esc> in insert mode can add latency to / mis-fire
+-- on terminal escape sequences (arrows, Alt, F-keys), and there's no hlsearch to clear there.
+vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<cr><Esc>", { desc = "Escape and clear hlsearch" })
 
 -- Better up/down on wrapped lines
 vim.keymap.set({ "n", "x" }, "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, desc = "Down" })
