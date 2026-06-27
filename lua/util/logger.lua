@@ -87,10 +87,14 @@ local function log_internal(level, message, ...)
     ERROR = vim.log.levels.ERROR,
   }
   
-  -- Send to Neovim's notification system
-  vim.notify(formatted, vim_levels[level], {
-    title = string.format("Neovim Config (%s)", level),
-  })
+  -- Surface only WARN/ERROR as notifications. DEBUG/INFO are still recorded in
+  -- the in-memory history above (and retrievable from it), so routine or
+  -- hot-path logs don't spam toasts.
+  if level == "WARN" or level == "ERROR" then
+    vim.notify(formatted, vim_levels[level], {
+      title = string.format("Neovim Config (%s)", level),
+    })
+  end
 end
 
 ---Log debug message (lowest priority)
