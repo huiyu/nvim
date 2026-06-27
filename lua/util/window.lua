@@ -39,7 +39,6 @@ end
 -- Function to close all windows except the current one and special windows
 function M.close_others()
   local wins = vim.api.nvim_list_wins()
-  local table = require("util.common").table
 
   for _, win in ipairs(wins) do
     local info = get_win_info(win)
@@ -53,8 +52,8 @@ function M.close_others()
     if info.is_modifiable and
         not info.is_current and
         not info.is_preview and
-        not table(SPECIAL_BUFTYPES):containsValue(info.buftype) and
-        not table(SPECIAL_FILETYPES):containsValue(info.filetype) then
+        not vim.list_contains(SPECIAL_BUFTYPES, info.buftype) and
+        not vim.list_contains(SPECIAL_FILETYPES, info.filetype) then
       -- Close the window if it meets all the criteria
       vim.api.nvim_win_close(win, false)
     end

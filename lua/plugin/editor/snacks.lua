@@ -156,8 +156,10 @@ return {
     },
     { "<leader>E", function() require("snacks").explorer({ hidden = true, layout = { preset = "default" }, auto_close = true, focus = "list" }) end, desc = "File explorer", mode = { "n", "v" } },
     { "<leader>fe", function() require("snacks").explorer({ hidden = true, ignored = true, layout = { preset = "default" }, auto_close = true, focus = "list" }) end, desc = "File explorer (with ignored)", mode = { "n", "v" } },
-    { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
-    { "<leader>un", function() Snacks.notifier.hide() end,        desc = "Dismiss notifications" },
+    -- Notifications are handled by noice (snacks notifier is disabled), so these
+    -- route to it. require("noice") loads the plugin on demand, like noice's own maps.
+    { "<leader>n", function() require("noice").cmd("history") end,  desc = "Notification history" },
+    { "<leader>un", function() require("noice").cmd("dismiss") end, desc = "Dismiss notifications" },
     { "<leader>gg", function() Snacks.terminal("lazygit", { cwd = Snacks.git.get_root(), interactive = true, win = { style = "float", width = 0.9, height = 0.9 } }) end, desc = "Lazygit", mode = { "n" } },
     { "<leader>gf", function() Snacks.terminal({ "lazygit", "log", "--filter", vim.api.nvim_buf_get_name(0) }, { cwd = Snacks.git.get_root(), interactive = true, win = { style = "float", width = 0.9, height = 0.9 } }) end, desc = "Lazygit file history", mode = { "n" } },
     { "<C-/>",      function() require("util.terminal").toggle() end,              desc = "Toggle terminal",   mode = { "n", "t" } },

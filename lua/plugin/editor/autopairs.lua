@@ -7,5 +7,4 @@ return {
     disable_filetype = { "snacks_picker_input" },
     fast_wrap = {},
   },
-  init = function() end
 }

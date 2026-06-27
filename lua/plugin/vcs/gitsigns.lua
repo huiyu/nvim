@@ -9,10 +9,9 @@ return {
     { "<leader>gp", "<cmd>Gitsigns preview_hunk<cr>",   desc = "Preview hunk" },
     { "<leader>gr", "<cmd>Gitsigns reset_hunk<cr>",     desc = "Reset hunk",       mode = { "n", "v" } },
     { "<leader>gR", "<cmd>Gitsigns reset_buffer<cr>",   desc = "Reset buffer" },
-    { "<leader>gS", "<cmd>Gitsigns stage_hunk<cr>",     desc = "Stage hunk",       mode = { "n", "v" } },
-    { "<leader>gu", "<cmd>Gitsigns undo_stage_hunk<cr>", desc = "Undo stage hunk" },
+    { "<leader>gS", "<cmd>Gitsigns stage_hunk<cr>",     desc = "Stage/unstage hunk", mode = { "n", "v" } },
     { "<leader>gd", "<cmd>Gitsigns diffthis<cr>",       desc = "Diff" },
-    { "<leader>gb", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle line blame" },
+    { "<leader>gT", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle line blame" },
     { "<leader>gB", function() Snacks.gitbrowse() end,  desc = "Git browse (open)" },
   },
   opts = {

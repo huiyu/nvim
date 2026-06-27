@@ -85,8 +85,7 @@ local success, error_msg = pcall(function()
           "tohtml",     -- Convert to HTML
           "tutor",      -- Vim tutor
           "zipPlugin",  -- Zip file support
-          "netrw",      -- Network file explorer (replaced by custom solution)
-          "netrwPlugin",
+          -- netrw is disabled earlier via vim.g.loaded_netrw* in options.lua.
         },
       },
     },
