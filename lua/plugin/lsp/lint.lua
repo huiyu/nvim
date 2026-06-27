@@ -7,7 +7,8 @@ return {
   config = function(_, opts)
     local lint = require("lint")
 
-    -- Merge linters_by_ft from lang/ files via opts_extend
+    -- Merge the linters_by_ft contributed by lang/ files into nvim-lint's
+    -- built-in defaults (per-ft list union, so language files only add to it).
     for ft, linters in pairs(opts.linters_by_ft) do
       lint.linters_by_ft[ft] = vim.list_extend(lint.linters_by_ft[ft] or {}, linters)
     end

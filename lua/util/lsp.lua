@@ -73,7 +73,7 @@ M.action = setmetatable({}, {
       
       local success, result = logger.safe_call(function()
         -- Check if LSP is available
-        local clients = vim.lsp.get_active_clients({ bufnr = 0 })
+        local clients = vim.lsp.get_clients({ bufnr = 0 })
         if #clients == 0 then
           logger.warn("No active LSP clients for current buffer")
           return false
@@ -105,7 +105,7 @@ M.action = setmetatable({}, {
 ---@return boolean available True if at least one LSP client is active
 ---@return table clients Array of active LSP clients
 function M.is_available()
-  local clients = vim.lsp.get_active_clients({ bufnr = 0 })
+  local clients = vim.lsp.get_clients({ bufnr = 0 })
   return #clients > 0, clients
 end
 
@@ -118,7 +118,7 @@ function M.get_client(name)
     return nil
   end
   
-  local clients = vim.lsp.get_active_clients({ bufnr = 0 })
+  local clients = vim.lsp.get_clients({ bufnr = 0 })
   for _, client in ipairs(clients) do
     if client.name == name then
       return client

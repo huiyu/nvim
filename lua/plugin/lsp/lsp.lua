@@ -20,27 +20,22 @@ return {
   {
     "mason-org/mason-lspconfig.nvim",
     dependencies = { "mason-org/mason.nvim", "neovim/nvim-lspconfig" },
-    opts = {
-      ensure_installed = {
-        "lua_ls",
-        "basedpyright",
-        "ruff",
-        "gopls",
-        "clangd",
-        "html",
-        "cssls",
-        "eslint",
-        "tailwindcss",
-        "vtsls",
-        "bashls",
-        "jsonls",
-        "yamlls",
-        "jdtls",
-      },
-      automatic_enable = {
-        exclude = { "jdtls" },
-      },
-    },
+    -- Single source of truth: install exactly the servers declared across the
+    -- lang/ files (nvim-lspconfig `opts.servers`). Adding a server there is
+    -- enough — there is no second hand-maintained list to keep in sync.
+    opts = function()
+      local lspconfig = require("lazy.core.config").plugins["nvim-lspconfig"]
+      local lsp_opts = require("lazy.core.plugin").values(lspconfig, "opts", false)
+      return {
+        -- jdtls is intentionally NOT a `servers` entry (it is started via
+        -- nvim-jdtls and installed through java.lua's `tools`), so it is
+        -- absent from the derived list and excluded from automatic_enable.
+        ensure_installed = vim.tbl_keys(lsp_opts.servers or {}),
+        automatic_enable = {
+          exclude = { "jdtls" },
+        },
+      }
+    end,
   },
   {
     "neovim/nvim-lspconfig",
@@ -98,6 +93,14 @@ return {
       -- Re-enable after registering settings: mason-lspconfig's automatic_enable
       -- may have enabled the server earlier with empty config, so we re-enable
       -- here to make the just-registered settings actually take effect.
+      -- Advertise blink.cmp's enhanced client capabilities to every server
+      -- (snippet support, auto-import via resolveSupport/additionalTextEdits,
+      -- lazy documentation/detail resolution). blink does not inject these on
+      -- its own, and per-server `capabilities` (c/yaml) deep-merge on top.
+      vim.lsp.config("*", {
+        capabilities = require("blink.cmp").get_lsp_capabilities(nil, true),
+      })
+
       for name, config in pairs(normalize_options(opts.servers)) do
         vim.lsp.config(name, config)
         vim.lsp.enable(name)

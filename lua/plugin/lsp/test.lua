@@ -18,12 +18,16 @@ return {
     },
     opts = {},
     config = function(_, opts)
-      local adapters = opts.adapters
-
-      if adapters ~= nil then
-        for name, config in pairs(adapters) do
-          require(name)(config)
+      -- neotest expects `adapters` to be a LIST of built adapter instances and
+      -- iterates it with ipairs. The lang/ files contribute a name-keyed map
+      -- (`{ ["neotest-python"] = {...} }`), so build each adapter and collect
+      -- the results into a list before handing it to setup.
+      if opts.adapters ~= nil then
+        local built = {}
+        for name, config in pairs(opts.adapters) do
+          built[#built + 1] = require(name)(config)
         end
+        opts.adapters = built
       end
 
       require("neotest").setup(opts)

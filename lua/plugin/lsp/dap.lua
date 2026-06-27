@@ -93,8 +93,10 @@ return {
       vim.fn.sign_define("DapLogPoint", { text = ".>", texthl = "DiagnosticInfo" })
 
       -- Config nvim mason
-      local table = require("util.common").table
-      local table_handlers = table(opts.handlers):map(function(k, v)
+      local tbl = require("util.common").table
+      -- Guard against a base startup with no language module injecting handlers
+      -- (util.common.table errors on a nil argument).
+      local table_handlers = tbl(opts.handlers or {}):map(function(k, v)
         if type(v) == "table" then
           return k,
               function(config)
