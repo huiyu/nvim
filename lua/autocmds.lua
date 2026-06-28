@@ -103,13 +103,19 @@ autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
 autocmd("VimResized", {
   group = augroup("resize_splits", { clear = true }),
   callback = function()
-    local current_tab = vim.fn.tabpagenr()
-    local total_tabs = vim.fn.tabpagenr("$")
-    for tab = 1, total_tabs do
-      vim.cmd("tabnext " .. tab)
-      require("util.window").equalize_respecting_fixed()
+    -- Equalize every tab WITHOUT physically switching into it. nvim_win_call is
+    -- a lightweight context switch that runs `wincmd =` against the target tab
+    -- without firing the Tab/Win Enter/Leave autocmd cascade that `:tabnext`
+    -- would on every resize.
+    local win_util = require("util.window")
+    for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+      local wins = vim.api.nvim_tabpage_list_wins(tab)
+      if wins[1] then
+        vim.api.nvim_win_call(wins[1], function()
+          win_util.equalize_respecting_fixed()
+        end)
+      end
     end
-    vim.cmd("tabnext " .. current_tab)
   end,
 })
 
