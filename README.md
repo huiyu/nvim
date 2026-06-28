@@ -2,12 +2,12 @@
 
 [中文文档](README_CN.md)
 
-A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/folke/lazy.nvim). Aligned with [LazyVim](https://www.lazyvim.org/) conventions for keybindings and plugin choices, with support for Go, Python, Java, Web, Bash, JSON, and YAML development.
+A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/folke/lazy.nvim). Aligned with [LazyVim](https://www.lazyvim.org/) conventions for keybindings and plugin choices, with support for Go, C/C++, Python, Java, Web, Bash, JSON, and YAML development.
 
 ### Requirements
 
 **Required:**
-- **Neovim** >= 0.10.0
+- **Neovim** >= 0.11.0 (uses `vim.lsp.config`/`vim.lsp.enable`, `vim.hl`, `vim.diagnostic.jump`)
 - **Git**
 - A [Nerd Font](https://www.nerdfonts.com/) for icon display
 - **ripgrep** (`rg`) — powers `Snacks.picker.grep` / `live_grep` / `:grep`
@@ -52,16 +52,21 @@ nvim
 ├── init.lua                  # Entry point
 ├── lua/
 │   ├── options.lua           # Vim options
-│   ├── mappings.lua          # Core keymaps + which-key groups + toggle/UI
+│   ├── mappings.lua          # Imperative core keymaps (side effects)
+│   ├── whichkey_spec.lua     # which-key groups + spec-registered keymaps (data)
 │   ├── autocmds.lua          # Autocommands
 │   ├── bootstrap.lua         # lazy.nvim setup
+│   ├── config/
+│   │   └── health.lua        # `:checkhealth config` provider
 │   ├── lang/                 # Language-specific configs
 │   │   ├── bash.lua
+│   │   ├── c.lua             # C / C++
+│   │   ├── frontend.lua      # HTML / CSS / Tailwind
 │   │   ├── go.lua
 │   │   ├── java.lua
 │   │   ├── json.lua
 │   │   ├── python.lua
-│   │   ├── web.lua
+│   │   ├── typescript.lua    # JS / TS language (LSP, format, DAP)
 │   │   └── yaml.lua
 │   ├── plugin/
 │   │   ├── editor/           # Editor enhancement plugins
@@ -69,6 +74,7 @@ nvim
 │   │   ├── ui/               # UI and theme plugins
 │   │   └── vcs/              # Git integration
 │   └── util/                 # Utility modules
+└── docs/                     # DIAGNOSTICS.md, UTILITIES.md
 ```
 
 ### Plugins
@@ -82,6 +88,7 @@ nvim
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick |
 | [noice](https://github.com/folke/noice.nvim) | Enhanced cmdline, messages, notifications |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
+| [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | Sticky function/class header (`<leader>uC`) |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | Modern code folding |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME highlights |
@@ -97,7 +104,6 @@ nvim
 | [which-key](https://github.com/folke/which-key.nvim) | Keybinding help popup |
 | [snacks](https://github.com/folke/snacks.nvim) | Picker (fuzzy finder), dashboard, file explorer, terminal, indent guides, smooth scroll, notifications, rename |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
-| [trouble](https://github.com/folke/trouble.nvim) | Diagnostics panel |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | Quick file navigation (`<leader>1-9`) |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank history ring |
@@ -138,6 +144,7 @@ nvim
 
 | Language | LSP | Formatter | Linter | Test | Debug |
 |----------|-----|-----------|--------|------|-------|
+| C / C++ | clangd | clang-format | - | - | codelldb |
 | Go | gopls | goimports, gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
 | Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
@@ -201,7 +208,7 @@ Press any prefix and wait for which-key popup to see available keys.
 | Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (buffer/workspace), `cv` select venv (py), `cp` markdown preview (md), `cx` run current file (by filetype: go/c/cpp/py/js/ts/sh), `cR` rebuild gopls index (go) |
 | Buffer | `<leader>b` | `bd` delete, `bo` delete others, `bD` delete+window, `bl/br` delete left/right, `bj` pick, `bp` pin, `bP` close unpinned |
 | Debug | `<leader>d` | `db/dB` breakpoint/conditional, `dc/da` continue/with-args, `dC` run to cursor, `dg` goto line, `di` step into, `do` step out, `dO` step over, `dj/dk` down/up frame, `dP` pause, `dr` REPL, `ds` session, `dw` widgets, `dt` terminate, `dl` run last |
-| Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage, `gu` undo stage, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gB` browse |
+| Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage/unstage, `gT` toggle line blame, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gB` browse |
 | Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output, `tD/th` show/hide diagnostic |
 | Terminal | `<leader>T` | `T1-9` open/toggle dedicated terminals, `Td` fix claude TUI drift, `Tx` close terminal buffer |
 | Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
@@ -235,7 +242,7 @@ When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requi
 
 #### Claude Code tmux wrapper
 
-Claude Code is launched inside a dedicated tmux server when run via [claudecode.nvim](https://github.com/coder/claudecode.nvim) — see `lua/plugin/lsp/copilot.lua`.
+Claude Code is launched inside a dedicated tmux server when run via [claudecode.nvim](https://github.com/coder/claudecode.nvim) — see `lua/plugin/lsp/ai.lua`.
 
 **Why**: Claude's Ink-based TUI emits DEC mode 2026 (Synchronized Output) escape sequences for atomic frame updates. Nvim's `:terminal` buffer does not understand this protocol, so without the wrapper you get mid-frame tearing — status bar double-renders, lines bleeding into adjacent rows. tmux absorbs the 2026 sequences, composes whole frames, and emits plain ANSI that nvim's `:terminal` can render cleanly. (This is independent of the host terminal: Ghostty / WezTerm / iTerm2 all hit the same issue because the broken layer is nvim's `:terminal`, not them.)
 
@@ -252,8 +259,13 @@ Claude Code is launched inside a dedicated tmux server when run via [claudecode.
 
 | Variable | Description |
 |----------|-------------|
-| `NVIM_DEV=1` | Enable dev tools (`:DevReload`, `:DevTest`, `:DevValidate`, `:DevInfo`, `:DevPlugins`, `:DevProfile`) |
+| `NVIM_LOG_LEVEL` | `util.logger` threshold: `DEBUG`/`INFO`/`WARN`/`ERROR` (default `WARN`) |
+| `NVIM_DEV=1` | Sets `util.logger` to `DEBUG` (verbose logging) |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — override default Claude Code tmux wrap. Default on. See [Claude Code tmux wrapper](#claude-code-tmux-wrapper). |
+
+### Diagnostics
+
+For troubleshooting (slow startup, LSP not attaching, missing formatter, etc.) see [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md). Run `:checkhealth config` to verify external dependencies, key Mason packages, and the Neovim version.
 
 ### Customization
 

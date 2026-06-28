@@ -2,12 +2,12 @@
 
 [English](README.md)
 
-基于 Lua 和 [lazy.nvim](https://github.com/folke/lazy.nvim) 构建的现代 Neovim 配置。键位和插件选择与 [LazyVim](https://www.lazyvim.org/) 对齐，支持 Go、Python、Java、Web、Bash、JSON、YAML 开发。
+基于 Lua 和 [lazy.nvim](https://github.com/folke/lazy.nvim) 构建的现代 Neovim 配置。键位和插件选择与 [LazyVim](https://www.lazyvim.org/) 对齐，支持 Go、C/C++、Python、Java、Web、Bash、JSON、YAML 开发。
 
 ### 环境要求
 
 **必装：**
-- **Neovim** >= 0.10.0
+- **Neovim** >= 0.11.0（用到 `vim.lsp.config`/`vim.lsp.enable`、`vim.hl`、`vim.diagnostic.jump`）
 - **Git**
 - [Nerd Font](https://www.nerdfonts.com/)（图标显示）
 - **ripgrep** (`rg`) — `Snacks.picker.grep` / `live_grep` / `:grep` 的底层
@@ -47,16 +47,21 @@ nvim
 ├── init.lua                  # 入口文件
 ├── lua/
 │   ├── options.lua           # Vim 选项
-│   ├── mappings.lua          # 核心键位 + which-key 分组 + 切换/UI
+│   ├── mappings.lua          # 命令式核心键位（副作用）
+│   ├── whichkey_spec.lua     # which-key 分组 + spec 键位（数据）
 │   ├── autocmds.lua          # 自动命令
 │   ├── bootstrap.lua         # lazy.nvim 初始化
+│   ├── config/
+│   │   └── health.lua        # `:checkhealth config` 提供者
 │   ├── lang/                 # 语言专属配置
 │   │   ├── bash.lua
+│   │   ├── c.lua             # C / C++
+│   │   ├── frontend.lua      # HTML / CSS / Tailwind
 │   │   ├── go.lua
 │   │   ├── java.lua
 │   │   ├── json.lua
 │   │   ├── python.lua
-│   │   ├── web.lua
+│   │   ├── typescript.lua    # JS / TS 语言（LSP、格式化、DAP）
 │   │   └── yaml.lua
 │   ├── plugin/
 │   │   ├── editor/           # 编辑器增强插件
@@ -64,6 +69,7 @@ nvim
 │   │   ├── ui/               # 界面和主题插件
 │   │   └── vcs/              # Git 集成
 │   └── util/                 # 工具模块
+└── docs/                     # DIAGNOSTICS.md, UTILITIES.md
 ```
 
 ### 插件列表
@@ -77,6 +83,7 @@ nvim
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择） |
 | [noice](https://github.com/folke/noice.nvim) | 增强命令行、消息、通知 |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
+| [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | 粘性函数/类头（`<leader>uC`） |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | 现代代码折叠 |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME 高亮 |
@@ -92,7 +99,6 @@ nvim
 | [which-key](https://github.com/folke/which-key.nvim) | 键位提示弹窗 |
 | [snacks](https://github.com/folke/snacks.nvim) | Picker（模糊查找）、启动页、文件浏览器、终端、缩进线、平滑滚动、通知、重命名 |
 | [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
-| [trouble](https://github.com/folke/trouble.nvim) | 诊断面板 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | 常用文件快速跳转（`<leader>1-9`） |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank 历史环 |
@@ -133,6 +139,7 @@ nvim
 
 | 语言 | LSP | 格式化 | 检查 | 测试 | 调试 |
 |------|-----|--------|------|------|------|
+| C / C++ | clangd | clang-format | - | - | codelldb |
 | Go | gopls | goimports, gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
 | Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
@@ -196,7 +203,7 @@ nvim
 | 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号（buffer/workspace）, `cv` 虚拟环境（py）, `cp` Markdown 预览（md）, `cx` 运行当前文件（按文件类型：go/c/cpp/py/js/ts/sh）, `cR` 重建 gopls 索引（go） |
 | Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bD` 删除+窗口, `bl/br` 删除左/右, `bj` 选择, `bp` 固定, `bP` 关闭未固定 |
 | 调试 | `<leader>d` | `db/dB` 断点/条件断点, `dc/da` 继续/带参运行, `dC` 运行到光标, `dg` 跳到行（不执行）, `di` 步入, `do` 步出, `dO` 步过, `dj/dk` 上/下栈帧, `dP` 暂停, `dr` REPL, `ds` 会话, `dw` 悬浮 widget, `dt` 终止, `dl` 重跑 |
-| Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存, `gu` 撤销暂存, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gB` 浏览 |
+| Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存/取消暂存, `gT` 切换行 blame, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gB` 浏览 |
 | 测试 | `<leader>t` | `tm` 测试方法, `td` 调试方法, `tf` 测试文件, `tS` 摘要, `to` 输出, `tD/th` 显示/隐藏诊断 |
 | 终端 | `<leader>T` | `T1-9` 切换专用终端 1-9, `Td` 修复 claude TUI 漂移, `Tx` 关闭终端 buffer |
 | 切换 | `<leader>u` | `uf/uF` 自动格式化, `us` 拼写, `uw` 换行, `ul/uL` 行号, `ud` 诊断, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` 背景, `un` 关闭通知, `uR` markdown 渲染 |
@@ -230,7 +237,7 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 
 #### Claude Code 的 tmux 包裹
 
-通过 [claudecode.nvim](https://github.com/coder/claudecode.nvim) 调起 Claude Code 时，默认会在一个专用的 tmux server 中启动——见 `lua/plugin/lsp/copilot.lua`。
+通过 [claudecode.nvim](https://github.com/coder/claudecode.nvim) 调起 Claude Code 时，默认会在一个专用的 tmux server 中启动——见 `lua/plugin/lsp/ai.lua`。
 
 **原因**：Claude 的 Ink TUI 用 DEC mode 2026（Synchronized Output）实现原子帧更新。Neovim 的 `:terminal` buffer 不识别这个协议，**不包 tmux 会出现帧间撕裂**——状态栏双渲染、行间内容串到下一行。tmux 在中间消化掉 2026 序列、自己做整帧合成、再把普通 ANSI 输出给 `:terminal`，渲染就干净了。（与宿主终端无关：Ghostty / WezTerm / iTerm2 都会撞同一个问题，因为出问题的是 nvim `:terminal`。）
 
@@ -247,8 +254,13 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 
 | 变量 | 说明 |
 |------|------|
-| `NVIM_DEV=1` | 启用开发工具（`:DevReload`、`:DevTest`、`:DevValidate`、`:DevInfo`、`:DevPlugins`、`:DevProfile`） |
+| `NVIM_LOG_LEVEL` | `util.logger` 日志级别：`DEBUG`/`INFO`/`WARN`/`ERROR`（默认 `WARN`） |
+| `NVIM_DEV=1` | 把 `util.logger` 设为 `DEBUG`（更详细的日志） |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — 覆盖 Claude Code 的 tmux 包裹默认行为。默认开。详见 [Claude Code 的 tmux 包裹](#claude-code-的-tmux-包裹)。 |
+
+### 诊断
+
+排查问题（启动慢、LSP 不挂载、格式化不生效等）见 [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)。运行 `:checkhealth config` 检查外部依赖、关键 Mason 包、Neovim 版本。
 
 ### 自定义
 

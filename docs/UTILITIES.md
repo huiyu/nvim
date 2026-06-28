@@ -127,6 +127,45 @@ local window = require("util.window")
 -- :WindowCloseCurrent - Close current window
 ```
 
+## Terminal (`util.terminal`)
+
+Helpers for `:terminal` windows (Claude Code in particular).
+
+#### API Reference
+
+```lua
+local terminal = require("util.terminal")
+
+-- Fix stale renders ("drift") in a TUI terminal by shrinking then restoring the
+-- window in one tick, forcing libvterm to invalidate its grid. Bound to <leader>Td.
+terminal.fix_drift(win)   -- win defaults to the current window
+
+-- Toggle a snacks terminal by id.
+terminal.toggle(id)
+```
+
+## Running Files (`util.run`)
+
+Run the current file with a per-filetype command. See [DIAGNOSTICS.md](DIAGNOSTICS.md)
+for the broader diagnostic workflow.
+
+#### API Reference
+
+```lua
+local run = require("util.run")
+
+-- Register a runner (in a lang/*.lua module). builder(path) -> shell command.
+run.register("python", function(path)
+  return "python3 " .. vim.fn.shellescape(path)
+end)
+run.register({ "sh", "bash" }, function(path)  -- multiple filetypes at once
+  return "bash " .. vim.fn.shellescape(path)
+end)
+
+-- Write and run the current buffer's file in a split terminal (bound to <leader>cx).
+run.run_current()
+```
+
 ## Best Practices
 
 ### Error Handling
