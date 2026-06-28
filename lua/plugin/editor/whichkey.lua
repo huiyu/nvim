@@ -32,6 +32,8 @@ return {
   },
   init = function()
     local whichkey = require("which-key")
-    whichkey.add(require("mappings"))
+    -- Spec data lives in lua/whichkey_spec.lua; the imperative keymaps are in
+    -- lua/mappings.lua (required for side effects by init.lua).
+    whichkey.add(require("whichkey_spec"))
   end,
 }
