@@ -193,7 +193,7 @@ nvim
 |------|----|------|
 | 查找 | `<leader>f` | `ff` cwd 文件, `fF` 当前 buffer 目录, `fd` 浏览目录, `fe` 浏览器（含被忽略文件）, `fr` 最近, `fb` buffer, `fg` git 文件, `fp` 项目, `fc` nvim 配置, `fn` 新建, `fs/fS` 保存/另存为, `fR` 重命名, `fD` 删除, `fy/fY` 复制路径（绝对/项目相对）, `ft/fT` 终端 |
 | 搜索 | `<leader>s` | `sb` buffer, `sB` 所有开启 buffer, `sd` 当前目录, `sp` 项目, `sw` 当前词, `ss/sS` 符号（buffer/workspace）, `sR` 恢复, `sh` 帮助, `sk` 键位, `sm` 标记, `sj` 跳转, `sc/sC` 命令历史/命令, `s"` 寄存器, `sM` man, `sr/sW` 替换, `st/sT` todo, `sn{a,d,h,l,t}` noice（全部/清除/历史/最新/picker） |
-| 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号（buffer/workspace）, `cv` 虚拟环境（py）, `cp` Markdown 预览（md）, `cx` 运行当前文件（go）, `cR` 重建 gopls 索引（go） |
+| 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号（buffer/workspace）, `cv` 虚拟环境（py）, `cp` Markdown 预览（md）, `cx` 运行当前文件（按文件类型：go/c/cpp/py/js/ts/sh）, `cR` 重建 gopls 索引（go） |
 | Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bD` 删除+窗口, `bl/br` 删除左/右, `bj` 选择, `bp` 固定, `bP` 关闭未固定 |
 | 调试 | `<leader>d` | `db/dB` 断点/条件断点, `dc/da` 继续/带参运行, `dC` 运行到光标, `dg` 跳到行（不执行）, `di` 步入, `do` 步出, `dO` 步过, `dj/dk` 上/下栈帧, `dP` 暂停, `dr` REPL, `ds` 会话, `dw` 悬浮 widget, `dt` 终止, `dl` 重跑 |
 | Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存, `gu` 撤销暂存, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gB` 浏览 |
