@@ -36,6 +36,9 @@ vim.keymap.set("n", "gx", function()
   end
 end, { desc = "Open URL or file with system app" })
 
+-- Run the current file (dispatched by filetype; runners registered in lang/*.lua)
+vim.keymap.set("n", "<leader>cx", function() require("util.run").run_current() end, { desc = "Run current file" })
+
 -- Clear search highlight on Escape
 -- Normal mode only: mapping bare <Esc> in insert mode can add latency to / mis-fire
 -- on terminal escape sequences (arrows, Alt, F-keys), and there's no hlsearch to clear there.

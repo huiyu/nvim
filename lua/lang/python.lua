@@ -12,6 +12,11 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- <leader>cx runner (dispatched centrally by util.run; keymap in mappings.lua).
+require("util.run").register("python", function(path)
+  return "python3 " .. vim.fn.shellescape(path)
+end)
+
 return {
   {
     "nvim-treesitter/nvim-treesitter",

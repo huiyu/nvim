@@ -44,12 +44,13 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set("n", "<leader>cR", rebuild_gopls, { buffer = ev.buf, desc = "Rebuild gopls index" })
     vim.keymap.set("n", "<leader>co", lsp.action["source.organizeImports"],
       { buffer = ev.buf, desc = "Organize Imports" })
-    vim.keymap.set("n", "<leader>cx", function()
-      vim.cmd("write")
-      vim.cmd("split | terminal go run " .. vim.fn.shellescape(vim.fn.expand("%:p")))
-    end, { buffer = ev.buf, desc = "Run current file (go run)" })
   end,
 })
+
+-- <leader>cx runner (dispatched centrally by util.run; keymap in mappings.lua).
+require("util.run").register("go", function(path)
+  return "go run " .. vim.fn.shellescape(path)
+end)
 
 return {
   {

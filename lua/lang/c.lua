@@ -10,18 +10,19 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set("n", "<leader>ch", "<cmd>LspClangdSwitchSourceHeader<cr>",
       { buffer = ev.buf, desc = "Switch Source/Header (C/C++)" })
 
-    -- Compile & run the current file in a split terminal (parity with go.lua's <leader>cx).
-    vim.keymap.set("n", "<leader>cx", function()
-      vim.cmd("write")
-      local src = vim.fn.expand("%:p")
-      local out = vim.fn.expand("%:p:r")
-      local cc = vim.bo.filetype == "cpp" and "c++" or "cc"
-      local cmd = string.format("%s %s -o %s && %s",
-        cc, vim.fn.shellescape(src), vim.fn.shellescape(out), vim.fn.shellescape(out))
-      vim.cmd("split | terminal " .. cmd)
-    end, { buffer = ev.buf, desc = "Compile & run current file" })
   end,
 })
+
+-- <leader>cx runner: compile & run (dispatched centrally by util.run).
+local function compile_and_run(cc)
+  return function(path)
+    local out = vim.fn.fnamemodify(path, ":r")
+    return string.format("%s %s -o %s && %s",
+      cc, vim.fn.shellescape(path), vim.fn.shellescape(out), vim.fn.shellescape(out))
+  end
+end
+require("util.run").register("c", compile_and_run("cc"))
+require("util.run").register("cpp", compile_and_run("c++"))
 
 return {
   {
