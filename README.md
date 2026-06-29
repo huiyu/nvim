@@ -2,7 +2,7 @@
 
 [中文文档](README_CN.md)
 
-A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/folke/lazy.nvim). Aligned with [LazyVim](https://www.lazyvim.org/) conventions for keybindings and plugin choices, with support for Go, C/C++, Python, Java, Web, Bash, JSON, and YAML development.
+A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/folke/lazy.nvim). Aligned with [LazyVim](https://www.lazyvim.org/) conventions for keybindings and plugin choices, with support for Go, C/C++, Python, Java, Web, Bash, JSON, YAML, and LaTeX development.
 
 ### Requirements
 
@@ -29,6 +29,7 @@ brew install --cask font-jetbrains-mono-nerd-font  # or any Nerd Font
 - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
 - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
 - **JDK 17+** — required for `jdtls` (Java). This config expects [SDKMAN!](https://sdkman.io/) at `~/.sdkman/candidates/java/current` (see [`lua/lang/java.lua`](lua/lang/java.lua))
+- **TeX Live + Skim** (LaTeX) — `brew install --cask mactex-no-gui` for `latexmk`/`latexindent`/`chktex`, and `brew install --cask skim` for the SyncTeX PDF viewer. `texlab` is installed by Mason. For inverse search set Skim → Preferences → Sync → Custom: command `nvim`, arguments `--headless -c "VimtexInverseSearch %line '%file'"`
 
 If a Mason package fails to install, run `:Mason` (UI) or `:MasonLog` (raw log) to see the underlying error. The most common cause is a missing toolchain from the list above.
 
@@ -66,6 +67,7 @@ nvim
 │   │   ├── java.lua
 │   │   ├── json.lua
 │   │   ├── python.lua
+│   │   ├── tex.lua           # LaTeX (VimTeX + texlab)
 │   │   ├── typescript.lua    # JS / TS language (LSP, format, DAP)
 │   │   └── yaml.lua
 │   ├── plugin/
@@ -153,7 +155,46 @@ nvim
 | JSON | jsonls + SchemaStore | prettier | - | - | - |
 | YAML | yamlls + SchemaStore | prettier | - | - | - |
 | Bash | bashls | shfmt | - | - | - |
+| LaTeX | texlab (+ VimTeX) | latexindent | chktex | - | - |
 | Lua | lua_ls | - | - | - | - |
+
+#### LaTeX Workflow
+
+LaTeX is split between two tools: **VimTeX** drives compilation/viewing/motions, while **texlab** provides LSP intelligence (completion, goto, label rename) and `chktex` linting. They are configured not to overlap — texlab's own build is disabled so only VimTeX compiles.
+
+**One-time setup**
+
+```bash
+brew install --cask mactex-no-gui   # TeX Live: latexmk, latexindent, chktex
+brew install --cask skim            # PDF viewer with SyncTeX
+```
+
+`texlab` installs itself through Mason on first launch — no extra step. For inverse search (click in the PDF → jump to source), set **Skim → Preferences → Sync → Preset: Custom**, Command `nvim`, Arguments:
+
+```
+--headless -c "VimtexInverseSearch %line '%file'"
+```
+
+**Daily use** — open any `.tex` file, then:
+
+- `<localleader>ll` (`\ll`) — start continuous compilation (recompiles on save)
+- `<localleader>lv` (`\lv`) — forward search: open/jump Skim to the cursor's line
+- `<localleader>lt` (`\lt`) — table of contents; `\lk` clean, `\le` errors
+- Save the file to auto-format with `latexindent` (toggle with `<leader>uf`)
+
+The same actions are mirrored under the **`<leader>c` (Code)** group for which-key discoverability:
+
+| Key | Action |
+|-----|--------|
+| `<leader>cb` | Compile (toggle continuous) |
+| `<leader>cv` | View PDF in Skim |
+| `<leader>cs` | Stop compilation |
+| `<leader>ck` | Clean aux files |
+| `<leader>ct` | Toggle table of contents |
+| `<leader>ce` | Show error list |
+| `<leader>cx` | One-shot `latexmk` build to PDF |
+
+TeX buffers also enable soft `wrap` and `spell` by default (toggle with `<leader>uw` / `<leader>us`).
 
 ### Keybinding Reference
 

@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-基于 Lua 和 [lazy.nvim](https://github.com/folke/lazy.nvim) 构建的现代 Neovim 配置。键位和插件选择与 [LazyVim](https://www.lazyvim.org/) 对齐，支持 Go、C/C++、Python、Java、Web、Bash、JSON、YAML 开发。
+基于 Lua 和 [lazy.nvim](https://github.com/folke/lazy.nvim) 构建的现代 Neovim 配置。键位和插件选择与 [LazyVim](https://www.lazyvim.org/) 对齐，支持 Go、C/C++、Python、Java、Web、Bash、JSON、YAML、LaTeX 开发。
 
 ### 环境要求
 
@@ -29,6 +29,7 @@ brew install --cask font-jetbrains-mono-nerd-font  # 任意 Nerd Font 都行
 - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
 - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
 - **JDK 17+** — `jdtls`（Java）需要。本配置假设走 [SDKMAN!](https://sdkman.io/)，路径写死在 `~/.sdkman/candidates/java/current`（见 [`lua/lang/java.lua`](lua/lang/java.lua)）
+- **TeX Live + Skim**（LaTeX）— `brew install --cask mactex-no-gui` 提供 `latexmk`/`latexindent`/`chktex`，`brew install --cask skim` 提供支持 SyncTeX 的 PDF 阅读器；`texlab` 由 Mason 安装。反向跳转需在 Skim → 偏好设置 → Sync 中选 Custom：命令填 `nvim`，参数填 `--headless -c "VimtexInverseSearch %line '%file'"`
 
 如果 Mason 安装失败，运行 `:Mason`（UI）或 `:MasonLog`（原始日志）查看具体错误。最常见的原因是上面这些工具链没装。
 
@@ -61,6 +62,7 @@ nvim
 │   │   ├── java.lua
 │   │   ├── json.lua
 │   │   ├── python.lua
+│   │   ├── tex.lua           # LaTeX（VimTeX + texlab）
 │   │   ├── typescript.lua    # JS / TS 语言（LSP、格式化、DAP）
 │   │   └── yaml.lua
 │   ├── plugin/
@@ -148,7 +150,46 @@ nvim
 | JSON | jsonls + SchemaStore | prettier | - | - | - |
 | YAML | yamlls + SchemaStore | prettier | - | - | - |
 | Bash | bashls | shfmt | - | - | - |
+| LaTeX | texlab (+ VimTeX) | latexindent | chktex | - | - |
 | Lua | lua_ls | - | - | - | - |
+
+#### LaTeX 工作流
+
+LaTeX 分工给两个工具:**VimTeX** 负责编译/预览/文本对象,**texlab** 负责 LSP 智能(补全、跳转、label 重命名)和 `chktex` lint。两者刻意不重叠——texlab 自带的 build 已关闭,只由 VimTeX 编译。
+
+**一次性配置**
+
+```bash
+brew install --cask mactex-no-gui   # TeX Live:latexmk、latexindent、chktex
+brew install --cask skim            # 支持 SyncTeX 的 PDF 阅读器
+```
+
+`texlab` 首次启动时由 Mason 自动安装,无需额外步骤。反向跳转(在 PDF 里点一下 → 跳回源码)需设置 **Skim → 偏好设置 → Sync → Preset 选 Custom**,Command 填 `nvim`,Arguments 填:
+
+```
+--headless -c "VimtexInverseSearch %line '%file'"
+```
+
+**日常使用** — 打开任意 `.tex` 文件,然后:
+
+- `<localleader>ll`(`\ll`)— 连续编译(保存即重编)
+- `<localleader>lv`(`\lv`)— 正向跳转:打开/定位 Skim 到光标所在行
+- `<localleader>lt`(`\lt`)— 目录;`\lk` 清理、`\le` 错误列表
+- 保存文件即用 `latexindent` 自动格式化(可用 `<leader>uf` 开关)
+
+同样的操作也镜像到了 **`<leader>c`(Code)组**,方便 which-key 发现:
+
+| 键位 | 操作 |
+|------|------|
+| `<leader>cb` | 编译(连续模式开关) |
+| `<leader>cv` | 用 Skim 看 PDF |
+| `<leader>cs` | 停止编译 |
+| `<leader>ck` | 清理辅助文件 |
+| `<leader>ct` | 目录开关 |
+| `<leader>ce` | 错误列表 |
+| `<leader>cx` | 一次性 `latexmk` 出 PDF |
+
+TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leader>us` 开关)。
 
 ### 键位参考
 
