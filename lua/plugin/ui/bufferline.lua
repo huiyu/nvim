@@ -21,6 +21,11 @@ return {
       diagnostics = "nvim_lsp",
       always_show_bufferline = false,
       show_tab_indicators = true,
+      -- Keep diffview's internal buffers (incl. phantom diffview://null) out of
+      -- the bufferline, so BufferLinePick / buffer cycling can't land on them.
+      custom_filter = function(buf_number)
+        return not vim.api.nvim_buf_get_name(buf_number):match("diffview://")
+      end,
       offsets = {
         {
           filetype = "snacks_layout_box",
