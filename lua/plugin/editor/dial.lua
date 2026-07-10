@@ -1,14 +1,26 @@
+-- dial writes to the buffer unconditionally (nvim_buf_set_text), so a
+-- mis-hit in a read-only window (dashboard/help/quickfix) raises E5108/E21.
+-- Guard: no-op the expr mapping when the buffer is not modifiable.
+local function dial(fn)
+  return function()
+    if not vim.bo.modifiable then
+      return ""
+    end
+    return require("dial.map")[fn]()
+  end
+end
+
 return {
   "monaqa/dial.nvim",
   keys = {
-    { "<C-a>",  function() return require("dial.map").inc_normal() end,  expr = true, desc = "Increment" },
-    { "<C-x>",  function() return require("dial.map").dec_normal() end,  expr = true, desc = "Decrement" },
-    { "g<C-a>", function() return require("dial.map").inc_gnormal() end, expr = true, desc = "Increment" },
-    { "g<C-x>", function() return require("dial.map").dec_gnormal() end, expr = true, desc = "Decrement" },
-    { "<C-a>",  function() return require("dial.map").inc_visual() end,  mode = "v",  expr = true, desc = "Increment" },
-    { "<C-x>",  function() return require("dial.map").dec_visual() end,  mode = "v",  expr = true, desc = "Decrement" },
-    { "g<C-a>", function() return require("dial.map").inc_gvisual() end, mode = "v",  expr = true, desc = "Increment" },
-    { "g<C-x>", function() return require("dial.map").dec_gvisual() end, mode = "v",  expr = true, desc = "Decrement" },
+    { "<C-a>",  dial("inc_normal"),  expr = true, desc = "Increment" },
+    { "<C-x>",  dial("dec_normal"),  expr = true, desc = "Decrement" },
+    { "g<C-a>", dial("inc_gnormal"), expr = true, desc = "Increment" },
+    { "g<C-x>", dial("dec_gnormal"), expr = true, desc = "Decrement" },
+    { "<C-a>",  dial("inc_visual"),  mode = "v",  expr = true, desc = "Increment" },
+    { "<C-x>",  dial("dec_visual"),  mode = "v",  expr = true, desc = "Decrement" },
+    { "g<C-a>", dial("inc_gvisual"), mode = "v",  expr = true, desc = "Increment" },
+    { "g<C-x>", dial("dec_gvisual"), mode = "v",  expr = true, desc = "Decrement" },
   },
   config = function()
     local augend = require("dial.augend")
