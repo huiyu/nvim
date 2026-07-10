@@ -34,6 +34,14 @@ local spec = {
   { "<leader><tab>", group = "Tab" },
   { "gr",            group = "LSP" },
 
+  -- The marks plugin labels all four jump-to-mark prefixes identically as
+  -- "marks". Disambiguate line-vs-exact and the jumplist-preserving g-variants.
+  -- node.plugin stays "marks", so the dynamic mark list still expands.
+  { "'",  desc = "marks: line" },
+  { "`",  desc = "marks: exact pos" },
+  { "g'", desc = "marks: line (keep jumplist)" },
+  { "g`", desc = "marks: exact pos (keep jumplist)" },
+
   -- Top-level shortcuts
   { "<leader>l",  "<cmd>Lazy<cr>",       desc = "Lazy",  mode = "n" },
   { "<leader>?", function()
