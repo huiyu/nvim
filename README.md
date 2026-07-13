@@ -200,6 +200,29 @@ TeX buffers also enable soft `wrap` and `spell` by default (toggle with `<leader
 
 **Leader**: `Space` | **Local leader**: `\` | **Keybinding guide**: `<leader>?`
 
+#### Which Prefix? (Intent → Key)
+
+One design rule governs everything: **the more frequent the action, the faster the prefix**. Modifier chords (`Ctrl`/`Shift`/`Alt`) are instant muscle memory; sequence prefixes (`g`, `[`/`]`, `z`) move the cursor; `<leader>` is the command palette — slowest, but which-key has your back.
+
+Start from what you want to do:
+
+| I want to… | Use | Examples |
+|------------|-----|----------|
+| Run a command / manage things | `<leader>` + domain letter | `<leader>gs` git status, `<leader>bd` delete buffer, `<leader>ca` code action |
+| Step to the next/prev one of something | `]` / `[` + kind | `]d` diagnostic, `]h` hunk, `]b` buffer — repeat to iterate |
+| Jump to something about the symbol under cursor | `g` | `gd` definition, `gr` references, `gI` implementation — one shot |
+| Do an instant, every-minute action | `Ctrl` | `<C-h/j/k/l>` windows, `<C-s>` save, `<C-/>` terminal |
+| Cycle through the bufferline | `Shift` | `<S-h>` / `<S-l>` |
+| Move something (not the cursor) | `Alt` | `<A-j>` / `<A-k>` move line |
+| Fly to any spot I can see | `s` | Flash jump: `s` + 2 chars + label |
+
+Mnemonic: **Space commands, brackets step, g resolves, Ctrl acts, Shift cycles, Alt moves, s flies.**
+
+Two distinctions worth training deliberately:
+
+- **`]d` vs `gd`** — brackets answer *"where is the next one from here?"* (position-based, repeatable); `g` answers *"where is THE definition of this?"* (semantic, lands in one jump).
+- **`<S-h>` is literally `H`** — it shadows native `H`/`L` (jump to top/bottom of visible screen). Deliberate trade: buffer switching is far more frequent, and `gg`/`G`/relative jumps cover the loss (`M` is untouched).
+
 #### Trigger Key Prefixes
 
 Press any prefix and wait for which-key popup to see available keys.
