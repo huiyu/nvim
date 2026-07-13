@@ -258,7 +258,7 @@ Press any prefix and wait for which-key popup to see available keys.
 | AI | `<leader>a` | `ac` toggle, `af` focus, `ar` resume, `aR` continue, `am` model, `ab` add buffer, `aS` add file from tree, `as` send (v), `aa/ad` accept/deny diff |
 | Window | `<leader>w` | `ww` other window, `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
 | Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
-| Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `l/f` last/first, `o` close others, `s` list all |
+| Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `` ` `` last used (alternate), `l/f` rightmost/first, `o` close others, `s` list all |
 
 #### Yanky (Enhanced Yank/Paste)
 

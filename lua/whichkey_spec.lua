@@ -134,8 +134,11 @@ local spec = {
   { "<leader><tab>d",     "<cmd>tabclose<cr>",   desc = "Close tab" },
   { "<leader><tab>]",     "<cmd>tabnext<cr>",    desc = "Next tab" },
   { "<leader><tab>[",     "<cmd>tabprev<cr>",    desc = "Prev tab" },
-  { "<leader><tab>l",     "<cmd>tablast<cr>",    desc = "Last tab" },
+  -- "Rightmost", not "Last": last-used (MRU) is `<leader><tab>` via g<Tab>,
+  -- mirroring <leader>` (alternate buffer) and <leader>ww (other window).
+  { "<leader><tab>l",     "<cmd>tablast<cr>",    desc = "Rightmost tab" },
   { "<leader><tab>f",     "<cmd>tabfirst<cr>",   desc = "First tab" },
+  { "<leader><tab>`",     "g<Tab>",              desc = "Last used tab (alternate)" },
   { "<leader><tab>o",     "<cmd>tabonly<cr>",     desc = "Close other tabs" },
   { "<leader><tab>s",     "<cmd>tabs<cr>",        desc = "List all tabs" },
 

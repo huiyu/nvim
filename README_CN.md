@@ -253,7 +253,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | AI | `<leader>a` | `ac` 切换, `af` 聚焦, `ar` 恢复, `aR` 继续, `am` 模型, `ab` 添加 buffer, `aS` 从文件树添加, `as` 发送（v）, `aa/ad` 接受/拒绝 diff |
 | 窗口 | `<leader>w` | `ww` 切到其它窗口, `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
 | 退出 | `<leader>q` | `qq/qQ` 退出, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
-| 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `l/f` 最后/第一个, `o` 关闭其他, `s` 列出全部 |
+| 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `` ` `` 最近使用（alternate）, `l/f` 最右/第一个, `o` 关闭其他, `s` 列出全部 |
 
 #### Yanky（增强复制/粘贴）
 

@@ -111,9 +111,9 @@ vim.keymap.set("n", "<C-Down>", "<cmd>resize -2<cr>", { desc = "Decrease window 
 vim.keymap.set("n", "<C-Left>", "<cmd>vertical resize -2<cr>", { desc = "Decrease window width" })
 vim.keymap.set("n", "<C-Right>", "<cmd>vertical resize +2<cr>", { desc = "Increase window width" })
 
--- Buffer navigation
-vim.keymap.set("n", "[b", "<cmd>bprev<cr>", { desc = "Prev buffer" })
-vim.keymap.set("n", "]b", "<cmd>bnext<cr>", { desc = "Next buffer" })
+-- Buffer navigation ([b / ]b) lives in plugin/ui/bufferline.lua next to
+-- <S-h>/<S-l>, so both pairs follow the visual bufferline order (pins/sorting)
+-- instead of :bprev/:bnext buffer-number order.
 
 -- Diagnostic navigation
 vim.keymap.set("n", "[d", function() vim.diagnostic.jump({ count = -1, float = true }) end, { desc = "Prev diagnostic" })

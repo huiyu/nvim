@@ -5,6 +5,8 @@ return {
   keys = {
     { "<S-h>",      "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
     { "<S-l>",      "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
+    { "[b",         "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
+    { "]b",         "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
     { "[B",         "<cmd>BufferLineMovePrev<cr>",             desc = "Move buffer left" },
     { "]B",         "<cmd>BufferLineMoveNext<cr>",             desc = "Move buffer right" },
     { "<leader>bd", function() Snacks.bufdelete() end,         desc = "Delete buffer" },
