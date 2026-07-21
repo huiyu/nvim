@@ -247,9 +247,9 @@ Press any prefix and wait for which-key popup to see available keys.
 | `<C-Up/Down/Left/Right>` | Window resize |
 | `<A-j>` / `<A-k>` | Move line up/down (n, i, v) |
 | `<S-h>` / `<S-l>` | Prev / Next buffer |
-| `<leader><space>` | Smart find (buffers + recent + cwd files, frecency-boosted) |
-| `<leader>.` | Find file in cwd |
-| `<leader>/` | Search project (grep) |
+| `<leader><space>` | Smart find (buffers + recent + files, all filtered to cwd, frecency-boosted) |
+| `<leader>.` | Find file in cwd (incl. hidden + gitignored; heavy build/dep dirs excluded) |
+| `<leader>/` | Search project grep (incl. hidden + gitignored; heavy build/dep dirs excluded) |
 | `<leader>,` | Buffers |
 | `<leader>:` | Command history |
 | `<leader>'` | Resume last picker |
@@ -282,6 +282,29 @@ Press any prefix and wait for which-key popup to see available keys.
 | Window | `<leader>w` | `ww` other window, `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
 | Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
 | Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `` ` `` last used (alternate), `l/f` rightmost/first, `o` close others, `s` list all |
+
+#### Diffview (in-view keys)
+
+Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff view these buffer-local keys apply — press `g?` for the full context-sensitive help:
+
+| Key | Action |
+|-----|--------|
+| `<tab>` / `<s-tab>` | Next / previous file's diff |
+| `[F` / `]F` | First / last file |
+| `<leader>e` / `<leader>b` | Focus / toggle the file panel |
+| `gf` | Open the file in the previous tabpage |
+| `<C-w><C-f>` / `<C-w>gf` | Open the file in a split / new tab |
+| `g<C-x>` | Cycle diff layout |
+| `-` / `s`, `S` / `U` | (file panel) stage/unstage entry, stage/unstage all |
+| `X` | (file panel) restore entry to the left side |
+| `i` / `f` | (file panel) toggle list/tree, flatten empty dirs |
+| `L` | (file panel) open commit log |
+| `[x` / `]x` | Previous / next merge conflict |
+| `<leader>c{o,t,b,a}` | Resolve conflict: ours / theirs / base / all (uppercase = whole file) |
+| `dx` | Delete the conflict region |
+| `y` | (file history) copy the commit hash |
+
+**Disabled inside Diffview:** the file/buffer openers `<leader>f`, `<leader><space>`, `<leader>.`, `<leader>/`, `<leader>,` are neutralized in diff buffers — they would load a file into a diff window and break the layout, so they show a hint instead (exit with `<leader>gq` first). `<leader>b/e/c*` intentionally keep diffview's own actions rather than the global Buffer/Explorer/Code groups. Configured in `lua/plugin/vcs/diffview.lua`.
 
 #### Yanky (Enhanced Yank/Paste)
 
@@ -340,6 +363,8 @@ For troubleshooting (slow startup, LSP not attaching, missing formatter, etc.) s
 **Add an LSP server** — edit `lua/plugin/lsp/lsp.lua`, add to the `servers` table.
 
 **Add a formatter** — edit `lua/plugin/lsp/conform.lua`, add to `formatters_by_ft`.
+
+**Tune file/grep search scope** — the file (`<leader>.`) and grep (`<leader>/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
 
 ## License
 
