@@ -53,6 +53,33 @@ return {
   },
   opts = {},
   config = function(_, opts)
+    -- Keys that only make sense in the normal editing layout: each loads a file
+    -- or buffer into the current window, which would clobber a diff window and
+    -- break the layout. Neutralize them inside every diffview buffer so muscle
+    -- memory can't wreck the view. The diff content windows are real file
+    -- buffers, so diffview's own keymap hook is the only place these
+    -- buffer-local overrides can land. `<leader>b/e/c*` are intentionally left
+    -- untouched: diffview's toggle_files / focus_files / conflict-resolution are
+    -- more useful here than the global Buffer/Explorer/Code groups they shadow.
+    local function blocked(key)
+      return function()
+        vim.notify(
+          key .. " is disabled inside Diffview — exit with <leader>gq first",
+          vim.log.levels.WARN,
+          { title = "Diffview" }
+        )
+      end
+    end
+    local blocks = {}
+    for _, key in ipairs({ "<leader>f", "<leader><space>", "<leader>.", "<leader>/", "<leader>," }) do
+      blocks[#blocks + 1] = { "n", key, blocked(key), { desc = "Disabled in Diffview" } }
+    end
+    opts.keymaps = {
+      view = blocks,
+      file_panel = blocks,
+      file_history_panel = blocks,
+    }
+
     require("diffview").setup(opts)
 
     -- A diffview:// buffer closed by ANY means (mapped key, manual :bd/:bw, Lua
