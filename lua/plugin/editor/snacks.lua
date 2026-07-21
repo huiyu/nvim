@@ -47,14 +47,47 @@ vim.api.nvim_create_autocmd("User", {
   end,
 })
 
+-- Directories skipped by file/grep pickers when `ignored = true` is on, so
+-- searching gitignored files still stays fast and noise-free. `.git/` is
+-- always excluded by snacks itself, so it is not listed here.
+--
+-- NOTE: `exclude` maps to `fd -E <name>` / `rg -g '!<name>'`, which drops any
+-- directory of that name UNCONDITIONALLY — even git-tracked source. Only
+-- unique, unambiguous build/dep dir names are listed. Generic names that
+-- often hold tracked source (bin, out, vendor, deps, obj) are deliberately
+-- left out to avoid hiding real files.
+local search_exclude = {
+  -- JS / TS / web
+  "node_modules", ".next", ".nuxt", ".svelte-kit", ".astro", ".turbo",
+  ".parcel-cache", ".angular", "bower_components", "coverage",
+  -- Python
+  ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache",
+  ".ruff_cache", ".tox", ".ipynb_checkpoints",
+  -- JVM (Gradle / Maven) + Rust (target) + Scala
+  "target", "build", ".gradle",
+  -- iOS / Swift / Xcode
+  "Pods", "DerivedData", ".build",
+  -- Elixir / Erlang
+  "_build",
+  -- Dart / Flutter
+  ".dart_tool",
+  -- Haskell
+  "dist-newstyle", ".stack-work",
+  -- Infra / tooling
+  ".terraform", ".serverless", ".cache",
+  -- General build output
+  "dist",
+}
+
 return {
   "folke/snacks.nvim",
   lazy = false,
   keys = {
     -- ── Top-level shortcuts (Doom-style) ────────────────────────────────
     -- <space> = smart picker (buffers + recent + files, frecency-boosted),
+    --           filtered to cwd so all three sources stay within the project.
     -- . = pure file find in cwd, / = search project
-    { "<leader><space>", function() Snacks.picker.smart() end,            desc = "Smart find (buffers/recent/files)" },
+    { "<leader><space>", function() Snacks.picker.smart({ filter = { cwd = true } }) end, desc = "Smart find (buffers/recent/files, cwd-only)" },
     { "<leader>.",       function() Snacks.picker.files() end,            desc = "Find file in cwd" },
     { "<leader>/",       function() Snacks.picker.grep() end,             desc = "Search project" },
     { "<leader>,",       function() Snacks.picker.buffers() end,          desc = "Buffers" },
@@ -187,12 +220,19 @@ return {
       ui_select = true, -- replace vim.ui.select with snacks picker
       sources = {
         -- filename-first display: shorter, scannable in Java deep paths
+        -- hidden: show dotfiles; ignored: also search gitignored files
+        -- (.git/ is always excluded by snacks); exclude: skip heavy dep/build
+        -- dirs (see `search_exclude` above) so gitignored search stays fast.
         files = {
           hidden = true,
+          ignored = true,
+          exclude = search_exclude,
           format = "file",
         },
         grep = {
           hidden = true,
+          ignored = true,
+          exclude = search_exclude,
         },
         recent = {
           format = "file",
