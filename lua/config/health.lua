@@ -58,6 +58,23 @@ function M.check()
     end
   end
 
+  local ai = require("ai.config")
+  health.start("config: AI provider")
+  health.ok(("%s selected (provider=%s)"):format(ai.label, ai.provider))
+
+  if vim.fn.executable(ai.native.command) == 1 then
+    health.ok(("%s found — native coding agent available"):format(ai.native.command))
+  else
+    health.error(("%s not found — %s native agent unavailable"):format(ai.native.command, ai.label))
+  end
+
+  local api_key = ai.codecompanion.api_key
+  if vim.env[api_key] and vim.env[api_key] ~= "" then
+    health.ok(("%s found — CodeCompanion HTTP interactions available"):format(api_key))
+  else
+    health.warn(("%s not set — CodeCompanion requests will not work"):format(api_key))
+  end
+
   health.start("config: mason packages")
   local names = installed_mason_names()
   if not names then

@@ -14,6 +14,8 @@ local hidden = {
   { "<leader>7", hidden = true }, { "<leader>8", hidden = true }, { "<leader>9", hidden = true },
 }
 
+local ai = require("ai.config")
+
 local spec = {
   -- Which-key group labels
   { "<leader>f",     group = "Find/Files" },
@@ -26,7 +28,8 @@ local spec = {
   { "<leader>T",     group = "Terminal" },
   { "<leader>u",     group = "Toggle/UI" },
   { "<leader>x",     group = "Diagnostics",     mode = "n" },
-  { "<leader>a",     group = "AI/Claude Code",  mode = { "n", "v" } },
+  { "<leader>a",     group = "AI/" .. ai.label, mode = { "n", "v" } },
+  { "<leader>ap",    group = "CodeCompanion",   mode = { "n", "v" } },
   { "<leader>r",     group = "Refactor",        mode = { "n", "v" } },
   { "<leader>q",     group = "Quit/Session",    mode = "n" },
   { "<leader>w",     group = "Window",          mode = "n" },

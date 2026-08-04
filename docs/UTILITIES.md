@@ -129,7 +129,7 @@ local window = require("util.window")
 
 ## Terminal (`util.terminal`)
 
-Helpers for `:terminal` windows (Claude Code in particular).
+Helpers for `:terminal` windows, including the selected native AI agent.
 
 #### API Reference
 

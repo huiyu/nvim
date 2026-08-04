@@ -52,6 +52,7 @@ the update checker runs silently once a day (`bootstrap.lua`).
 - Neovim version floor (>= 0.11)
 - External CLI tools on `PATH` (git, rg, fd, node, go, python3, cc, lazygit) and
   what each one is needed for
+- Active AI provider, native CLI, and CodeCompanion HTTP credentials
 - A few key Mason packages
 
 Run the full suite with plain `:checkhealth` (includes the above plus every
@@ -113,5 +114,6 @@ A clean run prints `errmsg=[]` and no tracebacks.
 
 | Variable | Effect |
 |----------|--------|
+| `NVIM_AI_PROVIDER` | Select `claude` (default) or `codex` for Native AI and CodeCompanion |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |
 | `NVIM_DEV=1` | `util.logger` defaults to `DEBUG` (more verbose) |

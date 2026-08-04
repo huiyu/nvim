@@ -16,6 +16,8 @@
 **可选（按功能）：**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg`（项目）/ `<leader>gf`（当前文件历史）
 - **[tmux](https://github.com/tmux/tmux)** — 把 Claude Code TUI 包到 `:terminal` 里，防止闪屏；自动检测（详见[终端集成](#终端集成)）
+- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** 或 **[Codex](https://developers.openai.com/codex/cli/)** — Native coding agent
+- `ANTHROPIC_API_KEY` 或 `OPENAI_API_KEY` — 所选 provider 的 CodeCompanion HTTP adapter
 - **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** — 启动页 banner（缺失会静默跳过，不致命）
 
 **macOS 一键安装：**
@@ -52,6 +54,7 @@ nvim
 │   ├── whichkey_spec.lua     # which-key 分组 + spec 键位（数据）
 │   ├── autocmds.lua          # 自动命令
 │   ├── bootstrap.lua         # lazy.nvim 初始化
+│   ├── ai/                    # Provider 配置 + Native Claude/Codex facade
 │   ├── config/
 │   │   └── health.lua        # `:checkhealth config` 提供者
 │   ├── lang/                 # 语言专属配置
@@ -128,7 +131,8 @@ nvim
 | [neogen](https://github.com/danymat/neogen) | 自动生成注释/文档 |
 | [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema 验证 |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua 开发（类型补全） |
-| [claudecode](https://github.com/coder/claudecode.nvim) | AI 代码助手（Claude Code） |
+| [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code 集成（仅 Claude provider） |
+| [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | 所选 AI provider 的 HTTP Chat 与 Inline Prompt |
 
 #### 版本控制
 
@@ -269,11 +273,11 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | 调试 | `<leader>d` | `db/dB` 断点/条件断点, `dc/da` 继续/带参运行, `dC` 运行到光标, `dg` 跳到行（不执行）, `di` 步入, `do` 步出, `dO` 步过, `dj/dk` 上/下栈帧, `dP` 暂停, `dr` REPL, `ds` 会话, `dw` 悬浮 widget, `dt` 终止, `dl` 重跑 |
 | Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存/取消暂存, `gT` 切换行 blame, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gB` 浏览 |
 | 测试 | `<leader>t` | `tm` 测试方法, `td` 调试方法, `tf` 测试文件, `tS` 摘要, `to` 输出, `tD/th` 显示/隐藏诊断 |
-| 终端 | `<leader>T` | `T1-9` 切换专用终端 1-9, `Td` 修复 claude TUI 漂移, `Tx` 关闭终端 buffer |
+| 终端 | `<leader>T` | `T1-9` 切换专用终端 1-9, `Td` 修复 agent TUI 漂移, `Tx` 关闭终端 buffer |
 | 切换 | `<leader>u` | `uf/uF` 自动格式化, `us` 拼写, `uw` 换行, `ul/uL` 行号, `ud` 诊断, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` 背景, `un` 关闭通知, `uR` markdown 渲染 |
 | 诊断 | `<leader>x` | `xx/xX` 诊断（项目/buffer）, `xL/xQ` loclist/quickfix picker, `xl/xq` 切换 loclist/quickfix 窗口, `xt/xT` todo |
 | 重构 | `<leader>r` | `rf` 提取函数, `rF` 提取到文件, `rx` 提取变量, `ri` 内联, `rb` 提取块, `rB` 提取块到文件, `rs` 选择 |
-| AI | `<leader>a` | `ac` 切换, `af` 聚焦, `ar` 恢复, `aR` 继续, `am` 模型, `ab` 添加 buffer, `aS` 从文件树添加, `as` 发送（v）, `aa/ad` 接受/拒绝 diff |
+| AI | `<leader>a` | Native：`ac` 切换, `af` 聚焦, `ar` 恢复选择, `aR` 继续上次, `am` 模型, `ab` 添加 buffer, `as` 发送（v）；Claude 专属：`aS`, `aa/ad`；CodeCompanion：`ap{c,t,a,i,b}` 新建/切换/操作/Inline/添加选区 |
 | 窗口 | `<leader>w` | `ww` 切到其它窗口, `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
 | 退出 | `<leader>q` | `qq/qQ` 退出, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
 | 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `` ` `` 最近使用（alternate）, `l/f` 最右/第一个, `o` 关闭其他, `s` 列出全部 |
@@ -289,6 +293,21 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | `<leader>Y`（v） | 选区 yank 到系统剪贴板（`+`） |
 
 ### 终端集成
+
+#### AI provider 选择
+
+每个 Nvim 进程在启动时选择一个 Native provider，默认仍是 Claude；Native
+快捷键在两个 provider 之间保持不变：
+
+```bash
+NVIM_AI_PROVIDER=claude nvim
+NVIM_AI_PROVIDER=codex nvim
+```
+
+同一设置也会为 CodeCompanion 的 Chat、Inline 和命令 Prompt 选择对应 HTTP
+adapter（`anthropic` / `openai_responses`）。CodeCompanion 是独立的 LLM
+界面，不会共享 Native Agent 的会话。运行 `:AIInfo` 可查看最终映射，运行
+`:checkhealth config` 可检查 CLI 和凭据。
 
 #### `Shift+Enter`（iTerm2）
 
@@ -318,9 +337,11 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 
 | 变量 | 说明 |
 |------|------|
+| `NVIM_AI_PROVIDER` | `claude`（默认）或 `codex`；为当前 Nvim 进程同时选择 Native Agent 与 CodeCompanion adapter |
 | `NVIM_LOG_LEVEL` | `util.logger` 日志级别：`DEBUG`/`INFO`/`WARN`/`ERROR`（默认 `WARN`） |
 | `NVIM_DEV=1` | 把 `util.logger` 设为 `DEBUG`（更详细的日志） |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — 覆盖 Claude Code 的 tmux 包裹默认行为。默认开。详见 [Claude Code 的 tmux 包裹](#claude-code-的-tmux-包裹)。 |
+| `CLAUDE_CHROME` | `1`/`0` — 开关 Native Claude 进程的 Claude in Chrome。默认开。 |
 
 ### 诊断
 

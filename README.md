@@ -16,6 +16,8 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 **Optional (feature-specific):**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg` (project) / `<leader>gf` (file history)
 - **[tmux](https://github.com/tmux/tmux)** — wraps Claude Code TUI inside `:terminal` to prevent flicker; auto-detected (see [Terminal Integration](#terminal-integration))
+- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** or **[Codex](https://developers.openai.com/codex/cli/)** — selected native coding agent
+- `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — selected provider's CodeCompanion HTTP adapter
 - **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** — dashboard banner (silently skipped if missing, but the banner section is empty)
 
 **Quick install (macOS):**
@@ -57,6 +59,7 @@ nvim
 │   ├── whichkey_spec.lua     # which-key groups + spec-registered keymaps (data)
 │   ├── autocmds.lua          # Autocommands
 │   ├── bootstrap.lua         # lazy.nvim setup
+│   ├── ai/                    # Provider config + native Claude/Codex facade
 │   ├── config/
 │   │   └── health.lua        # `:checkhealth config` provider
 │   ├── lang/                 # Language-specific configs
@@ -133,7 +136,8 @@ nvim
 | [neogen](https://github.com/danymat/neogen) | Generate annotations/docstrings |
 | [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema validation |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua development (type completion) |
-| [claudecode](https://github.com/coder/claudecode.nvim) | AI code assistance (Claude Code) |
+| [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code integration (Claude provider only) |
+| [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | HTTP chat and inline prompts for the selected AI provider |
 
 #### Version Control
 
@@ -274,11 +278,11 @@ Press any prefix and wait for which-key popup to see available keys.
 | Debug | `<leader>d` | `db/dB` breakpoint/conditional, `dc/da` continue/with-args, `dC` run to cursor, `dg` goto line, `di` step into, `do` step out, `dO` step over, `dj/dk` down/up frame, `dP` pause, `dr` REPL, `ds` session, `dw` widgets, `dt` terminate, `dl` run last |
 | Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage/unstage, `gT` toggle line blame, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gB` browse |
 | Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output, `tD/th` show/hide diagnostic |
-| Terminal | `<leader>T` | `T1-9` open/toggle dedicated terminals, `Td` fix claude TUI drift, `Tx` close terminal buffer |
+| Terminal | `<leader>T` | `T1-9` open/toggle dedicated terminals, `Td` fix agent TUI drift, `Tx` close terminal buffer |
 | Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
 | Diagnostics | `<leader>x` | `xx/xX` diagnostics (project/buffer), `xL/xQ` loclist/quickfix picker, `xl/xq` toggle loclist/quickfix window, `xt/xT` todos |
 | Refactor | `<leader>r` | `rf` extract function, `rF` extract function to file, `rx` extract variable, `ri` inline, `rb` extract block, `rB` extract block to file, `rs` select |
-| AI | `<leader>a` | `ac` toggle, `af` focus, `ar` resume, `aR` continue, `am` model, `ab` add buffer, `aS` add file from tree, `as` send (v), `aa/ad` accept/deny diff |
+| AI | `<leader>a` | Native: `ac` toggle, `af` focus, `ar` resume picker, `aR` continue last, `am` model, `ab` add buffer, `as` send (v). Claude-only: `aS`, `aa/ad`. CodeCompanion: `ap{c,t,a,i,b}` chat/toggle/actions/inline/add selection |
 | Window | `<leader>w` | `ww` other window, `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
 | Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
 | Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `` ` `` last used (alternate), `l/f` rightmost/first, `o` close others, `s` list all |
@@ -318,6 +322,22 @@ Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff
 
 ### Terminal Integration
 
+#### AI provider selection
+
+One Nvim process selects one native provider at startup. Claude remains the
+default; the native shortcuts stay unchanged:
+
+```bash
+NVIM_AI_PROVIDER=claude nvim
+NVIM_AI_PROVIDER=codex nvim
+```
+
+The same setting selects CodeCompanion's HTTP adapter for chat, inline, and
+command prompts (`anthropic` / `openai_responses`). CodeCompanion remains an
+independent LLM interface and does not share the native agent's session. Run
+`:AIInfo` to inspect the resolved mapping and `:checkhealth config` to see
+missing CLIs or credentials.
+
 #### `Shift+Enter` (iTerm2)
 
 When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requires iTerm2 configuration:
@@ -346,9 +366,11 @@ Claude Code is launched inside a dedicated tmux server when run via [claudecode.
 
 | Variable | Description |
 |----------|-------------|
+| `NVIM_AI_PROVIDER` | `claude` (default) or `codex`; selects both the native agent and CodeCompanion adapters for this Nvim process |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold: `DEBUG`/`INFO`/`WARN`/`ERROR` (default `WARN`) |
 | `NVIM_DEV=1` | Sets `util.logger` to `DEBUG` (verbose logging) |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — override default Claude Code tmux wrap. Default on. See [Claude Code tmux wrapper](#claude-code-tmux-wrapper). |
+| `CLAUDE_CHROME` | `1`/`0` — enable or disable Claude in Chrome for the native Claude process. Default on. |
 
 ### Diagnostics
 

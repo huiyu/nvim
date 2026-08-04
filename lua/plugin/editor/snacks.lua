@@ -79,6 +79,8 @@ local search_exclude = {
   "dist",
 }
 
+local ai = require("ai.config")
+
 return {
   "folke/snacks.nvim",
   lazy = false,
@@ -250,7 +252,7 @@ return {
           { icon = "󰈞 ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
           { icon = "󰊄 ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
           { icon = "󰋚 ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
-          { icon = "󰚩 ", key = "a", desc = "Claude Code", action = ":ClaudeCode" },
+          { icon = "󰚩 ", key = "a", desc = ai.label, action = ":lua require('ai').toggle()" },
           { icon = "󱉭 ", key = "p", desc = "Projects", action = ":lua Snacks.picker.projects()" },
           { icon = "󰙅 ", key = "e", desc = "Explorer", action = ":lua Snacks.explorer({hidden=true, layout={preset='default'}, auto_close=true, focus='list'})" },
           { icon = "󰒓 ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },

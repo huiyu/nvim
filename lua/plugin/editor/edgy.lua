@@ -6,15 +6,15 @@ return {
     vim.opt.splitkeep = "screen"
   end,
   opts = function()
+    local ai = require("ai.config")
+
     -- snacks.terminal sets vim.b[buf].snacks_terminal = { cmd, id, win, ... }.
-    -- Claude is launched via a tmux-wrapped command containing "claude"; plain
-    -- bottom terminals have no cmd (default shell).
-    local function is_claude_term(buf)
+    -- The selected native agent always has an explicit command; plain bottom
+    -- terminals have no cmd (default shell).
+    local function is_agent_term(buf)
       local info = vim.b[buf].snacks_terminal
       if not info then return false end
-      local cmd = info.cmd
-      if type(cmd) == "table" then cmd = table.concat(cmd, " ") end
-      return cmd ~= nil and cmd:match("claude") ~= nil
+      return ai.is_native_command(info.cmd)
     end
 
     return {
@@ -28,9 +28,14 @@ return {
       -- single-window-per-slot model; let snacks own its sidebar.
       right = {
         {
-          title = "Claude",
+          title = ai.label,
           ft = "snacks_terminal",
-          filter = is_claude_term,
+          filter = is_agent_term,
+          size = { width = 90 },
+        },
+        {
+          title = "CodeCompanion (" .. ai.label .. ")",
+          ft = "codecompanion",
           size = { width = 90 },
         },
       },
@@ -38,7 +43,7 @@ return {
         {
           title = "Terminal",
           ft = "snacks_terminal",
-          filter = function(buf) return not is_claude_term(buf) end,
+          filter = function(buf) return not is_agent_term(buf) end,
           size = { height = 0.3 },
         },
         {
