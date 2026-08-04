@@ -19,8 +19,8 @@ end
 local function terminal_opts(root)
   return {
     cwd = root,
-    auto_insert = false,
-    start_insert = false,
+    auto_insert = true,
+    start_insert = true,
     auto_close = true,
     win = {
       position = "right",
@@ -30,12 +30,28 @@ local function terminal_opts(root)
   }
 end
 
+local function enter_insert(term)
+  if not term or not term:buf_valid() then return end
+  local win = term.win
+  if
+    not win
+    or not vim.api.nvim_win_is_valid(win)
+    or vim.api.nvim_win_get_buf(win) ~= term.buf
+    or vim.bo[term.buf].buftype ~= "terminal"
+  then
+    return
+  end
+
+  vim.api.nvim_win_call(win, function() vim.cmd.startinsert() end)
+end
+
 local function start(args, root)
   current = snacks().terminal.open(args, terminal_opts(root))
   local term = current
   term:on("TermClose", function()
     if current == term then current = nil end
   end, { buf = true })
+  enter_insert(term)
   return current
 end
 
@@ -48,6 +64,7 @@ end
 local function show_and_focus(term)
   term:show()
   term:focus()
+  enter_insert(term)
 end
 
 local function send(text, opts)
@@ -92,6 +109,7 @@ end
 function M.toggle()
   if active() then
     current:toggle()
+    enter_insert(current)
     return
   end
   local path = vim.api.nvim_buf_get_name(0)

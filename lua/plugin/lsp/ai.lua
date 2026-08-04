@@ -156,10 +156,10 @@ return {
     opts = {
       terminal_cmd = build_terminal_cmd(),
       terminal = {
+        auto_insert = true,
         split_side = "right",
         provider = "snacks",
         snacks_win_opts = {
-          auto_insert = false,
           width = 90,
           wo = { winfixwidth = true },
         },
