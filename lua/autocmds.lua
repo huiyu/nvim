@@ -22,7 +22,7 @@ cmd("WindowCloseCurrent", function()
   require("util.window").close_current()
 end, { desc = "Close current window" })
 
--- Optimize terminal buffer settings for TUI apps (e.g. Claude Code)
+-- Optimize terminal buffer settings for TUI apps (for example coding agents)
 -- Disables line numbers and scrolloff to prevent rendering glitches
 autocmd("TermOpen", {
   group = augroup("terminal_ui_fix", { clear = true }),
@@ -89,13 +89,34 @@ autocmd("FileType", {
   end,
 })
 
--- Auto reload files when changed externally
-autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
+-- Auto reload files when changed externally.
+-- `autoread` alone never polls the disk -- nvim only stats the file when one of
+-- these events fires. FocusGained/TermClose/TermLeave (the LazyVim default) all
+-- assume you leave and come back. They never fire when an agent edits the file
+-- while you sit in the same nvim reading it -- e.g. a coding agent running in a
+-- terminal buffer in a neighbouring split: nvim never loses OS focus, the
+-- terminal is never closed, and terminal mode is never left.
+-- BufEnter covers switching back to the buffer; CursorHold covers staying in it
+-- (fires `updatetime` ms after the cursor stops -- 300ms here).
+autocmd({
+  "FocusGained", "TermClose", "TermLeave",
+  "BufEnter", "CursorHold", "CursorHoldI",
+}, {
   group = augroup("checktime", { clear = true }),
   callback = function()
-    if vim.o.buftype ~= "nofile" then
+    -- Running checktime while the command line is open interrupts input.
+    if vim.fn.mode() ~= "c" then
       vim.cmd("checktime")
     end
+  end,
+})
+
+-- Reloading is otherwise silent, which is worse than not reloading: you keep
+-- reading what you believe is the old content. Say so.
+autocmd("FileChangedShellPost", {
+  group = augroup("checktime", { clear = false }),
+  callback = function()
+    vim.notify("File changed on disk -- buffer reloaded", vim.log.levels.WARN)
   end,
 })
 
@@ -138,16 +159,5 @@ autocmd("BufWritePre", {
     end
     local file = vim.uv.fs_realpath(event.match) or event.match
     vim.fn.mkdir(vim.fn.fnamemodify(file, ":p:h"), "p")
-  end,
-})
-
--- Kill orphan nvim --embed processes spawned by Claude Code CLI on exit.
--- Claude CLI spawns `nvim --embed` internally, which ignores SIGTERM and
--- becomes orphaned when the parent nvim exits uncleanly (e.g. tab closed).
-autocmd("VimLeavePre", {
-  group = augroup("claude_cleanup", { clear = true }),
-  callback = function()
-    local pid = vim.fn.getpid()
-    vim.fn.system({ "pkill", "-9", "-P", tostring(pid), "-f", "nvim --embed" })
   end,
 })

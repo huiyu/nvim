@@ -1,3 +1,5 @@
+local ai = require("ai.config")
+
 return {
 	"nvim-lualine/lualine.nvim",
 	opts = {
@@ -20,12 +22,11 @@ return {
 						if vim.bo.buftype ~= "terminal" then
 							return name
 						end
-						-- Terminal buffers are named `term://<cwd>//<pid>:<cmd>`; the
-						-- wrapped Claude command makes that unreadably long. Collapse
-						-- it to a clean label instead of dumping the whole command.
-						local bufname = vim.api.nvim_buf_get_name(0)
-						if bufname:match("claude") then
-							return " Claude"
+						-- Agent terminal commands can be very long (Claude is tmux-
+						-- wrapped). Collapse the selected provider to a clean label.
+						local info = vim.b.snacks_terminal
+						if info and ai.is_native_command(info.cmd) then
+							return " " .. ai.label
 						end
 						return " " .. (vim.b.term_title or "terminal")
 					end,

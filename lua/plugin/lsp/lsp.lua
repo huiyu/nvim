@@ -83,7 +83,6 @@ return {
           map("gD",  function() vim.lsp.buf.declaration() end,  "Goto Declaration")
           map("K",   function() vim.lsp.buf.hover() end,        "Hover")
           map("gK",  function() vim.lsp.buf.signature_help() end, "Signature Help")
-          map("<C-k>", function() vim.lsp.buf.signature_help() end, "Signature Help", "i")
           map("<leader>ca", function() vim.lsp.buf.code_action() end, "Code action", { "n", "v" })
           map("<leader>cr", function() vim.lsp.buf.rename() end,      "Rename")
         end,

@@ -38,7 +38,7 @@ local options = {
   showcmd = true,
 
   -- Other Options --
-  autowrite = true,                        -- Auto save when switching buffers or leaving vim
+  autowrite = true,                        -- Auto write before commands such as :next and :make
   autoread = true,                         -- Automatically re-read files if unmodified inside Vim.
   undofile = true,                         -- Persist undo history across sessions
   undolevels = 10000,                      -- Maximum number of undo levels

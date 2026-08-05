@@ -92,11 +92,13 @@ M.action = setmetatable({}, {
       
       if not success then
         logger.error("LSP action failed: %s", result)
+      elseif result == false then
+        logger.debug("LSP action skipped: %s", action)
       else
         logger.debug("LSP action completed: %s", action)
       end
       
-      return success
+      return success and result ~= false
     end
   end
 })

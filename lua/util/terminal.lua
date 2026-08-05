@@ -1,18 +1,14 @@
 local M = {}
 
--- Identifies the claude :terminal window in the current tabpage, if visible.
--- Matches edgy.lua's filter: a snacks_terminal buffer whose cmd contains
--- "claude" (claude is wrapped in tmux so the cmd string isn't just "claude").
-local function find_claude_win()
+-- Identifies the selected native AI agent's :terminal window in the current
+-- tabpage, if visible. Matches edgy.lua's command-based filter.
+local function find_agent_win()
+  local ai = require("ai.config")
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     local buf = vim.api.nvim_win_get_buf(win)
     if vim.bo[buf].buftype == "terminal" then
       local info = vim.b[buf].snacks_terminal
-      if info then
-        local cmd = info.cmd
-        if type(cmd) == "table" then cmd = table.concat(cmd, " ") end
-        if cmd and cmd:match("claude") then return win end
-      end
+      if info and ai.is_native_command(info.cmd) then return win end
     end
   end
 end
@@ -73,8 +69,8 @@ function M.toggle(id)
   Snacks.terminal(nil, opts)
   vim.defer_fn(function()
     if count_term_wins() > before then
-      local claude_win = find_claude_win()
-      if claude_win then M.fix_drift(claude_win) end
+      local agent_win = find_agent_win()
+      if agent_win then M.fix_drift(agent_win) end
     end
   end, 0)
 end

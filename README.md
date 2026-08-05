@@ -16,16 +16,22 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 **Optional (feature-specific):**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg` (project) / `<leader>gf` (file history)
 - **[tmux](https://github.com/tmux/tmux)** — wraps Claude Code TUI inside `:terminal` to prevent flicker; auto-detected (see [Terminal Integration](#terminal-integration))
-- **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** — dashboard banner (silently skipped if missing, but the banner section is empty)
+- **[GitHub CLI](https://cli.github.com/)** — authenticated `gh` for `<leader>gh` GitHub pickers and status
+- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** or **[Codex](https://developers.openai.com/codex/cli/)** — selected native coding agent
+- **Node.js >= 22 + npm** — CodeCompanion ACP bridge processes
+- `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — optional; selected provider's CodeCompanion HTTP inline/command prompts
+- **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** + **lolcat** — dashboard banner (silently skipped if either is missing)
 
 **Quick install (macOS):**
 ```bash
-brew install neovim git ripgrep fd lazygit tmux cowsay
+brew install neovim git gh ripgrep fd lazygit tmux cowsay lolcat node
 brew install --cask font-jetbrains-mono-nerd-font  # or any Nerd Font
+gh auth login                                      # once, for GitHub pickers
+npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
 ```
 
 **Language toolchains** — *only if you want the matching Mason packages to install:*
-- **Go** — required for `gopls`, `goimports`, `gofumpt`, `gomodifytags`, `impl`, `delve`
+- **Go** — required for `gopls`, `gofumpt`, `gomodifytags`, `impl`, `delve`
 - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
 - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
 - **JDK 17+** — required for `jdtls` (Java). This config expects [SDKMAN!](https://sdkman.io/) at `~/.sdkman/candidates/java/current` (see [`lua/lang/java.lua`](lua/lang/java.lua))
@@ -50,6 +56,8 @@ nvim
 
 ```
 ~/.config/nvim/
+├── AGENTS.md                # Repository guidance for coding agents
+├── CLAUDE.md                # Claude Code import of AGENTS.md
 ├── init.lua                  # Entry point
 ├── lua/
 │   ├── options.lua           # Vim options
@@ -57,6 +65,7 @@ nvim
 │   ├── whichkey_spec.lua     # which-key groups + spec-registered keymaps (data)
 │   ├── autocmds.lua          # Autocommands
 │   ├── bootstrap.lua         # lazy.nvim setup
+│   ├── ai/                    # Provider config + native Claude/Codex facade
 │   ├── config/
 │   │   └── health.lua        # `:checkhealth config` provider
 │   ├── lang/                 # Language-specific configs
@@ -114,7 +123,6 @@ nvim
 | [mini.ai](https://github.com/echasnovski/mini.ai) | Enhanced text objects |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | Toggle single-line/multi-line (`gS`) |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | Surround manipulation |
-| [mini.comment](https://github.com/echasnovski/mini.comment) | Comment toggle |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | Auto-close pairs |
 | [persistence](https://github.com/folke/persistence.nvim) | Session management |
 | [guess-indent](https://github.com/NMAC427/guess-indent.nvim) | Auto-detect indentation |
@@ -133,7 +141,9 @@ nvim
 | [neogen](https://github.com/danymat/neogen) | Generate annotations/docstrings |
 | [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema validation |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua development (type completion) |
-| [claudecode](https://github.com/coder/claudecode.nvim) | AI code assistance (Claude Code) |
+| [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code integration (Claude provider only) |
+| [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | Provider-aware ACP chat plus HTTP inline/command prompts |
+| [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | Auto-saved, project-aware CodeCompanion chat history |
 
 #### Version Control
 
@@ -147,10 +157,10 @@ nvim
 | Language | LSP | Formatter | Linter | Test | Debug |
 |----------|-----|-----------|--------|------|-------|
 | C / C++ | clangd | clang-format | - | - | codelldb |
-| Go | gopls | goimports, gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
+| Go | gopls | gopls organize imports + gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
 | Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
-| TypeScript/JS | vtsls | prettier | eslint | - | - |
+| TypeScript/JS | vtsls | prettier | eslint | - | js-debug-adapter |
 | HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
 | JSON | jsonls + SchemaStore | prettier | - | - | - |
 | YAML | yamlls + SchemaStore | prettier | - | - | - |
@@ -272,16 +282,34 @@ Press any prefix and wait for which-key popup to see available keys.
 | Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (buffer/workspace), `cv` select venv (py), `cp` markdown preview (md), `cP` browse cwd markdown → preview, `cx` run current file (by filetype: go/c/cpp/py/js/ts/sh), `cR` rebuild gopls index (go) |
 | Buffer | `<leader>b` | `bd` delete, `bo` delete others, `bD` delete+window, `bl/br` delete left/right, `bj` pick, `bp` pin, `bP` close unpinned |
 | Debug | `<leader>d` | `db/dB` breakpoint/conditional, `dc/da` continue/with-args, `dC` run to cursor, `dg` goto line, `di` step into, `do` step out, `dO` step over, `dj/dk` down/up frame, `dP` pause, `dr` REPL, `ds` session, `dw` widgets, `dt` terminate, `dl` run last |
-| Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage/unstage, `gT` toggle line blame, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gB` browse |
+| Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage/unstage, `gT` toggle line blame, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gh*` GitHub |
 | Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output, `tD/th` show/hide diagnostic |
-| Terminal | `<leader>T` | `T1-9` open/toggle dedicated terminals, `Td` fix claude TUI drift, `Tx` close terminal buffer |
+| Terminal | `<leader>T` | `T1-9` open/toggle dedicated terminals, `Td` fix agent TUI drift, `Tx` close terminal buffer |
 | Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
 | Diagnostics | `<leader>x` | `xx/xX` diagnostics (project/buffer), `xL/xQ` loclist/quickfix picker, `xl/xq` toggle loclist/quickfix window, `xt/xT` todos |
 | Refactor | `<leader>r` | `rf` extract function, `rF` extract function to file, `rx` extract variable, `ri` inline, `rb` extract block, `rB` extract block to file, `rs` select |
-| AI | `<leader>a` | `ac` toggle, `af` focus, `ar` resume, `aR` continue, `am` model, `ab` add buffer, `aS` add file from tree, `as` send (v), `aa/ad` accept/deny diff |
+| AI | `<leader>a` | Native: `ac` toggle, `af` focus, `ar` resume picker, `aR` continue last, `am` model, `ab` add buffer, `as` attach selection (v). Claude-only: `aS`, `aa/ad`. CodeCompanion: `ap{c,t,a,i,b,h}` chat/toggle/actions/inline/add selection/history |
 | Window | `<leader>w` | `ww` other window, `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
 | Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
 | Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `` ` `` last used (alternate), `l/f` rightmost/first, `o` close others, `s` list all |
+
+#### GitHub (`<leader>gh`)
+
+| Key | Action |
+|-----|--------|
+| `f` / `F` | Open the current file/visual lines on its branch / as a commit permalink |
+| `r` | Open the repository home page |
+| `i` / `I` | Open issues / all issues in the Snacks GitHub picker |
+| `p` / `P` | Open pull requests / all pull requests in the Snacks GitHub picker |
+| `c` | Show the current branch PR and its available actions |
+| `a` | Open the repository's GitHub Actions page |
+| `n` | Open GitHub notifications |
+| `s` | Show account-wide `gh status` in a floating window |
+
+Issue and PR mutations are intentionally not assigned global mappings. In a
+Snacks GitHub picker, press `<cr>` to choose an action such as opening details,
+commenting, reviewing, or merging. These mappings require an authenticated
+GitHub CLI (`gh auth status`); `:checkhealth config` reports whether it is found.
 
 #### Diffview (in-view keys)
 
@@ -318,6 +346,40 @@ Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff
 
 ### Terminal Integration
 
+#### AI provider selection
+
+One Nvim process selects one provider at startup. Claude remains the default;
+the native and CodeCompanion shortcuts stay unchanged. The shell aliases used
+by this setup are:
+
+```bash
+vi                 # default provider (Claude unless overridden)
+vic                # NVIM_AI_PROVIDER=claude nvim
+vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex-oauth" nvim
+```
+
+`<leader>as` attaches the visual selection to the native agent's composer and
+does not submit it, leaving room for an instruction. With Codex, a saved buffer
+becomes an `@path lines X-Y` draft. For a modified or unnamed buffer, the exact
+selected text is pasted instead because Codex file mentions read the saved file.
+Add the instruction you want, then press Enter yourself.
+
+The same setting selects CodeCompanion's ACP Chat agent (`claude_code` /
+`codex`). Chat therefore uses the coding agent's stateful protocol and tools;
+Inline and command prompts remain lightweight HTTP interactions
+(`anthropic` / `openai_responses`) and require the matching API key. Codex ACP
+uses ChatGPT authentication and inherits `CODEX_HOME` from `vix`.
+
+CodeCompanion chats are auto-saved by codecompanion-history. Open them with
+`<leader>aph` (or `:CodeCompanionHistory`); inside a chat, `gh` opens the same
+history browser. Entries use the Snacks picker and can be renamed manually;
+automatic model-generated titles are disabled to avoid an extra request.
+History restores the local CodeCompanion transcript. To continue the agent's
+actual stateful ACP session, use `/resume` from a fresh ACP chat.
+
+Run `:AIInfo` to inspect the resolved Native/ACP/HTTP mapping and
+`:checkhealth config` to see missing CLIs, ACP bridges, or HTTP credentials.
+
 #### `Shift+Enter` (iTerm2)
 
 When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requires iTerm2 configuration:
@@ -346,9 +408,11 @@ Claude Code is launched inside a dedicated tmux server when run via [claudecode.
 
 | Variable | Description |
 |----------|-------------|
+| `NVIM_AI_PROVIDER` | `claude` (default) or `codex`; selects the native agent, CodeCompanion ACP Chat, and HTTP inline adapter for this Nvim process |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold: `DEBUG`/`INFO`/`WARN`/`ERROR` (default `WARN`) |
 | `NVIM_DEV=1` | Sets `util.logger` to `DEBUG` (verbose logging) |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — override default Claude Code tmux wrap. Default on. See [Claude Code tmux wrapper](#claude-code-tmux-wrapper). |
+| `CLAUDE_CHROME` | `1`/`0` — enable or disable Claude in Chrome for the native Claude process. Default on. |
 
 ### Diagnostics
 
@@ -358,11 +422,10 @@ For troubleshooting (slow startup, LSP not attaching, missing formatter, etc.) s
 
 **Add a plugin** — create a file in the appropriate `lua/plugin/*/` directory.
 
-**Add language support** — create a file in `lua/lang/`.
-
-**Add an LSP server** — edit `lua/plugin/lsp/lsp.lua`, add to the `servers` table.
-
-**Add a formatter** — edit `lua/plugin/lsp/conform.lua`, add to `formatters_by_ft`.
+**Add language support, an LSP server, or a formatter** — create or edit the
+matching contribution in `lua/lang/`. Language files extend the shared
+`nvim-lspconfig`, Conform, lint, Treesitter, DAP, and test specs; the files in
+`lua/plugin/lsp/` contain editor-wide defaults only.
 
 **Tune file/grep search scope** — the file (`<leader>.`) and grep (`<leader>/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
 

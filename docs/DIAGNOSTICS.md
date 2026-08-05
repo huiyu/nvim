@@ -21,9 +21,11 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | "Is my setup OK?" (deps/servers/version) | **`:checkhealth config`** |
 | Anything broken (LSP/TS/providers) | `:checkhealth` |
 | LSP not attaching / misbehaving | `:LspInfo` (`<leader>cl`) · `:LspLog` · `:checkhealth vim.lsp` |
-| No completion | `:checkhealth blink` · verify LSP attached (`:LspInfo`) |
+| No completion | `:checkhealth blink.cmp` · verify LSP attached (`:LspInfo`) |
 | No / wrong highlight | `:checkhealth nvim-treesitter` · `:InspectTree` · `:Inspect` |
-| Formatting does nothing | `:checkhealth conform` · `:ConformInfo` |
+| Formatting does nothing | `:ConformInfo` · then `:checkhealth conform` |
+| CodeCompanion Chat fails | `:checkhealth config` · `:CodeCompanionChat` · `:messages` |
+| GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `:messages` |
 | Mason tool missing | `:Mason` (`<leader>cm`) · `:checkhealth mason` |
 | Error flashed by | `:messages` · `:Noice errors` |
 | "Where did this keymap/option come from?" | `:verbose map <lhs>` · `:verbose set <opt>?` |
@@ -35,9 +37,9 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 nvim --startuptime /tmp/st.log +qa && sort -k2 -n -r /tmp/st.log | head -20
 ```
 
-`:Lazy profile` breaks down per-plugin load cost interactively. Most plugins are
-lazy-loaded; the eager ones are treesitter (no lazy support on `main`), the
-colorscheme, and snacks (dashboard).
+`:Lazy profile` breaks down per-plugin load cost interactively and is the source
+of truth for eager/lazy state. Some core UI and language infrastructure loads at
+startup; the rest is event-, command-, key-, or filetype-triggered.
 
 ## Plugins
 
@@ -50,8 +52,11 @@ the update checker runs silently once a day (`bootstrap.lua`).
 `lua/config/health.lua` checks the things specific to this configuration:
 
 - Neovim version floor (>= 0.11)
-- External CLI tools on `PATH` (git, rg, fd, node, go, python3, cc, lazygit) and
+- External CLI tools on `PATH` (git, gh, rg, fd, node, go, python3, cc, lazygit) and
   what each one is needed for
+- Active AI provider, native CLI, selected ACP bridge, and optional
+  CodeCompanion HTTP inline/command credentials
+- Oversized LSP logs (warns above 10 MiB)
 - A few key Mason packages
 
 Run the full suite with plain `:checkhealth` (includes the above plus every
@@ -66,6 +71,10 @@ plugin's own checks).
   installed by mason-lspconfig (derived from that list). Verbose logging:
   `:lua vim.lsp.set_log_level("debug")`.
 
+If the log has grown large, inspect its path with
+`:lua print(vim.lsp.log.get_filename())`. After finishing diagnosis, restart
+Neovim and truncate that file rather than leaving debug logging enabled.
+
 ## Treesitter
 
 - `:checkhealth nvim-treesitter` — installed parsers, ABI
@@ -77,8 +86,21 @@ plugin's own checks).
 ## Formatting & linting
 
 - `:ConformInfo` — which formatter runs for this buffer and why
-- `:checkhealth conform`
+- `:checkhealth conform` (run `:ConformInfo` first on a fresh process to load it)
 - Toggle autoformat: `<leader>uf` (global) / `<leader>uF` (buffer)
+
+## AI and CodeCompanion
+
+- `:AIInfo` — resolved Native, ACP Chat, and HTTP Inline adapter
+- `:checkhealth config` — native CLI plus `claude-agent-acp`/`codex-acp`
+- `<leader>apc` — new ACP chat; `<leader>aph` / `:CodeCompanionHistory` —
+  auto-saved history (also `gh` inside a chat)
+- History restores the local transcript; use `/resume` in a fresh ACP chat to
+  reload a stateful agent session.
+- ACP Chat uses the selected agent login. Missing `ANTHROPIC_API_KEY` or
+  `OPENAI_API_KEY` only disables HTTP Inline/command prompts.
+- Reinstall ACP bridges with
+  `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`.
 
 ## Debugging (DAP)
 
@@ -105,6 +127,7 @@ Confirm the config loads with no errors — the same check used while developing
 
 ```sh
 nvim --headless -u init.lua -c "lua print('errmsg=['..vim.v.errmsg..']')" +qa
+NVIM_AI_PROVIDER=codex nvim --headless -u init.lua -i NONE +qa
 ```
 
 A clean run prints `errmsg=[]` and no tracebacks.
@@ -113,5 +136,6 @@ A clean run prints `errmsg=[]` and no tracebacks.
 
 | Variable | Effect |
 |----------|--------|
+| `NVIM_AI_PROVIDER` | Select `claude` (default) or `codex` for Native AI, ACP Chat, and HTTP Inline |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |
 | `NVIM_DEV=1` | `util.logger` defaults to `DEBUG` (more verbose) |

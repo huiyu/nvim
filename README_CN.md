@@ -16,16 +16,22 @@
 **可选（按功能）：**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg`（项目）/ `<leader>gf`（当前文件历史）
 - **[tmux](https://github.com/tmux/tmux)** — 把 Claude Code TUI 包到 `:terminal` 里，防止闪屏；自动检测（详见[终端集成](#终端集成)）
-- **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** — 启动页 banner（缺失会静默跳过，不致命）
+- **[GitHub CLI](https://cli.github.com/)** — 已认证的 `gh`，供 `<leader>gh` GitHub picker 与状态使用
+- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** 或 **[Codex](https://developers.openai.com/codex/cli/)** — Native coding agent
+- **Node.js >= 22 + npm** — CodeCompanion ACP bridge 进程
+- `ANTHROPIC_API_KEY` 或 `OPENAI_API_KEY` — 可选；所选 provider 的 CodeCompanion HTTP Inline/命令 Prompt
+- **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** + **lolcat** — 启动页 banner（任一个缺失都会静默跳过）
 
 **macOS 一键安装：**
 ```bash
-brew install neovim git ripgrep fd lazygit tmux cowsay
+brew install neovim git gh ripgrep fd lazygit tmux cowsay lolcat node
 brew install --cask font-jetbrains-mono-nerd-font  # 任意 Nerd Font 都行
+gh auth login                                      # 首次为 GitHub picker 认证
+npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
 ```
 
 **语言工具链** — *只有想用对应的 Mason 包时才需要：*
-- **Go** — `gopls`、`goimports`、`gofumpt`、`gomodifytags`、`impl`、`delve` 都依赖
+- **Go** — `gopls`、`gofumpt`、`gomodifytags`、`impl`、`delve` 都依赖
 - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
 - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
 - **JDK 17+** — `jdtls`（Java）需要。本配置假设走 [SDKMAN!](https://sdkman.io/)，路径写死在 `~/.sdkman/candidates/java/current`（见 [`lua/lang/java.lua`](lua/lang/java.lua)）
@@ -45,6 +51,8 @@ nvim
 
 ```
 ~/.config/nvim/
+├── AGENTS.md                # Coding agent 的仓库级约定
+├── CLAUDE.md                # Claude Code 对 AGENTS.md 的导入
 ├── init.lua                  # 入口文件
 ├── lua/
 │   ├── options.lua           # Vim 选项
@@ -52,6 +60,7 @@ nvim
 │   ├── whichkey_spec.lua     # which-key 分组 + spec 键位（数据）
 │   ├── autocmds.lua          # 自动命令
 │   ├── bootstrap.lua         # lazy.nvim 初始化
+│   ├── ai/                    # Provider 配置 + Native Claude/Codex facade
 │   ├── config/
 │   │   └── health.lua        # `:checkhealth config` 提供者
 │   ├── lang/                 # 语言专属配置
@@ -109,7 +118,6 @@ nvim
 | [mini.ai](https://github.com/echasnovski/mini.ai) | 增强文本对象 |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | 单行/多行切换（`gS`） |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | 包围符号操作 |
-| [mini.comment](https://github.com/echasnovski/mini.comment) | 注释切换 |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | 自动配对括号 |
 | [persistence](https://github.com/folke/persistence.nvim) | 会话管理 |
 | [guess-indent](https://github.com/NMAC427/guess-indent.nvim) | 自动检测缩进 |
@@ -128,7 +136,9 @@ nvim
 | [neogen](https://github.com/danymat/neogen) | 自动生成注释/文档 |
 | [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema 验证 |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua 开发（类型补全） |
-| [claudecode](https://github.com/coder/claudecode.nvim) | AI 代码助手（Claude Code） |
+| [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code 集成（仅 Claude provider） |
+| [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | 随 provider 选择的 ACP Chat，以及 HTTP Inline/命令 Prompt |
+| [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | 自动保存、按项目感知的 CodeCompanion Chat 历史 |
 
 #### 版本控制
 
@@ -142,10 +152,10 @@ nvim
 | 语言 | LSP | 格式化 | 检查 | 测试 | 调试 |
 |------|-----|--------|------|------|------|
 | C / C++ | clangd | clang-format | - | - | codelldb |
-| Go | gopls | goimports, gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
+| Go | gopls | gopls 整理 imports + gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
 | Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
-| TypeScript/JS | vtsls | prettier | eslint | - | - |
+| TypeScript/JS | vtsls | prettier | eslint | - | js-debug-adapter |
 | HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
 | JSON | jsonls + SchemaStore | prettier | - | - | - |
 | YAML | yamlls + SchemaStore | prettier | - | - | - |
@@ -267,16 +277,33 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号（buffer/workspace）, `cv` 虚拟环境（py）, `cp` Markdown 预览（md）, `cP` 浏览 cwd 下 Markdown 并预览, `cx` 运行当前文件（按文件类型：go/c/cpp/py/js/ts/sh）, `cR` 重建 gopls 索引（go） |
 | Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bD` 删除+窗口, `bl/br` 删除左/右, `bj` 选择, `bp` 固定, `bP` 关闭未固定 |
 | 调试 | `<leader>d` | `db/dB` 断点/条件断点, `dc/da` 继续/带参运行, `dC` 运行到光标, `dg` 跳到行（不执行）, `di` 步入, `do` 步出, `dO` 步过, `dj/dk` 上/下栈帧, `dP` 暂停, `dr` REPL, `ds` 会话, `dw` 悬浮 widget, `dt` 终止, `dl` 重跑 |
-| Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存/取消暂存, `gT` 切换行 blame, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gB` 浏览 |
+| Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存/取消暂存, `gT` 切换行 blame, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gh*` GitHub |
 | 测试 | `<leader>t` | `tm` 测试方法, `td` 调试方法, `tf` 测试文件, `tS` 摘要, `to` 输出, `tD/th` 显示/隐藏诊断 |
-| 终端 | `<leader>T` | `T1-9` 切换专用终端 1-9, `Td` 修复 claude TUI 漂移, `Tx` 关闭终端 buffer |
+| 终端 | `<leader>T` | `T1-9` 切换专用终端 1-9, `Td` 修复 agent TUI 漂移, `Tx` 关闭终端 buffer |
 | 切换 | `<leader>u` | `uf/uF` 自动格式化, `us` 拼写, `uw` 换行, `ul/uL` 行号, `ud` 诊断, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` 背景, `un` 关闭通知, `uR` markdown 渲染 |
 | 诊断 | `<leader>x` | `xx/xX` 诊断（项目/buffer）, `xL/xQ` loclist/quickfix picker, `xl/xq` 切换 loclist/quickfix 窗口, `xt/xT` todo |
 | 重构 | `<leader>r` | `rf` 提取函数, `rF` 提取到文件, `rx` 提取变量, `ri` 内联, `rb` 提取块, `rB` 提取块到文件, `rs` 选择 |
-| AI | `<leader>a` | `ac` 切换, `af` 聚焦, `ar` 恢复, `aR` 继续, `am` 模型, `ab` 添加 buffer, `aS` 从文件树添加, `as` 发送（v）, `aa/ad` 接受/拒绝 diff |
+| AI | `<leader>a` | Native：`ac` 切换, `af` 聚焦, `ar` 恢复选择, `aR` 继续上次, `am` 模型, `ab` 添加 buffer, `as` 附加选区（v）；Claude 专属：`aS`, `aa/ad`；CodeCompanion：`ap{c,t,a,i,b,h}` 新建/切换/操作/Inline/添加选区/历史 |
 | 窗口 | `<leader>w` | `ww` 切到其它窗口, `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
 | 退出 | `<leader>q` | `qq/qQ` 退出, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
 | 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `` ` `` 最近使用（alternate）, `l/f` 最右/第一个, `o` 关闭其他, `s` 列出全部 |
+
+#### GitHub（`<leader>gh`）
+
+| 键位 | 功能 |
+|------|------|
+| `f` / `F` | 按当前分支打开当前文件/可视行，或打开固定到 commit 的永久链接 |
+| `r` | 打开仓库 GitHub 主页 |
+| `i` / `I` | 用 Snacks GitHub picker 打开 Open /全部 Issues |
+| `p` / `P` | 用 Snacks GitHub picker 打开 Open /全部 PRs |
+| `c` | 显示当前分支 PR 及其可用操作 |
+| `a` | 打开仓库的 GitHub Actions 页面 |
+| `n` | 打开 GitHub notifications |
+| `s` | 在浮窗中显示账号级 `gh status` |
+
+Issue 与 PR 的远程写操作刻意不设置全局快捷键。在 Snacks GitHub picker
+中按 `<cr>`，再选择打开详情、评论、review 或 merge 等操作。这组键依赖已
+认证的 GitHub CLI（`gh auth status`）；`:checkhealth config` 会报告是否找到。
 
 #### Yanky（增强复制/粘贴）
 
@@ -289,6 +316,37 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | `<leader>Y`（v） | 选区 yank 到系统剪贴板（`+`） |
 
 ### 终端集成
+
+#### AI provider 选择
+
+每个 Nvim 进程在启动时选择一个 provider，默认仍是 Claude；Native 与
+CodeCompanion 快捷键在两个 provider 之间保持不变。当前 shell alias 为：
+
+```bash
+vi                 # 默认 provider（未覆盖时为 Claude）
+vic                # NVIM_AI_PROVIDER=claude nvim
+vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex-oauth" nvim
+```
+
+`<leader>as` 会把可视选区附加到 Native Agent 的输入框，但不会提交，因此
+可以继续补充要求。Codex 下，已保存的 buffer 会生成 `@路径 lines X-Y`
+草稿；已修改或未命名的 buffer 则粘贴精确选区，因为 Codex 的文件引用读取
+磁盘上的已保存内容。补充完指令后再自行按 Enter。
+
+同一设置会为 CodeCompanion Chat 选择对应 ACP agent（`claude_code` /
+`codex`）。Chat 因此使用 coding agent 的有状态协议和工具；Inline 与命令
+Prompt 仍使用较轻量的 HTTP adapter（`anthropic` / `openai_responses`），
+需要相应 API key。Codex ACP 使用 ChatGPT 登录，并继承 `vix` 的
+`CODEX_HOME`。
+
+codecompanion-history 会自动保存 Chat。用 `<leader>aph`（或
+`:CodeCompanionHistory`）打开；Chat buffer 内也可按 `gh`。历史列表使用
+Snacks picker，可以手动重命名；为避免额外模型请求，自动生成标题已关闭。
+History 恢复的是 CodeCompanion 本地 transcript；要继续 agent 真正的有状态
+ACP session，请在新的 ACP Chat 中使用 `/resume`。
+
+运行 `:AIInfo` 可查看 Native/ACP/HTTP 最终映射；运行
+`:checkhealth config` 可检查 CLI、ACP bridge 和 HTTP 凭据。
 
 #### `Shift+Enter`（iTerm2）
 
@@ -318,9 +376,11 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 
 | 变量 | 说明 |
 |------|------|
+| `NVIM_AI_PROVIDER` | `claude`（默认）或 `codex`；为当前 Nvim 进程选择 Native Agent、CodeCompanion ACP Chat 与 HTTP Inline adapter |
 | `NVIM_LOG_LEVEL` | `util.logger` 日志级别：`DEBUG`/`INFO`/`WARN`/`ERROR`（默认 `WARN`） |
 | `NVIM_DEV=1` | 把 `util.logger` 设为 `DEBUG`（更详细的日志） |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — 覆盖 Claude Code 的 tmux 包裹默认行为。默认开。详见 [Claude Code 的 tmux 包裹](#claude-code-的-tmux-包裹)。 |
+| `CLAUDE_CHROME` | `1`/`0` — 开关 Native Claude 进程的 Claude in Chrome。默认开。 |
 
 ### 诊断
 
@@ -330,8 +390,12 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 
 **添加插件** — 在对应 `lua/plugin/*/` 目录下创建文件。
 
-**添加语言支持** — 在 `lua/lang/` 目录下创建文件。
+**添加语言支持、LSP 服务器或格式化工具** — 在 `lua/lang/` 中创建或修改
+对应语言贡献。语言文件负责扩展共享的 nvim-lspconfig、Conform、lint、
+Treesitter、DAP 和测试 spec；`lua/plugin/lsp/` 只放编辑器级公共默认配置。
 
-**添加 LSP 服务器** — 编辑 `lua/plugin/lsp/lsp.lua`，添加到 `servers` 表。
-
-**添加格式化工具** — 编辑 `lua/plugin/lsp/conform.lua`，添加到 `formatters_by_ft`。
+**调整文件/grep 搜索范围** — `<leader>.` 与 `<leader>/` 默认显示隐藏和被
+gitignore 的文件；`.git/` 始终排除，`node_modules`、`target`、`.venv`、
+`Pods` 等重型目录由 `lua/plugin/editor/snacks.lua` 的 `search_exclude` 统一
+过滤。这个过滤不区分是否被 Git 跟踪，因此不要随意加入 `bin`、`out`、
+`vendor` 这类可能包含源码的通用目录名。
