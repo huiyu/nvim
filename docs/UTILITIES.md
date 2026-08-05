@@ -137,12 +137,21 @@ Helpers for `:terminal` windows, including the selected native AI agent.
 local terminal = require("util.terminal")
 
 -- Fix stale renders ("drift") in a TUI terminal by shrinking then restoring the
--- window in one tick, forcing libvterm to invalidate its grid. Bound to <leader>Td.
+-- window in one tick, forcing libvterm to invalidate its grid. Uses window APIs
+-- so non-modifiable terminal buffers are safe. Bound to <leader>Td.
 terminal.fix_drift(win)   -- win defaults to the current window
+
+-- True when buf belongs to the selected native coding agent.
+terminal.is_agent_buf(buf)
 
 -- Toggle a snacks terminal by id.
 terminal.toggle(id)
 ```
+
+Native coding-agent terminals run `fix_drift()` automatically on `TermEnter`,
+including the initial open and every terminal-Normal -> Terminal-mode switch.
+Opening a numbered bottom terminal also repairs the visible agent after the
+resulting layout change. `<leader>Td` remains available as a manual fallback.
 
 ## Running Files (`util.run`)
 
