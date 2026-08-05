@@ -66,7 +66,13 @@ vim.keymap.set("t", "jk", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap 
 vim.keymap.set("t", "<C-q>", function()
   vim.cmd("bdelete!")
 end, { desc = "Close terminal", noremap = true, silent = true })
-vim.keymap.set("n", "<leader>Tx", "<cmd>bdelete!<cr>", { desc = "Close terminal" })
+vim.keymap.set("n", "<leader>Tx", function()
+  if vim.bo.buftype ~= "terminal" then
+    vim.notify("Current buffer is not a terminal", vim.log.levels.WARN)
+    return
+  end
+  vim.cmd("bdelete!")
+end, { desc = "Close terminal" })
 -- Drift fix: shrink/restore terminal windows in one tick to force libvterm to
 -- truncate its grid (the only resize op that actually invalidates stale cells).
 vim.keymap.set("n", "<leader>Td", function()
@@ -90,11 +96,15 @@ local function nav_skip_terminal(direction)
     local start = vim.api.nvim_get_current_win()
     vim.cmd("wincmd " .. direction)
     local cur = vim.api.nvim_get_current_win()
-    -- If we landed on a terminal, keep stepping; bail out if we loop back.
+    -- If we landed on a terminal, keep stepping.  When the terminal is at the
+    -- edge, restore the starting editor window instead of leaving focus in it.
     while cur ~= start and vim.bo[vim.api.nvim_win_get_buf(cur)].buftype == "terminal" do
       vim.cmd("wincmd " .. direction)
       local next_win = vim.api.nvim_get_current_win()
-      if next_win == cur then break end
+      if next_win == cur or next_win == start then
+        vim.api.nvim_set_current_win(start)
+        return
+      end
       cur = next_win
     end
   end

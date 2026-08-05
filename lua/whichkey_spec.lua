@@ -9,6 +9,7 @@
 -- <leader>? is the standalone keybinding-guide popup).
 local hidden = {
   { "<leader>?", hidden = true },
+  { "<leader>gB", hidden = true }, -- legacy alias; GitHub file browse is <leader>ghf
   { "<leader>1", hidden = true }, { "<leader>2", hidden = true }, { "<leader>3", hidden = true },
   { "<leader>4", hidden = true }, { "<leader>5", hidden = true }, { "<leader>6", hidden = true },
   { "<leader>7", hidden = true }, { "<leader>8", hidden = true }, { "<leader>9", hidden = true },
@@ -24,6 +25,7 @@ local spec = {
   { "<leader>b",     group = "Buffer" },
   { "<leader>d",     group = "Debug",           mode = { "n", "v" } },
   { "<leader>g",     group = "Git",             mode = { "n", "v" } },
+  { "<leader>gh",    group = "GitHub",          mode = { "n", "v" } },
   { "<leader>t",     group = "Test",            mode = { "n", "v" } },
   { "<leader>T",     group = "Terminal" },
   { "<leader>u",     group = "Toggle/UI" },
@@ -97,8 +99,8 @@ local spec = {
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     vim.bo[buf].modifiable = false
     vim.bo[buf].bufhidden = "wipe"
-    local width = 50
-    local height = #lines
+    local width = math.max(1, math.min(50, vim.o.columns - 4))
+    local height = math.max(1, math.min(#lines, vim.o.lines - 4))
     vim.api.nvim_open_win(buf, true, {
       relative = "editor",
       width = width,
@@ -161,7 +163,8 @@ local spec = {
     vim.notify("Autoformat " .. (vim.g.autoformat and "enabled" or "disabled"))
   end, desc = "Toggle autoformat (global)" },
   { "<leader>uF", function()
-    vim.b.autoformat = not vim.b.autoformat
+    local enabled = vim.b.autoformat ~= false
+    vim.b.autoformat = not enabled
     vim.notify("Buffer autoformat " .. (vim.b.autoformat and "enabled" or "disabled"))
   end, desc = "Toggle autoformat (buffer)" },
   { "<leader>us", function() vim.opt_local.spell = not vim.opt_local.spell:get() end,             desc = "Toggle spelling" },

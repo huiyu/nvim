@@ -38,7 +38,9 @@ end
 
 -- Function to close all windows except the current one and special windows
 function M.close_others()
-  local wins = vim.api.nvim_list_wins()
+  -- A window belongs to exactly one tab page.  nvim_list_wins() spans every
+  -- tab, which made this command unexpectedly close windows in background tabs.
+  local wins = vim.api.nvim_tabpage_list_wins(0)
 
   for _, win in ipairs(wins) do
     local info = get_win_info(win)

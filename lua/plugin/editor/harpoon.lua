@@ -6,7 +6,7 @@ return {
   -- not frozen at startup (when the current window is usually the dashboard).
   opts = function()
     return {
-      menu = { width = vim.api.nvim_win_get_width(0) - 4 },
+      menu = { width = math.max(1, vim.api.nvim_win_get_width(0) - 4) },
       settings = { save_on_toggle = true },
     }
   end,

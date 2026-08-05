@@ -30,8 +30,9 @@ return {
       "natural",                                        -- natural order of remaining
     },
   },
-  init = function()
+  config = function(_, opts)
     local whichkey = require("which-key")
+    whichkey.setup(opts)
     -- Spec data lives in lua/whichkey_spec.lua; the imperative keymaps are in
     -- lua/mappings.lua (required for side effects by init.lua).
     whichkey.add(require("whichkey_spec"))

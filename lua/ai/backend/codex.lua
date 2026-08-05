@@ -169,11 +169,26 @@ function M.send_selection()
   local rel = path ~= "" and (vim.fs.relpath(root, path) or path) or "[unsaved buffer]"
   local first_line = math.min(anchor[2], cursor[2])
   local last_line = math.max(anchor[2], cursor[2])
-  local filetype = vim.bo[buf].filetype ~= "" and vim.bo[buf].filetype or "text"
-  local prompt = ("Use this selection from @%s (lines %d-%d) as context:\n````%s\n%s\n````")
-    :format(rel, first_line, last_line, filetype, table.concat(lines, "\n"))
+  local draft
 
-  send(prompt, { submit = true })
+  if path ~= "" and not vim.bo[buf].modified then
+    -- Codex CLI has file mentions but no editor selection attachment API. Keep
+    -- the line range in the composer so the user can add an instruction first.
+    draft = ("@%s lines %d-%d "):format(rel, first_line, last_line)
+  else
+    local filetype = vim.bo[buf].filetype ~= "" and vim.bo[buf].filetype or "text"
+    draft = ("Selection from %s (lines %d-%d):\n````%s\n%s\n````\n")
+      :format(rel, first_line, last_line, filetype, table.concat(lines, "\n"))
+
+    if path ~= "" then
+      vim.notify(
+        "Buffer has unsaved changes; pasted the exact selection instead of a Codex @-mention",
+        vim.log.levels.INFO
+      )
+    end
+  end
+
+  send(draft, { submit = false })
 end
 
 return M

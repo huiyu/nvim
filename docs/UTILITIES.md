@@ -123,7 +123,7 @@ Advanced window management utilities.
 local window = require("util.window")
 
 -- Window operations (via autocmds)
--- :WindowCloseOthers  - Close all except current
+-- :WindowCloseOthers  - Close eligible splits in the current tab only
 -- :WindowCloseCurrent - Close current window
 ```
 

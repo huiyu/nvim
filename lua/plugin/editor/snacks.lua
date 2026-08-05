@@ -116,8 +116,12 @@ return {
     { "<leader>fD", function()
         local path = vim.fn.expand("%:p")
         if path == "" then vim.notify("No file for current buffer", vim.log.levels.WARN); return end
-        if vim.fn.confirm("Delete '" .. path .. "'?", "&Yes\n&No", 2) == 1 then
-          vim.fn.delete(path)
+        local modified = vim.bo.modified and "\nUnsaved buffer changes will be lost." or ""
+        if vim.fn.confirm("Delete '" .. path .. "'?" .. modified, "&Yes\n&No", 2) == 1 then
+          if vim.fn.delete(path) ~= 0 then
+            vim.notify("Failed to delete: " .. path, vim.log.levels.ERROR)
+            return
+          end
           vim.cmd("bdelete!")
           vim.notify("Deleted: " .. path)
         end
@@ -267,7 +271,13 @@ return {
       },
       sections = {
         -- Left pane (pane 1): cowsay banner (rainbow via lolcat) + keys
-        { section = "terminal", cmd = "cowsay 'Talk is cheap, show me the code.' | lolcat -f", padding = 1, indent = 15 },
+        {
+          section = "terminal",
+          cmd = "cowsay 'Talk is cheap, show me the code.' | lolcat -f",
+          padding = 1,
+          indent = 15,
+          enabled = vim.fn.executable("cowsay") == 1 and vim.fn.executable("lolcat") == 1,
+        },
         { section = "keys", gap = 1, padding = 1 },
 
         -- Right pane (pane 2): decoration + browse repo + gh + git status

@@ -33,11 +33,16 @@ local function should_use_chrome()
 end
 
 local function build_terminal_cmd()
-  local plugin_args = vim.env.CLAUDE_PLUGIN_DIR
-    and (" " .. table.concat(vim.tbl_map(function(d) return "--plugin-dir " .. d end, vim.split(vim.env.CLAUDE_PLUGIN_DIR, ",")), " "))
-    or ""
-  local chrome_arg = should_use_chrome() and " --chrome" or ""
-  local claude_cmd = "claude" .. plugin_args .. chrome_arg
+  local claude_args = { "claude" }
+  for _, dir in ipairs(vim.split(vim.env.CLAUDE_PLUGIN_DIR or "", ",", { trimempty = true })) do
+    dir = vim.trim(dir)
+    if dir ~= "" then
+      claude_args[#claude_args + 1] = "--plugin-dir"
+      claude_args[#claude_args + 1] = vim.fn.shellescape(dir)
+    end
+  end
+  if should_use_chrome() then claude_args[#claude_args + 1] = "--chrome" end
+  local claude_cmd = table.concat(claude_args, " ")
 
   -- nvim defaults TERM=xterm-256color for :terminal children, but xterm-256color
   -- claims more capabilities than nvim's libvterm actually implements. Ink emits
@@ -51,7 +56,7 @@ local function build_terminal_cmd()
 
   -- Skip the wrapper unless tmux is available AND wrapping is explicitly enabled.
   if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then
-    return "env TERM=" .. term .. " " .. claude_cmd
+    return "env TERM=" .. vim.fn.shellescape(term) .. " " .. claude_cmd
   end
 
   -- Rationale for the wrapper lives in should_wrap_tmux above. Implementation
@@ -77,7 +82,7 @@ local function build_terminal_cmd()
     -- (tmux-256color) into the pane env regardless of the outer TERM we set
     -- via env(1), which puts us right back into the "terminfo claims more
     -- than libvterm implements" trap that caused huiyu/nvim#2.
-    "set-option -g default-terminal '" .. term .. "'",
+    "set-option -g default-terminal " .. vim.fn.shellescape(term),
     "\\;",
     "new-session -A -s main",
     "-e CLAUDE_CODE_SSE_PORT=$CLAUDE_CODE_SSE_PORT",
@@ -98,16 +103,15 @@ local function build_terminal_cmd()
     "\\; set-option -g status off",
     "\\; set-hook -g client-detached kill-server",
   }, " ")
-  return "env TERM=" .. term .. " sh -c '" .. inner .. "' _"
+  return "env TERM=" .. vim.fn.shellescape(term) .. " sh -c " .. vim.fn.shellescape(inner) .. " _"
 end
 
 -- Detached watchdog: polls our nvim pid and tears down the dedicated tmux
 -- server when nvim dies. Needed because when claude is launched via tmux
 -- (see build_terminal_cmd above), abruptly closing the host terminal window
 -- leaves the tmux server alive — the `client-detached -> kill-server` hook
--- only fires on a graceful detach, and VimLeavePre cleanup runs as a child
--- of nvim and gets killed alongside it on SIGHUP (e.g. terminal tab close),
--- so its kill-server never completes. Without this watchdog, orphaned tmux
+-- only fires on a graceful detach. In-process exit cleanup cannot cover an
+-- abrupt SIGHUP (e.g. terminal tab close). Without this watchdog, orphaned tmux
 -- servers (and the claude processes inside them) accumulate across crashes
 -- and forced window closes. The watchdog is spawned via `setsid` to leave
 -- nvim's process group/session, making it immune to the SIGHUP cascade.

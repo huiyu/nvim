@@ -23,7 +23,7 @@ if not vim.uv.fs_stat(install_path) then
   local result = fn.system({
     "git",
     "clone",
-    "--filter=blob:none",  -- Shallow clone for faster download
+    "--filter=blob:none",  -- Partial clone for faster download
     "https://github.com/folke/lazy.nvim.git",
     "--branch=stable",     -- Use stable release
     install_path,

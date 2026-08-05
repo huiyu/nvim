@@ -39,7 +39,10 @@ function M.info()
     provider = config.provider,
     label = config.label,
     native = config.native.command,
-    codecompanion = config.codecompanion.adapter,
+    codecompanion = {
+      chat = config.codecompanion.acp_adapter .. " (ACP)",
+      inline = config.codecompanion.http_adapter .. " (HTTP)",
+    },
   }
 end
 
@@ -57,7 +60,7 @@ function M.setup()
   map("n", "<leader>aR", M.continue, "Continue " .. config.label)
   map("n", "<leader>am", M.select_model, "Select AI model")
   map("n", "<leader>ab", M.add_buffer, "Add buffer to " .. config.label)
-  map("x", "<leader>as", M.send_selection, "Send selection to " .. config.label)
+  map("x", "<leader>as", M.send_selection, "Attach selection to " .. config.label)
 
   if config.native.capabilities.diff then
     map("n", "<leader>aa", M.accept_diff, "Accept AI diff")

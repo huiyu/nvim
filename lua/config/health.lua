@@ -13,11 +13,12 @@ local executables = {
   { "git",     "version control, gitsigns, snacks pickers", true },
   { "rg",      "ripgrep — snacks grep/search",              true },
   { "fd",      "snacks file finding, venv-selector",        false },
-  { "node",    "AI (claudecode), markdown-preview, JS run", false },
+  { "node",    "AI ACP adapters, claudecode, markdown-preview, JS run", false },
   { "go",      "go toolchain, <leader>cx for Go",           false },
   { "python3", "debugpy venv, <leader>cx for Python",       false },
   { "cc",      "<leader>cx compile & run for C",            false },
   { "lazygit", "<leader>gg git UI",                          false },
+  { "gh",      "<leader>gh GitHub pickers and status",       false },
 }
 
 -- Mason packages worth surfacing (Mason installs lazily, so absence is info).
@@ -68,11 +69,27 @@ function M.check()
     health.error(("%s not found — %s native agent unavailable"):format(ai.native.command, ai.label))
   end
 
+  local acp_command = ai.codecompanion.acp_command
+  if vim.fn.executable(acp_command) == 1 then
+    health.ok(("%s found — CodeCompanion Chat uses %s over ACP"):format(acp_command, ai.label))
+  else
+    health.error(("%s not found — CodeCompanion ACP Chat unavailable"):format(acp_command))
+  end
+
   local api_key = ai.codecompanion.api_key
   if vim.env[api_key] and vim.env[api_key] ~= "" then
-    health.ok(("%s found — CodeCompanion HTTP interactions available"):format(api_key))
+    health.ok(("%s found — CodeCompanion HTTP inline/command prompts available"):format(api_key))
   else
-    health.warn(("%s not set — CodeCompanion requests will not work"):format(api_key))
+    health.warn(("%s not set — ACP Chat works, but HTTP inline/command prompts do not"):format(api_key))
+  end
+
+  health.start("config: logs")
+  local log_path = vim.lsp.log.get_filename()
+  local stat = vim.uv.fs_stat(log_path)
+  if stat and stat.size > 10 * 1024 * 1024 then
+    health.warn(("LSP log is %.1f MiB: %s"):format(stat.size / 1024 / 1024, log_path))
+  else
+    health.ok("LSP log size is below 10 MiB")
   end
 
   health.start("config: mason packages")

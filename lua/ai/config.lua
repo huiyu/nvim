@@ -14,7 +14,9 @@ local providers = {
       },
     },
     codecompanion = {
-      adapter = "anthropic",
+      acp_adapter = "claude_code",
+      acp_command = "claude-agent-acp",
+      http_adapter = "anthropic",
       api_key = "ANTHROPIC_API_KEY",
     },
   },
@@ -30,7 +32,9 @@ local providers = {
       },
     },
     codecompanion = {
-      adapter = "openai_responses",
+      acp_adapter = "codex",
+      acp_command = "codex-acp",
+      http_adapter = "openai_responses",
       api_key = "OPENAI_API_KEY",
     },
   },
@@ -48,8 +52,18 @@ function M.is(provider)
 end
 
 function M.is_native_command(cmd)
-  if type(cmd) == "table" then cmd = table.concat(cmd, " ") end
-  return type(cmd) == "string" and cmd:find(M.native.command, 1, true) ~= nil
+  if type(cmd) == "table" then
+    for _, part in ipairs(cmd) do
+      if M.is_native_command(tostring(part)) then return true end
+    end
+    return false
+  end
+  if type(cmd) ~= "string" then return false end
+  for token in cmd:gmatch("[^%s]+") do
+    token = token:gsub("^[\"']+", ""):gsub("[\"';]+$", "")
+    if vim.fs.basename(token) == M.native.command then return true end
+  end
+  return false
 end
 
 return M
