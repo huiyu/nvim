@@ -346,6 +346,12 @@ Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff
 
 ### Terminal Integration
 
+Native coding-agent terminals automatically repair stale libvterm cells when
+entering Terminal-mode, both on initial open and when returning from terminal
+Normal mode. If a TUI still drifts, exit terminal input with `<Esc><Esc>` and
+use `<leader>Td` as a manual fallback. Opening a numbered bottom terminal also
+repairs the visible agent after the layout changes.
+
 #### AI provider selection
 
 One Nvim process selects one provider at startup. Claude remains the default;

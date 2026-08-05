@@ -35,6 +35,20 @@ autocmd("TermOpen", {
   end,
 })
 
+-- Repaint native coding-agent TUIs whenever they enter Terminal-mode. This
+-- covers both their initial startinsert and returning from terminal-Normal
+-- mode, which is the natural point at which the user is about to interact with
+-- a stale composer. Plain shell terminals are intentionally left alone.
+autocmd("TermEnter", {
+  group = augroup("terminal_ui_fix", { clear = false }),
+  callback = function(event)
+    local terminal = require("util.terminal")
+    if terminal.is_agent_buf(event.buf) then
+      terminal.fix_drift(vim.api.nvim_get_current_win())
+    end
+  end,
+})
+
 -- Set cwd when opening a directory
 autocmd("VimEnter", {
   group = augroup("vimenter_cd", { clear = true }),
