@@ -253,7 +253,8 @@ Press any prefix and wait for which-key popup to see available keys.
 | `<C-s>` | Save file (all modes) |
 | `<Esc>` | Clear search highlight |
 | `<C-/>` | Toggle terminal |
-| `<C-h/j/k/l>` | Window navigation |
+| `<C-h/j/k/l>` | Window navigation (Normal + terminal input) |
+| `<C-S-l>` | Redraw the active TUI (terminal input) |
 | `<C-Up/Down/Left/Right>` | Window resize |
 | `<A-j>` / `<A-k>` | Move line up/down (n, i, v) |
 | `<S-h>` / `<S-l>` | Prev / Next buffer |
@@ -351,6 +352,12 @@ entering Terminal-mode, both on initial open and when returning from terminal
 Normal mode. If a TUI still drifts, exit terminal input with `<Esc><Esc>` and
 use `<leader>Td` as a manual fallback. Opening a numbered bottom terminal also
 repairs the visible agent after the layout changes.
+
+`<C-h/j/k/l>` is owned by Neovim in both Normal and terminal-input mode, so it
+can move directly between editor and terminal windows. This replaces the TUI's
+original Ctrl shortcuts; use Backspace for delete-backward, `<S-Enter>` for a
+composer newline, and arrow keys in pickers. `<C-S-l>` forwards the original
+Ctrl+L byte to redraw either the Codex or Claude Code TUI.
 
 #### AI provider selection
 

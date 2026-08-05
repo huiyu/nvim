@@ -81,6 +81,12 @@ end, { desc = "Fix terminal TUI drift" })
 vim.keymap.set("t", "<S-CR>", function()
   vim.fn.chansend(vim.b.terminal_job_id, "\x1b[13;2u")
 end, { noremap = true, silent = true })
+-- Ctrl+hjkl belong to Nvim window navigation in Terminal-mode. Preserve the
+-- TUI's useful Ctrl+L redraw action on a shifted chord by forwarding the
+-- original form-feed byte to the terminal job.
+vim.keymap.set("t", "<C-S-l>", function()
+  vim.fn.chansend(vim.b.terminal_job_id, "\x0c")
+end, { desc = "Redraw terminal TUI", noremap = true, silent = true })
 
 -- Visual & Select mode
 vim.keymap.set("v", "<", "<gv", { desc = "Indent left", noremap = true, silent = true })
@@ -89,31 +95,25 @@ vim.keymap.set("v", "<leader>y", "y", { desc = "Yank to register" })
 vim.keymap.set("v", "<leader>Y", '"+y', { desc = "Yank to clipboard" })
 -- Note: visual paste handled by yanky.nvim (provides yank history cycling)
 
--- Window navigation (Ctrl+hjkl) — skip terminal windows so navigation stays
--- within editor splits. Use <C-/> to jump to the terminal explicitly.
-local function nav_skip_terminal(direction)
-  return function()
-    local start = vim.api.nvim_get_current_win()
-    vim.cmd("wincmd " .. direction)
-    local cur = vim.api.nvim_get_current_win()
-    -- If we landed on a terminal, keep stepping.  When the terminal is at the
-    -- edge, restore the starting editor window instead of leaving focus in it.
-    while cur ~= start and vim.bo[vim.api.nvim_win_get_buf(cur)].buftype == "terminal" do
-      vim.cmd("wincmd " .. direction)
-      local next_win = vim.api.nvim_get_current_win()
-      if next_win == cur or next_win == start then
-        vim.api.nvim_set_current_win(start)
-        return
-      end
-      cur = next_win
-    end
-  end
+-- Window navigation works uniformly from editor Normal mode and terminal
+-- input mode. Entering a Snacks terminal triggers its auto-insert behavior;
+-- leaving one first returns to terminal-Normal mode, then changes windows. At
+-- a layout edge, keep terminal input active instead of exiting it for a no-op.
+for _, nav in ipairs({
+  { key = "h", label = "left" },
+  { key = "j", label = "lower" },
+  { key = "k", label = "upper" },
+  { key = "l", label = "right" },
+}) do
+  local direction = nav.key
+  local lhs = "<C-" .. direction .. ">"
+  local desc = "Go to " .. nav.label .. " window"
+  vim.keymap.set("n", lhs, "<C-w>" .. direction, { desc = desc, silent = true })
+  vim.keymap.set("t", lhs, function()
+    if vim.fn.winnr(direction) == vim.fn.winnr() then return "" end
+    return "<C-\\><C-n><C-w>" .. direction
+  end, { desc = desc, expr = true, silent = true })
 end
-
-vim.keymap.set("n", "<C-h>", nav_skip_terminal("h"), { desc = "Go to left window" })
-vim.keymap.set("n", "<C-j>", nav_skip_terminal("j"), { desc = "Go to lower window" })
-vim.keymap.set("n", "<C-k>", nav_skip_terminal("k"), { desc = "Go to upper window" })
-vim.keymap.set("n", "<C-l>", nav_skip_terminal("l"), { desc = "Go to right window" })
 
 -- Window resize (Ctrl+arrows)
 vim.keymap.set("n", "<C-Up>", "<cmd>resize +2<cr>", { desc = "Increase window height" })

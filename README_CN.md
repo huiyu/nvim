@@ -248,7 +248,8 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | `<C-s>` | 保存（所有模式） |
 | `<Esc>` | 清除搜索高亮 |
 | `<C-/>` | 切换终端 |
-| `<C-h/j/k/l>` | 窗口导航 |
+| `<C-h/j/k/l>` | 窗口导航（Normal + terminal input） |
+| `<C-S-l>` | 重绘当前 TUI（terminal input） |
 | `<C-Up/Down/Left/Right>` | 窗口大小调整 |
 | `<A-j>` / `<A-k>` | 移动行（n, i, v） |
 | `<S-h>` / `<S-l>` | 上/下一个 buffer |
@@ -316,6 +317,17 @@ Issue 与 PR 的远程写操作刻意不设置全局快捷键。在 Snacks GitHu
 | `<leader>Y`（v） | 选区 yank 到系统剪贴板（`+`） |
 
 ### 终端集成
+
+Native coding-agent terminal 每次进入 Terminal-mode 时都会自动修复残留的
+libvterm 单元格，包括首次打开以及从 terminal Normal mode 返回输入状态。
+如果 TUI 仍发生漂移，先用 `<Esc><Esc>` 退出输入状态，再以 `<leader>Td>`
+手动修复。打开编号底部终端后，也会修复因布局变化而受影响的可见 agent。
+
+Neovim 在 Normal 和 terminal-input 模式下都会接管 `<C-h/j/k/l>`，因此可以
+直接在编辑器与终端窗口之间移动。这会覆盖 TUI 原有的 Ctrl 快捷键：向后删除
+可用 Backspace，输入换行可用 `<S-Enter>`，picker 导航可用方向键。
+`<C-S-l>` 会把原始 Ctrl+L 字节转发给终端，用于重绘 Codex 或 Claude Code
+TUI。
 
 #### AI provider 选择
 
