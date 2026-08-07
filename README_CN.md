@@ -15,7 +15,7 @@
 
 **可选（按功能）：**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg`（项目）/ `<leader>gf`（当前文件历史）
-- **[tmux](https://github.com/tmux/tmux)** — 把 Claude Code TUI 包到 `:terminal` 里，防止闪屏；自动检测（详见[终端集成](#终端集成)）
+- **[tmux](https://github.com/tmux/tmux)** — 把选中的 Native Agent TUI 包到 `:terminal` 里，避免残影和帧撕裂；自动检测（详见[终端集成](#终端集成)）
 - **[GitHub CLI](https://cli.github.com/)** — 已认证的 `gh`，供 `<leader>gh` GitHub picker 与状态使用
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** 或 **[Codex](https://developers.openai.com/codex/cli/)** — Native coding agent
 - **Node.js >= 22 + npm** — CodeCompanion ACP bridge 进程
@@ -369,18 +369,25 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 - **Action**：`Send Escape Sequence`
 - **Value**：`[13;2u`
 
-#### Claude Code 的 tmux 包裹
+#### Native Agent 的 tmux 包裹
 
-通过 [claudecode.nvim](https://github.com/coder/claudecode.nvim) 调起 Claude Code 时，默认会在一个专用的 tmux server 中启动——见 `lua/plugin/lsp/ai.lua`。
+Claude Code 和 Codex 默认分别在 provider 专属的 tmux server 中启动，见
+`lua/plugin/lsp/ai.lua` 与 `lua/ai/backend/codex.lua`。
 
-**原因**：Claude 的 Ink TUI 用 DEC mode 2026（Synchronized Output）实现原子帧更新。Neovim 的 `:terminal` buffer 不识别这个协议，**不包 tmux 会出现帧间撕裂**——状态栏双渲染、行间内容串到下一行。tmux 在中间消化掉 2026 序列、自己做整帧合成、再把普通 ANSI 输出给 `:terminal`，渲染就干净了。（与宿主终端无关：Ghostty / WezTerm / iTerm2 都会撞同一个问题，因为出问题的是 nvim `:terminal`。）
+**原因**：两个 TUI 都会发出 DEC mode 2026（Synchronized Output）序列来做
+原子帧更新。Neovim 的 `:terminal` buffer 不识别该协议，因此半帧可能留下
+重复状态栏或旧单元格。tmux 会先合成同步帧，再向 Nvim 输出普通终端更新。
+这与 Ghostty / WezTerm / iTerm2 等宿主终端无关，相关层是 Nvim 内嵌的
+libvterm。
 
-**代价**：包了 tmux 之后，tmux、宿主终端、Claude 的 `string-width` 三方对 CJK 宽字符的宽度判定可能不一致，带框 UI（TODO、diff 预览、session recap）会出现轻微错位。相比不包时的撕裂，可接受程度高得多。
+**代价**：包了 tmux 之后，tmux、宿主终端和 Agent TUI 对 CJK 宽字符的
+宽度判定可能不一致，带框 UI 可能有轻微错位。
 
 **覆盖配置**：
 - `CLAUDE_WRAP_TMUX=0 nvim` — 一次性 A/B 测试
 - `vim.g.claude_wrap_tmux = false` 写入 `init.lua` — 永久关闭
-- 默认：开
+- `CODEX_WRAP_TMUX=0 nvim` / `vim.g.codex_wrap_tmux = false` — Codex 的对应开关
+- 安装 tmux 时两个 wrapper 都默认开启
 
 **提示——抑制 recap CJK 错位框**：Claude Code 的 session recap 是最显眼的 CJK 错位受害者。在 `~/.claude/settings.json` 设置 `"awaySummaryEnabled": false` 可关闭。注意这是 Claude Code 的全局配置，不属于 nvim。
 
@@ -391,7 +398,8 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 | `NVIM_AI_PROVIDER` | `claude`（默认）或 `codex`；为当前 Nvim 进程选择 Native Agent、CodeCompanion ACP Chat 与 HTTP Inline adapter |
 | `NVIM_LOG_LEVEL` | `util.logger` 日志级别：`DEBUG`/`INFO`/`WARN`/`ERROR`（默认 `WARN`） |
 | `NVIM_DEV=1` | 把 `util.logger` 设为 `DEBUG`（更详细的日志） |
-| `CLAUDE_WRAP_TMUX` | `1`/`0` — 覆盖 Claude Code 的 tmux 包裹默认行为。默认开。详见 [Claude Code 的 tmux 包裹](#claude-code-的-tmux-包裹)。 |
+| `CLAUDE_WRAP_TMUX` | `1`/`0` — 覆盖 Claude Code 的 tmux 包裹默认行为。默认开。详见 [Native Agent 的 tmux 包裹](#native-agent-的-tmux-包裹)。 |
+| `CODEX_WRAP_TMUX` | `1`/`0` — 覆盖 Codex 的 tmux 包裹默认行为。默认开。详见 [Native Agent 的 tmux 包裹](#native-agent-的-tmux-包裹)。 |
 | `CLAUDE_CHROME` | `1`/`0` — 开关 Native Claude 进程的 Claude in Chrome。默认开。 |
 
 ### 诊断

@@ -52,7 +52,7 @@ the update checker runs silently once a day (`bootstrap.lua`).
 `lua/config/health.lua` checks the things specific to this configuration:
 
 - Neovim version floor (>= 0.11)
-- External CLI tools on `PATH` (git, gh, rg, fd, node, go, python3, cc, lazygit) and
+- External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, python3, cc, lazygit) and
   what each one is needed for
 - Active AI provider, native CLI, selected ACP bridge, and optional
   CodeCompanion HTTP inline/command credentials
@@ -99,6 +99,8 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   reload a stateful agent session.
 - ACP Chat uses the selected agent login. Missing `ANTHROPIC_API_KEY` or
   `OPENAI_API_KEY` only disables HTTP Inline/command prompts.
+- Native Claude and Codex TUIs use provider-specific tmux wrappers when tmux is
+  installed. Set `CLAUDE_WRAP_TMUX=0` or `CODEX_WRAP_TMUX=0` for an A/B test.
 - Reinstall ACP bridges with
   `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`.
 

@@ -10,15 +10,16 @@ local health = vim.health
 -- External CLI tools the config relies on (not managed by Mason).
 -- { executable, what needs it, required }
 local executables = {
-  { "git",     "version control, gitsigns, snacks pickers", true },
-  { "rg",      "ripgrep — snacks grep/search",              true },
-  { "fd",      "snacks file finding, venv-selector",        false },
+  { "git",     "version control, gitsigns, snacks pickers",            true },
+  { "rg",      "ripgrep — snacks grep/search",                         true },
+  { "fd",      "snacks file finding, venv-selector",                   false },
   { "node",    "AI ACP adapters, claudecode, markdown-preview, JS run", false },
-  { "go",      "go toolchain, <leader>cx for Go",           false },
-  { "python3", "debugpy venv, <leader>cx for Python",       false },
-  { "cc",      "<leader>cx compile & run for C",            false },
-  { "lazygit", "<leader>gg git UI",                          false },
-  { "gh",      "<leader>gh GitHub pickers and status",       false },
+  { "tmux",    "native AI TUI frame wrapper",                          false },
+  { "go",      "go toolchain, <leader>cx for Go",                      false },
+  { "python3", "debugpy venv, <leader>cx for Python",                  false },
+  { "cc",      "<leader>cx compile & run for C",                       false },
+  { "lazygit", "<leader>gg git UI",                                    false },
+  { "gh",      "<leader>gh GitHub pickers and status",                 false },
 }
 
 -- Mason packages worth surfacing (Mason installs lazily, so absence is info).

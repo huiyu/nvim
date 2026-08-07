@@ -15,7 +15,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 
 **Optional (feature-specific):**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg` (project) / `<leader>gf` (file history)
-- **[tmux](https://github.com/tmux/tmux)** — wraps Claude Code TUI inside `:terminal` to prevent flicker; auto-detected (see [Terminal Integration](#terminal-integration))
+- **[tmux](https://github.com/tmux/tmux)** — wraps the selected native-agent TUI inside `:terminal` to prevent stale or torn frames; auto-detected (see [Terminal Integration](#terminal-integration))
 - **[GitHub CLI](https://cli.github.com/)** — authenticated `gh` for `<leader>gh` GitHub pickers and status
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** or **[Codex](https://developers.openai.com/codex/cli/)** — selected native coding agent
 - **Node.js >= 22 + npm** — CodeCompanion ACP bridge processes
@@ -402,18 +402,27 @@ When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requi
 - **Action**: `Send Escape Sequence`
 - **Value**: `[13;2u`
 
-#### Claude Code tmux wrapper
+#### Native-agent tmux wrappers
 
-Claude Code is launched inside a dedicated tmux server when run via [claudecode.nvim](https://github.com/coder/claudecode.nvim) — see `lua/plugin/lsp/ai.lua`.
+Claude Code and Codex are launched inside provider-specific, dedicated tmux
+servers. See `lua/plugin/lsp/ai.lua` and `lua/ai/backend/codex.lua`.
 
-**Why**: Claude's Ink-based TUI emits DEC mode 2026 (Synchronized Output) escape sequences for atomic frame updates. Nvim's `:terminal` buffer does not understand this protocol, so without the wrapper you get mid-frame tearing — status bar double-renders, lines bleeding into adjacent rows. tmux absorbs the 2026 sequences, composes whole frames, and emits plain ANSI that nvim's `:terminal` can render cleanly. (This is independent of the host terminal: Ghostty / WezTerm / iTerm2 all hit the same issue because the broken layer is nvim's `:terminal`, not them.)
+**Why**: both TUIs emit DEC mode 2026 (Synchronized Output) escape sequences for
+atomic frame updates. Nvim's `:terminal` buffer does not understand this
+protocol, so without a wrapper a partial frame can leave duplicated status bars
+or stale cells. tmux composes the synchronized frame and sends ordinary terminal
+updates to Nvim. This is independent of the host terminal because the relevant
+layer is Nvim's embedded libvterm.
 
-**Trade-off**: Inside the wrapped tmux, CJK wide-character widths can disagree between tmux, the host terminal, and Claude's `string-width` library. This produces minor misalignment in box-bordered UI (TODO list, diff preview, session recap). Much less disruptive than the tearing without the wrapper.
+**Trade-off**: Inside the wrapped tmux, CJK wide-character widths can disagree
+between tmux, the host terminal, and the agent TUI. This can produce minor
+misalignment in box-bordered UI.
 
 **Overrides**:
 - `CLAUDE_WRAP_TMUX=0 nvim` — disable for one-off A/B testing
 - `vim.g.claude_wrap_tmux = false` in `init.lua` — disable permanently
-- Default: on
+- `CODEX_WRAP_TMUX=0 nvim` / `vim.g.codex_wrap_tmux = false` — equivalent Codex overrides
+- Both wrappers default to on when tmux is installed
 
 **Tip — suppress the recap CJK box**: Claude Code's session recap is the most visible CJK width offender. Set `"awaySummaryEnabled": false` in `~/.claude/settings.json` to suppress it. This is Claude Code's global config, not nvim's.
 
@@ -424,7 +433,8 @@ Claude Code is launched inside a dedicated tmux server when run via [claudecode.
 | `NVIM_AI_PROVIDER` | `claude` (default) or `codex`; selects the native agent, CodeCompanion ACP Chat, and HTTP inline adapter for this Nvim process |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold: `DEBUG`/`INFO`/`WARN`/`ERROR` (default `WARN`) |
 | `NVIM_DEV=1` | Sets `util.logger` to `DEBUG` (verbose logging) |
-| `CLAUDE_WRAP_TMUX` | `1`/`0` — override default Claude Code tmux wrap. Default on. See [Claude Code tmux wrapper](#claude-code-tmux-wrapper). |
+| `CLAUDE_WRAP_TMUX` | `1`/`0` — override default Claude Code tmux wrap. Default on. See [native-agent tmux wrappers](#native-agent-tmux-wrappers). |
+| `CODEX_WRAP_TMUX` | `1`/`0` — override default Codex tmux wrap. Default on. See [native-agent tmux wrappers](#native-agent-tmux-wrappers). |
 | `CLAUDE_CHROME` | `1`/`0` — enable or disable Claude in Chrome for the native Claude process. Default on. |
 
 ### Diagnostics

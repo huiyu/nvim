@@ -1,6 +1,64 @@
 local M = {}
 
 local current
+local tmux_watchdog_started = false
+
+-- Codex uses synchronized terminal updates for each TUI frame. Neovim's
+-- libvterm does not implement that protocol, so let a dedicated tmux server
+-- compose the frame before it reaches :terminal. Precedence: env > vim.g > on.
+local function should_wrap_tmux()
+  local env = vim.env.CODEX_WRAP_TMUX
+  if env == "1" or env == "true" then return true end
+  if env == "0" or env == "false" then return false end
+  return vim.g.codex_wrap_tmux ~= false
+end
+
+-- A detached watchdog covers abrupt host-terminal closure, where tmux's
+-- client-detached hook may not run. It also removes stale wrapper sockets from
+-- earlier crashes. Start it on first use because this backend loads lazily,
+-- after VimEnter has already fired.
+local function ensure_tmux_watchdog()
+  if tmux_watchdog_started then return end
+  tmux_watchdog_started = true
+
+  local pid = vim.fn.getpid()
+  local script = string.format([[
+    for s in /private/tmp/tmux-*/codex-nvim-* /tmp/tmux-*/codex-nvim-*; do
+      [ -e "$s" ] || continue
+      owner=${s##*codex-nvim-}
+      if ! kill -0 "$owner" 2>/dev/null; then
+        tmux -S "$s" kill-server 2>/dev/null
+        rm -f "$s"
+      fi
+    done
+    while kill -0 %d 2>/dev/null; do sleep 2; done
+    tmux -L codex-nvim-%d kill-server 2>/dev/null
+    rm -f /private/tmp/tmux-*/codex-nvim-%d /tmp/tmux-*/codex-nvim-%d
+  ]], pid, pid, pid, pid)
+  vim.fn.jobstart({ "sh", "-c", script }, { detach = true })
+end
+
+local function terminal_command(args)
+  if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then return args end
+
+  ensure_tmux_watchdog()
+  local term = vim.env.TERM or "xterm-256color"
+  local socket = "codex-nvim-" .. vim.fn.getpid()
+  local command = {
+    "env", "TERM=" .. term,
+    "tmux", "-f", "/dev/null", "-L", socket,
+    "set-option", "-g", "default-terminal", term,
+    ";", "new-session", "-A", "-s", "main",
+  }
+  vim.list_extend(command, args)
+  vim.list_extend(command, {
+    ";", "set-option", "-g", "destroy-unattached", "on",
+    ";", "set-option", "-g", "exit-empty", "on",
+    ";", "set-option", "-g", "status", "off",
+    ";", "set-hook", "-g", "client-detached", "kill-server",
+  })
+  return command
+end
 
 local function snacks()
   return _G.Snacks or require("snacks")
@@ -46,7 +104,7 @@ local function enter_insert(term)
 end
 
 local function start(args, root)
-  current = snacks().terminal.open(args, terminal_opts(root))
+  current = snacks().terminal.open(terminal_command(args), terminal_opts(root))
   local term = current
   term:on("TermClose", function()
     if current == term then current = nil end
