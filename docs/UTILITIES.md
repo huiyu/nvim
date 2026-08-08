@@ -136,9 +136,12 @@ Helpers for `:terminal` windows, including the selected native AI agent.
 ```lua
 local terminal = require("util.terminal")
 
--- Fix stale renders ("drift") in a TUI terminal by shrinking then restoring the
--- window in one tick, forcing libvterm to invalidate its grid. Uses window APIs
--- so non-modifiable terminal buffers are safe. Bound to <leader>Td.
+-- Fix stale renders ("drift") in a TUI terminal by shrinking the window by one
+-- row and restoring it ~25ms later, which resizes the pty and makes the child
+-- TUI repaint. The delay is required: nvim pushes a terminal window's new size
+-- to the pty on an internal ~10ms refresh timer, so a same-tick restore is
+-- never observed and propagates nothing. Uses window APIs so non-modifiable
+-- terminal buffers are safe. Bound to <leader>Td.
 terminal.fix_drift(win)   -- win defaults to the current window
 
 -- True when buf belongs to the selected native coding agent.

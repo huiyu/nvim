@@ -21,16 +21,29 @@ local function find_agent_win()
   end
 end
 
+local RESTORE_DELAY_MS = 25
+
 -- Drift fix for a native-agent :terminal window.
 -- libvterm's grid only invalidates on shrink, not on grow. Shrinking forces
 -- row truncation, which clears the residue cells; growing back restores the
 -- original window size after the child TUI has re-rendered to the shrunken size.
 --
--- The grow is scheduled via `defer_fn(..., 0)` — not for wall-clock delay,
--- but to push it out of the current synchronous frame so nvim flushes the
--- shrink SIGWINCH (and the TUI's re-render in response) before the grow event
--- hits. Empirically 0 is enough; non-zero delays only add a visible flash
--- without improving the fix.
+-- The grow needs real wall-clock delay, not just a hop to the next event-loop
+-- tick. Nvim pushes a terminal window's new size down to the pty asynchronously
+-- on its internal terminal refresh timer (~10ms). That path is not the redraw
+-- path, so forcing `:redraw` does not trigger it either. With `defer_fn(..., 0)`
+-- the grow lands before the timer ever fires, so nvim's terminal layer only
+-- observes the original size: no pty resize, no SIGWINCH, no TUI repaint. The
+-- shrink must survive at least one refresh tick to be seen at all.
+--
+-- Measured against a child that logs every SIGWINCH: 0ms never propagates,
+-- >=10ms always does. 25ms keeps margin over timer jitter while staying short
+-- enough that the one-row dip is barely visible.
+--
+-- This is why the fix appeared to work from M.toggle below but not from the
+-- TermEnter hook: opening the bottom terminal spans several ticks of Snacks
+-- reflow and edgy layout, which happens to outlast the refresh timer. A bare
+-- mode switch has nothing to pad it.
 --
 -- See issue #2 for the full mechanism.
 function M.fix_drift(win)
@@ -69,7 +82,7 @@ function M.fix_drift(win)
       pcall(vim.api.nvim_win_set_height, win, current_height + 1)
       vim.wo[win].winfixheight = orig_fh
     end
-  end, 0)
+  end, RESTORE_DELAY_MS)
   return true
 end
 
