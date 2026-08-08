@@ -81,6 +81,23 @@ local search_exclude = {
 
 local ai = require("ai.config")
 
+-- The `square` colorscript from shell-color-scripts, inlined so the dashboard
+-- banner needs no external binary. Each group is a 7-cell block drawn with the
+-- normal ANSI foreground on its left half and the bright/bold one on its right.
+-- Returned as list-form argv so no shell parses the raw escape bytes.
+local function color_squares()
+  local rows = { { "▀ █", "█ ▀" }, { "██ ", " ██" }, { "▄ █", "█ ▄" } }
+  local lines = {}
+  for _, row in ipairs(rows) do
+    local groups = {}
+    for color = 1, 6 do -- red, green, yellow, blue, magenta, cyan
+      groups[#groups + 1] = ("\27[3%dm%s \27[1;9%dm%s\27[0m"):format(color, row[1], color, row[2])
+    end
+    lines[#lines + 1] = " " .. table.concat(groups, "   ")
+  end
+  return { "printf", "%s\n", table.concat(lines, "\n") }
+end
+
 return {
   "folke/snacks.nvim",
   lazy = false,
@@ -319,7 +336,9 @@ return {
     },
     dashboard = {
       enabled = true,
-      width = 70,
+      -- Shared by every pane (snacks has no per-pane width). The floor is set by
+      -- the 58-column square banner in pane 2; two panes need 2*width+4 columns.
+      width = 60,
       preset = {
         keys = {
           { icon = "󰈞 ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
@@ -344,20 +363,23 @@ return {
           section = "terminal",
           cmd = "cowsay 'Talk is cheap, show me the code.' | lolcat -f",
           padding = 1,
-          indent = 15,
+          indent = 18,
           enabled = vim.fn.executable("cowsay") == 1 and vim.fn.executable("lolcat") == 1,
         },
-        { section = "keys", gap = 1, padding = 1 },
+        -- `indent` is the only lever that tightens the desc->key gap: the key
+        -- column is always right-aligned to `opts.width`, so indenting shrinks
+        -- the flexible desc block instead of stretching it across the pane.
+        { section = "keys",   gap = 1, padding = 1, indent = 14 },
 
-        -- Right pane (pane 2): decoration + browse repo + gh + git status
+        -- Right pane (pane 2): color squares + gh + git status
         {
           pane = 2,
           section = "terminal",
-          cmd = [[printf '\n\n████ ████ ████ ████ ████ ████ ████\n\n       Welcome back, Jeff\n       %s\n\n████ ████ ████ ████ ████ ████ ████\n' "$(date '+%A, %B %d')" | lolcat -f]],
-          height = 8,
-          padding = 1,
-          indent = 18,
-          enabled = vim.fn.executable("lolcat") == 1,
+          cmd = color_squares(),
+          height = 3,
+          padding = 2,
+          -- Art is 58 columns wide; centers it in the 60-column pane.
+          indent = 1,
         },
         function()
           -- Snacks.git.get_root() returns non-nil inside bare-repo controller dirs
@@ -365,22 +387,25 @@ return {
           local toplevel = vim.fn.system({ "git", "rev-parse", "--is-inside-work-tree" })
           local in_git = vim.v.shell_error == 0 and vim.trim(toplevel) == "true"
           local has_gh = vim.fn.executable("gh") == 1
-          -- gh-notify is an extension; detect once at dashboard load
-          local has_gh_notify = has_gh
-            and vim.fn.system("gh extension list 2>/dev/null"):find("gh%-notify") ~= nil
           -- gh subcommands fatal with "no git remotes found" when cwd has no
           -- github remote (e.g. fresh `git init` without `git remote add`).
           local has_gh_remote = in_git
-            and vim.fn.system("git remote -v 2>/dev/null"):find("github") ~= nil
+              and vim.fn.system("git remote -v 2>/dev/null"):find("github") ~= nil
           local cmds = {
             {
               title = "Notifications",
-              cmd = "gh notify -s -a -n5",
+              -- Plain `gh api` instead of the gh-notify extension: gh ships its
+              -- own template/jq engine, so this needs no extra install. The feed
+              -- is account-wide, hence no `has_gh_remote` guard.
+              cmd = [[gh api 'notifications?per_page=5' --template ]]
+                  .. [['{{range .}}{{tablerow (timeago .updated_at) ]]
+                  .. [[(.repository.full_name | truncate 18 | color "cyan") ]]
+                  .. [[(.subject.title | truncate 24)}}{{end}}{{tablerender}}']],
               action = function() vim.ui.open("https://github.com/notifications") end,
               key = "n",
               icon = "󰂚 ",
               height = 5,
-              enabled = has_gh_notify and has_gh_remote,
+              enabled = has_gh,
             },
             {
               title = "Open Issues",
