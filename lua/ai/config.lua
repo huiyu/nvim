@@ -47,6 +47,13 @@ end
 local M = vim.deepcopy(providers[selected])
 M.provider = selected
 
+-- Shared geometry for every AI side panel: the native Claude/Codex terminals
+-- and the CodeCompanion chat window. Width is in columns (absolute, not a
+-- fraction) so the three panels stay interchangeable in the same layout.
+M.panel = {
+  width = 90,
+}
+
 function M.is(provider)
   return M.provider == provider
 end

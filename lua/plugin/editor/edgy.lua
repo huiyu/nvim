@@ -21,7 +21,11 @@ return {
       animate = { enabled = false },
       wo = { winbar = false },
       options = {
-        right  = { size = 90 },
+        -- edgy owns the final say on right-sidebar geometry: it re-applies these
+        -- sizes on BufWinEnter/WinResized, overriding whatever snacks or
+        -- CodeCompanion asked for at open time. Read the shared width so the
+        -- three AI panels cannot drift apart.
+        right  = { size = ai.panel.width },
         bottom = { size = 15 },
       },
       -- snacks explorer (multi-window: list + input) doesn't fit edgy's
@@ -31,12 +35,12 @@ return {
           title = ai.label,
           ft = "snacks_terminal",
           filter = is_agent_term,
-          size = { width = 90 },
+          size = { width = ai.panel.width },
         },
         {
           title = "CodeCompanion (" .. ai.label .. ")",
           ft = "codecompanion",
-          size = { width = 90 },
+          size = { width = ai.panel.width },
         },
       },
       bottom = {

@@ -1,3 +1,5 @@
+local ai_config = require("ai.config")
+
 local M = {}
 
 local current
@@ -82,7 +84,7 @@ local function terminal_opts(root)
     auto_close = true,
     win = {
       position = "right",
-      width = 90,
+      width = ai_config.panel.width,
       wo = { winfixwidth = true },
     },
   }

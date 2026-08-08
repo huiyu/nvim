@@ -70,7 +70,7 @@ return {
           layout = "vertical",
           position = "right",
           full_height = true,
-          width = 90,
+          width = ai.panel.width,
         },
       },
     },

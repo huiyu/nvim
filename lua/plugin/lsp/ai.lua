@@ -164,7 +164,7 @@ return {
         split_side = "right",
         provider = "snacks",
         snacks_win_opts = {
-          width = 90,
+          width = ai_config.panel.width,
           wo = { winfixwidth = true },
         },
       },
