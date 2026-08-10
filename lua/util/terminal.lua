@@ -40,10 +40,9 @@ local RESTORE_DELAY_MS = 25
 -- >=10ms always does. 25ms keeps margin over timer jitter while staying short
 -- enough that the one-row dip is barely visible.
 --
--- This is why the fix appeared to work from M.toggle below but not from the
--- TermEnter hook: opening the bottom terminal spans several ticks of Snacks
--- reflow and edgy layout, which happens to outlast the refresh timer. A bare
--- mode switch has nothing to pad it.
+-- Opening the bottom terminal spans several ticks of Snacks reflow and edgy
+-- layout, but a manual repair has no such padding. Keeping the shrink alive for
+-- 25ms makes both call paths reliably reach the pty.
 --
 -- See issue #2 for the full mechanism.
 function M.fix_drift(win)

@@ -347,11 +347,11 @@ Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff
 
 ### Terminal Integration
 
-Native coding-agent terminals automatically repair stale libvterm cells when
-entering Terminal-mode, both on initial open and when returning from terminal
-Normal mode. If a TUI still drifts, exit terminal input with `<Esc><Esc>` and
-use `<leader>Td` as a manual fallback. Opening a numbered bottom terminal also
-repairs the visible agent after the layout changes.
+Native coding-agent terminals no longer resize automatically when entering
+Terminal-mode, so moving into one with `<C-h/j/k/l>` does not produce a one-row
+flash. If a TUI drifts, exit terminal input with `<Esc><Esc>` and use
+`<leader>Td` to repair it. Opening a numbered bottom terminal still repairs the
+visible agent after the layout changes.
 
 `<C-h/j/k/l>` is owned by Neovim in both Normal and terminal-input mode, so it
 can move directly between editor and terminal windows. This replaces the TUI's

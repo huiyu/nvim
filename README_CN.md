@@ -318,10 +318,10 @@ Issue 与 PR 的远程写操作刻意不设置全局快捷键。在 Snacks GitHu
 
 ### 终端集成
 
-Native coding-agent terminal 每次进入 Terminal-mode 时都会自动修复残留的
-libvterm 单元格，包括首次打开以及从 terminal Normal mode 返回输入状态。
-如果 TUI 仍发生漂移，先用 `<Esc><Esc>` 退出输入状态，再以 `<leader>Td>`
-手动修复。打开编号底部终端后，也会修复因布局变化而受影响的可见 agent。
+Native coding-agent terminal 进入 Terminal-mode 时不再自动 resize，因此通过
+`<C-h/j/k/l>` 切入时不会出现一行高度的闪动。如果 TUI 发生漂移，先用
+`<Esc><Esc>` 退出输入状态，再以 `<leader>Td>` 手动修复。打开编号底部终端
+后，仍会修复因布局变化而受影响的可见 agent。
 
 Neovim 在 Normal 和 terminal-input 模式下都会接管 `<C-h/j/k/l>`，因此可以
 直接在编辑器与终端窗口之间移动。这会覆盖 TUI 原有的 Ctrl 快捷键：向后删除

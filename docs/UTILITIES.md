@@ -151,10 +151,10 @@ terminal.is_agent_buf(buf)
 terminal.toggle(id)
 ```
 
-Native coding-agent terminals run `fix_drift()` automatically on `TermEnter`,
-including the initial open and every terminal-Normal -> Terminal-mode switch.
-Opening a numbered bottom terminal also repairs the visible agent after the
-resulting layout change. `<leader>Td` remains available as a manual fallback.
+Native coding-agent terminals do not run `fix_drift()` on `TermEnter`, avoiding
+a one-row flash whenever focus moves into the terminal. Opening a numbered
+bottom terminal still repairs the visible agent after the resulting layout
+change. Use `<leader>Td` for a manual repair.
 
 ## Running Files (`util.run`)
 
