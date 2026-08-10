@@ -50,6 +50,10 @@ local function terminal_command(args)
     "env", "TERM=" .. term,
     "tmux", "-f", "/dev/null", "-L", socket,
     "set-option", "-g", "default-terminal", term,
+    ";", "set-option", "-g", "history-limit", "50000",
+    ";", "set-option", "-g", "mouse", "on",
+    ";", "bind-key", "-T", "root", "WheelUpPane", "copy-mode", "-eu",
+    ";", "bind-key", "-T", "root", "PPage", "copy-mode", "-eu",
     ";", "new-session", "-A", "-s", "main",
   }
   vim.list_extend(command, args)
@@ -90,6 +94,15 @@ local function terminal_opts(root)
   }
 end
 
+-- Keep the transcript in the wrapper tmux pane history. Codex normally uses an
+-- alternate screen, whose previous frames never enter that history. The tmux
+-- wrapper exposes it through mouse/PageUp copy-mode; without the wrapper it
+-- falls back to Nvim's terminal scrollback. This flag applies equally to new,
+-- resumed, and continued sessions.
+local function codex_command(args)
+  return vim.list_extend({ "codex", "--no-alt-screen" }, args or {})
+end
+
 local function enter_insert(term)
   if not term or not term:buf_valid() then return end
   local win = term.win
@@ -105,12 +118,43 @@ local function enter_insert(term)
   vim.api.nvim_win_call(win, function() vim.cmd.startinsert() end)
 end
 
+-- Nvim Normal-mode scrolling only sees the tmux client's current screen. When
+-- the wrapper owns the real history, forward the first scroll action into tmux
+-- and return to terminal-input mode; subsequent keys/wheel events are then
+-- handled by tmux copy-mode directly.
+local function setup_scrollback_maps(term)
+  if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then return end
+
+  local keys = {
+    ["<C-u>"] = "\27[5~",
+    ["<PageUp>"] = "\27[5~",
+    ["<ScrollWheelUp>"] = "\27[5~",
+    ["<C-d>"] = "\27[6~",
+    ["<PageDown>"] = "\27[6~",
+    ["<ScrollWheelDown>"] = "\27[6~",
+  }
+  for lhs, sequence in pairs(keys) do
+    vim.keymap.set("n", lhs, function()
+      if not term:buf_valid() then return end
+      local channel = vim.bo[term.buf].channel
+      if not channel or channel <= 0 then return end
+      vim.api.nvim_chan_send(channel, sequence)
+      enter_insert(term)
+    end, {
+      buffer = term.buf,
+      desc = "Scroll Codex tmux history",
+      silent = true,
+    })
+  end
+end
+
 local function start(args, root)
   current = snacks().terminal.open(terminal_command(args), terminal_opts(root))
   local term = current
   term:on("TermClose", function()
     if current == term then current = nil end
   end, { buf = true })
+  setup_scrollback_maps(term)
   enter_insert(term)
   return current
 end
@@ -118,7 +162,7 @@ end
 local function ensure()
   if active() then return current, false end
   local path = vim.api.nvim_buf_get_name(0)
-  return start({ "codex" }, project_root(path)), true
+  return start(codex_command(), project_root(path)), true
 end
 
 local function show_and_focus(term)
@@ -173,7 +217,7 @@ function M.toggle()
     return
   end
   local path = vim.api.nvim_buf_get_name(0)
-  start({ "codex" }, project_root(path))
+  start(codex_command(), project_root(path))
 end
 
 function M.focus()
@@ -188,7 +232,7 @@ function M.resume()
     return
   end
   local path = vim.api.nvim_buf_get_name(0)
-  start({ "codex", "resume" }, project_root(path))
+  start(codex_command({ "resume" }), project_root(path))
 end
 
 function M.continue()
@@ -197,7 +241,7 @@ function M.continue()
     return
   end
   local path = vim.api.nvim_buf_get_name(0)
-  start({ "codex", "resume", "--last" }, project_root(path))
+  start(codex_command({ "resume", "--last" }), project_root(path))
 end
 
 function M.select_model()

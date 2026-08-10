@@ -101,6 +101,12 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   `OPENAI_API_KEY` only disables HTTP Inline/command prompts.
 - Native Claude and Codex TUIs use provider-specific tmux wrappers when tmux is
   installed. Set `CLAUDE_WRAP_TMUX=0` or `CODEX_WRAP_TMUX=0` for an A/B test.
+- Native Codex uses `--no-alt-screen` so its wrapper tmux retains the
+  transcript. In terminal-input mode, the mouse wheel or `<PageUp>` enters tmux
+  copy-mode; use `q` or `<Esc>` to return. Scroll keys pressed from
+  terminal-Normal mode are forwarded to tmux automatically. With
+  `CODEX_WRAP_TMUX=0`, leave terminal input first and use Nvim's normal scroll
+  commands.
 - Reinstall ACP bridges with
   `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`.
 

@@ -329,6 +329,13 @@ Neovim 在 Normal 和 terminal-input 模式下都会接管 `<C-h/j/k/l>`，因�
 `<C-S-l>` 会把原始 Ctrl+L 字节转发给终端，用于重绘 Codex 或 Claude Code
 TUI。
 
+Nvim 内的 Codex 会使用 `--no-alt-screen`，让已完成的聊天输出进入 wrapper 的
+tmux history。使用默认 wrapper 时保持 terminal-input 状态，以鼠标滚轮或
+`<PageUp>` 进入 tmux copy-mode；用滚轮或 `<PageDown>` 向下查看，按 `q` 或
+`<Esc>` 返回 Codex 输入。如果已经处于 terminal-Normal mode，同样的滚动键
+会转发给 tmux，并自动恢复 terminal input。使用 `CODEX_WRAP_TMUX=0` 时，
+则先按 `<Esc><Esc>`，再使用 Nvim 的普通滚动命令。
+
 #### AI provider 选择
 
 每个 Nvim 进程在启动时选择一个 provider，默认仍是 Claude；Native 与

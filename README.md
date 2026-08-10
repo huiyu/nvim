@@ -359,6 +359,15 @@ original Ctrl shortcuts; use Backspace for delete-backward, `<S-Enter>` for a
 composer newline, and arrow keys in pickers. `<C-S-l>` forwards the original
 Ctrl+L byte to redraw either the Codex or Claude Code TUI.
 
+Codex runs with `--no-alt-screen` inside Nvim so completed chat output enters
+the wrapper tmux history. With the default wrapper, stay in terminal-input mode
+and use the mouse wheel or `<PageUp>` to enter tmux copy-mode; scroll down with
+the wheel or `<PageDown>`, then press `q` or `<Esc>` to return to Codex input.
+If already in terminal-Normal mode, the same scroll keys are forwarded to tmux
+and restore terminal input automatically.
+With `CODEX_WRAP_TMUX=0`, use `<Esc><Esc>` and Nvim's normal scroll commands
+instead.
+
 #### AI provider selection
 
 One Nvim process selects one provider at startup. Claude remains the default;
