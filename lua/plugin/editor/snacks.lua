@@ -79,7 +79,45 @@ local search_exclude = {
   "dist",
 }
 
-local ai = require("ai.config")
+-- Dashboard banner pool. One is drawn at random per Nvim start.
+-- Keep entries single-line; cowsay wraps them (see `cowsay_quote` below).
+local quotes = {
+  "Talk is cheap. Show me the code.  -- Linus Torvalds",
+  "Make it work, make it right, make it fast.  -- Kent Beck",
+  "Premature optimization is the root of all evil.  -- Donald Knuth",
+  "There are only two hard things in CS: cache invalidation and naming things.",
+  "Programs must be written for people to read, and only incidentally for machines to execute.  -- SICP",
+  "Any fool can write code a computer understands. Good programmers write code humans understand.  -- Martin Fowler",
+  "Always code as if the person maintaining it is a violent psychopath who knows where you live.  -- John Woods",
+  "First, solve the problem. Then, write the code.",
+  "Simplicity is the soul of efficiency.  -- Austin Freeman",
+  "Deleted code is debugged code.  -- Jeff Sickel",
+  "The best code is no code at all.",
+  "Documentation is a love letter to your future self.  -- Damian Conway",
+  "Weeks of coding can save you hours of planning.",
+  "Debugging: being the detective in a crime movie where you are also the murderer.",
+  "It's not a bug, it's an undocumented feature.",
+  "It works on my machine.",
+  "99 little bugs in the code. Take one down, patch it around: 127 little bugs in the code.",
+  "// TODO: clean this up properly. Committed 2019.",
+  "There is no cloud, it's just someone else's computer.",
+  "One does not simply merge into main on a Friday.",
+  "git commit -m 'minor fix'   # 47 files changed",
+  "Real programmers count from zero.",
+  "Rest in peace, my beautiful one-liner. You have been refactored.",
+  "The code works and nobody knows why. The code fails and nobody knows why.",
+}
+
+-- The lolcat pipe needs a shell, so the quote is escaped instead of passed as
+-- argv. `-W 36` caps the bubble at 38 columns, which keeps it inside the
+-- 64-column pane once the section centers the roughly 39-column output.
+-- LuaJIT's math.random is deterministic until seeded, so hrtime seeds it —
+-- otherwise every session would greet you with the same quote.
+local function cowsay_quote()
+  math.randomseed(vim.uv.hrtime())
+  local quote = quotes[math.random(#quotes)]
+  return ("cowsay -W 36 %s | lolcat -f"):format(vim.fn.shellescape(quote))
+end
 
 -- The `square` colorscript from shell-color-scripts, inlined so the dashboard
 -- banner needs no external binary. Each group is a 7-cell block drawn with the
@@ -336,16 +374,14 @@ return {
     },
     dashboard = {
       enabled = true,
-      -- Shared by every pane (snacks has no per-pane width). The floor is set by
-      -- the 58-column square banner in pane 2; two panes need 2*width+4 columns.
-      width = 60,
+      -- Snacks has one shared pane width rather than per-pane widths, so both
+      -- columns deliberately use the same geometry and content indentation.
+      width = 64,
       preset = {
         keys = {
           { icon = "󰈞 ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
           { icon = "󰊄 ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
           { icon = "󰋚 ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
-          { icon = "󰚩 ", key = "a", desc = ai.label, action = ":lua require('ai').toggle()" },
-          { icon = "󱉭 ", key = "p", desc = "Projects", action = ":lua Snacks.picker.projects()" },
           { icon = "󰙅 ", key = "e", desc = "Explorer", action = ":lua Snacks.explorer({hidden=true, layout={preset='default'}, auto_close=true, focus='list'})" },
           { icon = "󰒓 ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
           { icon = "󰒲 ", key = "l", desc = "Lazy", action = ":Lazy" },
@@ -361,15 +397,16 @@ return {
         -- Left pane (pane 1): cowsay banner (rainbow via lolcat) + keys
         {
           section = "terminal",
-          cmd = "cowsay 'Talk is cheap, show me the code.' | lolcat -f",
+          cmd = cowsay_quote(),
           padding = 1,
-          indent = 18,
+          -- The cow is much narrower than the color banner, so center it
+          -- independently instead of treating its indent as content padding.
+          indent = 12,
           enabled = vim.fn.executable("cowsay") == 1 and vim.fn.executable("lolcat") == 1,
         },
-        -- `indent` is the only lever that tightens the desc->key gap: the key
-        -- column is always right-aligned to `opts.width`, so indenting shrinks
-        -- the flexible desc block instead of stretching it across the pane.
-        { section = "keys",   gap = 1, padding = 1, indent = 14 },
+        -- Both panes use the same three-column content inset. Decorative
+        -- banners above are centered independently according to their width.
+        { section = "keys",   gap = 1, padding = 1, indent = 3 },
 
         -- Right pane (pane 2): color squares + gh + git status
         {
@@ -378,8 +415,8 @@ return {
           cmd = color_squares(),
           height = 3,
           padding = 2,
-          -- Art is 58 columns wide; centers it in the 60-column pane.
-          indent = 1,
+          -- Art is 58 columns wide; centers it in the 64-column pane.
+          indent = 3,
         },
         function()
           -- Snacks.git.get_root() returns non-nil inside bare-repo controller dirs
