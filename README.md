@@ -321,7 +321,7 @@ Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff
 |-----|--------|
 | `<tab>` / `<s-tab>` | Next / previous file's diff |
 | `[F` / `]F` | First / last file |
-| `<leader>e` / `<leader>b` | Focus / toggle the file panel |
+| `\e` / `\b` (`<localleader>`) | Focus / toggle the file panel |
 | `gf` | Open the file in the previous tabpage |
 | `<C-w><C-f>` / `<C-w>gf` | Open the file in a split / new tab |
 | `g<C-x>` | Cycle diff layout |
@@ -330,11 +330,11 @@ Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff
 | `i` / `f` | (file panel) toggle list/tree, flatten empty dirs |
 | `L` | (file panel) open commit log |
 | `[x` / `]x` | Previous / next merge conflict |
-| `<leader>c{o,t,b,a}` | Resolve conflict: ours / theirs / base / all (uppercase = whole file) |
+| `\c{o,t,b,a}` | Resolve conflict: ours / theirs / base / all (uppercase = whole file) |
 | `dx` | Delete the conflict region |
 | `y` | (file history) copy the commit hash |
 
-**Disabled inside Diffview:** the file/buffer openers `<leader>f`, `<leader><space>`, `<leader>.`, `<leader>/`, `<leader>,` are neutralized in diff buffers — they would load a file into a diff window and break the layout, so they show a hint instead (exit with `<leader>gq` first). `<leader>b/e/c*` intentionally keep diffview's own actions rather than the global Buffer/Explorer/Code groups. Configured in `lua/plugin/vcs/diffview.lua`.
+**Inside Diffview, `<leader>` keeps its global meaning** — the Buffer, Explorer, and Code groups work exactly as the which-key popup advertises, and diffview's own view-local actions live on `<localleader>` (`\`) instead. The one exception: the file/buffer openers `<leader>f`, `<leader><space>`, `<leader>.`, `<leader>/`, `<leader>,` would load a file into a diff window and break the layout, so they are neutralized (with `nowait`, so a fast `<leader>ff` can't slip through) and show a hint instead (exit with `<leader>gq` first). Configured in `lua/plugin/vcs/diffview.lua`.
 
 #### Yanky (Enhanced Yank/Paste)
 

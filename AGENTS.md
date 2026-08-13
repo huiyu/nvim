@@ -48,6 +48,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   matches the feature's first use.
 - Keep mappings discoverable with a `desc` and within the existing leader group.
   Do not force-delete ordinary buffers from terminal-specific mappings.
+- `<leader>` carries global semantics only, so which-key popups stay truthful
+  everywhere. Buffer-local leader maps may add keys inside an existing group
+  (e.g. `<leader>cR` for gopls) but never repurpose an existing key. View-local
+  actions use single letters in panel buffers (quickfix, aerial, neotest) and
+  `<localleader>` in real file-editing contexts (diffview windows, VimTeX).
+  Only layout-fragile multi-window views (currently diffview) block the global
+  file openers, with `nowait` and a visible disabled hint.
 - Window commands should normally affect the current tab only. Be deliberate
   before using global APIs such as `nvim_list_wins()`.
 - Neovim's built-in `gc`/`gcc` commenting is the default; do not reintroduce a

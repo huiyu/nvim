@@ -53,14 +53,16 @@ return {
   },
   opts = {},
   config = function(_, opts)
+    local actions = require("diffview.actions")
+
     -- Keys that only make sense in the normal editing layout: each loads a file
     -- or buffer into the current window, which would clobber a diff window and
     -- break the layout. Neutralize them inside every diffview buffer so muscle
     -- memory can't wreck the view. The diff content windows are real file
     -- buffers, so diffview's own keymap hook is the only place these
-    -- buffer-local overrides can land. `<leader>b/e/c*` are intentionally left
-    -- untouched: diffview's toggle_files / focus_files / conflict-resolution are
-    -- more useful here than the global Buffer/Explorer/Code groups they shadow.
+    -- buffer-local overrides can land. `nowait` makes the override fire
+    -- immediately — without it Vim keeps waiting for the longer global maps,
+    -- so a fast `<leader>ff` would still reach the picker and break the view.
     local function blocked(key)
       return function()
         vim.notify(
@@ -72,15 +74,89 @@ return {
     end
     local blocks = {}
     for _, key in ipairs({ "<leader>f", "<leader><space>", "<leader>.", "<leader>/", "<leader>," }) do
-      blocks[#blocks + 1] = { "n", key, blocked(key), { desc = "Disabled in Diffview" } }
+      blocks[#blocks + 1] = { "n", key, blocked(key), { desc = "Disabled in Diffview", nowait = true } }
     end
+
+    -- <leader> keeps its global meaning everywhere (Buffer/Explorer/Code, as
+    -- the which-key popup advertises); diffview's view-local actions live on
+    -- <localleader> instead, per Vim convention. Drop the plugin's <leader>
+    -- defaults and re-add the same actions under <localleader>.
+    local dropped = {}
+    for _, lhs in ipairs({
+      "<leader>e", "<leader>b",
+      "<leader>co", "<leader>ct", "<leader>cb", "<leader>ca",
+      "<leader>cO", "<leader>cT", "<leader>cB", "<leader>cA",
+    }) do
+      dropped[#dropped + 1] = { "n", lhs, false } -- falsy rhs deletes the default
+    end
+
+    local panel = {
+      { "n", "<localleader>e", actions.focus_files,  { desc = "Focus the file panel" } },
+      { "n", "<localleader>b", actions.toggle_files, { desc = "Toggle the file panel" } },
+    }
+    local conflict_hunk = {
+      { "n", "<localleader>co", actions.conflict_choose("ours"),   { desc = "Conflict: choose OURS" } },
+      { "n", "<localleader>ct", actions.conflict_choose("theirs"), { desc = "Conflict: choose THEIRS" } },
+      { "n", "<localleader>cb", actions.conflict_choose("base"),   { desc = "Conflict: choose BASE" } },
+      { "n", "<localleader>ca", actions.conflict_choose("all"),    { desc = "Conflict: choose all" } },
+    }
+    local conflict_file = {
+      { "n", "<localleader>cO", actions.conflict_choose_all("ours"),   { desc = "Conflict (whole file): choose OURS" } },
+      { "n", "<localleader>cT", actions.conflict_choose_all("theirs"), { desc = "Conflict (whole file): choose THEIRS" } },
+      { "n", "<localleader>cB", actions.conflict_choose_all("base"),   { desc = "Conflict (whole file): choose BASE" } },
+      { "n", "<localleader>cA", actions.conflict_choose_all("all"),    { desc = "Conflict (whole file): choose all" } },
+    }
+
+    local function join(...)
+      local out = {}
+      for _, list in ipairs({ ... }) do
+        vim.list_extend(out, list)
+      end
+      return out
+    end
+
     opts.keymaps = {
-      view = blocks,
-      file_panel = blocks,
-      file_history_panel = blocks,
+      view = join(blocks, dropped, panel, conflict_hunk, conflict_file),
+      file_panel = join(blocks, dropped, panel, conflict_file),
+      file_history_panel = join(blocks, dropped, panel),
     }
 
     require("diffview").setup(opts)
+
+    -- Give the <localleader>c prefix a "Conflict" which-key group label where
+    -- conflict maps actually exist (it would otherwise show as an unnamed
+    -- prefix). Buffer-local, so VimTeX's <localleader> maps in tex buffers
+    -- stay untouched; the keymap check keeps a mislabeled buffer impossible
+    -- even if the event fires with an unexpected buffer current. pcall:
+    -- cosmetic only, must not break the view if which-key is absent.
+    -- Scheduled: both events can fire before diffview has applied its
+    -- buffer-local keymaps, and the guard below needs to see them.
+    local function label_conflict_group(buf)
+      if not vim.api.nvim_buf_is_valid(buf) then return end
+      for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+        if m.lhs == "\\co" or m.lhs == "\\cO" then
+          pcall(function()
+            require("which-key").add({
+              { "<localleader>c", group = "Conflict", mode = "n", buffer = buf },
+            })
+          end)
+          return
+        end
+      end
+    end
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = "DiffviewFiles",
+      callback = function(ev)
+        vim.schedule(function() label_conflict_group(ev.buf) end)
+      end,
+    })
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "DiffviewDiffBufWinEnter",
+      callback = function()
+        local buf = vim.api.nvim_get_current_buf()
+        vim.schedule(function() label_conflict_group(buf) end)
+      end,
+    })
 
     -- A diffview:// buffer closed by ANY means (mapped key, manual :bd/:bw, Lua
     -- API) means the user wants out of the diff — tear the whole view down via
