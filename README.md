@@ -254,6 +254,7 @@ Press any prefix and wait for which-key popup to see available keys.
 | `<Esc>` | Clear search highlight |
 | `<C-/>` | Toggle terminal |
 | `<C-h/j/k/l>` | Window navigation (Normal + terminal input) |
+| `<C-\>` | Go to the editor window; press again to return (Normal + terminal input) |
 | `<C-S-l>` | Redraw the active TUI (terminal input) |
 | `<C-Up/Down/Left/Right>` | Window resize |
 | `<A-j>` / `<A-k>` | Move line up/down (n, i, v) |
@@ -358,6 +359,14 @@ can move directly between editor and terminal windows. This replaces the TUI's
 original Ctrl shortcuts; use Backspace for delete-backward, `<S-Enter>` for a
 composer newline, and arrow keys in pickers. `<C-S-l>` forwards the original
 Ctrl+L byte to redraw either the Codex or Claude Code TUI.
+
+`<C-\>` is owned by Neovim in the same two modes and jumps straight to the
+editor window, so a tree-plus-agent layout no longer needs three `<C-h>` hops to
+cross back to the middle. Pressing it again from the editor returns to the
+window it came from. It targets the widest normal file window, or the one the
+cursor last sat in when several are open, and the dashboard counts as an editor
+window. This shadows terminal-mode `<C-\><C-n>`; use `jk` or `<Esc><Esc>` to
+reach terminal-Normal mode.
 
 Codex runs with `--no-alt-screen` inside Nvim so completed chat output enters
 the wrapper tmux history. With the default wrapper, stay in terminal-input mode

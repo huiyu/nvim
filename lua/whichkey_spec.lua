@@ -81,6 +81,7 @@ local spec = {
       "  <C-q>            Close terminal (in term mode)",
       "  <C-s>            Save file (all modes)",
       "  <C-h/j/k/l>     Window navigation",
+      "  <C-\\>            Editor window (toggle back)",
       "  <C-S-l>          Redraw TUI (terminal mode)",
       "  <C-Up/Down/L/R>  Window resize",
       "  <C-a> / <C-x>   Increment / Decrement",

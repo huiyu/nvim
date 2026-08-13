@@ -249,6 +249,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | `<Esc>` | 清除搜索高亮 |
 | `<C-/>` | 切换终端 |
 | `<C-h/j/k/l>` | 窗口导航（Normal + terminal input） |
+| `<C-\>` | 跳到编辑器窗口，再按一次跳回（Normal + terminal input） |
 | `<C-S-l>` | 重绘当前 TUI（terminal input） |
 | `<C-Up/Down/Left/Right>` | 窗口大小调整 |
 | `<A-j>` / `<A-k>` | 移动行（n, i, v） |
@@ -328,6 +329,12 @@ Neovim 在 Normal 和 terminal-input 模式下都会接管 `<C-h/j/k/l>`，因�
 可用 Backspace，输入换行可用 `<S-Enter>`，picker 导航可用方向键。
 `<C-S-l>` 会把原始 Ctrl+L 字节转发给终端，用于重绘 Codex 或 Claude Code
 TUI。
+
+`<C-\>` 同样在这两种模式下由 Neovim 接管，一次按键直达编辑器窗口，因此
+「文件树 + agent 面板」布局不再需要连按三次 `<C-h>` 才能回到中间。在编辑器
+里再按一次会跳回来源窗口。目标取最宽的普通文件窗口；有多个时取光标最近停留
+过的那个，dashboard 也算编辑器窗口。该映射会遮蔽 terminal-mode 的
+`<C-\><C-n>`，请用 `jk` 或 `<Esc><Esc>` 进入 terminal-Normal 模式。
 
 Nvim 内的 Codex 会使用 `--no-alt-screen`，让已完成的聊天输出进入 wrapper 的
 tmux history。使用默认 wrapper 时保持 terminal-input 状态，以鼠标滚轮或

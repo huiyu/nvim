@@ -110,6 +110,99 @@ function M.restore_fixed_panels()
   end
 end
 
+--- Filetypes that occupy the editor area without holding a real file buffer.
+--- The dashboard qualifies: on a fresh session it is the only thing in the
+--- editing area, so it has to be reachable as a jump target.
+local EDITOR_FILETYPES = { 'snacks_dashboard' }
+
+--- A window counts as "the editor" when it shows a normal file buffer.
+--- Sidebars, terminals, pickers, quickfix, and help all carry a non-empty
+--- buftype, which excludes them without needing a filetype denylist.
+local function is_editor_win(win)
+  if not vim.api.nvim_win_is_valid(win) then return false end
+  if vim.api.nvim_win_get_config(win).relative ~= "" then return false end
+  local buf = vim.api.nvim_win_get_buf(win)
+  if vim.bo[buf].buftype == "" then return true end
+  return vim.list_contains(EDITOR_FILETYPES, vim.bo[buf].filetype)
+end
+
+--- Pick the editor window to jump into, scoped to the current tab.
+local function pick_editor_win()
+  local wins = {}
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if is_editor_win(win) then wins[#wins + 1] = win end
+  end
+  if #wins == 0 then return nil end
+
+  -- Prefer the editor window the cursor last sat in: with two files split
+  -- side by side, "go to the editor" means the one you were just working in.
+  local last = vim.t.editor_win_last
+  if last and vim.list_contains(wins, last) then return last end
+
+  -- No usable record, so fall back to the widest window, which is what reads
+  -- visually as the main editing area.
+  local best, best_width = wins[1], vim.api.nvim_win_get_width(wins[1])
+  for _, win in ipairs(wins) do
+    local width = vim.api.nvim_win_get_width(win)
+    if width > best_width then
+      best, best_width = win, width
+    end
+  end
+  return best
+end
+
+--- Returns win if it is still a usable jump target in the current tab.
+local function resolve_win(win)
+  if not win or not vim.api.nvim_win_is_valid(win) then return nil end
+  if not vim.list_contains(vim.api.nvim_tabpage_list_wins(0), win) then return nil end
+  return win
+end
+
+--- Record the current window when it is an editor window.
+--- Driven by a WinLeave autocmd, where the window's buffer has settled, so
+--- focus_editor returns to the file the cursor actually left rather than a
+--- fixed position in the layout.
+function M.track_editor_win()
+  local win = vim.api.nvim_get_current_win()
+  if is_editor_win(win) then
+    vim.t.editor_win_last = win
+  end
+end
+
+--- Jump to the editor area from anywhere, and back again.
+--- A layout with a file tree on one side and a terminal or agent panel on the
+--- other needs up to three <C-h>/<C-l> hops to cross back to the middle; this
+--- collapses that into one key. Pressing it inside the editor returns to the
+--- window it came from, so the same key travels in both directions.
+function M.focus_editor()
+  local cur = vim.api.nvim_get_current_win()
+
+  if is_editor_win(cur) then
+    local origin = resolve_win(vim.t.editor_win_origin)
+    if origin == cur then origin = nil end
+    -- Nothing recorded yet (the key was first pressed inside the editor), so
+    -- behave like <leader>ww and hand focus to the previous window.
+    if not origin then
+      local prev = resolve_win(vim.fn.win_getid(vim.fn.winnr('#')))
+      if prev ~= cur then origin = prev end
+    end
+    if origin then
+      vim.api.nvim_set_current_win(origin)
+    else
+      vim.notify('No window to jump back to', vim.log.levels.INFO)
+    end
+    return
+  end
+
+  local target = pick_editor_win()
+  if not target then
+    vim.notify('No editor window in this tab', vim.log.levels.WARN)
+    return
+  end
+  vim.t.editor_win_origin = cur
+  vim.api.nvim_set_current_win(target)
+end
+
 --- Equalize window sizes while preserving winfixwidth/winfixheight windows.
 --- Runs wincmd = then restores fixed panels to their target sizes.
 --- Use on VimResized to redistribute editor space proportionally.

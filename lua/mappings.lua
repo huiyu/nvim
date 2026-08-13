@@ -115,6 +115,17 @@ for _, nav in ipairs({
   end, { desc = desc, expr = true, silent = true })
 end
 
+-- <C-\> reaches the editor area in one press. With a file tree on one side and
+-- a terminal or agent panel on the other, <C-h>/<C-l> need up to three hops to
+-- cross back to the middle. Pressing it inside the editor returns to the window
+-- it came from, so one key travels both ways.
+-- Mapping <C-\> in Terminal-mode shadows the built-in <C-\><C-n>; `jk` and
+-- <Esc><Esc> above already cover leaving terminal input mode.
+vim.keymap.set("n", "<C-\\>", "<cmd>WindowFocusEditor<cr>",
+  { desc = "Go to editor window", silent = true })
+vim.keymap.set("t", "<C-\\>", "<C-\\><C-n><cmd>WindowFocusEditor<cr>",
+  { desc = "Go to editor window", silent = true })
+
 -- Window resize (Ctrl+arrows)
 vim.keymap.set("n", "<C-Up>", "<cmd>resize +2<cr>", { desc = "Increase window height" })
 vim.keymap.set("n", "<C-Down>", "<cmd>resize -2<cr>", { desc = "Decrease window height" })

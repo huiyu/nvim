@@ -125,6 +125,21 @@ local window = require("util.window")
 -- Window operations (via autocmds)
 -- :WindowCloseOthers  - Close eligible splits in the current tab only
 -- :WindowCloseCurrent - Close current window
+-- :WindowFocusEditor  - Jump to the editor window in the current tab; press
+--                       again from the editor to return to the origin window.
+--                       Bound to <C-\> in Normal and terminal-input mode.
+
+-- Jump to the editor area, or back to where the jump started. An editor window
+-- is a non-floating window in the current tab whose buffer has an empty
+-- buftype, plus the dashboard. With several open, the one the cursor last left
+-- wins, otherwise the widest. Notifies instead of moving when there is no
+-- target. Backs :WindowFocusEditor.
+window.focus_editor()
+
+-- Record the current window as the last editor window when it qualifies.
+-- Driven by a WinLeave autocmd (not WinEnter: a fresh `split` still shows a
+-- file buffer when WinEnter fires and only becomes a terminal afterwards).
+window.track_editor_win()
 ```
 
 ## Terminal (`util.terminal`)

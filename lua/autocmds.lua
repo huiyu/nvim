@@ -22,6 +22,24 @@ cmd("WindowCloseCurrent", function()
   require("util.window").close_current()
 end, { desc = "Close current window" })
 
+-- Reach the editor area in one press from a sidebar or terminal, and return
+-- to the window it came from on a second press
+cmd("WindowFocusEditor", function()
+  require("util.window").focus_editor()
+end, { desc = "Focus editor window (toggle back)" })
+
+-- Track the editor window the cursor last occupied so WindowFocusEditor lands
+-- on the file being worked on instead of a fixed slot in the layout.
+-- WinLeave, not WinEnter: a window opened by `split` still shows a file buffer
+-- when WinEnter fires and only becomes a terminal or sidebar afterwards, which
+-- would record a window that is not an editor window at all.
+autocmd("WinLeave", {
+  group = augroup("track_editor_win", { clear = true }),
+  callback = function()
+    require("util.window").track_editor_win()
+  end,
+})
+
 -- Optimize terminal buffer settings for TUI apps (for example coding agents)
 -- Disables line numbers and scrolloff to prevent rendering glitches
 autocmd("TermOpen", {
