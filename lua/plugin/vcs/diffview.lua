@@ -133,8 +133,12 @@ return {
     -- buffer-local keymaps, and the guard below needs to see them.
     local function label_conflict_group(buf)
       if not vim.api.nvim_buf_is_valid(buf) then return end
+      -- nvim_buf_get_keymap reports lhs with the leader already expanded, so
+      -- build the probe from maplocalleader instead of assuming it is `\`.
+      -- Nvim's own default applies when the variable is unset.
+      local ll = vim.g.maplocalleader or "\\"
       for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
-        if m.lhs == "\\co" or m.lhs == "\\cO" then
+        if m.lhs == ll .. "co" or m.lhs == ll .. "cO" then
           pcall(function()
             require("which-key").add({
               { "<localleader>c", group = "Conflict", mode = "n", buffer = buf },
