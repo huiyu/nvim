@@ -181,10 +181,81 @@ end
 -- terminal's identity from cmd/cwd/env/count only (`M.tid` in
 -- snacks/terminal.lua); `opts.id` is accepted by the caller and never read, so
 -- passing distinct name strings silently returns one shared terminal.
----Which terminal an unnumbered toggle last acted on, so closing terminal 3 and
----reopening returns to terminal 3 rather than starting over at 1.
+---Which terminal was last acted on, so <C-/> after closing terminal 3 comes
+---back to terminal 3 rather than starting over at 1.
 local last_id = nil
 
+-- Floats stack, so showing a second terminal leaves the first sitting behind it.
+-- Closing the top one then reveals the other, which reads as jumping between
+-- terminals rather than dismissing the one in front of you. Docked terminals do
+-- not need this: edgy already gives them one shared slot.
+---@param keep integer the terminal that is about to be shown
+local function hide_other_floats(keep)
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    local info = vim.bo[buf].buftype == "terminal" and vim.b[buf].snacks_terminal
+    if
+      info
+      and info.id
+      and info.id ~= keep
+      and vim.api.nvim_win_get_config(win).relative ~= ""
+      and not M.is_agent_buf(buf)
+    then
+      local other = Snacks.terminal.get(nil, { count = info.id, create = false })
+      if other and other:win_valid() then other:hide() end
+    end
+  end
+end
+
+---@param count integer
+---@return table win options for this terminal in the configured shape
+local function win_opts_for(count)
+  local floating = M.floats()
+  local opts = vim.deepcopy(SHAPES[floating and "float" or "bottom"])
+  if floating then
+    opts.title = float_title(count)
+  end
+  return opts
+end
+
+-- Repair the agent pane after a docked terminal reshuffles the layout (issue
+-- #2). Only on open -- close reshuffles too, but the flash isn't worth it. The
+-- `defer_fn(..., 0)` lets Snacks' reflow and edgy's autocmd cascade finish
+-- first; non-zero delays just add visible flicker. Floats never reflow the
+-- window tree, so they need no repair.
+---@param before integer terminal-window count before the operation
+local function repair_agent_after_dock(before)
+  if M.floats() then return end
+  vim.defer_fn(function()
+    if count_term_wins() > before then
+      local agent_win = find_agent_win()
+      if agent_win then M.fix_drift(agent_win) end
+    end
+  end, 0)
+end
+
+---Show terminal `count` and put the cursor in it. Never closes anything.
+---
+---This is what <leader>t1..t9 do. They are for choosing *which* terminal you are
+---looking at, so pressing the number of the terminal you are already in has to
+---leave it open -- closing is <C-/>'s single job.
+---@param count integer
+function M.focus(count)
+  last_id = count
+
+  local before = count_term_wins()
+  hide_other_floats(count)
+
+  local term = Snacks.terminal.get(nil, { count = count, win = win_opts_for(count) })
+  if term then
+    if not term:win_valid() then term:show() end
+    if term:win_valid() then vim.api.nvim_set_current_win(term.win) end
+  end
+
+  repair_agent_after_dock(before)
+end
+
+---Open or close a terminal -- the only thing that closes one.
 ---@param count integer? which terminal; nil resolves to the current one, an
 ---explicit v:count, or the one you were last in
 function M.toggle(count)
@@ -206,50 +277,15 @@ function M.toggle(count)
     end
   end
 
-  last_id = count or vim.v.count1
+  count = count or vim.v.count1
+  last_id = count
 
-  local floating = M.floats()
   local before = count_term_wins()
+  hide_other_floats(count)
 
-  -- Floats stack, so opening a second terminal leaves the first sitting behind
-  -- it. Closing the top one then reveals the other, which reads as jumping
-  -- between terminals rather than dismissing the one in front of you. Docked
-  -- terminals do not need this -- edgy already gives them one shared slot.
-  if floating then
-    local target = count or vim.v.count1
-    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-      local buf = vim.api.nvim_win_get_buf(win)
-      local info = vim.bo[buf].buftype == "terminal" and vim.b[buf].snacks_terminal
-      if
-        info
-        and info.id
-        and info.id ~= target
-        and vim.api.nvim_win_get_config(win).relative ~= ""
-        and not M.is_agent_buf(buf)
-      then
-        local other = Snacks.terminal.get(nil, { count = info.id, create = false })
-        if other and other:win_valid() then other:hide() end
-      end
-    end
-  end
+  Snacks.terminal(nil, { count = count, win = win_opts_for(count) })
 
-  local win_opts = vim.deepcopy(SHAPES[floating and "float" or "bottom"])
-  if floating then
-    -- Snacks resolves an absent count to v:count1, so resolve it the same way
-    -- here or the title would disagree with the terminal it labels.
-    win_opts.title = float_title(count or vim.v.count1)
-  end
-
-  Snacks.terminal(nil, { count = count, win = win_opts })
-
-  if floating then return end
-
-  vim.defer_fn(function()
-    if count_term_wins() > before then
-      local agent_win = find_agent_win()
-      if agent_win then M.fix_drift(agent_win) end
-    end
-  end, 0)
+  repair_agent_after_dock(before)
 end
 
 return M

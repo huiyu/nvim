@@ -93,6 +93,27 @@ term.toggle(2)
 t.eq(current_id(), 2, "an explicit count overrides the remembered terminal")
 term.toggle()
 
+-- <leader>t1..t9 pick which terminal you are looking at; they never close one.
+-- Pressing the number of the terminal you are already in used to dismiss it,
+-- which made the numbers a second, competing close key.
+term.focus(1)
+t.eq(current_id(), 1, "focus opens terminal 1")
+term.focus(1)
+t.eq(current_id(), 1, "focusing the terminal you are already in keeps it open")
+term.focus(1)
+t.eq(current_id(), 1, "and stays open however many times you press it")
+
+term.focus(2)
+t.eq(current_id(), 2, "focus switches to another terminal")
+t.eq(vim.fn.bufwinid(one), -1, "and puts the previous float away")
+
+-- Closing remains <C-/>'s single job, and it acts on whatever focus left you in.
+term.toggle()
+t.eq(current_id(), nil, "<C-/> is still the one thing that closes a terminal")
+term.toggle()
+t.eq(current_id(), 2, "and reopens the terminal focus last chose")
+term.toggle()
+
 -- A float has no tabline or statusline to say which terminal it is, and Snacks
 -- leaves float titles empty. Without the number they are indistinguishable.
 if term.floats() then
