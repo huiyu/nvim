@@ -1,0 +1,10 @@
+{"type":"ai-title","sessionId":"fixture","aiTitle":"Fixture session"}
+{"type":"user","timestamp":"2026-08-21T00:02:00.000Z","message":{"role":"user","content":"bare string content form"}}
+{"type":"user","timestamp":"2026-08-21T00:02:10.000Z","message":{"role":"user","content":[{"type":"text","text":"block array content form"}]}}
+{"type":"attachment","timestamp":"2026-08-21T00:02:11.000Z","attachment":{"type":"selection","content":"skipped noise"}}
+{"type":"assistant","timestamp":"2026-08-21T00:02:20.000Z","message":{"role":"assistant","content":[{"type":"thinking","signature":"sig","thinking":"weighing the options"},{"type":"text","text":"here is the answer"},{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"gh issue list --state open"}}]}}
+{"type":"user","timestamp":"2026-08-21T00:02:30.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"13\tOPEN\tsomething"}]}}
+{"type":"system","timestamp":"2026-08-21T00:02:31.000Z","content":"skipped noise"}
+{"type":"file-history-snapshot","timestamp":"2026-08-21T00:02:32.000Z","messageId":"m1"}
+{"type":"assistant","timestamp":"2026-08-21T00:02:40.000Z","message":{"role":"assistant","content":[{"type":"text","text":"closing remark"}]}}
+{"type":"assistant","timestamp":"2026-08-21T00:02
