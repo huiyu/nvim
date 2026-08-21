@@ -114,6 +114,17 @@ term.toggle()
 t.eq(current_id(), 2, "and reopens the terminal focus last chose")
 term.toggle()
 
+-- A visible-but-unfocused terminal should be stepped into, not dismissed:
+-- closing a window you are not looking at is a surprise, and pressing again
+-- from inside it closes it anyway.
+term.focus(1)
+vim.cmd("topleft new")
+t.eq(vim.bo.buftype, "", "sitting in the editor with terminal 1 still showing")
+term.toggle()
+t.eq(current_id(), 1, "<C-/> steps into a visible terminal rather than closing it")
+term.toggle()
+t.eq(current_id(), nil, "pressing it again, now from inside, closes it")
+
 -- A float has no tabline or statusline to say which terminal it is, and Snacks
 -- leaves float titles empty. Without the number they are indistinguishable.
 if term.floats() then

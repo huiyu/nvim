@@ -278,6 +278,20 @@ function M.toggle(count)
   end
 
   count = count or vim.v.count1
+
+  -- Showing but not focused: go to it rather than close it. Dismissing a window
+  -- you are not looking at is a surprise, and pressing again -- now from inside
+  -- it -- closes it, so nothing is lost.
+  local existing = Snacks.terminal.get(nil, { count = count, create = false })
+  if
+    existing
+    and existing:win_valid()
+    and vim.api.nvim_get_current_win() ~= existing.win
+  then
+    M.focus(count)
+    return
+  end
+
   last_id = count
 
   local before = count_term_wins()
