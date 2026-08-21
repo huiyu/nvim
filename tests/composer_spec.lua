@@ -74,6 +74,24 @@ composer.open("seeded text")
 t.eq(vim.api.nvim_buf_get_lines(0, 0, -1, false), { "seeded text" }, "UC-6: seed lands in the buffer")
 close(true)
 
+-- The window must be escapable. <C-c> discards without sending, and it is
+-- bound in Normal mode only: Insert-mode <C-c> means "leave Insert" globally
+-- (lua/mappings.lua:61) and that meaning has to survive.
+composer.open()
+local escape_buf = vim.api.nvim_get_current_buf()
+vim.api.nvim_buf_set_lines(0, 0, -1, false, { "abandon this" })
+
+local normal_map = vim.fn.maparg("<C-c>", "n", false, true)
+t.eq(normal_map.buffer, 1, "<C-c> is bound buffer-locally in Normal mode")
+
+local insert_map = vim.fn.maparg("<C-c>", "i", false, true)
+t.eq(insert_map.buffer, 0, "<C-c> in Insert mode is still the global exit-insert map")
+
+t.ok(type(normal_map.callback) == "function", "<C-c> runs a callback")
+normal_map.callback()
+t.ok(not vim.api.nvim_buf_is_valid(escape_buf), "<C-c> closes the composer")
+t.eq(#sent, 1, "<C-c> sends nothing")
+
 -- UC-8: a failed send preserves the draft for recovery.
 fail_next = true
 composer.open()

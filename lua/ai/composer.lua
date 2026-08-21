@@ -126,6 +126,30 @@ function M.open(seed)
     callback = function() finish(buf) end,
   })
 
+  -- `:q` on a modified acwrite buffer raises E37, which protects a half-written
+  -- prompt but explains nothing. Say what the ways out actually are.
+  vim.api.nvim_create_autocmd("QuitPre", {
+    group = group,
+    buffer = buf,
+    callback = function()
+      if vim.bo[buf].modified then
+        vim.notify(
+          "Prompt not sent. :wq sends · :q! or <C-c> discards",
+          vim.log.levels.INFO
+        )
+      end
+    end,
+  })
+
+  -- Normal-mode only. <C-c> is globally bound in Insert mode to leave Insert
+  -- (lua/mappings.lua:61) and that meaning must survive here, so discarding
+  -- takes <C-c> twice from Insert: once to leave, once to close.
+  vim.keymap.set("n", "<C-c>", function()
+    vim.b[buf].ai_composer_submitted = nil
+    vim.bo[buf].modified = false
+    vim.api.nvim_buf_delete(buf, { force = false })
+  end, { buffer = buf, desc = "Discard prompt", silent = true, nowait = true })
+
   local width = math.min(100, math.floor(vim.o.columns * 0.8))
   local height = math.min(20, math.floor(vim.o.lines * 0.5))
   state.win = vim.api.nvim_open_win(buf, true, {
@@ -140,7 +164,7 @@ function M.open(seed)
     title_pos = "center",
   })
 
-  vim.wo[state.win].winbar = "  :wq send   ·   :q! discard   ·   empty discards"
+  vim.wo[state.win].winbar = "  :wq send   ·   <C-c> / :q! discard   ·   empty discards"
   vim.wo[state.win].wrap = true
   vim.wo[state.win].linebreak = true
 

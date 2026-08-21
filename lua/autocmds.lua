@@ -123,9 +123,16 @@ autocmd({
   group = augroup("checktime", { clear = true }),
   callback = function()
     -- Running checktime while the command line is open interrupts input.
-    if vim.fn.mode() ~= "c" then
-      vim.cmd("checktime")
-    end
+    if vim.fn.mode() == "c" then return end
+
+    -- The command-line window (`q:`) needs its own test: `:help cmdline.txt`
+    -- says "Vim will be in Normal mode when the editor is opened", so mode()
+    -- reports "n" there and the check above lets it through. `checktime` is
+    -- forbidden in that window, and with updatetime at 300ms an unguarded
+    -- CursorHold raises E11 several times a second.
+    if vim.fn.getcmdwintype() ~= "" then return end
+
+    vim.cmd("checktime")
   end,
 })
 
