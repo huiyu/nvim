@@ -98,13 +98,71 @@ t.ok(not vim.api.nvim_buf_is_valid(escape_buf), "<C-c> wipes the composer buffer
 t.ok(not vim.api.nvim_win_is_valid(escape_win), "<C-c> closes the composer window")
 t.eq(#sent, 1, "<C-c> sends nothing")
 
+-- Image attachment. The clipboard is real, so snapshot it and put it back.
+if vim.uv.os_uname().sysname == "Darwin" then
+  local clipboard = require("ai.clipboard")
+  local fixture = vim.fn.fnamemodify("tests/fixtures/pixel.png", ":p")
+
+  local saved_text
+  if not clipboard.has_image() then saved_text = vim.fn.getreg("+") end
+
+  local pcall_ok = pcall(function()
+    composer.open()
+    local img_buf = vim.api.nvim_get_current_buf()
+    t.ok(vim.fn.maparg("<C-v>", "i", false, true).buffer == 1,
+      "<C-v> attaches an image from Insert mode, matching the TUI's own key")
+
+    -- Nothing on the clipboard: must decline, not stage an empty file.
+    vim.fn.setreg("+", "just text")
+    vim.fn.maparg("<C-v>", "n", false, true).callback()
+    t.eq(vim.api.nvim_buf_get_lines(0, 0, -1, false), { "" },
+      "a text clipboard attaches nothing")
+
+    -- With an image: a placeholder appears and the file is staged.
+    clipboard.restore_image(fixture)
+    vim.fn.maparg("<C-v>", "n", false, true).callback()
+    local body = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
+    t.ok(body:find("[image 1]", 1, true) ~= nil, "an attached image leaves a placeholder")
+
+    sent = {}
+    vim.cmd("write")
+    close(true)
+    t.eq(#sent, 1, "a prompt with an image is sent")
+    t.ok(sent[1].opts.images ~= nil and #sent[1].opts.images == 1,
+      "the staged image path travels with the send")
+
+    -- Staging survives a yank, which is the whole reason for the temp file:
+    -- clipboard=unnamedplus would otherwise have overwritten the screenshot.
+    t.ok(vim.uv.fs_stat(sent[1].opts.images[1]) ~= nil,
+      "the staged image file exists at send time")
+    vim.fn.delete(sent[1].opts.images[1])
+
+    -- A discarded composer must not leave staged images behind.
+    clipboard.restore_image(fixture)
+    composer.open()
+    vim.fn.maparg("<C-v>", "n", false, true).callback()
+    local orphan = vim.fn.glob(clipboard.staging_dir() .. "/*.png", false, true)[1]
+    t.ok(orphan ~= nil, "discarding stages a file first")
+    composer.discard(vim.api.nvim_get_current_buf())
+    t.ok(orphan == nil or vim.uv.fs_stat(orphan) == nil,
+      "discarding cleans up its staged images")
+    t.ok(img_buf ~= nil, "image buffer was tracked")
+  end)
+
+  if saved_text then vim.fn.setreg("+", saved_text) end
+  vim.fn.delete(clipboard.staging_dir(), "rf")
+  t.ok(pcall_ok, "image attachment path did not raise")
+end
+
+sent = {}
+
 -- UC-8: a failed send preserves the draft for recovery.
 fail_next = true
 composer.open()
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { "precious draft" })
 vim.cmd("write")
 close(true)
-t.eq(#sent, 1, "UC-8: the failed send did not count as delivered")
+t.eq(#sent, 0, "UC-8: a failed send is not recorded as delivered")
 composer.open()
 t.eq(
   vim.api.nvim_buf_get_lines(0, 0, -1, false),

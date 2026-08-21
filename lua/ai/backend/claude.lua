@@ -32,7 +32,7 @@ local CHANNEL_READY_MS = 350
 -- Delivery is asynchronous on the start path, so failure is reported through
 -- `opts.on_error` rather than a return value.
 ---@param text string
----@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }
+---@param opts { submit?: boolean, focus?: boolean, images?: string[], on_error?: fun(reason: string) }
 function M.send_text(text, opts)
   opts = opts or {}
   local terminal = require("claudecode.terminal")
@@ -45,7 +45,7 @@ function M.send_text(text, opts)
     end
   end
 
-  local function deliver()
+  local function send_body()
     -- send_to_terminal already wraps multi-line text in bracketed paste and
     -- appends the submit CR, so the text must not be wrapped a second time.
     local ok = terminal.send_to_terminal(text, {
@@ -55,6 +55,29 @@ function M.send_text(text, opts)
     if not ok then
       fail("Claude terminal is not ready")
     end
+  end
+
+  local function deliver()
+    local images = opts.images or {}
+    if #images == 0 then
+      send_body()
+      return
+    end
+
+    -- Images have to reach Claude through its own paste path (ctrl+v is bound
+    -- to "chat:imagePaste"), because there is no way to put image bytes into
+    -- the request from here. Attach first, then the text.
+    local bufnr = terminal.get_active_terminal_bufnr()
+    local channel = bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].channel
+    if not channel or channel <= 0 then
+      send_body()
+      return
+    end
+
+    require("ai.clipboard").attach(channel, images, function()
+      for _, path in ipairs(images) do vim.fn.delete(path) end
+      send_body()
+    end)
   end
 
   local bufnr = terminal.get_active_terminal_bufnr()

@@ -32,7 +32,48 @@ end
 -- the text would simply be lost (UC-8).
 local orphaned_draft = nil
 
-local state = { buf = nil, win = nil }
+local state = { buf = nil, win = nil, images = {} }
+
+-- Stage a clipboard image and mark it in the buffer.
+--
+-- The image cannot live in the buffer, so what goes in is a placeholder and what
+-- goes to the agent is the image itself, replayed through the TUI's own paste
+-- mechanism at send time. Staging to a file immediately is required rather than
+-- tidy: `clipboard = "unnamedplus"` means the next yank in this buffer would
+-- otherwise overwrite the screenshot the user just pasted.
+local function paste_image(buf)
+  local clipboard = require("ai.clipboard")
+
+  if not clipboard.has_image() then
+    vim.notify("No image on the clipboard", vim.log.levels.INFO)
+    return
+  end
+
+  local index = #state.images + 1
+  local path = ("%s/%d-%d.png"):format(clipboard.staging_dir(), buf, index)
+
+  local ok, err = clipboard.save_image(path)
+  if not ok then
+    vim.notify(("Could not stage the image: %s"):format(err), vim.log.levels.WARN)
+    return
+  end
+
+  state.images[index] = path
+
+  local marker = ("[image %d]"):format(index)
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local line = vim.api.nvim_get_current_line()
+  if vim.trim(line) == "" then
+    vim.api.nvim_set_current_line(marker)
+  else
+    vim.api.nvim_buf_set_lines(buf, row, row, false, { marker })
+    vim.api.nvim_win_set_cursor(0, { row + 1, #marker })
+  end
+  vim.bo[buf].modified = true
+
+  vim.notify(("Image %d attached"):format(index), vim.log.levels.INFO)
+end
+
 
 local function is_open()
   return state.buf ~= nil and vim.api.nvim_buf_is_valid(state.buf)
@@ -46,11 +87,18 @@ local function finish(buf)
   local submitted = vim.b[buf] and vim.b[buf].ai_composer_submitted
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local text = table.concat(lines, "\n")
+  local images = state.images
 
-  state.buf, state.win = nil, nil
+  state.buf, state.win, state.images = nil, nil, {}
 
-  if not submitted then return end
-  if blank(text) then
+  if not submitted then
+    for _, path in ipairs(images) do vim.fn.delete(path) end
+    return
+  end
+
+  -- An image alone is a legitimate prompt, so blankness only aborts when there
+  -- is nothing attached either.
+  if blank(text) and #images == 0 then
     vim.notify("Empty prompt; nothing sent", vim.log.levels.INFO)
     return
   end
@@ -58,6 +106,7 @@ local function finish(buf)
   M._send(text, {
     submit = true,
     focus = true,
+    images = images,
     on_error = function(reason)
       orphaned_draft = text
       vim.notify(
@@ -178,6 +227,11 @@ function M.open(seed)
   vim.keymap.set("n", "<C-c>", function() M.discard(buf) end,
     { buffer = buf, desc = "Discard prompt", silent = true, nowait = true })
 
+  -- Same key the agent TUIs use for image paste, so the muscle memory carries
+  -- over. Bound in Insert mode too because that is where a prompt is written.
+  vim.keymap.set({ "n", "i" }, "<C-v>", function() paste_image(buf) end,
+    { buffer = buf, desc = "Attach clipboard image", silent = true })
+
   local width = math.min(100, math.floor(vim.o.columns * 0.8))
   local height = math.min(20, math.floor(vim.o.lines * 0.5))
   state.win = vim.api.nvim_open_win(buf, true, {
@@ -192,7 +246,8 @@ function M.open(seed)
     title_pos = "center",
   })
 
-  vim.wo[state.win].winbar = "  :wq send   ·   <C-c> / :q! discard   ·   empty discards"
+  vim.wo[state.win].winbar =
+    "  :wq send   ·   <C-v> attach image   ·   <C-c> / :q! discard"
   vim.wo[state.win].wrap = true
   vim.wo[state.win].linebreak = true
 

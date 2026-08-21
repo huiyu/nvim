@@ -257,10 +257,40 @@ end
 -- Provider-neutral entry point. The composer sends through this; `send` stays
 -- private because its `raw` option is a Codex-specific escape hatch.
 ---@param text string
----@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }
+---@param opts { submit?: boolean, focus?: boolean, images?: string[], on_error?: fun(reason: string) }
 function M.send_text(text, opts)
   opts = opts or {}
-  send(text, { submit = opts.submit ~= false, on_error = opts.on_error })
+
+  local function send_body()
+    send(text, { submit = opts.submit ~= false, on_error = opts.on_error })
+  end
+
+  local images = opts.images or {}
+  if #images == 0 then
+    send_body()
+    return
+  end
+
+  -- Images have to reach Codex through its own paste path -- "Paste an image
+  -- with Ctrl+V to attach it to your next message" -- because there is no way
+  -- to put image bytes into the request from here. Attach first, then the text:
+  -- the attachment rides along with whatever is submitted next.
+  local term = ensure()
+  vim.defer_fn(function()
+    if not term:buf_valid() then
+      send_body()
+      return
+    end
+    local channel = vim.bo[term.buf].channel
+    if not channel or channel <= 0 then
+      send_body()
+      return
+    end
+    require("ai.clipboard").attach(channel, images, function()
+      for _, path in ipairs(images) do vim.fn.delete(path) end
+      send_body()
+    end)
+  end, 350)
 end
 
 function M.select_model()
