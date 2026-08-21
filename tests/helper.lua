@@ -32,15 +32,19 @@ function M.eq(got, want, what)
   end
 end
 
--- `-c qa` runs even after `luafile` raises, so an uncaught error still exits 0
--- and a failing spec would look like a passing one. `cquit` is the only exit
--- that carries a status out of a headless session.
+-- Always exit through `cquit`, never by falling through to `-c qa`.
+--
+-- Two reasons. `cquit` is the only exit that carries a status out of a headless
+-- session, so a failing spec can be told from a passing one. And it quits
+-- unconditionally: specs leave modified scratch buffers behind, which make `:qa`
+-- raise E37 and then block forever waiting for a confirmation nobody can give.
 function M.done()
   if failures > 0 then
     print(("\n%d of %d assertions failed"):format(failures, total))
     vim.cmd("cquit 1")
   end
   print(("\n%d assertions passed"):format(total))
+  vim.cmd("cquit 0")
 end
 
 return M

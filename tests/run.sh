@@ -8,11 +8,22 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+# The spec is pcall'd rather than run by a bare `luafile`. A spec that *raises*
+# never reaches helper.done(), so without this wrapper its cquit never fires and
+# the run would exit 0 -- a crashed spec would read as a passing one.
+BOOTSTRAP='local ok, err = pcall(vim.cmd, "luafile " .. vim.env.SPEC)
+if not ok then
+  print("ERROR - " .. tostring(err))
+  vim.cmd("cquit 1")
+end'
+
 status=0
 for spec in tests/*_spec.lua; do
   [ -e "$spec" ] || continue
   printf '\n== %s\n' "$spec"
-  if ! nvim --headless -u init.lua -i NONE -c "luafile $spec" -c qa; then
+  # `qa!` is only a fallback for a spec that forgot helper.done(); the bang
+  # keeps a modified scratch buffer from stalling the run on E37.
+  if ! SPEC="$spec" nvim --headless -u init.lua -i NONE -c "lua $BOOTSTRAP" -c 'qa!'; then
     status=1
   fi
 done

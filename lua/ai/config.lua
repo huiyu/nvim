@@ -58,6 +58,18 @@ function M.is(provider)
   return M.provider == provider
 end
 
+-- The directory an agent session belongs to. Shared because three callers need
+-- the same answer: the backend picks the terminal's cwd, the selection helper
+-- makes paths relative to it, and the transcript adapters use it to find which
+-- recorded sessions belong to this project.
+---@param path string? a file path; "" or nil means "use the working directory"
+---@return string
+function M.project_root(path)
+  local start = (path and path ~= "") and vim.fs.dirname(path)
+    or (vim.uv.cwd() or vim.fn.getcwd())
+  return vim.fs.root(start, ".git") or vim.uv.cwd() or vim.fn.getcwd()
+end
+
 function M.is_native_command(cmd)
   if type(cmd) == "table" then
     for _, part in ipairs(cmd) do

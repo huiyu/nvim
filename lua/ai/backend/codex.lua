@@ -74,11 +74,9 @@ local function active()
   return current ~= nil and current:buf_valid()
 end
 
-local function project_root(path)
-  local start = path ~= "" and path or (vim.uv.cwd() or vim.fn.getcwd())
-  if path ~= "" then start = vim.fs.dirname(path) end
-  return vim.fs.root(start, ".git") or vim.uv.cwd() or vim.fn.getcwd()
-end
+-- Shared with ai.selection and the transcript adapters: all three must agree on
+-- which directory a session belongs to.
+local project_root = ai_config.project_root
 
 local function terminal_opts(root)
   return {
@@ -94,13 +92,11 @@ local function terminal_opts(root)
   }
 end
 
--- Keep the transcript in the wrapper tmux pane history. Codex normally uses an
--- alternate screen, whose previous frames never enter that history. The tmux
--- wrapper exposes it through mouse/PageUp copy-mode; without the wrapper it
--- falls back to Nvim's terminal scrollback. This flag applies equally to new,
+-- Keep the transcript in the wrapper tmux pane history and run Codex without
+-- approvals or its built-in sandbox. These flags apply equally to new,
 -- resumed, and continued sessions.
 local function codex_command(args)
-  return vim.list_extend({ "codex", "--no-alt-screen" }, args or {})
+  return vim.list_extend({ "codex", "--no-alt-screen", "--yolo" }, args or {})
 end
 
 local function enter_insert(term)
@@ -257,39 +253,17 @@ function M.add_buffer()
   send("@" .. rel .. " ", { submit = false })
 end
 
+-- Codex CLI has file mentions but no editor selection attachment API, so a
+-- selection travels as text. The text itself is built by ai.selection, which the
+-- composer shares -- see that module for why it is not a backend concern.
 function M.send_selection()
-  local buf = vim.api.nvim_get_current_buf()
-  local anchor = vim.fn.getpos("v")
-  local cursor = vim.fn.getpos(".")
-  local visual_mode = vim.fn.mode()
-  local ok, lines = pcall(vim.fn.getregion, anchor, cursor, { type = visual_mode })
-  if not ok or not lines or #lines == 0 then
-    vim.notify("Could not read the visual selection", vim.log.levels.WARN)
+  local draft, err, notice = require("ai.selection").draft()
+  if not draft then
+    vim.notify(err, vim.log.levels.WARN)
     return
   end
-
-  local path = vim.api.nvim_buf_get_name(buf)
-  local root = project_root(path)
-  local rel = path ~= "" and (vim.fs.relpath(root, path) or path) or "[unsaved buffer]"
-  local first_line = math.min(anchor[2], cursor[2])
-  local last_line = math.max(anchor[2], cursor[2])
-  local draft
-
-  if path ~= "" and not vim.bo[buf].modified then
-    -- Codex CLI has file mentions but no editor selection attachment API. Keep
-    -- the line range in the composer so the user can add an instruction first.
-    draft = ("@%s lines %d-%d "):format(rel, first_line, last_line)
-  else
-    local filetype = vim.bo[buf].filetype ~= "" and vim.bo[buf].filetype or "text"
-    draft = ("Selection from %s (lines %d-%d):\n````%s\n%s\n````\n")
-      :format(rel, first_line, last_line, filetype, table.concat(lines, "\n"))
-
-    if path ~= "" then
-      vim.notify(
-        "Buffer has unsaved changes; pasted the exact selection instead of a Codex @-mention",
-        vim.log.levels.INFO
-      )
-    end
+  if notice then
+    vim.notify(notice, vim.log.levels.INFO)
   end
 
   send(draft, { submit = false })
