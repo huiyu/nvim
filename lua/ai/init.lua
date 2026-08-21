@@ -34,6 +34,25 @@ function M.accept_diff() return invoke("accept_diff") end
 function M.deny_diff() return invoke("deny_diff") end
 function M.tree_add() return invoke("tree_add") end
 
+---Send text to the active agent, starting it first when nothing is running.
+---@param text string
+---@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }?
+function M.send_text(text, opts) return invoke("send_text", text, opts) end
+
+---Compose a prompt in a scratch buffer. Seeds from the visual selection when
+---called from Visual mode; the selection helper is the only text producer that
+---works for both providers.
+function M.compose()
+  local seed
+  if vim.fn.mode():sub(1, 1):match("[vVsS\22\19]") then
+    seed = require("ai.selection").draft()
+  end
+  require("ai.composer").open(seed)
+end
+
+function M.transcript() require("ai.transcript").open_current() end
+function M.transcript_pick() require("ai.transcript").pick() end
+
 function M.info()
   return {
     provider = config.provider,
@@ -61,6 +80,13 @@ function M.setup()
   map("n", "<leader>am", M.select_model, "Select AI model")
   map("n", "<leader>ab", M.add_buffer, "Add buffer to " .. config.label)
   map("x", "<leader>as", M.send_selection, "Attach selection to " .. config.label)
+
+  -- The agent's own input box loses <C-h/j/k/l> to window navigation, so long
+  -- prompts get a real buffer instead. Bound in Visual mode too, where it seeds
+  -- from the selection.
+  map({ "n", "x" }, "<leader>ai", M.compose, "Compose prompt for " .. config.label)
+  map("n", "<leader>at", M.transcript, "Read " .. config.label .. " transcript")
+  map("n", "<leader>aT", M.transcript_pick, config.label .. " session history")
 
   if config.native.capabilities.diff then
     map("n", "<leader>aa", M.accept_diff, "Accept AI diff")
