@@ -103,9 +103,14 @@ end
 -- The `defer_fn(..., 0)` pushes fix_drift to the next event loop tick so
 -- Snacks.terminal's reflow + edgy's autocmd cascade finish first; non-zero
 -- delays just add visible flicker.
-function M.toggle(id)
-  local opts = { win = { position = "bottom", height = 25 } }
-  if id then opts.id = id end
+--
+-- Terminals are identified by `count`, not by a name. Snacks derives a
+-- terminal's identity from cmd/cwd/env/count only (`M.tid` in
+-- snacks/terminal.lua); `opts.id` is accepted by the caller and never read, so
+-- passing distinct name strings silently returns one shared terminal.
+---@param count integer? which terminal; nil means `vim.v.count1`, i.e. 1
+function M.toggle(count)
+  local opts = { count = count, win = { position = "bottom", height = 25 } }
   local before = count_term_wins()
   Snacks.terminal(nil, opts)
   vim.defer_fn(function()
@@ -125,8 +130,14 @@ end
 --
 -- The session survives hiding: toggling brings the same shell back with its
 -- scrollback and working directory intact.
+-- Well clear of the 1-9 the bottom terminals use. Identity comes from `count`,
+-- and the win config takes no part in it, so without a reserved number this
+-- would resolve to an existing bottom terminal and open there instead.
+local FLOAT_COUNT = 100
+
 function M.toggle_float()
   local term = Snacks.terminal.toggle(nil, {
+    count = FLOAT_COUNT,
     win = {
       position = "float",
       width = 0.85,
