@@ -24,12 +24,26 @@ term.toggle(1)
 t.eq(vim.api.nvim_get_current_buf(), one, "toggling a number reuses its shell")
 term.toggle(1)
 
+-- edgy claims every non-agent snacks_terminal for its bottom edge, so it must
+-- be loaded before the float is judged. It normally arrives on VeryLazy, which
+-- never fires headless -- which is exactly why the first version of this spec
+-- passed while the float still docked itself in a real session.
+vim.cmd("Lazy! load edgy.nvim")
+t.ok(package.loaded["edgy"] ~= nil, "edgy is loaded, so its layout rules apply")
+
 -- The float must be a float, and must not resolve to any bottom terminal.
 local float = term.toggle_float()
 t.ok(float ~= nil, "toggle_float returns a terminal")
 local win = vim.api.nvim_get_current_win()
-local cfg = vim.api.nvim_win_get_config(win)
-t.eq(cfg.relative, "editor", "the floating terminal really floats")
+t.eq(vim.api.nvim_win_get_config(win).relative, "editor",
+  "the floating terminal really floats")
+
+-- edgy docks asynchronously, so re-check after its autocmds have run.
+vim.wait(300, function() return false end)
+t.ok(vim.api.nvim_win_is_valid(win), "the float survives edgy's layout pass")
+t.eq(vim.api.nvim_win_get_config(win).relative, "editor",
+  "the float is still a float after edgy has had a chance to dock it")
+t.ok(term.is_float_buf(float.buf), "edgy can recognise the float and skip it")
 t.ok(buf_of(float) ~= one and buf_of(float) ~= two,
   "the float is not one of the numbered bottom terminals")
 t.eq(vim.bo[buf_of(float)].buftype, "terminal", "the float holds a real terminal")

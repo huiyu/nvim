@@ -133,11 +133,24 @@ end
 -- Well clear of the 1-9 the bottom terminals use. Identity comes from `count`,
 -- and the win config takes no part in it, so without a reserved number this
 -- would resolve to an existing bottom terminal and open there instead.
-local FLOAT_COUNT = 100
+--
+-- Exported because edgy.nvim has to recognise this terminal to leave it alone:
+-- it claims every non-agent `snacks_terminal` for its bottom edge, which would
+-- drag the float down into the layout. Snacks records the count as
+-- `vim.b[buf].snacks_terminal.id`, so that is the seam.
+M.FLOAT_COUNT = 100
+
+---Is `buf` the floating scratch terminal?
+---@param buf integer
+---@return boolean
+function M.is_float_buf(buf)
+  local info = vim.b[buf].snacks_terminal
+  return info ~= nil and info.id == M.FLOAT_COUNT
+end
 
 function M.toggle_float()
   local term = Snacks.terminal.toggle(nil, {
-    count = FLOAT_COUNT,
+    count = M.FLOAT_COUNT,
     win = {
       position = "float",
       width = 0.85,
