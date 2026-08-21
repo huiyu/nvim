@@ -75,7 +75,7 @@ local spec = {
       "  r / R           Flash remote (operator mode)",
       "",
       "  ── Ctrl ─────────────────────────────────",
-      "  <C-/>            Toggle terminal",
+      "  <C-/>            Toggle terminal (the one you are in)",
       "  <leader>t1-9     Terminal 1-9 (create/switch)",
       "  <leader>tx       Close terminal",
       "  <C-q>            Close terminal (in term mode)",

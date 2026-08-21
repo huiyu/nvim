@@ -47,4 +47,25 @@ t.ok(win ~= -1, "terminal 1 is visible")
 t.eq(relative_of(win) ~= "", floats,
   floats and "terminals open floating" or "terminals open docked")
 
+-- An unnumbered toggle -- what <C-/> does -- must act on the terminal you are
+-- sitting in. Defaulting to terminal 1 meant pressing it inside terminal 3
+-- hid, or jumped to, a different terminal entirely.
+term.toggle(3)
+local three = vim.api.nvim_get_current_buf()
+t.ok(three ~= one and three ~= two, "terminal 3 is its own shell")
+
+local one_visible_before = vim.fn.bufwinid(one) ~= -1
+term.toggle() -- <C-/> while sitting in terminal 3
+t.eq(vim.fn.bufwinid(three), -1, "<C-/> hides the terminal you are in")
+t.eq(vim.fn.bufwinid(one) ~= -1, one_visible_before,
+  "<C-/> leaves other terminals exactly as they were")
+
+-- From a normal buffer there is no "current terminal", so it falls back to 1.
+if vim.fn.bufwinid(one) ~= -1 then term.toggle(1) end -- start from hidden
+vim.cmd("topleft new")
+t.eq(vim.bo.buftype, "", "sitting in a normal buffer")
+term.toggle()
+vim.wait(300, function() return false end)
+t.ok(vim.fn.bufwinid(one) ~= -1, "from the editor, <C-/> still means terminal 1")
+
 t.done()
