@@ -112,7 +112,14 @@ end
 function M.toggle(count)
   local opts = { count = count, win = { position = "bottom", height = 25 } }
   local before = count_term_wins()
-  Snacks.terminal(nil, opts)
+  local term = Snacks.terminal(nil, opts)
+
+  -- Snacks reopens a terminal with the window config it was created with, so a
+  -- terminal that was floating comes back docked. Drop the mark to match, or
+  -- edgy would keep skipping a window that is no longer a float.
+  if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+    vim.b[term.buf].terminal_floating = false
+  end
   vim.defer_fn(function()
     if count_term_wins() > before then
       local agent_win = find_agent_win()
@@ -121,62 +128,92 @@ function M.toggle(count)
   end, 0)
 end
 
--- Toggle a floating scratch terminal.
+-- Float or unfloat a terminal, in place.
 --
--- Separate from the bottom terminals on purpose: this one is for a quick
--- command you want gone again, so it should not take a share of the layout.
--- Being a float is also why it needs no fix_drift -- it overlays the window
--- tree instead of reflowing it, so the agent pane never resizes.
+-- One terminal, two shapes -- not two terminals. The same shell, buffer and
+-- window handle survive the switch; only the window's geometry changes, via
+-- nvim_win_set_config. That is why this cooperates with Snacks instead of
+-- fighting it: Snacks keeps tracking the same window it created, so <C-/> and
+-- <leader>T1..T9 keep working on a terminal that happens to be floating.
 --
--- The session survives hiding: toggling brings the same shell back with its
--- scrollback and working directory intact.
--- Well clear of the 1-9 the bottom terminals use. Identity comes from `count`,
--- and the win config takes no part in it, so without a reserved number this
--- would resolve to an existing bottom terminal and open there instead.
---
--- Exported because edgy.nvim has to recognise this terminal to leave it alone:
--- it claims every non-agent `snacks_terminal` for its bottom edge, which would
--- drag the float down into the layout. Snacks records the count as
--- `vim.b[buf].snacks_terminal.id`, so that is the seam.
-M.FLOAT_COUNT = 100
+-- Which terminal: the one you are sitting in, or `vim.v.count1` otherwise. So
+-- <leader>Tf floats terminal 1 from the editor, 3<leader>Tf floats terminal 3,
+-- and pressing it inside a terminal always acts on that terminal. There is no
+-- hidden "last used" state to reason about.
 
----Is `buf` the floating scratch terminal?
+local FLOAT_GEOMETRY = { width = 0.85, height = 0.8 }
+
+local function float_config()
+  local width = math.floor(vim.o.columns * FLOAT_GEOMETRY.width)
+  local height = math.floor(vim.o.lines * FLOAT_GEOMETRY.height)
+  return {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = math.floor((vim.o.lines - height) / 2) - 1,
+    col = math.floor((vim.o.columns - width) / 2),
+    border = "rounded",
+    title = " Terminal ",
+    title_pos = "center",
+  }
+end
+
+---Is this terminal buffer marked as floating?
+---
+---Exported for edgy.nvim, which claims every non-agent `snacks_terminal` for
+---its bottom edge and would otherwise dock the float the moment it opens. This
+---reads the mark rather than the window because edgy asks about a buffer, and
+---asks while the window is still being set up.
 ---@param buf integer
 ---@return boolean
 function M.is_float_buf(buf)
-  local info = vim.b[buf].snacks_terminal
-  return info ~= nil and info.id == M.FLOAT_COUNT
+  return vim.b[buf].terminal_floating == true
 end
 
-function M.toggle_float()
-  local term = Snacks.terminal.toggle(nil, {
-    count = M.FLOAT_COUNT,
-    win = {
-      position = "float",
-      width = 0.85,
-      height = 0.8,
-      border = "rounded",
-      title = " Terminal ",
-      title_pos = "center",
-    },
-  })
+-- The window is the source of truth for shape; the buffer mark only exists so
+-- edgy can be told. They can disagree: hiding and reshowing via <C-/> makes
+-- Snacks restore its own docked config, leaving a stale mark behind. Deciding
+-- from the window means one keypress always does the visible thing.
+local function is_floating_win(win)
+  return vim.api.nvim_win_get_config(win).relative ~= ""
+end
 
-  if not term or not term.buf or not vim.api.nvim_buf_is_valid(term.buf) then
-    return term
-  end
+local function is_terminal_win(win)
+  local buf = vim.api.nvim_win_get_buf(win)
+  return vim.bo[buf].buftype == "terminal" and vim.b[buf].snacks_terminal ~= nil
+end
 
-  -- <C-/> already means "toggle the terminal" in Terminal-mode, but the global
-  -- mapping targets the bottom one. Shadow it here so the chord consistently
-  -- toggles whichever terminal you are actually sitting in.
-  for _, lhs in ipairs({ "<C-/>", "<C-_>" }) do
-    vim.keymap.set("t", lhs, function() M.toggle_float() end, {
-      buffer = term.buf,
-      desc = "Hide floating terminal",
-      silent = true,
+---Toggle whether a terminal is floating.
+---@param count integer? which terminal; defaults to the current one, else v:count1
+function M.toggle_float(count)
+  local win = vim.api.nvim_get_current_win()
+
+  -- Acting on the terminal under the cursor needs no lookup at all, and keeps
+  -- the count out of it: you asked about *this* one.
+  if not is_terminal_win(win) then
+    local term = Snacks.terminal.get(nil, {
+      count = count or vim.v.count1,
+      win = { position = "bottom", height = 25 },
     })
+    if not term then return end
+    if not term:win_valid() then term:show() end
+    win = term.win
   end
 
-  return term
+  local buf = vim.api.nvim_win_get_buf(win)
+
+  if is_floating_win(win) then
+    -- Back into the layout. The mark has to be cleared first: edgy reads it
+    -- when it decides whether this window belongs to its bottom edge.
+    vim.b[buf].terminal_floating = false
+    vim.api.nvim_win_set_config(win, { relative = "", split = "below", win = -1 })
+  else
+    vim.b[buf].terminal_floating = true
+    vim.api.nvim_win_set_config(win, float_config())
+  end
+
+  vim.api.nvim_set_current_win(win)
+  return win
 end
 
 return M

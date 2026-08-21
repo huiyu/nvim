@@ -76,7 +76,7 @@ local spec = {
       "",
       "  ── Ctrl ─────────────────────────────────",
       "  <C-/>            Toggle terminal (the one you are in)",
-      "  <leader>Tf       Floating terminal",
+      "  <leader>Tf       Float/unfloat the current terminal",
       "  <leader>T1-9     Terminal 1-9 (create/switch)",
       "  <leader>Tx       Close terminal",
       "  <C-q>            Close terminal (in term mode)",
