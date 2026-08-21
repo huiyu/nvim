@@ -10,28 +10,44 @@ local config = require("ai.config")
 local editor = require("ai.editor")
 local backend = require("ai.backend." .. config.provider)
 
--- UC-1: with nothing to seed, the payload is exactly the key both TUIs bind to
--- "edit this prompt in $EDITOR". Verified against both CLIs: a bare 0x07 on the
--- pty opens the external editor.
+-- UC-1: the key sent to the pty is exactly what both TUIs bind to "edit this
+-- prompt in $EDITOR". Verified against both CLIs: a bare 0x07 opens it.
 t.eq(editor.EDIT_KEY, "\7", "UC-1: the edit key is 0x07 (ctrl+g)")
-t.eq(editor.keys(), "\7", "UC-1: no seed sends the key alone")
-t.eq(editor.keys(""), "\7", "UC-1: an empty seed sends the key alone")
 
--- UC-3: a seed is pasted first, then the editor is asked for -- in ONE payload,
--- so the pty cannot interleave them. Bracketed paste is what keeps an embedded
--- newline from submitting the prompt early.
-local seeded = editor.keys("line one\nline two")
-t.eq(seeded, "\27[200~line one\nline two\27[201~\7",
-  "UC-3: a seed is bracketed-pasted, then the key follows in the same write")
-t.ok(seeded:sub(-1) == "\7", "UC-3: the key is last, so the paste lands first")
-t.ok(not seeded:find("\r"), "UC-3: no carriage return, so the prompt is not submitted")
+-- UC-3: the selection reaches the prompt through the buffer, not through a
+-- paste racing the key. A staged seed lands in the file the agent hands over.
+local seeded = vim.fn.tempname() .. ".md"
+vim.fn.writefile({ "" }, seeded)
+editor.stage_seed("picked lines")
+editor.open(seeded, seeded .. ".done")
+vim.wait(200, function() return false end)
+local shown
+for _, w in ipairs(vim.api.nvim_list_wins()) do
+  if vim.api.nvim_win_get_config(w).relative == "editor" then
+    shown = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(w), 0, -1, false)
+  end
+end
+t.eq(shown, { "picked lines" }, "UC-3: a staged seed fills an empty prompt")
 
--- A stray ESC in a selection would terminate the paste early and let the rest
--- be read as control sequences.
-t.eq(editor.keys("a\27[200~b"), "\27[200~a[200~b\27[201~\7",
-  "UC-3: ESC is stripped out of the seed")
-t.eq(editor.keys("crlf\r\nend"), "\27[200~crlf\nend\27[201~\7",
-  "UC-3: CRLF is normalised so it cannot submit")
+-- Close it, or the next assertion reads the float that is still on screen.
+for _, w in ipairs(vim.api.nvim_list_wins()) do
+  if vim.api.nvim_win_get_config(w).relative == "editor" then
+    pcall(vim.api.nvim_win_close, w, true)
+  end
+end
+vim.wait(200, function() return false end)
+
+-- An unconsumed seed must not leak into an unrelated ctrl+g later on.
+local plain = vim.fn.tempname() .. ".md"
+vim.fn.writefile({ "typed in the box" }, plain)
+editor.open(plain, plain .. ".done")
+vim.wait(200, function() return false end)
+for _, w in ipairs(vim.api.nvim_list_wins()) do
+  if vim.api.nvim_win_get_config(w).relative == "editor" then
+    shown = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(w), 0, -1, false)
+  end
+end
+t.eq(shown, { "typed in the box" }, "UC-3: the seed is consumed once, not reused")
 
 -- UC-1/UC-3: the facade hands the backend a seed only when there is a selection.
 local seen = {}

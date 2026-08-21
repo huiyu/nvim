@@ -303,7 +303,8 @@ local editor = require("ai.editor")
 ---@return string status  "opened", "focused", or "error: <reason>"
 editor.open(path, sentinel)  -- open the agent's temp prompt file in a float
 editor.wrapper()             -- absolute path to scripts/agent-editor
-editor.keys(seed)            -- bytes that seed the input box, then ask for the editor
+editor.EDIT_KEY              -- the byte both TUIs bind to "edit in $EDITOR" (0x07)
+editor.stage_seed(text)      -- text to add to the next prompt this Nvim is handed
 editor.tui_ready(buf)        -- has the agent TUI in buf drawn its input prompt?
 editor.when_ready(get_buf, action, on_timeout)
 ```
@@ -325,9 +326,14 @@ Each open also gets its own augroup: naming it after the buffer meant a second
 open of the same file silently deleted the first one's `BufWipeout`, which is
 the only thing that releases the first wrapper.
 
-`keys` puts the seed and the edit key in ONE channel write. Split across two
-writes their order is the event loop's to decide, and a `0x07` that overtakes the
-paste opens an editor without the selection in it.
+A Visual selection reaches the prompt through `stage_seed`, not through the
+pty. Seeding used to be a bracketed paste sent just ahead of the edit key, on
+the reasoning that a single channel write fixes their order. The bytes do arrive
+in order, but the TUI applies a paste asynchronously and acts on the key first —
+measured: the float came up empty with a selection staged. Handing the text to
+the buffer instead has no ordering to lose, and needs no paste sanitising. The
+stage is consumed by the first `open` that follows, so an unanswered request
+cannot leak its seed into a later `ctrl+g`.
 
 ### Images
 

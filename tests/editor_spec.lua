@@ -194,6 +194,10 @@ end
 t.eq(editor.tui_ready(scratch({ "", "Loading...", "" })), false,
   "UC-9: a booting TUI is not ready")
 t.eq(editor.tui_ready(scratch({ "❯ " })), true, "UC-9: Claude's prompt marker counts as ready")
+-- An empty box is the marker on its own, which is the state a cold start lands
+-- in. Requiring whitespace after it meant readiness never fired there.
+t.eq(editor.tui_ready(scratch({ "❯" })), true, "UC-9: an empty Claude box is ready")
+t.eq(editor.tui_ready(scratch({ "›" })), true, "UC-9: an empty Codex box is ready")
 t.eq(editor.tui_ready(scratch({ "› Ask Codex to do anything" })), true,
   "UC-9: Codex's prompt marker counts as ready")
 -- The trust gate draws the same marker in front of a numbered choice; sending

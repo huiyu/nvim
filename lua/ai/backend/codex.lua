@@ -316,10 +316,12 @@ function M.edit_prompt(opts)
     return channel and channel > 0 and channel or nil
   end
 
+  editor.stage_seed(opts.seed)
+
   if running then
     local channel = channel_of()
     if channel then
-      vim.api.nvim_chan_send(channel, editor.keys(opts.seed))
+      vim.api.nvim_chan_send(channel, editor.EDIT_KEY)
     else
       vim.notify("Codex terminal is not ready", vim.log.levels.WARN)
     end
@@ -332,7 +334,7 @@ function M.edit_prompt(opts)
     function() return term:buf_valid() and term.buf or nil end,
     function()
       local channel = channel_of()
-      if channel then vim.api.nvim_chan_send(channel, editor.keys(opts.seed)) end
+      if channel then vim.api.nvim_chan_send(channel, editor.EDIT_KEY) end
     end,
     function()
       vim.notify("Codex did not reach its prompt — press <leader>ai again", vim.log.levels.WARN)

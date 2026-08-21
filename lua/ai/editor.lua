@@ -40,26 +40,33 @@ local ATTACH_DELAY_MS = 750
 -- on-screen hint reads "ctrl+g to edit in <$EDITOR>".
 M.EDIT_KEY = "\7"
 
----Bytes that put `seed` in the agent's input box and then ask for the editor.
----
----Both halves go in one write on purpose. Sending the paste and the key
----separately would leave their order to the event loop, and a 0x07 that
----overtakes the paste opens an editor without the selection in it.
----@param seed string? text to place in the box first
----@return string
-function M.keys(seed)
-  if not seed or seed == "" then return M.EDIT_KEY end
+-- Text to add to the next prompt this Nvim is handed, consumed by the first
+-- open() that follows.
+--
+-- Seeding used to be a bracketed paste sent just ahead of the edit key, on the
+-- reasoning that one channel write fixes their order. The bytes do arrive in
+-- order, but the TUI applies a paste asynchronously and acts on the key first,
+-- so the editor opened on the pre-paste box -- measured: the float came up
+-- empty with a Visual selection staged. Handing the text to the buffer instead
+-- has no ordering to lose, and needs no paste sanitising.
+local pending_seed = nil
 
-  -- Same sanitising the Codex backend does for its own paste. A stray ESC would
-  -- close the bracketed paste early and let the remainder be read as control
-  -- sequences; a CR would submit the prompt instead of editing it.
-  local text = seed:gsub("\r\n", "\n"):gsub("\r", "\n"):gsub("\27", "")
-  return "\27[200~" .. text .. "\27[201~" .. M.EDIT_KEY
+---Stage text for the next prompt buffer. Pass nil to stage nothing.
+---@param text string?
+function M.stage_seed(text)
+  pending_seed = (text ~= nil and text ~= "") and text or nil
 end
 
 -- Waiting for a freshly started CLI to reach its input box.
+--
+-- The box being drawn is not the same as input being accepted: Codex painted
+-- `› Ask Codex to do anything` while still starting up, and a key sent at that
+-- moment was swallowed with no editor to show for it. So readiness has to hold
+-- across consecutive polls, and even then the key waits out a short settle.
 local READY_POLL_MS = 200
-local READY_TIMEOUT_MS = 30000
+local READY_STABLE_POLLS = 3
+local READY_SETTLE_MS = 400
+local READY_TIMEOUT_MS = 45000
 
 ---True once the agent TUI has drawn its input prompt in `buf`.
 ---
@@ -80,7 +87,10 @@ function M.tui_ready(buf)
   -- neither marker whole.
   for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
     for _, marker in ipairs({ "❯", "›" }) do
-      if line:match("^%s*" .. marker .. "%s")
+      -- Nothing may follow the marker. An empty input box renders as the marker
+      -- alone, and that is exactly the state a freshly started agent is in --
+      -- requiring a space after it made readiness never fire on a cold start.
+      if line:match("^%s*" .. marker)
         and not line:match("^%s*" .. marker .. "%s*%d+%.%s")
       then
         return true
@@ -100,13 +110,24 @@ end
 ---@param on_timeout fun()
 function M.when_ready(get_buf, action, on_timeout)
   local deadline = vim.uv.now() + READY_TIMEOUT_MS
+  local stable = 0
 
   local function tick()
     local buf = get_buf()
     if M.tui_ready(buf) then
-      action(buf)
-      return
+      stable = stable + 1
+      if stable >= READY_STABLE_POLLS then
+        vim.defer_fn(function()
+          local ready = get_buf()
+          if M.tui_ready(ready) then action(ready) end
+        end, READY_SETTLE_MS)
+        return
+      end
+    else
+      -- A box that comes and goes is a TUI still painting itself.
+      stable = 0
     end
+
     if vim.uv.now() >= deadline then
       on_timeout()
       return
@@ -178,6 +199,21 @@ local function present(path, sentinel)
 
   local buf = vim.fn.bufadd(path)
   vim.fn.bufload(buf)
+
+  -- Consumed unconditionally, so a seed staged for a request that never arrived
+  -- cannot leak into an unrelated ctrl+g later on.
+  local seed, existing = pending_seed, vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  pending_seed = nil
+  if seed then
+    local lines = vim.split(seed, "\n", { plain = true })
+    -- Appended after whatever was already typed in the box, which is where a
+    -- selection belongs: the instruction usually comes first.
+    if #existing == 1 and existing[1] == "" then
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    else
+      vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+    end
+  end
 
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false

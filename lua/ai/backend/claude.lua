@@ -57,10 +57,12 @@ function M.edit_prompt(opts)
   -- would look "already running" and fire the key into a booting TUI.
   local running = channel_of(terminal.get_active_terminal_bufnr())
 
+  editor.stage_seed(opts.seed)
+
   terminal.ensure_visible()
 
   if running then
-    vim.api.nvim_chan_send(running, editor.keys(opts.seed))
+    vim.api.nvim_chan_send(running, editor.EDIT_KEY)
     return
   end
 
@@ -70,7 +72,7 @@ function M.edit_prompt(opts)
     terminal.get_active_terminal_bufnr,
     function(buf)
       local ready = channel_of(buf)
-      if ready then vim.api.nvim_chan_send(ready, editor.keys(opts.seed)) end
+      if ready then vim.api.nvim_chan_send(ready, editor.EDIT_KEY) end
     end,
     function()
       vim.notify(
