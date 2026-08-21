@@ -80,6 +80,8 @@ nvim
 │   │   ├── ui/               # 界面和主题插件
 │   │   └── vcs/              # Git 集成
 │   └── util/                 # 工具模块
+├── scripts/                 # Agent TUI 的 $EDITOR wrapper
+├── tests/                   # Headless spec 套件（tests/run.sh）
 └── docs/                     # DIAGNOSTICS.md, UTILITIES.md
 ```
 

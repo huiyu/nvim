@@ -37,6 +37,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - Preserve the Claude tmux wrapper and watchdog unless a replacement is tested
   against terminal flicker, CJK rendering, cleanup, resume, and appended CLI
   arguments.
+- `<leader>ai` and the TUI's own `ctrl+g` are the same path: `$EDITOR` points at
+  `scripts/agent-editor`, which brings the prompt into this Nvim. It needs
+  `EDITOR`, `VISUAL` and `NVIM` in the agent terminal's environment, injected at
+  creation time and forwarded explicitly through `new-session -e` under both tmux
+  wrappers. Dropping any of them degrades silently to a nested Nvim inside
+  `:terminal`, so treat them as part of the terminal command, not as decoration.
 
 ## Editing Conventions
 
@@ -79,10 +85,16 @@ Run checks proportional to the change. At minimum, verify both providers and
 the working-tree whitespace check:
 
 ```sh
+./tests/run.sh
 NVIM_AI_PROVIDER=claude nvim --headless -u init.lua -i NONE +qa
 NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex-oauth" nvim --headless -u init.lua -i NONE +qa
 git diff --check
 ```
+
+`tests/*_spec.lua` run against the real configuration (`-u init.lua`), so they
+catch what a startup check cannot. Each spec exits through `cquit`: a plain
+`-c qa` returns 0 even after an uncaught Lua error, which would make a broken
+spec read as a passing one.
 
 For CodeCompanion changes, load it under both providers and confirm the resolved
 ACP adapter plus `:CodeCompanionHistory`. For formatting changes, trigger
@@ -90,8 +102,9 @@ ACP adapter plus `:CodeCompanionHistory`. For formatting changes, trigger
 changes, reproduce the exact edge case rather than relying only on startup.
 
 Use `:checkhealth config` as the config-specific dependency check and
-`:ConformInfo`, `:LspInfo`, `:Mason`, and `:Lazy profile` as the primary
-diagnostic sources.
+`:ConformInfo`, `:checkhealth vim.lsp`, `:Mason`, and `:Lazy profile` as the
+primary diagnostic sources. Do not reach for `:LspInfo` — nvim-lspconfig stops
+defining the `Lsp*` commands once Nvim 0.12's builtin `:lsp` exists.
 
 ## Code Review Rules
 

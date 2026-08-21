@@ -253,6 +253,41 @@ also returns `notice` so the caller can explain the fallback. Nothing is
 notified from inside the module — `<leader>as` and `<leader>ai` surface failures
 differently.
 
+## AI Clipboard (`ai.clipboard`)
+
+Moves clipboard images between the system, a staging file, and the agent TUI.
+macOS only — it shells out to `osascript`, the same way both agent CLIs do.
+
+#### API Reference
+
+```lua
+local clipboard = require("ai.clipboard")
+
+clipboard.has_image()            --> boolean
+clipboard.save_image(path)       --> ok, err   write the clipboard image as PNG
+clipboard.restore_image(path)    --> ok, err   put a PNG file back on the clipboard
+clipboard.attach(chan, paths, done)            -- feed each image to a terminal job
+clipboard.staging_dir()          --> string    per-process temp directory
+```
+
+This exists because an image cannot reach the agent any other way: only the CLI
+can put image bytes into its request, and the one channel to it is the pty. So
+`attach` replays the keystroke the TUIs already bind to "read the clipboard"
+(`0x16`, ctrl+v) once per image, and the CLI writes its own `[Image #N]` marker.
+
+`attach` is sequential and deferred rather than a loop: each keystroke makes the
+TUI spawn its own clipboard reader, and the next image cannot be placed on the
+clipboard until that read finishes.
+
+Staging to a file at attach time is required rather than tidy: `clipboard =
+"unnamedplus"` means the next yank or delete in the prompt buffer would
+otherwise overwrite the screenshot. Sending therefore also replaces whatever is
+on the clipboard at that moment.
+
+Every entry point returns `false, reason` off macOS rather than raising, and any
+path containing a quote, backslash or newline is refused — paths are
+interpolated into AppleScript source, which has no equivalent of `shellescape`.
+
 ## AI Editor (`ai.editor`)
 
 Host side of the agent TUI's `ctrl+g` handoff. Both native agents bind that key

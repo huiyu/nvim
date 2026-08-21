@@ -85,6 +85,8 @@ nvim
 │   │   ├── ui/               # UI and theme plugins
 │   │   └── vcs/              # Git integration
 │   └── util/                 # Utility modules
+├── scripts/                 # $EDITOR wrapper for the agent TUIs
+├── tests/                   # Headless spec suite (tests/run.sh)
 └── docs/                     # DIAGNOSTICS.md, UTILITIES.md
 ```
 
