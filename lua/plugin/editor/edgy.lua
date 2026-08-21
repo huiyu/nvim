@@ -17,10 +17,10 @@ return {
       return ai.is_native_command(info.cmd)
     end
 
-    -- The floating scratch terminal must stay a float. Without this it matches
-    -- the bottom `snacks_terminal` slot below, and edgy pulls it into the
-    -- layout -- the window opens as a float and is immediately docked.
-    local is_float_term = require("util.terminal").is_float_buf
+    -- Terminals float or dock by configuration (vim.g.terminal_position). When
+    -- they float, edgy must claim none of them: its bottom slot would pull the
+    -- float straight into the layout the moment it opens.
+    local terminals_float = require("util.terminal").floats()
 
     return {
       animate = { enabled = false },
@@ -53,7 +53,7 @@ return {
           title = "Terminal",
           ft = "snacks_terminal",
           filter = function(buf)
-            return not is_agent_term(buf) and not is_float_term(buf)
+            return not terminals_float and not is_agent_term(buf)
           end,
           size = { height = 0.3 },
         },

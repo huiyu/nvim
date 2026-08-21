@@ -66,7 +66,7 @@ vim.keymap.set("t", "jk", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap 
 vim.keymap.set("t", "<C-q>", function()
   vim.cmd("bdelete!")
 end, { desc = "Close terminal", noremap = true, silent = true })
-vim.keymap.set("n", "<leader>Tx", function()
+vim.keymap.set("n", "<leader>tx", function()
   if vim.bo.buftype ~= "terminal" then
     vim.notify("Current buffer is not a terminal", vim.log.levels.WARN)
     return
@@ -75,7 +75,7 @@ vim.keymap.set("n", "<leader>Tx", function()
 end, { desc = "Close terminal" })
 -- Drift fix: shrink/restore terminal windows in one tick to force libvterm to
 -- truncate its grid (the only resize op that actually invalidates stale cells).
-vim.keymap.set("n", "<leader>Td", function()
+vim.keymap.set("n", "<leader>td", function()
   require("util.terminal").fix_drift()
 end, { desc = "Fix terminal TUI drift" })
 vim.keymap.set("t", "<S-CR>", function()
