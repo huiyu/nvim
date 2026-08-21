@@ -221,7 +221,7 @@ Start from what you want to do:
 | Run a command / manage things | `<leader>` + domain letter | `<leader>gs` git status, `<leader>bd` delete buffer, `<leader>ca` code action |
 | Step to the next/prev one of something | `]` / `[` + kind | `]d` diagnostic, `]h` hunk, `]b` buffer — repeat to iterate |
 | Jump to something about the symbol under cursor | `g` | `gd` definition, `gr` references, `gI` implementation — one shot |
-| Do an instant, every-minute action | `Ctrl` | `<C-h/j/k/l>` windows, `<C-s>` save, `<C-/>` terminal |
+| Do an instant, every-minute action | `Ctrl` | `<C-h/j/k/l>` windows, `<C-/>` terminal |
 | Cycle through the bufferline | `Shift` | `<S-h>` / `<S-l>` |
 | Move something (not the cursor) | `Alt` | `<A-j>` / `<A-k>` move line |
 | Fly to any spot I can see | `s` | Flash jump: `s` + 2 chars + label |
@@ -250,7 +250,6 @@ Press any prefix and wait for which-key popup to see available keys.
 
 | Key | Action |
 |-----|--------|
-| `<C-s>` | Save file (all modes) |
 | `<Esc>` | Clear search highlight |
 | `<C-/>` | Toggle terminal |
 | `<C-h/j/k/l>` | Window navigation (Normal + terminal input) |
@@ -281,16 +280,17 @@ Press any prefix and wait for which-key popup to see available keys.
 |-------|-----|-------------|
 | Find/Files | `<leader>f` | `ff` files in cwd, `fF` from buffer dir, `fd` browse directory, `fe` explorer (with ignored), `fr` recent, `fb` buffers, `fg` git files, `fp` projects, `fc` nvim config, `fn` new, `fs/fS` save/save-as, `fR` rename, `fD` delete, `fy/fY` yank path (abs/project), `ft/fT` terminal |
 | Search | `<leader>s` | `sb` buffer, `sB` open buffers, `sd` current dir, `sp` project, `sw` word, `ss/sS` symbols (buffer/workspace), `sR` resume, `sh` help, `sk` keymaps, `sm` marks, `sj` jumps, `sc/sC` cmd history/cmds, `s"` registers, `sM` man, `sr/sW` replace, `st/sT` todos, `sn{a,d,h,l,t}` noice (all/dismiss/history/last/pick) |
-| Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (buffer/workspace), `cv` select venv (py), `cp` markdown preview (md), `cP` browse cwd markdown → preview, `cx` run current file (by filetype: go/c/cpp/py/js/ts/sh), `cR` rebuild gopls index (go) |
+| Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cL` restart LSP, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (buffer/workspace), `cv` select venv (py), `cp` markdown preview (md), `cP` browse cwd markdown → preview, `cx` run current file (by filetype: go/c/cpp/py/js/ts/sh), `cR` rebuild gopls index (go) |
 | Buffer | `<leader>b` | `bd` delete, `bo` delete others, `bD` delete+window, `bl/br` delete left/right, `bj` pick, `bp` pin, `bP` close unpinned |
 | Debug | `<leader>d` | `db/dB` breakpoint/conditional, `dc/da` continue/with-args, `dC` run to cursor, `dg` goto line, `di` step into, `do` step out, `dO` step over, `dj/dk` down/up frame, `dP` pause, `dr` REPL, `ds` session, `dw` widgets, `dt` terminate, `dl` run last |
 | Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage/unstage, `gT` toggle line blame, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gh*` GitHub |
-| Test | `<leader>t` | `tm` test method, `td` debug method, `tf` test file, `tS` summary, `to` output, `tD/th` show/hide diagnostic |
-| Terminal | `<leader>T` | `T1-9` open/toggle dedicated terminals, `Td` fix agent TUI drift, `Tx` close terminal buffer |
+| Test | `<leader>T` | `Tm` test method, `Td` debug method, `Tf` test file, `TS` summary, `To` output, `TD/Th` show/hide diagnostic |
+| Move | `<leader>m` | `mj`/`mk` move the line or selection, `mh`/`ml` dedent/indent; then bare `h`/`j`/`k`/`l` keep going, mixing freely |
+| Terminal | `<leader>t` | `t1-9` switch to a dedicated terminal (never closes), `td` fix agent TUI drift, `tx` close terminal buffer. `<C-/>` is the open/close toggle |
 | Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
 | Diagnostics | `<leader>x` | `xx/xX` diagnostics (project/buffer), `xL/xQ` loclist/quickfix picker, `xl/xq` toggle loclist/quickfix window, `xt/xT` todos |
 | Refactor | `<leader>r` | `rf` extract function, `rF` extract function to file, `rx` extract variable, `ri` inline, `rb` extract block, `rB` extract block to file, `rs` select |
-| AI | `<leader>a` | Native: `ac` toggle, `af` focus, `ar` resume picker, `aR` continue last, `am` model, `ab` add buffer, `as` attach selection (v). Claude-only: `aS`, `aa/ad`. CodeCompanion: `ap{c,t,a,i,b,h}` chat/toggle/actions/inline/add selection/history |
+| AI | `<leader>a` | Native: `ac` toggle, `af` focus, `ar` resume picker, `aR` continue last, `am` model, `ab` add buffer, `as` attach selection (v), `ai` compose prompt (n/v), `at` read transcript, `aT` session history. Claude-only: `aS`, `aa/ad`. CodeCompanion: `ap{c,t,a,i,b,h}` chat/toggle/actions/inline/add selection/history |
 | Window | `<leader>w` | `ww` other window, `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
 | Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
 | Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `` ` `` last used (alternate), `l/f` rightmost/first, `o` close others, `s` list all |
@@ -351,7 +351,7 @@ Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff
 Native coding-agent terminals no longer resize automatically when entering
 Terminal-mode, so moving into one with `<C-h/j/k/l>` does not produce a one-row
 flash. If a TUI drifts, exit terminal input with `<Esc><Esc>` and use
-`<leader>Td` to repair it. Opening a numbered bottom terminal still repairs the
+`<leader>td` to repair it. Opening a numbered bottom terminal still repairs the
 visible agent after the layout changes.
 
 `<C-h/j/k/l>` is owned by Neovim in both Normal and terminal-input mode, so it
@@ -368,14 +368,78 @@ cursor last sat in when several are open, and the dashboard counts as an editor
 window. This shadows terminal-mode `<C-\><C-n>`; use `jk` or `<Esc><Esc>` to
 reach terminal-Normal mode.
 
-Codex runs with `--no-alt-screen` inside Nvim so completed chat output enters
-the wrapper tmux history. With the default wrapper, stay in terminal-input mode
-and use the mouse wheel or `<PageUp>` to enter tmux copy-mode; scroll down with
-the wheel or `<PageDown>`, then press `q` or `<Esc>` to return to Codex input.
-If already in terminal-Normal mode, the same scroll keys are forwarded to tmux
-and restore terminal input automatically.
+Codex runs with `--no-alt-screen --yolo` inside Nvim. YOLO mode bypasses Codex
+approvals and its built-in sandbox, while `--no-alt-screen` lets completed chat
+output enter the wrapper tmux history. With the default wrapper, stay in
+terminal-input mode and use the mouse wheel or `<PageUp>` to enter tmux
+copy-mode; scroll down with the wheel or `<PageDown>`, then press `q` or `<Esc>`
+to return to Codex input. If already in terminal-Normal mode, the same scroll
+keys are forwarded to tmux and restore terminal input automatically.
 With `CODEX_WRAP_TMUX=0`, use `<Esc><Esc>` and Nvim's normal scroll commands
 instead.
+
+#### Composing prompts in a buffer
+
+`<leader>ai` opens a floating scratch buffer for writing a prompt with the whole
+editor available, then sends it. It exists because Terminal-mode gives
+`<C-h/j/k/l>` to window navigation, which are exactly the agent TUI's editing
+keys — writing anything long in the TUI's own input box is awkward.
+
+| Key | Action |
+|-----|--------|
+| `<C-d>` | send (works from Insert mode, where a prompt is finished) |
+| `<C-v>` | attach the clipboard image |
+| `<C-c>` | discard, from Normal mode |
+| `:wq` / `ZZ` | send |
+| `:q!` | discard |
+
+`<C-d>` pairs with `<C-c>` the way a shell does — end-of-input against cancel.
+`<C-s>` would read better but cannot arrive: it is this machine's tmux prefix,
+so tmux consumes it before Nvim sees it.
+
+Submit semantics are otherwise `git commit`'s. An empty buffer discards with a
+notice, and `:q` on a buffer with text is refused, so a half-written prompt
+cannot be lost by reflex. From Visual mode the composer is seeded with the
+selection, using the same text form `<leader>as` produces.
+
+Multi-line text arrives as a single message: it is wrapped in bracketed paste, so
+embedded newlines do not submit early. If the agent is not running it is started
+first. If the send fails, the draft is kept and the next `<leader>ai` restores
+it.
+
+#### Attaching images
+
+`<C-v>` in the composer stages the clipboard image and leaves an `[image N]`
+placeholder; the images travel with the prompt when it is sent. macOS only.
+
+A buffer cannot hold image data, and there is no way to put an image into the
+agent's API request from here — the agent builds that request itself, and the
+composer's only channel is the pty. So the image is handed back through the
+mechanism the TUIs already have: both bind `ctrl+v` to read the system clipboard
+themselves, and that keystroke is a single byte the composer can send.
+
+The image is copied to a temp file the moment it is attached rather than left on
+the clipboard. That is required, not tidy: `clipboard = "unnamedplus"` means the
+next yank or delete in the composer would otherwise overwrite it. At send time
+each image is put back on the clipboard, the keystroke is sent, and the temp file
+is removed. Sending therefore replaces whatever is on the clipboard at that
+moment.
+
+#### Reading past output
+
+`<leader>at` renders the current project's newest session into a read-only
+Markdown buffer, and `<leader>aT` picks from that project's session history.
+Inside the buffer, `R` re-reads from disk and `q` closes it. Prose is visible;
+thinking and tool calls are folded, so `zR` opens everything and `za` opens one.
+
+The source is the CLI's own JSONL transcript, not the terminal. Claude runs on
+the alternate screen, so its tmux wrapper keeps no scrollback at all — there is
+nothing to capture from the pane. Reading the recorded transcript is the only
+approach that works for both providers, it survives restarting Nvim, and it
+needs no change to the tmux wrappers.
+
+Neither CLI persists its reasoning text, so folded "thinking" sections will
+normally be absent rather than empty.
 
 #### AI provider selection
 
@@ -443,6 +507,14 @@ misalignment in box-bordered UI.
 - Both wrappers default to on when tmux is installed
 
 **Tip — suppress the recap CJK box**: Claude Code's session recap is the most visible CJK width offender. Set `"awaySummaryEnabled": false` in `~/.claude/settings.json` to suppress it. This is Claude Code's global config, not nvim's.
+
+### Configuration
+
+Set these in `init.lua` before plugins load.
+
+| Option | Description |
+|--------|-------------|
+| `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where `<leader>t1`-`t9` open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
 
 ### Environment Variables
 

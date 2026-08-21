@@ -216,7 +216,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | 执行命令 / 管理东西 | `<leader>` + 域首字母 | `<leader>gs` git 状态, `<leader>bd` 删 buffer, `<leader>ca` code action |
 | 去下一个/上一个同类目标 | `]` / `[` + 类别 | `]d` 诊断, `]h` hunk, `]b` buffer——可连按迭代 |
 | 跳到光标下符号的相关位置 | `g` | `gd` 定义, `gr` 引用, `gI` 实现——一击即中 |
-| 瞬发高频动作 | `Ctrl` | `<C-h/j/k/l>` 窗口, `<C-s>` 保存, `<C-/>` 终端 |
+| 瞬发高频动作 | `Ctrl` | `<C-h/j/k/l>` 窗口, `<C-/>` 终端 |
 | 循环切换 buffer | `Shift` | `<S-h>` / `<S-l>` |
 | 移动某个东西（不是光标） | `Alt` | `<A-j>` / `<A-k>` 移动行 |
 | 飞到屏幕上任意可见位置 | `s` | Flash：`s` + 2 字符 + 标签 |
@@ -245,7 +245,6 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 
 | 键位 | 功能 |
 |------|------|
-| `<C-s>` | 保存（所有模式） |
 | `<Esc>` | 清除搜索高亮 |
 | `<C-/>` | 切换终端 |
 | `<C-h/j/k/l>` | 窗口导航（Normal + terminal input） |
@@ -276,16 +275,17 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 |------|----|------|
 | 查找 | `<leader>f` | `ff` cwd 文件, `fF` 当前 buffer 目录, `fd` 浏览目录, `fe` 浏览器（含被忽略文件）, `fr` 最近, `fb` buffer, `fg` git 文件, `fp` 项目, `fc` nvim 配置, `fn` 新建, `fs/fS` 保存/另存为, `fR` 重命名, `fD` 删除, `fy/fY` 复制路径（绝对/项目相对）, `ft/fT` 终端 |
 | 搜索 | `<leader>s` | `sb` buffer, `sB` 所有开启 buffer, `sd` 当前目录, `sp` 项目, `sw` 当前词, `ss/sS` 符号（buffer/workspace）, `sR` 恢复, `sh` 帮助, `sk` 键位, `sm` 标记, `sj` 跳转, `sc/sC` 命令历史/命令, `s"` 寄存器, `sM` man, `sr/sW` 替换, `st/sT` todo, `sn{a,d,h,l,t}` noice（全部/清除/历史/最新/picker） |
-| 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号（buffer/workspace）, `cv` 虚拟环境（py）, `cp` Markdown 预览（md）, `cP` 浏览 cwd 下 Markdown 并预览, `cx` 运行当前文件（按文件类型：go/c/cpp/py/js/ts/sh）, `cR` 重建 gopls 索引（go） |
+| 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cL` 重启 LSP, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号（buffer/workspace）, `cv` 虚拟环境（py）, `cp` Markdown 预览（md）, `cP` 浏览 cwd 下 Markdown 并预览, `cx` 运行当前文件（按文件类型：go/c/cpp/py/js/ts/sh）, `cR` 重建 gopls 索引（go） |
 | Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bD` 删除+窗口, `bl/br` 删除左/右, `bj` 选择, `bp` 固定, `bP` 关闭未固定 |
 | 调试 | `<leader>d` | `db/dB` 断点/条件断点, `dc/da` 继续/带参运行, `dC` 运行到光标, `dg` 跳到行（不执行）, `di` 步入, `do` 步出, `dO` 步过, `dj/dk` 上/下栈帧, `dP` 暂停, `dr` REPL, `ds` 会话, `dw` 悬浮 widget, `dt` 终止, `dl` 重跑 |
 | Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存/取消暂存, `gT` 切换行 blame, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gh*` GitHub |
-| 测试 | `<leader>t` | `tm` 测试方法, `td` 调试方法, `tf` 测试文件, `tS` 摘要, `to` 输出, `tD/th` 显示/隐藏诊断 |
-| 终端 | `<leader>T` | `T1-9` 切换专用终端 1-9, `Td` 修复 agent TUI 漂移, `Tx` 关闭终端 buffer |
+| 测试 | `<leader>T` | `Tm` 测试方法, `Td` 调试方法, `Tf` 测试文件, `TS` 摘要, `To` 输出, `TD/Th` 显示/隐藏诊断 |
+| 移动 | `<leader>m` | `mj`/`mk` 移动当前行或选区，`mh`/`ml` 减少/增加缩进；之后直接按 `h`/`j`/`k`/`l` 连续操作，方向可混用 |
+| 终端 | `<leader>t` | `t1-9` 切到指定终端（不会关闭）, `td` 修复 agent TUI 漂移, `tx` 关闭终端 buffer。开关由 `<C-/>` 负责 |
 | 切换 | `<leader>u` | `uf/uF` 自动格式化, `us` 拼写, `uw` 换行, `ul/uL` 行号, `ud` 诊断, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` 背景, `un` 关闭通知, `uR` markdown 渲染 |
 | 诊断 | `<leader>x` | `xx/xX` 诊断（项目/buffer）, `xL/xQ` loclist/quickfix picker, `xl/xq` 切换 loclist/quickfix 窗口, `xt/xT` todo |
 | 重构 | `<leader>r` | `rf` 提取函数, `rF` 提取到文件, `rx` 提取变量, `ri` 内联, `rb` 提取块, `rB` 提取块到文件, `rs` 选择 |
-| AI | `<leader>a` | Native：`ac` 切换, `af` 聚焦, `ar` 恢复选择, `aR` 继续上次, `am` 模型, `ab` 添加 buffer, `as` 附加选区（v）；Claude 专属：`aS`, `aa/ad`；CodeCompanion：`ap{c,t,a,i,b,h}` 新建/切换/操作/Inline/添加选区/历史 |
+| AI | `<leader>a` | Native：`ac` 切换, `af` 聚焦, `ar` 恢复选择, `aR` 继续上次, `am` 模型, `ab` 添加 buffer, `as` 附加选区（v）, `ai` 撰写 prompt（n/v）, `at` 阅读 transcript, `aT` 会话历史；Claude 专属：`aS`, `aa/ad`；CodeCompanion：`ap{c,t,a,i,b,h}` 新建/切换/操作/Inline/添加选区/历史 |
 | 窗口 | `<leader>w` | `ww` 切到其它窗口, `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
 | 退出 | `<leader>q` | `qq/qQ` 退出, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
 | 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `` ` `` 最近使用（alternate）, `l/f` 最右/第一个, `o` 关闭其他, `s` 列出全部 |
@@ -321,7 +321,7 @@ Issue 与 PR 的远程写操作刻意不设置全局快捷键。在 Snacks GitHu
 
 Native coding-agent terminal 进入 Terminal-mode 时不再自动 resize，因此通过
 `<C-h/j/k/l>` 切入时不会出现一行高度的闪动。如果 TUI 发生漂移，先用
-`<Esc><Esc>` 退出输入状态，再以 `<leader>Td>` 手动修复。打开编号底部终端
+`<Esc><Esc>` 退出输入状态，再以 `<leader>td` 手动修复。打开编号底部终端
 后，仍会修复因布局变化而受影响的可见 agent。
 
 Neovim 在 Normal 和 terminal-input 模式下都会接管 `<C-h/j/k/l>`，因此可以
@@ -336,12 +336,65 @@ TUI。
 过的那个，dashboard 也算编辑器窗口。该映射会遮蔽 terminal-mode 的
 `<C-\><C-n>`，请用 `jk` 或 `<Esc><Esc>` 进入 terminal-Normal 模式。
 
-Nvim 内的 Codex 会使用 `--no-alt-screen`，让已完成的聊天输出进入 wrapper 的
-tmux history。使用默认 wrapper 时保持 terminal-input 状态，以鼠标滚轮或
+Nvim 内的 Codex 会使用 `--no-alt-screen --yolo`。YOLO 模式会绕过 Codex 的
+审批与内置沙箱；`--no-alt-screen` 则让已完成的聊天输出进入 wrapper 的 tmux
+history。使用默认 wrapper 时保持 terminal-input 状态，以鼠标滚轮或
 `<PageUp>` 进入 tmux copy-mode；用滚轮或 `<PageDown>` 向下查看，按 `q` 或
 `<Esc>` 返回 Codex 输入。如果已经处于 terminal-Normal mode，同样的滚动键
-会转发给 tmux，并自动恢复 terminal input。使用 `CODEX_WRAP_TMUX=0` 时，
-则先按 `<Esc><Esc>`，再使用 Nvim 的普通滚动命令。
+会转发给 tmux，并自动恢复 terminal input。使用 `CODEX_WRAP_TMUX=0` 时，则先
+按 `<Esc><Esc>`，再使用 Nvim 的普通滚动命令。
+
+#### 在 buffer 里撰写 prompt
+
+`<leader>ai` 打开一个浮动 scratch buffer，用完整的编辑器写 prompt，关闭即发送。
+它存在的原因是 Terminal-mode 把 `<C-h/j/k/l>` 给了窗口导航，而那正是 agent TUI
+的编辑键——在 TUI 自带输入框里写长内容很别扭。
+
+| 按键 | 作用 |
+|------|------|
+| `<C-d>` | 发送（insert 模式下可用，prompt 正是在那里写完的） |
+| `<C-v>` | 附加剪贴板图片 |
+| `<C-c>` | 丢弃（normal 模式） |
+| `:wq` / `ZZ` | 发送 |
+| `:q!` | 丢弃 |
+
+`<C-d>` 与 `<C-c>` 构成 shell 的通用组合——输入结束 vs 取消。`<C-s>` 读起来更
+顺，但它到不了 nvim：那是本机的 tmux prefix，会被 tmux 先吃掉。
+
+其余提交语义沿用 `git commit`：空 buffer 丢弃并给出提示；有内容时 `:q` 会被
+拒绝，所以不会手滑丢掉写了一半的 prompt。从 Visual 模式调用会用选区预填，文本
+形式与 `<leader>as` 一致。
+
+多行内容作为**单条消息**送达：它被 bracketed paste 包裹，内嵌换行不会提前提交。
+如果 agent 没在运行会先启动它。发送失败时草稿会被保留，下次 `<leader>ai` 恢复。
+
+#### 附加图片
+
+composer 里按 `<C-v>` 会暂存剪贴板图片并留下 `[image N]` 占位符，图片随 prompt
+一起送达。仅 macOS。
+
+buffer 装不了图片数据，而且这里也无法把图片塞进 agent 的 API 请求——那个请求由
+agent 进程自己构造，composer 唯一的通道是 pty。所以做法是把图片交还给 TUI 已有
+的机制：两家 TUI 都把 `ctrl+v` 绑定为"自己去读系统剪贴板"，而那个按键只是一个
+字节，composer 送得出去。
+
+图片在附加的瞬间就被复制到临时文件，而不是留在剪贴板里。这是必要条件而非洁癖：
+`clipboard = "unnamedplus"` 意味着你在 composer 里下一次 yank 或删除就会把它冲掉。
+提交时逐张还原到剪贴板、送出按键、再删除临时文件。因此**发送会覆盖你当时的
+剪贴板内容**。
+
+#### 阅读历史输出
+
+`<leader>at` 把当前项目最新的会话渲染成只读 Markdown buffer，`<leader>aT` 从该
+项目的会话历史中挑选。buffer 内 `R` 重新读盘，`q` 关闭。正文可见，thinking 与
+工具调用折叠，`zR` 全部展开，`za` 展开单个。
+
+数据源是 CLI 自己的 JSONL transcript，而非终端。Claude 运行在 alternate screen
+上，其 tmux wrapper 完全不保留回滚内容——pane 里根本没东西可抓。读取落盘的
+transcript 是唯一对两个 provider 都成立的方案，且重启 Nvim 后依然可查，也不需要
+改动 tmux wrapper。
+
+两家 CLI 都不会把推理文本落盘，所以折叠的 thinking 段落通常是不存在，而不是空的。
 
 #### AI provider 选择
 
@@ -404,6 +457,14 @@ libvterm。
 - 安装 tmux 时两个 wrapper 都默认开启
 
 **提示——抑制 recap CJK 错位框**：Claude Code 的 session recap 是最显眼的 CJK 错位受害者。在 `~/.claude/settings.json` 设置 `"awaySummaryEnabled": false` 可关闭。注意这是 Claude Code 的全局配置，不属于 nvim。
+
+### 配置项
+
+在 `init.lua` 里插件加载前设置。
+
+| 选项 | 说明 |
+|------|------|
+| `vim.g.terminal_position` | `"float"`（默认）或 `"bottom"`，决定 `<leader>t1`-`t9` 在哪里打开。只在启动时选定，不支持运行时切换——Snacks 在开窗那一刻定死窗口形态，edgy 又独立判断终端是否属于底部边栏，运行时切换意味着要在每一次隐藏、显示、重排里维持两者一致。 |
 
 ### 环境变量
 
