@@ -1,9 +1,13 @@
 -- Reads Claude Code's on-disk transcripts.
 --
--- Why disk rather than the terminal: Claude runs on the alternate screen
--- (CLAUDE_CODE_NO_FLICKER=1 in lua/plugin/lsp/ai.lua), so its tmux wrapper keeps
--- no scrollback at all -- measured `alt=1 hist=0/2000` against a live session.
--- There is nothing to capture from the pane.
+-- Why disk rather than the terminal: the pane is not a reliable record. On
+-- Claude Code's alt-screen renderer (`/tui fullscreen`) the tmux wrapper keeps
+-- no scrollback at all -- measured `alt=1 hist=0/2000` against a live session --
+-- so there is nothing to capture. On `/tui default` some scrollback survives,
+-- but the screen is a rendering of the conversation rather than the
+-- conversation: wrapped lines, redrawn frames and truncation are
+-- indistinguishable from content. The on-disk JSONL is the only exact source,
+-- and it is the same shape of answer for both providers.
 --
 -- The format is an undocumented implementation detail of a tool that ships
 -- often, so every unrecognised record is skipped rather than raising. A schema

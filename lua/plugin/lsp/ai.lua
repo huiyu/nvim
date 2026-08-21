@@ -54,9 +54,15 @@ local function build_terminal_cmd()
   -- nvim only overrides it for :terminal children, not its own env.
   local term = vim.env.TERM or "xterm-256color"
 
+  -- ctrl+g in the TUI edits the input box in $EDITOR. Pointing it at the wrapper
+  -- sends that back to this nvim rather than nesting a second one inside the
+  -- :terminal -- see lua/ai/editor.lua.
+  local wrapper = vim.fn.shellescape(require("ai.editor").wrapper())
+  local editor_env = "EDITOR=" .. wrapper .. " VISUAL=" .. wrapper
+
   -- Skip the wrapper unless tmux is available AND wrapping is explicitly enabled.
   if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then
-    return "env TERM=" .. vim.fn.shellescape(term) .. " " .. claude_cmd
+    return "env TERM=" .. vim.fn.shellescape(term) .. " " .. editor_env .. " " .. claude_cmd
   end
 
   -- Rationale for the wrapper lives in should_wrap_tmux above. Implementation
@@ -89,11 +95,29 @@ local function build_terminal_cmd()
     "-e ENABLE_IDE_INTEGRATION=$ENABLE_IDE_INTEGRATION",
     "-e FORCE_CODE_TERMINAL=$FORCE_CODE_TERMINAL",
     "-e no_proxy=localhost,127.0.0.1",
-    -- Fullscreen / alt-screen rendering: doesn't fix the resize drift bugs
-    -- (see huiyu/nvim#2) but keeps scrollback memory bounded and enables
-    -- mouse support inside the TUI. Hardcoded =1 so it doesn't depend on
-    -- the user's shell env (tmux only forwards what's whitelisted via -e).
-    "-e CLAUDE_CODE_NO_FLICKER=1",
+    -- CLAUDE_CODE_NO_FLICKER=1 used to be forced here for the alt-screen
+    -- renderer. Claude Code has since made that a first-class user preference:
+    -- `/tui fullscreen` / `/tui default`, stored as "tui" in
+    -- ~/.claude/settings.json, with the env var documented as the override.
+    -- Forcing the override here would silently ignore whatever the user chose,
+    -- so it is left unset and the preference wins.
+    --
+    -- Note this is NOT the lever for "the pane goes blank while the ctrl+g
+    -- prompt editor is open", and neither is `/tui`. Measured: the pane goes
+    -- blank with the env var set, with it unset, and on the `default`
+    -- (main-screen) renderer alike. Claude Code simply clears the terminal
+    -- before handing it to $EDITOR, and our editor draws in a float instead of
+    -- on that canvas. It is its own choice, not something every CLI does --
+    -- Codex held its TUI at 18 non-blank lines across the same edit while
+    -- Claude went 17 -> 0 -> 17. scripts/agent-editor prints into the cleared
+    -- pane so it explains itself rather than looking hung.
+    -- tmux only puts into the pane what is whitelisted with -e, so the ctrl+g
+    -- editor handoff has to be forwarded explicitly. $NVIM is already in this
+    -- sh's environment because nvim sets it for every :terminal child, and it
+    -- is what lets the wrapper find its way back here.
+    "-e EDITOR=$EDITOR",
+    "-e VISUAL=$VISUAL",
+    "-e NVIM=$NVIM",
     claude_cmd .. ' "$@"',
     "\\; set-option -g destroy-unattached on",
     "\\; set-option -g exit-empty on",
@@ -103,7 +127,8 @@ local function build_terminal_cmd()
     "\\; set-option -g status off",
     "\\; set-hook -g client-detached kill-server",
   }, " ")
-  return "env TERM=" .. vim.fn.shellescape(term) .. " sh -c " .. vim.fn.shellescape(inner) .. " _"
+  return "env TERM=" .. vim.fn.shellescape(term) .. " " .. editor_env
+    .. " sh -c " .. vim.fn.shellescape(inner) .. " _"
 end
 
 -- Detached watchdog: polls our nvim pid and tears down the dedicated tmux

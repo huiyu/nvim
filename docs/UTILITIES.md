@@ -226,8 +226,8 @@ run.run_current()
 Builds agent-ready text from the live visual selection. It sits outside the
 backends because the two providers attach selections through different channels:
 Codex pastes text, while Claude's `<leader>as` goes over the IDE WebSocket and
-produces no text at all. The composer needs text under both, so the text form has
-exactly one producer.
+produces no text at all. `<leader>ai` needs text under both providers to seed the
+agent's input box, so the text form has exactly one producer.
 
 #### API Reference
 
@@ -250,33 +250,75 @@ A saved, unmodified file yields an `@path lines N-M ` mention, trailing space
 included. Anything unsaved or modified yields the literal selection in a fenced
 block, since a path reference would point the agent at stale bytes; that case
 also returns `notice` so the caller can explain the fallback. Nothing is
-notified from inside the module — `<leader>as` and the composer surface failures
+notified from inside the module — `<leader>as` and `<leader>ai` surface failures
 differently.
 
-## AI Clipboard (`ai.clipboard`)
+## AI Editor (`ai.editor`)
 
-Moves clipboard images between the system, a staging file, and the agent TUI.
-macOS only — it shells out to `osascript`, the same way both agent CLIs do.
+Host side of the agent TUI's `ctrl+g` handoff. Both native agents bind that key
+to "edit the input box in `$EDITOR`"; `scripts/agent-editor` is that `$EDITOR`,
+and it forwards the file here over RPC rather than starting a nested Nvim inside
+the `:terminal`.
 
 #### API Reference
 
 ```lua
-local clipboard = require("ai.clipboard")
+local editor = require("ai.editor")
 
-clipboard.has_image()            --> boolean
-clipboard.save_image(path)       --> ok, err   write the clipboard image as PNG
-clipboard.restore_image(path)    --> ok, err   put a PNG file back on the clipboard
-clipboard.attach(chan, paths, done)            -- feed each image to a terminal job
-clipboard.staging_dir()          --> string    per-process temp directory
+---@return string status  "opened", "focused", or "error: <reason>"
+editor.open(path, sentinel)  -- open the agent's temp prompt file in a float
+editor.wrapper()             -- absolute path to scripts/agent-editor
+editor.keys(seed)            -- bytes that seed the input box, then ask for the editor
+editor.tui_ready(buf)        -- has the agent TUI in buf drawn its input prompt?
+editor.when_ready(get_buf, action, on_timeout)
 ```
 
-`attach` is sequential and deferred rather than a loop: each keystroke it sends
-makes the TUI spawn its own clipboard reader, and the next image cannot be placed
-on the clipboard until that read finishes.
+`open` is called over RPC by the wrapper, which is blocked in a poll loop while
+the agent TUI is in turn blocked on the wrapper. So every exit path releases the
+sentinel — success, refusal, discard, and `VimLeavePre`. A missed release does
+not merely lose an edit, it hangs the agent.
 
-Every entry point returns `false, reason` off macOS rather than raising, and any
-path containing a quote, backslash or newline is refused — paths are interpolated
-into AppleScript source, which has no equivalent of `shellescape`.
+`<C-d>` / `:wq` writes the buffer back to the file the agent re-reads; `<C-c>` /
+`:q!` leaves the file untouched so the input box keeps what it had. The buffer
+opts out of format-on-save because the file is real markdown: reformatting it
+on the write that hands it back would reflow a prompt the user wrote
+deliberately.
+
+A second request for a prompt already on screen focuses the existing float and
+releases the duplicate's sentinel instead of stacking two windows on one buffer.
+Each open also gets its own augroup: naming it after the buffer meant a second
+open of the same file silently deleted the first one's `BufWipeout`, which is
+the only thing that releases the first wrapper.
+
+`keys` puts the seed and the edit key in ONE channel write. Split across two
+writes their order is the event loop's to decide, and a `0x07` that overtakes the
+paste opens an editor without the selection in it.
+
+### Images
+
+`<C-v>` stages the clipboard image through `ai.clipboard` and nothing is written
+into the buffer — the prompt file is plain markdown, and only the CLI can put
+image bytes into its request. On return, the staged files are replayed through
+the TUI's own `ctrl+v` (`ai.attach_images`), and the CLI writes its own
+`[Image #N]` marker.
+
+The replay is deferred until after the buffer closes. Measured: while the prompt
+is open the agent is blocked on the editor and discards pty input, so a `ctrl+v`
+sent during the edit never arrives and the same one sent afterwards does. 100ms
+after close was still too early; 300ms landed.
+
+### Reading the screen
+
+Prompt *content* is never scraped: a real newline and a soft wrap render
+identically in both TUIs — a two-space-indented continuation line either way —
+so screen text cannot be reassembled into the original prompt.
+
+`tui_ready` does read the screen, for the single question "has the input box
+appeared yet", and `when_ready` polls it so a freshly started agent gets its
+keystroke at the right moment instead of swallowing it. That use is safe for the
+same reason content extraction is not: a wrong answer costs one keystroke the
+user can repeat. A numbered line (`❯ 1. Yes, I trust this folder`) is one of the
+CLI's own choice lists, not an input box, and does not count as ready.
 
 ## AI Transcript (`ai.transcript`)
 

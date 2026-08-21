@@ -26,13 +26,13 @@ local CHANNEL_READY_MS = 350
 --
 -- claudecode.nvim's send_to_terminal deliberately does NOT start the terminal:
 -- it warns and returns false when none is running. Codex's send() does start
--- one. This levels the two so the composer behaves identically under either
+-- one. This levels the two so a text send behaves identically under either
 -- provider -- start if needed, then send.
 --
 -- Delivery is asynchronous on the start path, so failure is reported through
 -- `opts.on_error` rather than a return value.
 ---@param text string
----@param opts { submit?: boolean, focus?: boolean, images?: string[], on_error?: fun(reason: string) }
+---@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }
 function M.send_text(text, opts)
   opts = opts or {}
   local terminal = require("claudecode.terminal")
@@ -57,36 +57,80 @@ function M.send_text(text, opts)
     end
   end
 
-  local function deliver()
-    local images = opts.images or {}
-    if #images == 0 then
-      send_body()
-      return
-    end
-
-    -- Images have to reach Claude through its own paste path (ctrl+v is bound
-    -- to "chat:imagePaste"), because there is no way to put image bytes into
-    -- the request from here. Attach first, then the text.
-    local bufnr = terminal.get_active_terminal_bufnr()
-    local channel = bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].channel
-    if not channel or channel <= 0 then
-      send_body()
-      return
-    end
-
-    require("ai.clipboard").attach(channel, images, function()
-      for _, path in ipairs(images) do vim.fn.delete(path) end
-      send_body()
-    end)
-  end
-
   local bufnr = terminal.get_active_terminal_bufnr()
   if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-    deliver()
+    send_body()
   else
     terminal.ensure_visible()
-    vim.defer_fn(deliver, CHANNEL_READY_MS)
+    vim.defer_fn(send_body, CHANNEL_READY_MS)
   end
+end
+
+---Feed staged images to the TUI through its own ctrl+v. Backs <C-v> in the
+---prompt editor.
+---@param paths string[]
+function M.attach_images(paths)
+  local terminal = require("claudecode.terminal")
+  local bufnr = terminal.get_active_terminal_bufnr()
+  local channel = bufnr
+    and vim.api.nvim_buf_is_valid(bufnr)
+    and vim.bo[bufnr].channel
+
+  local function discard()
+    for _, png in ipairs(paths) do vim.fn.delete(png) end
+  end
+
+  if not channel or channel <= 0 then
+    vim.notify("Claude terminal is gone; images were not attached", vim.log.levels.WARN)
+    discard()
+    return
+  end
+
+  require("ai.clipboard").attach(channel, paths, discard)
+end
+
+---Ask the TUI to open its own prompt editor, seeding the input box first when
+---`opts.seed` is given. Backs `<leader>ai`.
+---@param opts { seed?: string }?
+function M.edit_prompt(opts)
+  opts = opts or {}
+  local terminal = require("claudecode.terminal")
+
+  local editor = require("ai.editor")
+
+  local function channel_of(bufnr)
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return nil end
+    local channel = vim.bo[bufnr].channel
+    return channel and channel > 0 and channel or nil
+  end
+
+  -- Sampled BEFORE ensure_visible, which starts the terminal when none exists.
+  -- A freshly started job has a channel immediately, so checking afterwards
+  -- would look "already running" and fire the key into a booting TUI.
+  local running = channel_of(terminal.get_active_terminal_bufnr())
+
+  terminal.ensure_visible()
+
+  if running then
+    vim.api.nvim_chan_send(running, editor.keys(opts.seed))
+    return
+  end
+
+  -- Nothing was running, so the CLI is booting. Wait for its input box instead
+  -- of firing a 0x07 it would swallow with nothing on screen to show for it.
+  editor.when_ready(
+    terminal.get_active_terminal_bufnr,
+    function(buf)
+      local ready = channel_of(buf)
+      if ready then vim.api.nvim_chan_send(ready, editor.keys(opts.seed)) end
+    end,
+    function()
+      vim.notify(
+        "Claude Code did not reach its prompt — press <leader>ai again",
+        vim.log.levels.WARN
+      )
+    end
+  )
 end
 
 return M

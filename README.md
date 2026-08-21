@@ -357,7 +357,7 @@ visible agent after the layout changes.
 `<C-h/j/k/l>` is owned by Neovim in both Normal and terminal-input mode, so it
 can move directly between editor and terminal windows. This replaces the TUI's
 original Ctrl shortcuts; use Backspace for delete-backward, `<S-Enter>` for a
-composer newline, and arrow keys in pickers. `<C-S-l>` forwards the original
+newline in the agent's input box, and arrow keys in pickers. `<C-S-l>` forwards the original
 Ctrl+L byte to redraw either the Codex or Claude Code TUI.
 
 `<C-\>` is owned by Neovim in the same two modes and jumps straight to the
@@ -378,52 +378,68 @@ keys are forwarded to tmux and restore terminal input automatically.
 With `CODEX_WRAP_TMUX=0`, use `<Esc><Esc>` and Nvim's normal scroll commands
 instead.
 
-#### Composing prompts in a buffer
+#### Editing the prompt in a buffer
 
-`<leader>ai` opens a floating scratch buffer for writing a prompt with the whole
-editor available, then sends it. It exists because Terminal-mode gives
-`<C-h/j/k/l>` to window navigation, which are exactly the agent TUI's editing
-keys — writing anything long in the TUI's own input box is awkward.
+`<leader>ai` opens the agent's prompt in a floating buffer, so a long prompt is
+written with the whole editor instead of the TUI's input box. It exists because
+Terminal-mode gives `<C-h/j/k/l>` to window navigation, which are exactly the
+agent TUI's editing keys.
 
 | Key | Action |
 |-----|--------|
-| `<C-d>` | send (works from Insert mode, where a prompt is finished) |
+| `<C-d>` | return the prompt to the agent (works from Insert mode) |
 | `<C-v>` | attach the clipboard image |
-| `<C-c>` | discard, from Normal mode |
-| `:wq` / `ZZ` | send |
-| `:q!` | discard |
+| `<C-c>` | cancel, leaving the input box as it was |
+| `:wq` / `ZZ` | return the prompt |
+| `:q!` | cancel |
 
-`<C-d>` pairs with `<C-c>` the way a shell does — end-of-input against cancel.
-`<C-s>` would read better but cannot arrive: it is this machine's tmux prefix,
-so tmux consumes it before Nvim sees it.
+Whatever is already in the input box comes across, and from Visual mode the
+selection is added to it first, using the same text form `<leader>as` produces.
+Nothing is submitted — closing the buffer hands the text back to the box, and you
+still press Enter yourself.
 
-Submit semantics are otherwise `git commit`'s. An empty buffer discards with a
-notice, and `:q` on a buffer with text is refused, so a half-written prompt
-cannot be lost by reflex. From Visual mode the composer is seeded with the
-selection, using the same text form `<leader>as` produces.
+This is not a buffer of ours: it is the agent's own `ctrl+g` ("edit this prompt
+in `$EDITOR`"), which both Claude Code and Codex implement. `$EDITOR` points at
+`scripts/agent-editor`, which opens the prompt in *this* Nvim instead of starting
+a second one inside the `:terminal`. `<leader>ai` simply sends `ctrl+g` to the
+TUI, so pressing `ctrl+g` there directly does the same thing.
 
-Multi-line text arrives as a single message: it is wrapped in bracketed paste, so
-embedded newlines do not submit early. If the agent is not running it is started
-first. If the send fails, the draft is kept and the next `<leader>ai` restores
-it.
+Going through the CLI is what makes it exact. The CLI writes the box to a temp
+`.md` file, waits for the editor, and re-reads it — so newlines survive, and the
+CLI performs the write-back itself. Reading the box off the terminal screen
+instead cannot work: a real newline and a soft wrap render identically in both
+TUIs (a two-space-indented continuation line either way), so scraped text can
+never be reassembled reliably.
+
+`$NVIM` is what makes the round trip possible: Nvim sets it in every `:terminal`
+child, and it holds the RPC socket back to the instance that owns the terminal.
+The wrapper polls for a sentinel file rather than using `--remote-wait`, which
+Nvim does not implement (`E5600: Wait commands not yet implemented in Nvim`).
+
+If the agent is not running, `<leader>ai` starts it and waits for its input box
+before sending the key — a `ctrl+g` fired at a booting TUI is swallowed with
+nothing on screen to show for it. Readiness is the one thing read off the
+rendered screen, and only as a trigger: being wrong costs a keystroke, not a
+corrupted prompt.
 
 #### Attaching images
 
-`<C-v>` in the composer stages the clipboard image and leaves an `[image N]`
-placeholder; the images travel with the prompt when it is sent. macOS only.
+`<C-v>` in the prompt buffer stages the clipboard image; it attaches when you
+return the prompt. Staged images show as virtual lines at the end of the buffer,
+which are not buffer text — so they are visible while you write without being
+sent as literal text. Pressing `ctrl+v` in the TUI itself still works too. macOS
+only.
 
-A buffer cannot hold image data, and there is no way to put an image into the
-agent's API request from here — the agent builds that request itself, and the
-composer's only channel is the pty. So the image is handed back through the
-mechanism the TUIs already have: both bind `ctrl+v` to read the system clipboard
-themselves, and that keystroke is a single byte the composer can send.
+Nothing is written into the buffer, because the image cannot travel through the
+prompt file — that is plain markdown, and only the CLI can put image bytes into
+its request. So the staged file is replayed through the TUI's own `ctrl+v`, and
+the CLI writes its own `[Image #N]` marker.
 
-The image is copied to a temp file the moment it is attached rather than left on
-the clipboard. That is required, not tidy: `clipboard = "unnamedplus"` means the
-next yank or delete in the composer would otherwise overwrite it. At send time
-each image is put back on the clipboard, the keystroke is sent, and the temp file
-is removed. Sending therefore replaces whatever is on the clipboard at that
-moment.
+The replay waits until the buffer has closed. Measured: while the prompt is open
+the agent is blocked on the editor and throws pty input away, so a `ctrl+v` sent
+during the edit never arrives — the same one sent afterwards does. Cancelling
+discards the staged files rather than bolting them onto a prompt you threw
+away.
 
 #### Reading past output
 
@@ -453,7 +469,7 @@ vic                # NVIM_AI_PROVIDER=claude nvim
 vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex-oauth" nvim
 ```
 
-`<leader>as` attaches the visual selection to the native agent's composer and
+`<leader>as` attaches the visual selection to the native agent's input box and
 does not submit it, leaving room for an instruction. With Codex, a saved buffer
 becomes an `@path lines X-Y` draft. For a modified or unnamed buffer, the exact
 selected text is pasted instead because Codex file mentions read the saved file.

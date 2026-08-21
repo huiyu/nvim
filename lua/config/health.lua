@@ -70,6 +70,18 @@ function M.check()
     health.error(("%s not found — %s native agent unavailable"):format(ai.native.command, ai.label))
   end
 
+  -- The agents' ctrl+g ("edit this prompt in $EDITOR") is pointed at this
+  -- wrapper. A non-executable one is not fatal -- ctrl+g falls back to starting
+  -- a nested nvim inside the :terminal -- but that failure is silent, so it is
+  -- worth surfacing here rather than leaving it to be discovered mid-prompt.
+  local wrapper = require("ai.editor").wrapper()
+  if vim.fn.executable(wrapper) == 1 then
+    health.ok("agent-editor wrapper executable — ctrl+g edits the TUI prompt in this Nvim")
+  else
+    health.warn(("%s not executable — ctrl+g will open a nested nvim instead"):format(wrapper),
+      { "chmod +x " .. wrapper })
+  end
+
   local acp_command = ai.codecompanion.acp_command
   if vim.fn.executable(acp_command) == 1 then
     health.ok(("%s found — CodeCompanion Chat uses %s over ACP"):format(acp_command, ai.label))

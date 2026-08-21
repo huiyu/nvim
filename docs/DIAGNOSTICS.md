@@ -56,6 +56,11 @@ the update checker runs silently once a day (`bootstrap.lua`).
   what each one is needed for
 - Active AI provider, native CLI, selected ACP bridge, and optional
   CodeCompanion HTTP inline/command credentials
+- Whether `scripts/agent-editor` is executable. Both agent TUIs bind `ctrl+g` to
+  "edit this prompt in `$EDITOR`", and that wrapper is what makes the prompt open
+  in this Nvim rather than in a second one nested inside the `:terminal`. It
+  degrades to the nested editor silently, so the check is a warning, not an
+  error — `chmod +x` is the fix.
 - Oversized LSP logs (warns above 10 MiB)
 - A few key Mason packages
 
@@ -194,20 +199,41 @@ rather than a broken viewer.
   nothing — use `:w`. Nvim's own Insert-mode default on that key,
   `i_CTRL-S` for `vim.lsp.buf.signature_help()`, is unreachable for the same
   reason; `gK` is the working path.
-- **`<C-v>` says "No image on the clipboard"** — the clipboard holds text, not an
-  image. Note that any yank or delete in the composer overwrites it, which is
-  why an image is staged to a file the moment it is attached. Check with:
+- **`ctrl+v` in the agent TUI attaches nothing** — the clipboard holds text, not
+  an image. The agent CLIs read the clipboard themselves; Nvim is not involved.
+  Check with:
   ```sh
   osascript -e 'clipboard info'   # an image shows «class PNGf»
   ```
-- **An attached image never reaches the agent** — attachment replays the TUI's
-  own `ctrl+v`, so it depends on the agent still reading the clipboard on that
-  key. Confirm by pressing `<C-v>` directly in the agent TUI; if that fails too,
-  the CLI changed its binding.
-- **Nothing was sent** — the buffer was blank, or it was never written. Only
-  `BufWriteCmd` marks a draft for sending, which is what makes `:q!` an abort.
-- **Send failed** — the draft is kept in memory; the next `<leader>ai` restores
-  it. Delivery is asynchronous when the agent had to be started first.
+- **The Claude pane clears while the prompt buffer is open** — expected, not a
+  hang. The CLI clears the terminal before handing it to `$EDITOR`, the way
+  `git commit` does, and this editor draws in a float instead of on that canvas.
+  `scripts/agent-editor` prints a note into the cleared pane so it says what is
+  happening; the TUI redraws itself when the prompt is returned.
+
+  Neither `/tui` nor `CLAUDE_CODE_NO_FLICKER` changes this — measured blank with
+  the env var set, unset, and on the `default` main-screen renderer alike, so it
+  is the handoff and not the alternate screen. It is also specific to Claude
+  Code: across the same edit its pane went 17 non-blank lines → 0 → 17, while
+  Codex held at 18 → 18 → 18 and kept its TUI on screen throughout.
+- **`<leader>ai` appears to do nothing** — the agent was not running. It starts
+  the CLI and notifies instead of firing the keystroke, because a `ctrl+g` aimed
+  at a TUI that is still booting is swallowed silently. Press `<leader>ai` again
+  once the prompt appears.
+- **The prompt opens in a second Nvim inside the terminal** — the `$EDITOR`
+  handoff did not reach the pane, so the CLI fell back to running `nvim` itself.
+  Check `:checkhealth config` for the wrapper, then inside the agent terminal:
+  ```sh
+  echo "$EDITOR"   # should be <config>/scripts/agent-editor
+  echo "$NVIM"     # should be the host's RPC socket
+  ```
+  Under the tmux wrappers both are forwarded explicitly with `new-session -e`; a
+  tmux pane does not inherit them otherwise.
+- **The agent TUI stays blocked after the prompt buffer closes** — the wrapper
+  waits on a sentinel file next to the CLI's temp `.md`. Every exit path writes
+  it, including `VimLeavePre`, and the wrapper gives up on its own once the host
+  stops answering RPC. A genuine hang means the buffer is still open somewhere —
+  find it with `:ls` and close it.
 
 ## Debugging (DAP)
 

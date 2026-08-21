@@ -40,12 +40,21 @@ local function ensure_tmux_watchdog()
   vim.fn.jobstart({ "sh", "-c", script }, { detach = true })
 end
 
+-- ctrl+g in the TUI edits the input box in $EDITOR. Pointing it at the wrapper
+-- routes that back into this nvim instead of nesting a second one -- see
+-- lua/ai/editor.lua.
+local function editor_env()
+  local wrapper = require("ai.editor").wrapper()
+  return { EDITOR = wrapper, VISUAL = wrapper }
+end
+
 local function terminal_command(args)
   if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then return args end
 
   ensure_tmux_watchdog()
   local term = vim.env.TERM or "xterm-256color"
   local socket = "codex-nvim-" .. vim.fn.getpid()
+  local wrapper = require("ai.editor").wrapper()
   local command = {
     "env", "TERM=" .. term,
     "tmux", "-f", "/dev/null", "-L", socket,
@@ -55,6 +64,14 @@ local function terminal_command(args)
     ";", "bind-key", "-T", "root", "WheelUpPane", "copy-mode", "-eu",
     ";", "bind-key", "-T", "root", "PPage", "copy-mode", "-eu",
     ";", "new-session", "-A", "-s", "main",
+    -- tmux only puts into the pane what is whitelisted here; the pane does not
+    -- inherit this process's environment. $NVIM has to be spelled out from
+    -- v:servername because this list is handed to jobstart without a shell, so
+    -- there is nothing to expand `$NVIM` -- and the host nvim does not set
+    -- NVIM for itself anyway, only for its :terminal children.
+    "-e", "EDITOR=" .. wrapper,
+    "-e", "VISUAL=" .. wrapper,
+    "-e", "NVIM=" .. vim.v.servername,
   }
   vim.list_extend(command, args)
   vim.list_extend(command, {
@@ -81,6 +98,9 @@ local project_root = ai_config.project_root
 local function terminal_opts(root)
   return {
     cwd = root,
+    -- Covers the non-tmux path; the wrapper build injects the same pair through
+    -- `new-session -e` because a tmux pane does not inherit this environment.
+    env = editor_env(),
     auto_insert = true,
     start_insert = true,
     auto_close = true,
@@ -254,43 +274,79 @@ function M.continue()
   start(codex_command({ "resume", "--last" }), project_root(path))
 end
 
--- Provider-neutral entry point. The composer sends through this; `send` stays
--- private because its `raw` option is a Codex-specific escape hatch.
+-- Provider-neutral entry point. `send` stays private because its `raw` option
+-- is a Codex-specific escape hatch.
 ---@param text string
----@param opts { submit?: boolean, focus?: boolean, images?: string[], on_error?: fun(reason: string) }
+---@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }
 function M.send_text(text, opts)
   opts = opts or {}
+  send(text, { submit = opts.submit ~= false, on_error = opts.on_error })
+end
 
-  local function send_body()
-    send(text, { submit = opts.submit ~= false, on_error = opts.on_error })
+---Feed staged images to the TUI through its own ctrl+v. Backs <C-v> in the
+---prompt editor.
+---@param paths string[]
+function M.attach_images(paths)
+  local function discard()
+    for _, png in ipairs(paths) do vim.fn.delete(png) end
   end
 
-  local images = opts.images or {}
-  if #images == 0 then
-    send_body()
+  if not active() then
+    vim.notify("Codex terminal is gone; images were not attached", vim.log.levels.WARN)
+    discard()
     return
   end
 
-  -- Images have to reach Codex through its own paste path -- "Paste an image
-  -- with Ctrl+V to attach it to your next message" -- because there is no way
-  -- to put image bytes into the request from here. Attach first, then the text:
-  -- the attachment rides along with whatever is submitted next.
   local term = ensure()
-  vim.defer_fn(function()
-    if not term:buf_valid() then
-      send_body()
-      return
-    end
+  local channel = term:buf_valid() and vim.bo[term.buf].channel
+  if not channel or channel <= 0 then
+    vim.notify("Codex terminal is not ready; images were not attached", vim.log.levels.WARN)
+    discard()
+    return
+  end
+
+  require("ai.clipboard").attach(channel, paths, discard)
+end
+
+---Ask the TUI to open its own prompt editor, seeding the input box first when
+---`opts.seed` is given. Backs `<leader>ai`.
+---@param opts { seed?: string }?
+function M.edit_prompt(opts)
+  opts = opts or {}
+
+  local editor = require("ai.editor")
+  local running = active()
+  local term = ensure()
+  show_and_focus(term)
+
+  local function channel_of()
+    if not term:buf_valid() then return nil end
     local channel = vim.bo[term.buf].channel
-    if not channel or channel <= 0 then
-      send_body()
-      return
+    return channel and channel > 0 and channel or nil
+  end
+
+  if running then
+    local channel = channel_of()
+    if channel then
+      vim.api.nvim_chan_send(channel, editor.keys(opts.seed))
+    else
+      vim.notify("Codex terminal is not ready", vim.log.levels.WARN)
     end
-    require("ai.clipboard").attach(channel, images, function()
-      for _, path in ipairs(images) do vim.fn.delete(path) end
-      send_body()
-    end)
-  end, 350)
+    return
+  end
+
+  -- Freshly started: Codex takes seconds to draw its input box, and anything
+  -- sent before then is swallowed silently.
+  editor.when_ready(
+    function() return term:buf_valid() and term.buf or nil end,
+    function()
+      local channel = channel_of()
+      if channel then vim.api.nvim_chan_send(channel, editor.keys(opts.seed)) end
+    end,
+    function()
+      vim.notify("Codex did not reach its prompt — press <leader>ai again", vim.log.levels.WARN)
+    end
+  )
 end
 
 function M.select_model()
@@ -307,8 +363,8 @@ function M.add_buffer()
 end
 
 -- Codex CLI has file mentions but no editor selection attachment API, so a
--- selection travels as text. The text itself is built by ai.selection, which the
--- composer shares -- see that module for why it is not a backend concern.
+-- selection travels as text. The text itself is built by ai.selection, which
+-- <leader>ai shares -- see that module for why it is not a backend concern.
 function M.send_selection()
   local draft, err, notice = require("ai.selection").draft()
   if not draft then

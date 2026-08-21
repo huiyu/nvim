@@ -39,15 +39,34 @@ function M.tree_add() return invoke("tree_add") end
 ---@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }?
 function M.send_text(text, opts) return invoke("send_text", text, opts) end
 
----Compose a prompt in a scratch buffer. Seeds from the visual selection when
----called from Visual mode; the selection helper is the only text producer that
----works for both providers.
+---Replay the TUI's own image-paste keystroke for each staged file.
+---
+---Only the CLI can put image bytes into its request, so this is the one channel
+---that exists. It runs after the prompt buffer closes because the agent drops
+---pty input while it is blocked on the editor.
+---@param paths string[]
+function M.attach_images(paths) return invoke("attach_images", paths) end
+
+---Open the agent's prompt editor.
+---
+---This is the TUI's own ctrl+g, not a buffer of ours: `$EDITOR` points at
+---scripts/agent-editor, which brings the prompt back into this Nvim. Going
+---through the CLI means the box's existing text arrives exactly and the edit is
+---written back by the CLI itself -- see lua/ai/editor.lua for why reading the
+---box off the screen instead cannot work.
+---
+---From Visual mode the selection is placed in the box first, so it shows up in
+---the editor alongside whatever was already typed there.
 function M.compose()
   local seed
   if vim.fn.mode():sub(1, 1):match("[vVsS\22\19]") then
     seed = require("ai.selection").draft()
+    -- Leave Visual explicitly. The composer this replaced dropped out of it by
+    -- opening a buffer; sending bytes to a terminal does not, and the selection
+    -- has already been read by this point.
+    vim.cmd("normal! \27")
   end
-  require("ai.composer").open(seed)
+  return invoke("edit_prompt", { seed = seed })
 end
 
 function M.transcript() require("ai.transcript").open_current() end
@@ -82,9 +101,9 @@ function M.setup()
   map("x", "<leader>as", M.send_selection, "Attach selection to " .. config.label)
 
   -- The agent's own input box loses <C-h/j/k/l> to window navigation, so long
-  -- prompts get a real buffer instead. Bound in Visual mode too, where it seeds
-  -- from the selection.
-  map({ "n", "x" }, "<leader>ai", M.compose, "Compose prompt for " .. config.label)
+  -- prompts get a real buffer instead -- the agent's own ctrl+g, routed back
+  -- here. Bound in Visual mode too, where it seeds from the selection.
+  map({ "n", "x" }, "<leader>ai", M.compose, "Edit " .. config.label .. " prompt")
   map("n", "<leader>at", M.transcript, "Read " .. config.label .. " transcript")
   map("n", "<leader>aT", M.transcript_pick, config.label .. " session history")
 

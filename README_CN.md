@@ -344,44 +344,56 @@ history。使用默认 wrapper 时保持 terminal-input 状态，以鼠标滚轮
 会转发给 tmux，并自动恢复 terminal input。使用 `CODEX_WRAP_TMUX=0` 时，则先
 按 `<Esc><Esc>`，再使用 Nvim 的普通滚动命令。
 
-#### 在 buffer 里撰写 prompt
+#### 在 buffer 里编辑 prompt
 
-`<leader>ai` 打开一个浮动 scratch buffer，用完整的编辑器写 prompt，关闭即发送。
-它存在的原因是 Terminal-mode 把 `<C-h/j/k/l>` 给了窗口导航，而那正是 agent TUI
-的编辑键——在 TUI 自带输入框里写长内容很别扭。
+`<leader>ai` 把 agent 的 prompt 开在一个浮动 buffer 里，长 prompt 就能用整个编辑
+器来写，而不是挤在 TUI 的输入框里。它存在的原因是 Terminal 模式把
+`<C-h/j/k/l>` 给了窗口导航，而那正是 agent TUI 的编辑键。
 
-| 按键 | 作用 |
+| 按键 | 行为 |
 |------|------|
-| `<C-d>` | 发送（insert 模式下可用，prompt 正是在那里写完的） |
+| `<C-d>` | 把 prompt 交回 agent（insert 模式下可用） |
 | `<C-v>` | 附加剪贴板图片 |
-| `<C-c>` | 丢弃（normal 模式） |
-| `:wq` / `ZZ` | 发送 |
-| `:q!` | 丢弃 |
+| `<C-c>` | 取消，输入框保持原样 |
+| `:wq` / `ZZ` | 交回 prompt |
+| `:q!` | 取消 |
 
-`<C-d>` 与 `<C-c>` 构成 shell 的通用组合——输入结束 vs 取消。`<C-s>` 读起来更
-顺，但它到不了 nvim：那是本机的 tmux prefix，会被 tmux 先吃掉。
+输入框里**已有的内容会带过来**；从 Visual 模式调用则先把选区加进去，文本形式与
+`<leader>as` 一致。全程不提交——关闭 buffer 只是把文本交回输入框，回车仍然由你自
+己按。
 
-其余提交语义沿用 `git commit`：空 buffer 丢弃并给出提示；有内容时 `:q` 会被
-拒绝，所以不会手滑丢掉写了一半的 prompt。从 Visual 模式调用会用选区预填，文本
-形式与 `<leader>as` 一致。
+这不是我们自建的 buffer，而是 agent 自带的 `ctrl+g`（「在 `$EDITOR` 里编辑当前
+prompt」），Claude Code 和 Codex 都实现了它。`$EDITOR` 指向
+`scripts/agent-editor`，它把 prompt 开在**当前这个** nvim 里，而不是在
+`:terminal` 里再套一个。`<leader>ai` 只是向 TUI 发送 `ctrl+g`，所以在 TUI 里直接
+按 `ctrl+g` 效果完全相同。
 
-多行内容作为**单条消息**送达：它被 bracketed paste 包裹，内嵌换行不会提前提交。
-如果 agent 没在运行会先启动它。发送失败时草稿会被保留，下次 `<leader>ai` 恢复。
+走 CLI 这条路才能做到精确：CLI 把输入框写进一个临时 `.md` 文件，等编辑器退出，再
+重新读回——换行原样保留，回写也由 CLI 自己完成。从终端屏幕上刮内容则做不到：两个
+TUI 里**真换行和软换行渲染完全相同**（都是缩进两格的续行），刮下来的文本永远无法
+可靠还原。
+
+能走通靠的是 `$NVIM`：nvim 会在每个 `:terminal` 子进程里设置它，指向拥有该终端的
+实例的 RPC socket。wrapper 用哨兵文件轮询而非 `--remote-wait`，因为 Neovim 没实现
+后者（`E5600: Wait commands not yet implemented in Nvim`）。
+
+如果 agent 没在运行，`<leader>ai` 会启动它并**等到输入框就绪**再发送按键——打进
+一个还在启动的 TUI 的 `ctrl+g` 会被静默吞掉。就绪判断是唯一一处读取渲染后屏幕的
+地方，且只用作触发信号：判断错的代价是丢一次按键，而不是弄坏 prompt 内容。
 
 #### 附加图片
 
-composer 里按 `<C-v>` 会暂存剪贴板图片并留下 `[image N]` 占位符，图片随 prompt
-一起送达。仅 macOS。
+在 prompt buffer 里按 `<C-v>` 暂存剪贴板图片，交回 prompt 时一并附加。已暂存的图
+片以**虚拟行**显示在 buffer 末尾——虚拟行不属于 buffer 内容，所以写 prompt 时看得
+见，又不会被当成正文发出去。直接在 TUI 里按 `ctrl+v` 同样有效。仅 macOS。
 
-buffer 装不了图片数据，而且这里也无法把图片塞进 agent 的 API 请求——那个请求由
-agent 进程自己构造，composer 唯一的通道是 pty。所以做法是把图片交还给 TUI 已有
-的机制：两家 TUI 都把 `ctrl+v` 绑定为"自己去读系统剪贴板"，而那个按键只是一个
-字节，composer 送得出去。
+buffer 里不会写入任何占位文字：图片没法走 prompt 文件（那是纯 markdown），而且只
+有 CLI 能把图片字节放进它的请求。所以做法是把暂存文件通过 TUI 自己的 `ctrl+v` 重
+放一次，由 CLI 写它自己的 `[Image #N]` 标记。
 
-图片在附加的瞬间就被复制到临时文件，而不是留在剪贴板里。这是必要条件而非洁癖：
-`clipboard = "unnamedplus"` 意味着你在 composer 里下一次 yank 或删除就会把它冲掉。
-提交时逐张还原到剪贴板、送出按键、再删除临时文件。因此**发送会覆盖你当时的
-剪贴板内容**。
+重放必须等 buffer 关闭之后。实测：prompt 开着时 agent 正阻塞在编辑器上并会丢弃
+pty 输入，此时发的 `ctrl+v` 收不到，退出后发的才收得到。取消编辑会丢弃暂存文件，
+而不是把它们挂到一个你刚扔掉的 prompt 上。
 
 #### 阅读历史输出
 

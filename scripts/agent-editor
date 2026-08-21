@@ -1,0 +1,90 @@
+#!/bin/sh
+# $EDITOR for the native agent terminals.
+#
+# Both Claude Code and Codex bind ctrl+g to "edit the input box in $EDITOR":
+# the CLI writes the box's current text to a temp .md file, runs $EDITOR on it,
+# and reads the file back when the editor exits. Verified for both -- Claude
+# hands over /tmp/claude-*/claude-prompt-<uuid>.md, Codex ~/.codex/editor/*.md,
+# and in both cases the file holds the exact text, newlines included.
+#
+# Pointing $EDITOR straight at `nvim` would start a SECOND nvim inside the
+# :terminal, with its own window vocabulary nested in the first. This forwards
+# the file to the nvim that already owns the terminal, so the prompt opens as an
+# ordinary buffer there. $NVIM is set by nvim in every :terminal child and holds
+# that instance's RPC socket.
+#
+# The blocking is hand-rolled because Nvim has no --remote-wait -- it answers
+# "E5600: Wait commands not yet implemented in Nvim". The host writes a sentinel
+# file when the buffer closes, and this polls for it.
+
+set -eu
+
+file=${1:-}
+[ -n "$file" ] || exit 1
+
+# Nothing to forward to (run outside a :terminal, or a plain shell): behave like
+# an ordinary $EDITOR so ctrl+g still works, just nested.
+if [ -z "${NVIM:-}" ]; then
+  exec nvim "$@"
+fi
+
+# The path is interpolated into a Lua string literal below and there is no
+# shellescape equivalent for that context. Refuse to build a broken expression;
+# editing in place is a correct fallback, not a failure.
+case $file in
+*\'* | *\\* | *'
+'*) exec nvim "$@" ;;
+esac
+
+sentinel="$file.nvim-editor-done"
+rm -f "$sentinel"
+
+if ! status=$(nvim --server "$NVIM" --remote-expr \
+  "luaeval('require(\"ai.editor\").open(_A[1], _A[2])', ['$file', '$sentinel'])" \
+  2>/dev/null); then
+  # The call never reached a host, so nothing was opened over there and a local
+  # editor is the only way this file gets edited.
+  exec nvim "$@"
+fi
+
+# Past this point the host has the request, and it releases the sentinel on
+# every path it can take. Only an explicit refusal is safe to answer by starting
+# a local editor: the host opens its window before this status is ever read, so
+# treating anything else as failure would leave TWO editors on one file.
+case $status in
+error:*) exec nvim "$@" ;;
+esac
+
+# Say something in the pane the CLI just cleared.
+#
+# Claude Code clears the screen when it hands the terminal to $EDITOR, the way
+# `git commit` does, so the editor gets a clean canvas. This editor draws in the
+# host Nvim instead, leaving that canvas empty for the whole edit -- which reads
+# as a hang. Measured on both its renderers (`/tui default` and
+# `/tui fullscreen`), so it is the handoff and not the alternate screen. Codex
+# does not clear (18 non-blank lines throughout, against Claude's 17 -> 0 -> 17),
+# so this note is harmless there rather than necessary.
+printf '\n  Editing this prompt in Nvim.\n  <C-d> returns it  -  <C-c> cancels  -  the agent resumes when the buffer closes\n'
+
+# Poll rather than block on a fifo: a fifo would deadlock if the host died
+# before opening its end, and a hung $EDITOR hangs the agent TUI with it.
+#
+# A host that quits normally releases the sentinel itself from VimLeavePre, so
+# the reachability probe below only has to catch one that died without running
+# autocmds. It runs every ~5s because it costs a process -- and `[ -e "$NVIM" ]`
+# is NOT a cheaper substitute: when the socket path is longer than the
+# platform's sun_path limit (104 bytes on macOS) nvim still serves on it and
+# still reports it as v:servername, but nothing ever appears on disk, so a stat
+# would read as "host gone" on the very first tick and hand the agent back its
+# own unedited text.
+ticks=0
+while [ ! -e "$sentinel" ]; do
+  sleep 0.1
+  ticks=$((ticks + 1))
+  if [ "$((ticks % 50))" -eq 0 ] &&
+    ! nvim --server "$NVIM" --remote-expr '1' >/dev/null 2>&1; then
+    exit 0
+  fi
+done
+
+rm -f "$sentinel"

@@ -6,8 +6,8 @@ local function mapped(lhs, mode)
 end
 
 -- New entry points.
-t.ok(mapped(" ai"), "UC-1: <leader>ai opens the composer")
-t.ok(mapped(" ai", "x"), "UC-6: <leader>ai also works from Visual mode, to seed from a selection")
+t.ok(mapped(" ai"), "UC-1: <leader>ai opens the agent's prompt editor")
+t.ok(mapped(" ai", "x"), "UC-3: <leader>ai also works from Visual mode, to seed from a selection")
 t.ok(mapped(" at"), "UC-11: <leader>at opens the transcript")
 t.ok(mapped(" aT"), "UC-12: <leader>aT opens the session picker")
 

@@ -1,4 +1,4 @@
--- Covers UC-6 (composer seeding) and UC-R2 (<leader>as behaviour preserved).
+-- Covers UC-3 (<leader>ai seeding) and UC-R1 (<leader>as behaviour preserved).
 local t = dofile("tests/helper.lua")
 local sel = require("ai.selection")
 
@@ -7,7 +7,7 @@ local sel = require("ai.selection")
 -- <leader>as is an x-mode mapping (lua/ai/init.lua:63).
 -- Checked first, while the session is still cleanly in Normal mode. Leaving
 -- Visual mode afterwards is unreliable headless, and the guard being wrong is
--- exactly what would let the composer seed a draft the user never selected.
+-- exactly what would let <leader>ai seed a draft the user never selected.
 do
   t.eq(vim.fn.mode(), "n", "spec starts in Normal mode")
   local none, err = sel.draft()

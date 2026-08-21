@@ -3,11 +3,12 @@
 -- This lives outside the backends because the two providers attach selections
 -- through different channels. Codex has no editor-selection API, so its
 -- <leader>as pastes text. Claude's <leader>as goes over the IDE WebSocket
--- (:ClaudeCodeSend) and produces no text at all. The composer needs text under
--- both providers, so the text form has exactly one producer: this module.
+-- (:ClaudeCodeSend) and produces no text at all. <leader>ai needs text under
+-- both providers to seed the agent's input box, so the text form has exactly one
+-- producer: this module.
 --
 -- Nothing here notifies. The caller owns how a failure or a fallback is shown,
--- because <leader>as and the composer surface them differently.
+-- because <leader>as and <leader>ai surface them differently.
 
 local config = require("ai.config")
 
