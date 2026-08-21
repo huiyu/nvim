@@ -115,11 +115,9 @@ function M.toggle(count)
   local term = Snacks.terminal(nil, opts)
 
   -- Snacks reopens a terminal with the window config it was created with, so a
-  -- terminal that was floating comes back docked. Drop the mark to match, or
-  -- edgy would keep skipping a window that is no longer a float.
-  if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
-    vim.b[term.buf].terminal_floating = false
-  end
+  -- terminal that was floating would silently come back docked. Shape belongs
+  -- to the terminal, not to the window that happens to show it, so re-apply it.
+  M.restore_shape(term, count or vim.v.count1)
   vim.defer_fn(function()
     if count_term_wins() > before then
       local agent_win = find_agent_win()
@@ -158,24 +156,57 @@ local function float_config()
   }
 end
 
+-- Which terminals should be floating, keyed by count.
+--
+-- Snacks only remembers the window config a terminal was *created* with, so
+-- without this record every hide/show cycle -- <C-/>, <leader>T1, anything that
+-- reopens -- would drop a float back to the bottom. Shape is a property of the
+-- terminal; the window merely renders it.
+local floating = {}
+
 ---Is this terminal buffer marked as floating?
 ---
 ---Exported for edgy.nvim, which claims every non-agent `snacks_terminal` for
----its bottom edge and would otherwise dock the float the moment it opens. This
----reads the mark rather than the window because edgy asks about a buffer, and
----asks while the window is still being set up.
+---its bottom edge and would otherwise dock the float the moment it opens. It
+---reads the buffer mark rather than the window because edgy asks about a
+---buffer, and asks while the window is still being set up.
 ---@param buf integer
 ---@return boolean
 function M.is_float_buf(buf)
   return vim.b[buf].terminal_floating == true
 end
 
--- The window is the source of truth for shape; the buffer mark only exists so
--- edgy can be told. They can disagree: hiding and reshowing via <C-/> makes
--- Snacks restore its own docked config, leaving a stale mark behind. Deciding
--- from the window means one keypress always does the visible thing.
-local function is_floating_win(win)
-  return vim.api.nvim_win_get_config(win).relative ~= ""
+local function apply_float(win, buf)
+  vim.b[buf].terminal_floating = true
+  vim.api.nvim_win_set_config(win, float_config())
+end
+
+local function apply_dock(win, buf)
+  -- The mark has to be cleared first: edgy reads it when it decides whether
+  -- this window belongs to its bottom edge.
+  vim.b[buf].terminal_floating = false
+  vim.api.nvim_win_set_config(win, { relative = "", split = "below", win = -1 })
+end
+
+---Re-apply a terminal's remembered shape after Snacks has shown it.
+---@param term table? a snacks terminal
+---@param count integer
+function M.restore_shape(term, count)
+  if not term or not term.buf or not vim.api.nvim_buf_is_valid(term.buf) then return end
+
+  if not floating[count] then
+    vim.b[term.buf].terminal_floating = false
+    return
+  end
+
+  -- Mark before the window exists so edgy never sees an unmarked float.
+  vim.b[term.buf].terminal_floating = true
+  vim.schedule(function()
+    local win = vim.fn.bufwinid(term.buf)
+    if win ~= -1 and vim.api.nvim_win_get_config(win).relative == "" then
+      apply_float(win, term.buf)
+    end
+  end)
 end
 
 local function is_terminal_win(win)
@@ -201,15 +232,17 @@ function M.toggle_float(count)
   end
 
   local buf = vim.api.nvim_win_get_buf(win)
+  local info = vim.b[buf].snacks_terminal
+  local id = (info and info.id) or count or vim.v.count1
 
-  if is_floating_win(win) then
-    -- Back into the layout. The mark has to be cleared first: edgy reads it
-    -- when it decides whether this window belongs to its bottom edge.
-    vim.b[buf].terminal_floating = false
-    vim.api.nvim_win_set_config(win, { relative = "", split = "below", win = -1 })
+  -- Decide from the window, which is what the user can actually see, then
+  -- record it so the shape survives the next hide/show.
+  if vim.api.nvim_win_get_config(win).relative ~= "" then
+    floating[id] = nil
+    apply_dock(win, buf)
   else
-    vim.b[buf].terminal_floating = true
-    vim.api.nvim_win_set_config(win, float_config())
+    floating[id] = true
+    apply_float(win, buf)
   end
 
   vim.api.nvim_set_current_win(win)

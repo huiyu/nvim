@@ -56,18 +56,40 @@ t.eq(relative_of(vim.api.nvim_get_current_win()), "", "toggling again re-docks i
 t.eq(vim.api.nvim_get_current_buf(), one, "re-docking keeps the same shell")
 t.ok(not term.is_float_buf(one), "the mark is cleared once docked")
 
--- Hiding a floated terminal with <C-/> and bringing it back must not leave a
--- stale mark: Snacks restores its own docked config, so the mark would tell
--- edgy to skip a window that is no longer a float.
+-- Shape belongs to the terminal, not to the window showing it. Snacks only
+-- remembers the config a terminal was created with, so without a record of its
+-- own a float would silently drop back to the bottom on every hide/show.
 term.toggle_float()
 t.eq(relative_of(vim.api.nvim_get_current_win()), "editor", "floated again")
 term.toggle(1) -- hide
 term.toggle(1) -- show
-vim.wait(300, function() return false end)
-t.ok(not term.is_float_buf(one), "reshowing through Snacks clears the float mark")
+vim.wait(400, function() return false end)
 local reshown = vim.fn.bufwinid(one)
 t.ok(reshown ~= -1, "the terminal is visible again")
-t.eq(relative_of(reshown), "", "and it came back docked, matching the cleared mark")
+t.eq(relative_of(reshown), "editor", "a floated terminal comes back floating")
+t.ok(term.is_float_buf(one), "and stays marked so edgy leaves it alone")
+
+-- Docking it must stick the same way.
+vim.api.nvim_set_current_win(reshown)
+term.toggle_float()
+t.eq(relative_of(vim.api.nvim_get_current_win()), "", "docked again")
+term.toggle(1) -- hide
+term.toggle(1) -- show
+vim.wait(400, function() return false end)
+local redocked = vim.fn.bufwinid(one)
+t.eq(relative_of(redocked), "", "a docked terminal comes back docked")
+t.ok(not term.is_float_buf(one), "and carries no float mark")
+
+-- Opening a second terminal must not disturb a floating first one.
+vim.api.nvim_set_current_win(redocked)
+term.toggle_float()
+t.eq(relative_of(vim.api.nvim_get_current_win()), "editor", "terminal 1 floating once more")
+term.toggle(2)
+vim.wait(400, function() return false end)
+t.eq(relative_of(vim.fn.bufwinid(one)), "editor", "opening terminal 2 leaves the float alone")
+t.eq(relative_of(vim.fn.bufwinid(two)), "", "and terminal 2 opens docked")
+vim.api.nvim_set_current_win(vim.fn.bufwinid(one))
+term.toggle_float() -- back to docked for the checks below
 
 -- From the editor, the count decides which terminal is acted on.
 -- A fresh window is needed, not `enew`: edgy owns the terminal's window and
