@@ -116,4 +116,43 @@ function M.toggle(id)
   end, 0)
 end
 
+-- Toggle a floating scratch terminal.
+--
+-- Separate from the bottom terminals on purpose: this one is for a quick
+-- command you want gone again, so it should not take a share of the layout.
+-- Being a float is also why it needs no fix_drift -- it overlays the window
+-- tree instead of reflowing it, so the agent pane never resizes.
+--
+-- The session survives hiding: toggling brings the same shell back with its
+-- scrollback and working directory intact.
+function M.toggle_float()
+  local term = Snacks.terminal.toggle(nil, {
+    win = {
+      position = "float",
+      width = 0.85,
+      height = 0.8,
+      border = "rounded",
+      title = " Terminal ",
+      title_pos = "center",
+    },
+  })
+
+  if not term or not term.buf or not vim.api.nvim_buf_is_valid(term.buf) then
+    return term
+  end
+
+  -- <C-/> already means "toggle the terminal" in Terminal-mode, but the global
+  -- mapping targets the bottom one. Shadow it here so the chord consistently
+  -- toggles whichever terminal you are actually sitting in.
+  for _, lhs in ipairs({ "<C-/>", "<C-_>" }) do
+    vim.keymap.set("t", lhs, function() M.toggle_float() end, {
+      buffer = term.buf,
+      desc = "Hide floating terminal",
+      silent = true,
+    })
+  end
+
+  return term
+end
+
 return M

@@ -327,6 +327,7 @@ return {
     },
     { "<C-/>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
     { "<C-_>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
+    { "<leader>Tf", function() require("util.terminal").toggle_float() end, desc = "Floating terminal" },
     { "<leader>T1", function() require("util.terminal").toggle("term1") end, desc = "Terminal 1" },
     { "<leader>T2", function() require("util.terminal").toggle("term2") end, desc = "Terminal 2" },
     { "<leader>T3", function() require("util.terminal").toggle("term3") end, desc = "Terminal 3" },
