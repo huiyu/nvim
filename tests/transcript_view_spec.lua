@@ -57,6 +57,22 @@ t.eq(vim.bo[buf].modifiable, false, "UC-R5: refresh leaves the buffer read-only"
 
 vim.cmd("bwipeout!")
 
+-- UC-12: the picker must actually build. This is the path most likely to break
+-- silently on a Snacks upgrade, since it depends on the `items`, `format` and
+-- `preview` presets existing.
+stub({
+  { id = "s1", path = "/tmp/fixture-a.jsonl", mtime = 2, title = "Newest" },
+  { id = "s2", path = "/tmp/fixture-b.jsonl", mtime = 1 },
+}, entries)
+local picked_ok, picked_err = pcall(view.pick)
+t.ok(picked_ok, "UC-12: pick() builds a picker" .. (picked_ok and "" or (": " .. tostring(picked_err))))
+local picker = Snacks.picker.get({ source = "ai_transcripts" })[1]
+t.ok(picker ~= nil, "UC-12: the picker instance exists")
+if picker then
+  t.eq(#(picker:items() or {}), 2, "UC-12: every session reaches the picker")
+  picker:close()
+end
+
 -- UC-17: no session must notify and open nothing.
 stub({}, {})
 local current = vim.api.nvim_get_current_buf()
