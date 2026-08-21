@@ -20,6 +20,31 @@ local function relative_of(win)
   return vim.api.nvim_win_get_config(win).relative
 end
 
+-- Floating a terminal that does not exist yet must open it floating, never
+-- open it docked and move it. Creating-then-converting is what made the bottom
+-- terminal flash into view for a frame first.
+do
+  local docked_seen = false
+  local group = vim.api.nvim_create_augroup("terminal_spec_flash", { clear = true })
+  vim.api.nvim_create_autocmd("TermOpen", {
+    group = group,
+    callback = function(ev)
+      local win = vim.fn.bufwinid(ev.buf)
+      if win ~= -1 and vim.api.nvim_win_get_config(win).relative == "" then
+        docked_seen = true
+      end
+    end,
+  })
+
+  term.toggle_float(9) -- a number nothing else in this spec touches
+  vim.wait(300, function() return false end)
+  t.ok(not docked_seen, "a first-time float never appears docked, not even for one frame")
+  t.eq(relative_of(vim.api.nvim_get_current_win()), "editor", "it opens floating")
+  vim.api.nvim_del_augroup_by_id(group)
+  term.toggle_float(9) -- dock it so it cannot interfere below
+  term.toggle(9)       -- and hide it
+end
+
 -- Numbered terminals must actually be distinct.
 term.toggle(1)
 local one = vim.api.nvim_get_current_buf()
@@ -41,7 +66,8 @@ t.eq(relative_of(before_win), "", "terminal 1 starts docked")
 term.toggle_float()
 local float_win = vim.api.nvim_get_current_win()
 t.eq(relative_of(float_win), "editor", "toggle_float floats the terminal")
-t.eq(float_win, before_win, "floating reuses the same window, not a new one")
+-- The window is rebuilt, which is how Snacks applies the new shape. What must
+-- survive is the shell, not the window handle.
 t.eq(vim.api.nvim_win_get_buf(float_win), one, "floating keeps the same shell")
 t.ok(term.is_float_buf(one), "the floating terminal is marked for edgy")
 

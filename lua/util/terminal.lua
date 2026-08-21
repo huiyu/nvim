@@ -94,6 +94,26 @@ local function count_term_wins()
   return n
 end
 
+-- Snacks does not move the cursor into a window it reopens, so a shape switch
+-- would leave the float on screen with the cursor still behind it.
+local function focus(term)
+  if term and term:win_valid() then
+    vim.api.nvim_set_current_win(term.win)
+  end
+end
+
+-- Tell edgy whether this terminal is floating.
+--
+-- edgy claims every non-agent `snacks_terminal` for its bottom edge and would
+-- otherwise dock the float the moment it opens. It asks about a buffer, and
+-- asks while the window is still being built, so the answer lives on the
+-- buffer rather than being read off the window.
+local function mark_shape(term)
+  if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+    vim.b[term.buf].terminal_floating = term.opts.position == "float"
+  end
+end
+
 -- Toggle Snacks bottom terminal. edgy.nvim manages placement and sizing.
 --
 -- Opening the bottom terminal reliably drifts the claude pane (see issue #2).
@@ -114,10 +134,9 @@ function M.toggle(count)
   local before = count_term_wins()
   local term = Snacks.terminal(nil, opts)
 
-  -- Snacks reopens a terminal with the window config it was created with, so a
-  -- terminal that was floating would silently come back docked. Shape belongs
-  -- to the terminal, not to the window that happens to show it, so re-apply it.
-  M.restore_shape(term, count or vim.v.count1)
+  if term and term.buf and vim.api.nvim_buf_is_valid(term.buf) then
+    mark_shape(term)
+  end
   vim.defer_fn(function()
     if count_term_wins() > before then
       local agent_win = find_agent_win()
@@ -126,87 +145,52 @@ function M.toggle(count)
   end, 0)
 end
 
--- Float or unfloat a terminal, in place.
+-- Float or unfloat a terminal.
 --
--- One terminal, two shapes -- not two terminals. The same shell, buffer and
--- window handle survive the switch; only the window's geometry changes, via
--- nvim_win_set_config. That is why this cooperates with Snacks instead of
--- fighting it: Snacks keeps tracking the same window it created, so <C-/> and
--- <leader>T1..T9 keep working on a terminal that happens to be floating.
+-- One terminal, two shapes -- not two terminals. The shell, buffer and job are
+-- untouched; only the window Snacks draws for it changes.
+--
+-- The shape is stored in the Snacks window's own `opts`, which it reads at show
+-- time (`snacks/win.lua` M:show -> M:win_opts). That is what makes the shape
+-- stick across every hide/show cycle without a parallel record of our own, and
+-- what lets a terminal be *created* already floating rather than being opened
+-- at the bottom and converted afterwards -- the conversion is what made the
+-- bottom flash into view first.
 --
 -- Which terminal: the one you are sitting in, or `vim.v.count1` otherwise. So
 -- <leader>Tf floats terminal 1 from the editor, 3<leader>Tf floats terminal 3,
--- and pressing it inside a terminal always acts on that terminal. There is no
--- hidden "last used" state to reason about.
+-- and pressing it inside a terminal always acts on that terminal.
 
-local FLOAT_GEOMETRY = { width = 0.85, height = 0.8 }
+-- Every key either shape sets, so switching cannot leave the other one's
+-- geometry behind.
+local SHAPE_KEYS = { "position", "width", "height", "row", "col", "border", "title", "title_pos", "b" }
 
-local function float_config()
-  local width = math.floor(vim.o.columns * FLOAT_GEOMETRY.width)
-  local height = math.floor(vim.o.lines * FLOAT_GEOMETRY.height)
-  return {
-    relative = "editor",
-    width = width,
-    height = height,
-    row = math.floor((vim.o.lines - height) / 2) - 1,
-    col = math.floor((vim.o.columns - width) / 2),
+-- `b` is not decoration. Snacks applies `opts.b` to the buffer inside `show()`
+-- *before* it opens the window (snacks/win.lua: open_buf, then the b loop, then
+-- the window). edgy inspects the buffer while the window is being built, so
+-- marking afterwards is too late -- it docks the float first, which is exactly
+-- what made a freshly floated terminal snap back to the bottom.
+local SHAPES = {
+  bottom = {
+    position = "bottom",
+    height = 25,
+    b = { terminal_floating = false },
+  },
+  float = {
+    position = "float",
+    width = 0.85,
+    height = 0.8,
     border = "rounded",
     title = " Terminal ",
     title_pos = "center",
-  }
-end
+    b = { terminal_floating = true },
+  },
+}
 
--- Which terminals should be floating, keyed by count.
---
--- Snacks only remembers the window config a terminal was *created* with, so
--- without this record every hide/show cycle -- <C-/>, <leader>T1, anything that
--- reopens -- would drop a float back to the bottom. Shape is a property of the
--- terminal; the window merely renders it.
-local floating = {}
-
----Is this terminal buffer marked as floating?
----
----Exported for edgy.nvim, which claims every non-agent `snacks_terminal` for
----its bottom edge and would otherwise dock the float the moment it opens. It
----reads the buffer mark rather than the window because edgy asks about a
----buffer, and asks while the window is still being set up.
 ---@param buf integer
 ---@return boolean
 function M.is_float_buf(buf)
   return vim.b[buf].terminal_floating == true
-end
-
-local function apply_float(win, buf)
-  vim.b[buf].terminal_floating = true
-  vim.api.nvim_win_set_config(win, float_config())
-end
-
-local function apply_dock(win, buf)
-  -- The mark has to be cleared first: edgy reads it when it decides whether
-  -- this window belongs to its bottom edge.
-  vim.b[buf].terminal_floating = false
-  vim.api.nvim_win_set_config(win, { relative = "", split = "below", win = -1 })
-end
-
----Re-apply a terminal's remembered shape after Snacks has shown it.
----@param term table? a snacks terminal
----@param count integer
-function M.restore_shape(term, count)
-  if not term or not term.buf or not vim.api.nvim_buf_is_valid(term.buf) then return end
-
-  if not floating[count] then
-    vim.b[term.buf].terminal_floating = false
-    return
-  end
-
-  -- Mark before the window exists so edgy never sees an unmarked float.
-  vim.b[term.buf].terminal_floating = true
-  vim.schedule(function()
-    local win = vim.fn.bufwinid(term.buf)
-    if win ~= -1 and vim.api.nvim_win_get_config(win).relative == "" then
-      apply_float(win, term.buf)
-    end
-  end)
 end
 
 local function is_terminal_win(win)
@@ -219,34 +203,39 @@ end
 function M.toggle_float(count)
   local win = vim.api.nvim_get_current_win()
 
-  -- Acting on the terminal under the cursor needs no lookup at all, and keeps
-  -- the count out of it: you asked about *this* one.
-  if not is_terminal_win(win) then
-    local term = Snacks.terminal.get(nil, {
-      count = count or vim.v.count1,
-      win = { position = "bottom", height = 25 },
-    })
-    if not term then return end
-    if not term:win_valid() then term:show() end
-    win = term.win
+  local id
+  if is_terminal_win(win) then
+    -- Acting on the terminal under the cursor needs no lookup: you asked about
+    -- *this* one, whatever number it happens to be.
+    local info = vim.b[vim.api.nvim_win_get_buf(win)].snacks_terminal
+    id = info and info.id
+  end
+  id = id or count or vim.v.count1
+
+  -- Ask without creating, so a terminal that does not exist yet can be born
+  -- floating instead of appearing docked and being moved a frame later.
+  local term = Snacks.terminal.get(nil, { count = id, create = false })
+
+  if not term then
+    term = Snacks.terminal.get(nil, { count = id, win = vim.deepcopy(SHAPES.float) })
+    mark_shape(term)
+    focus(term)
+    return term
   end
 
-  local buf = vim.api.nvim_win_get_buf(win)
-  local info = vim.b[buf].snacks_terminal
-  local id = (info and info.id) or count or vim.v.count1
-
-  -- Decide from the window, which is what the user can actually see, then
-  -- record it so the shape survives the next hide/show.
-  if vim.api.nvim_win_get_config(win).relative ~= "" then
-    floating[id] = nil
-    apply_dock(win, buf)
-  else
-    floating[id] = true
-    apply_float(win, buf)
+  local shape = term.opts.position == "float" and SHAPES.bottom or SHAPES.float
+  for _, key in ipairs(SHAPE_KEYS) do
+    term.opts[key] = vim.deepcopy(shape[key])
   end
 
-  vim.api.nvim_set_current_win(win)
-  return win
+  -- Snacks builds the window from these opts when it opens one, so reopening is
+  -- how the new shape takes effect. The buffer and its job are not involved.
+  if term:win_valid() then term:hide() end
+  term:show()
+  mark_shape(term)
+  focus(term)
+
+  return term
 end
 
 return M
