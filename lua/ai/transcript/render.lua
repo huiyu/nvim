@@ -11,12 +11,6 @@ local M = {}
 local VISIBLE = 0
 local FOLDED = 1
 
-local FOLDABLE = {
-  thinking = true,
-  tool_call = true,
-  tool_result = true,
-}
-
 local function speaker(entry, label)
   if entry.role == "user" then return "You" end
   return label or "Assistant"
@@ -64,8 +58,6 @@ function M.build(entries, meta)
   -- heading per entry would put one between a tool call and its result.
   local previous_role
   for _, entry in ipairs(entries) do
-    local level = FOLDABLE[entry.kind] and FOLDED or VISIBLE
-
     if entry.role ~= previous_role then
       previous_role = entry.role
       emit("", VISIBLE)
@@ -77,7 +69,12 @@ function M.build(entries, meta)
       ), VISIBLE)
     end
 
-    emit("", level)
+    -- The separator stays visible even before a folded entry. Two reasons: it
+    -- breaks consecutive tool calls into one fold each instead of merging a
+    -- whole run into a single opaque block, and it keeps the fold starting on
+    -- the "▸ Bash" header rather than on a blank line -- 'foldtext' shows the
+    -- fold's first line, and "+-- 45 lines:" followed by nothing is useless.
+    emit("", VISIBLE)
 
     if entry.kind == "text" then
       emit(entry.text, VISIBLE)
