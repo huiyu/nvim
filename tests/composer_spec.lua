@@ -87,9 +87,15 @@ t.eq(normal_map.buffer, 1, "<C-c> is bound buffer-locally in Normal mode")
 local insert_map = vim.fn.maparg("<C-c>", "i", false, true)
 t.eq(insert_map.buffer, 0, "<C-c> in Insert mode is still the global exit-insert map")
 
+local escape_win = vim.api.nvim_get_current_win()
+t.ok(vim.api.nvim_win_is_valid(escape_win), "the composer float exists before discarding")
+
 t.ok(type(normal_map.callback) == "function", "<C-c> runs a callback")
 normal_map.callback()
-t.ok(not vim.api.nvim_buf_is_valid(escape_buf), "<C-c> closes the composer")
+t.ok(not vim.api.nvim_buf_is_valid(escape_buf), "<C-c> wipes the composer buffer")
+-- The window has to go too. Deleting only the buffer left the float on screen
+-- showing an unrelated buffer.
+t.ok(not vim.api.nvim_win_is_valid(escape_win), "<C-c> closes the composer window")
 t.eq(#sent, 1, "<C-c> sends nothing")
 
 -- UC-8: a failed send preserves the draft for recovery.

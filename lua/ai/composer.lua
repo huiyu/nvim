@@ -68,6 +68,37 @@ local function finish(buf)
   })
 end
 
+---Throw the current draft away and close the composer.
+---@param buf integer
+function M.discard(buf)
+  -- Capture the window before anything can clear the module state: wiping the
+  -- buffer fires BufWipeout, which resets it.
+  local win = state.win
+
+  vim.b[buf].ai_composer_submitted = nil
+  if vim.api.nvim_buf_is_valid(buf) then
+    vim.bo[buf].modified = false
+  end
+
+  -- Close the *window*, not the buffer. `bufhidden = "wipe"` then takes the
+  -- buffer with it and fires BufWipeout. Deleting the buffer first leaves the
+  -- float on screen showing whatever Nvim decides to put there instead, which
+  -- is exactly the "it closed but the window stayed" symptom.
+  if
+    win
+    and vim.api.nvim_win_is_valid(win)
+    and vim.api.nvim_win_get_buf(win) == buf
+  then
+    pcall(vim.api.nvim_win_close, win, true)
+  end
+
+  -- Fallback for the case where the window could not be closed -- for instance
+  -- if it were somehow the last one in the tab.
+  if vim.api.nvim_buf_is_valid(buf) then
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end
+end
+
 ---Open the prompt composer. Focuses an already-open one rather than stacking.
 ---@param seed string? initial buffer content
 function M.open(seed)
@@ -144,11 +175,8 @@ function M.open(seed)
   -- Normal-mode only. <C-c> is globally bound in Insert mode to leave Insert
   -- (lua/mappings.lua:61) and that meaning must survive here, so discarding
   -- takes <C-c> twice from Insert: once to leave, once to close.
-  vim.keymap.set("n", "<C-c>", function()
-    vim.b[buf].ai_composer_submitted = nil
-    vim.bo[buf].modified = false
-    vim.api.nvim_buf_delete(buf, { force = false })
-  end, { buffer = buf, desc = "Discard prompt", silent = true, nowait = true })
+  vim.keymap.set("n", "<C-c>", function() M.discard(buf) end,
+    { buffer = buf, desc = "Discard prompt", silent = true, nowait = true })
 
   local width = math.min(100, math.floor(vim.o.columns * 0.8))
   local height = math.min(20, math.floor(vim.o.lines * 0.5))
