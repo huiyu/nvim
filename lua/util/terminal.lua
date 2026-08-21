@@ -181,17 +181,32 @@ end
 -- terminal's identity from cmd/cwd/env/count only (`M.tid` in
 -- snacks/terminal.lua); `opts.id` is accepted by the caller and never read, so
 -- passing distinct name strings silently returns one shared terminal.
----@param count integer? which terminal; nil means the one you are in, else `vim.v.count1`
+---Which terminal an unnumbered toggle last acted on, so closing terminal 3 and
+---reopening returns to terminal 3 rather than starting over at 1.
+local last_id = nil
+
+---@param count integer? which terminal; nil resolves to the current one, an
+---explicit v:count, or the one you were last in
 function M.toggle(count)
-  -- Without this, an unnumbered toggle always means terminal 1, so pressing it
-  -- inside terminal 3 hides (or worse, jumps to) terminal 1 instead. That was
-  -- invisible while `opts.id` was being ignored and all nine terminals were
-  -- secretly one; distinct terminals made it show.
   if not count then
     local buf = vim.api.nvim_get_current_buf()
     local info = vim.bo[buf].buftype == "terminal" and vim.b[buf].snacks_terminal
-    count = info and info.id or nil
+
+    if info and info.id then
+      -- Sitting in a terminal: this is the one you mean. Without it, an
+      -- unnumbered toggle always meant terminal 1, so pressing it inside
+      -- terminal 3 dismissed a different terminal entirely.
+      count = info.id
+    elseif vim.v.count > 0 then
+      -- `3<C-/>`. v:count is 0 when nothing was typed, which is the only way to
+      -- tell a deliberate "1" from no count at all.
+      count = vim.v.count
+    else
+      count = last_id
+    end
   end
+
+  last_id = count or vim.v.count1
 
   local floating = M.floats()
   local before = count_term_wins()

@@ -60,13 +60,38 @@ t.eq(vim.fn.bufwinid(three), -1, "<C-/> hides the terminal you are in")
 t.eq(vim.fn.bufwinid(one) ~= -1, one_visible_before,
   "<C-/> leaves other terminals exactly as they were")
 
--- From a normal buffer there is no "current terminal", so it falls back to 1.
-if vim.fn.bufwinid(one) ~= -1 then term.toggle(1) end -- start from hidden
+-- From a normal buffer there is no "current terminal", so it reopens the one
+-- you were last in -- which at this point is terminal 3.
 vim.cmd("topleft new")
 t.eq(vim.bo.buftype, "", "sitting in a normal buffer")
 term.toggle()
 vim.wait(300, function() return false end)
-t.ok(vim.fn.bufwinid(one) ~= -1, "from the editor, <C-/> still means terminal 1")
+t.eq(vim.api.nvim_get_current_buf(), three,
+  "from the editor, <C-/> reopens the terminal you were last in")
+
+-- Closing a terminal and reopening must return to the one you were in. Falling
+-- back to terminal 1 meant every close-reopen cycle threw away where you were.
+local function current_id()
+  local buf = vim.api.nvim_get_current_buf()
+  local info = vim.b[buf].snacks_terminal
+  return info and info.id or nil
+end
+
+-- Start from a known state: earlier blocks may have left terminal 3 showing.
+if vim.fn.bufwinid(three) ~= -1 then term.toggle(3) end
+term.toggle(3)
+t.eq(current_id(), 3, "terminal 3 is open")
+term.toggle() -- close it
+t.eq(current_id(), nil, "and closed again")
+term.toggle() -- reopen
+t.eq(current_id(), 3, "reopening returns to the terminal you were last in")
+
+-- An explicit count still wins over that memory.
+term.toggle()
+vim.api.nvim_feedkeys(vim.keycode("2"), "n", false)
+term.toggle(2)
+t.eq(current_id(), 2, "an explicit count overrides the remembered terminal")
+term.toggle()
 
 -- A float has no tabline or statusline to say which terminal it is, and Snacks
 -- leaves float titles empty. Without the number they are indistinguishable.
