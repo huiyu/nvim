@@ -68,4 +68,34 @@ term.toggle()
 vim.wait(300, function() return false end)
 t.ok(vim.fn.bufwinid(one) ~= -1, "from the editor, <C-/> still means terminal 1")
 
+-- A float has no tabline or statusline to say which terminal it is, and Snacks
+-- leaves float titles empty. Without the number they are indistinguishable.
+if term.floats() then
+  local function title_of(buf)
+    local w = vim.fn.bufwinid(buf)
+    if w == -1 then return nil end
+    local cfg = vim.api.nvim_win_get_config(w)
+    return type(cfg.title) == "table" and cfg.title[1][1] or cfg.title
+  end
+
+  term.toggle(4)
+  local four = vim.api.nvim_get_current_buf()
+  t.ok((title_of(four) or ""):find("4", 1, true) ~= nil,
+    "the float's border names which terminal it is")
+
+  -- Shells announce the running command through an OSC title sequence.
+  vim.api.nvim_chan_send(vim.bo[four].channel, "printf '\\033]2;spec-task\\007'\r")
+  vim.wait(2000, function() return (title_of(four) or ""):find("spec%-task") ~= nil end)
+  t.ok((title_of(four) or ""):find("spec-task", 1, true) ~= nil,
+    "the title follows what the shell says is running")
+
+  -- Floats stack, so opening another must put the previous one away, or closing
+  -- the top one just reveals the one behind it.
+  term.toggle(5)
+  t.eq(vim.fn.bufwinid(four), -1, "opening another float puts the previous one away")
+  term.toggle() -- <C-/> in terminal 5
+  t.eq(vim.bo[vim.api.nvim_get_current_buf()].buftype, "",
+    "one <C-/> leaves the terminals entirely, with none revealed behind")
+end
+
 t.done()

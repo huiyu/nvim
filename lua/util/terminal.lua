@@ -108,6 +108,15 @@ local function position()
   return vim.g.terminal_position == "bottom" and "bottom" or "float"
 end
 
+-- A float has no tabline or statusline to say which terminal it is, and Snacks
+-- deliberately leaves float titles empty (`snacks/terminal.lua`: the id-prefixed
+-- title is built only for docked positions). With several terminals open that
+-- makes them indistinguishable, so the number goes in the border title.
+---@param count integer
+local function float_title(count)
+  return (" Terminal %d "):format(count)
+end
+
 local SHAPES = {
   bottom = { position = "bottom", height = 25 },
   float = {
@@ -115,10 +124,38 @@ local SHAPES = {
     width = 0.85,
     height = 0.8,
     border = "rounded",
-    title = " Terminal ",
     title_pos = "center",
   },
 }
+
+-- Shells announce the running command through an OSC title sequence, which Nvim
+-- surfaces as `b:term_title`. Reflecting it means the float says what is running
+-- in it, not just which number it is.
+vim.api.nvim_create_autocmd("TermRequest", {
+  group = vim.api.nvim_create_augroup("terminal_float_title", { clear = true }),
+  callback = function(ev)
+    local info = vim.b[ev.buf].snacks_terminal
+    if not info or not info.id then return end
+
+    -- Deferred: TermRequest fires as the escape sequence arrives, before Nvim
+    -- has finished writing `b:term_title`. Reading it here would always see the
+    -- previous value.
+    vim.schedule(function()
+      if not vim.api.nvim_buf_is_valid(ev.buf) then return end
+      local win = vim.fn.bufwinid(ev.buf)
+      if win == -1 then return end
+      local ok, config = pcall(vim.api.nvim_win_get_config, win)
+      if not ok or config.relative == "" then return end
+
+      local label = float_title(info.id)
+      local running = vim.b[ev.buf].term_title
+      if type(running) == "string" and vim.trim(running) ~= "" then
+        label = ("%s· %s "):format(label, vim.trim(running))
+      end
+      pcall(vim.api.nvim_win_set_config, win, { title = label, title_pos = "center" })
+    end)
+  end,
+})
 
 ---Do terminals float in this configuration?
 ---
@@ -159,10 +196,36 @@ function M.toggle(count)
   local floating = M.floats()
   local before = count_term_wins()
 
-  Snacks.terminal(nil, {
-    count = count,
-    win = vim.deepcopy(SHAPES[floating and "float" or "bottom"]),
-  })
+  -- Floats stack, so opening a second terminal leaves the first sitting behind
+  -- it. Closing the top one then reveals the other, which reads as jumping
+  -- between terminals rather than dismissing the one in front of you. Docked
+  -- terminals do not need this -- edgy already gives them one shared slot.
+  if floating then
+    local target = count or vim.v.count1
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      local buf = vim.api.nvim_win_get_buf(win)
+      local info = vim.bo[buf].buftype == "terminal" and vim.b[buf].snacks_terminal
+      if
+        info
+        and info.id
+        and info.id ~= target
+        and vim.api.nvim_win_get_config(win).relative ~= ""
+        and not M.is_agent_buf(buf)
+      then
+        local other = Snacks.terminal.get(nil, { count = info.id, create = false })
+        if other and other:win_valid() then other:hide() end
+      end
+    end
+  end
+
+  local win_opts = vim.deepcopy(SHAPES[floating and "float" or "bottom"])
+  if floating then
+    -- Snacks resolves an absent count to v:count1, so resolve it the same way
+    -- here or the title would disagree with the terminal it labels.
+    win_opts.title = float_title(count or vim.v.count1)
+  end
+
+  Snacks.terminal(nil, { count = count, win = win_opts })
 
   if floating then return end
 
