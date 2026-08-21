@@ -79,7 +79,6 @@ local spec = {
       "  <leader>T1-9     Terminal 1-9 (create/switch)",
       "  <leader>Tx       Close terminal",
       "  <C-q>            Close terminal (in term mode)",
-      "  <C-s>            Save file (all modes)",
       "  <C-h/j/k/l>     Window navigation",
       "  <C-\\>            Editor window (toggle back)",
       "  <C-S-l>          Redraw TUI (terminal mode)",

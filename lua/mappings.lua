@@ -3,8 +3,8 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
--- Save file
-vim.keymap.set({ "i", "x", "n", "s" }, "<C-s>", "<cmd>w<cr><esc>", { desc = "Save file" })
+-- No <C-s> save mapping: C-s is the tmux prefix on this setup, so tmux consumes
+-- it and the mapping never fired. `:w` is the working path.
 
 -- Open URL under cursor or on current line with system default app
 vim.keymap.set("n", "gx", function()
