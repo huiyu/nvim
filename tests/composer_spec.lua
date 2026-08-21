@@ -98,6 +98,38 @@ t.ok(not vim.api.nvim_buf_is_valid(escape_buf), "<C-c> wipes the composer buffer
 t.ok(not vim.api.nvim_win_is_valid(escape_win), "<C-c> closes the composer window")
 t.eq(#sent, 1, "<C-c> sends nothing")
 
+-- A prompt is finished in Insert mode, so sending must be reachable from there.
+-- <C-d> pairs with <C-c> the way a shell does: end-of-input against cancel.
+sent = {}
+composer.open()
+local send_win = vim.api.nvim_get_current_win()
+local send_buf = vim.api.nvim_get_current_buf()
+vim.api.nvim_buf_set_lines(0, 0, -1, false, { "sent with ctrl-d" })
+t.eq(vim.fn.maparg("<C-d>", "i", false, true).buffer, 1, "<C-d> sends from Insert mode")
+t.eq(vim.fn.maparg("<C-d>", "n", false, true).buffer, 1, "<C-d> sends from Normal mode")
+vim.fn.maparg("<C-d>", "n", false, true).callback()
+t.eq(#sent, 1, "<C-d> sends the prompt")
+t.eq(sent[1].text, "sent with ctrl-d", "<C-d> sends the buffer contents")
+t.ok(not vim.api.nvim_win_is_valid(send_win), "<C-d> closes the composer window")
+t.ok(not vim.api.nvim_buf_is_valid(send_buf), "<C-d> wipes the composer buffer")
+
+-- ZZ is the vim-native equivalent and must keep working.
+sent = {}
+composer.open()
+vim.api.nvim_buf_set_lines(0, 0, -1, false, { "sent with ZZ" })
+vim.cmd("normal! ZZ")
+t.eq(#sent, 1, "ZZ still sends")
+t.eq(sent[1].text, "sent with ZZ", "ZZ sends the buffer contents")
+
+-- An empty buffer must still abort, even through the new key.
+sent = {}
+composer.open()
+local empty_map = vim.fn.maparg("<C-d>", "n", false, true).callback
+empty_map()
+t.eq(#sent, 0, "<C-d> on an empty prompt sends nothing")
+
+sent = {}
+
 -- Image attachment. The clipboard is real, so snapshot it and put it back.
 if vim.uv.os_uname().sysname == "Darwin" then
   local clipboard = require("ai.clipboard")

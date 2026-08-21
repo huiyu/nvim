@@ -117,17 +117,13 @@ local function finish(buf)
   })
 end
 
----Throw the current draft away and close the composer.
+---Tear the composer down. Whether anything is sent is decided by the
+---`ai_composer_submitted` flag, which BufWipeout reads.
 ---@param buf integer
-function M.discard(buf)
+function M.close(buf)
   -- Capture the window before anything can clear the module state: wiping the
   -- buffer fires BufWipeout, which resets it.
   local win = state.win
-
-  vim.b[buf].ai_composer_submitted = nil
-  if vim.api.nvim_buf_is_valid(buf) then
-    vim.bo[buf].modified = false
-  end
 
   -- Close the *window*, not the buffer. `bufhidden = "wipe"` then takes the
   -- buffer with it and fires BufWipeout. Deleting the buffer first leaves the
@@ -146,6 +142,16 @@ function M.discard(buf)
   if vim.api.nvim_buf_is_valid(buf) then
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
+end
+
+---Throw the current draft away and close the composer.
+---@param buf integer
+function M.discard(buf)
+  if vim.api.nvim_buf_is_valid(buf) then
+    vim.b[buf].ai_composer_submitted = nil
+    vim.bo[buf].modified = false
+  end
+  M.close(buf)
 end
 
 ---Open the prompt composer. Focuses an already-open one rather than stacking.
@@ -227,6 +233,23 @@ function M.open(seed)
   vim.keymap.set("n", "<C-c>", function() M.discard(buf) end,
     { buffer = buf, desc = "Discard prompt", silent = true, nowait = true })
 
+  -- Send without leaving Insert first. `:wq` and `ZZ` both work, but both need
+  -- Normal mode, and a prompt is finished in Insert.
+  --
+  -- <C-d> pairs with the <C-c> above the way a shell does -- cancel and
+  -- end-of-input -- so neither key has to be learned. <C-s> would read better
+  -- still, but it cannot arrive: it is this machine's tmux prefix
+  -- (~/.config/tmux/tmux.conf:29), so tmux consumes it before Nvim sees it.
+  --
+  -- The cost is Insert-mode dedent inside this float only.
+  vim.keymap.set({ "n", "i" }, "<C-d>", function()
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.b[buf].ai_composer_submitted = true
+      vim.bo[buf].modified = false
+    end
+    M.close(buf)
+  end, { buffer = buf, desc = "Send prompt", silent = true })
+
   -- Same key the agent TUIs use for image paste, so the muscle memory carries
   -- over. Bound in Insert mode too because that is where a prompt is written.
   vim.keymap.set({ "n", "i" }, "<C-v>", function() paste_image(buf) end,
@@ -247,7 +270,7 @@ function M.open(seed)
   })
 
   vim.wo[state.win].winbar =
-    "  :wq send   ·   <C-v> attach image   ·   <C-c> / :q! discard"
+    "  <C-d> send   ·   <C-v> image   ·   <C-c> discard   ·   also ZZ / :wq / :q!"
   vim.wo[state.win].wrap = true
   vim.wo[state.win].linebreak = true
 
