@@ -19,7 +19,7 @@ t.ok(mapped(" as", "x"), "UC-R1: <leader>as still lives in Visual mode")
 
 -- The facade must expose the methods those mappings call.
 local ai = require("ai")
-for _, method in ipairs({ "compose", "transcript", "transcript_pick", "send_text" }) do
+for _, method in ipairs({ "compose", "transcript", "transcript_pick" }) do
   t.ok(type(ai[method]) == "function", "facade exposes " .. method .. "()")
 end
 

@@ -274,15 +274,6 @@ function M.continue()
   start(codex_command({ "resume", "--last" }), project_root(path))
 end
 
--- Provider-neutral entry point. `send` stays private because its `raw` option
--- is a Codex-specific escape hatch.
----@param text string
----@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }
-function M.send_text(text, opts)
-  opts = opts or {}
-  send(text, { submit = opts.submit ~= false, on_error = opts.on_error })
-end
-
 ---Feed staged images to the TUI through its own ctrl+v. Backs <C-v> in the
 ---prompt editor.
 ---@param paths string[]

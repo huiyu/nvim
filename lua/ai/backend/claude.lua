@@ -15,57 +15,6 @@ function M.accept_diff() command("ClaudeCodeDiffAccept") end
 function M.deny_diff() command("ClaudeCodeDiffDeny") end
 function M.tree_add() command("ClaudeCodeTreeAdd") end
 
--- How long to wait for a freshly opened terminal's job channel to exist.
---
--- Not a new guess: codex.lua uses the same 350ms for the same race, and both
--- providers start a TUI in a Snacks terminal. Kept here rather than shared
--- because the two backends must be able to diverge if one TUI gets slower.
-local CHANNEL_READY_MS = 350
-
--- Provider-neutral text send.
---
--- claudecode.nvim's send_to_terminal deliberately does NOT start the terminal:
--- it warns and returns false when none is running. Codex's send() does start
--- one. This levels the two so a text send behaves identically under either
--- provider -- start if needed, then send.
---
--- Delivery is asynchronous on the start path, so failure is reported through
--- `opts.on_error` rather than a return value.
----@param text string
----@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }
-function M.send_text(text, opts)
-  opts = opts or {}
-  local terminal = require("claudecode.terminal")
-
-  local function fail(reason)
-    if opts.on_error then
-      opts.on_error(reason)
-    else
-      vim.notify(reason, vim.log.levels.WARN)
-    end
-  end
-
-  local function send_body()
-    -- send_to_terminal already wraps multi-line text in bracketed paste and
-    -- appends the submit CR, so the text must not be wrapped a second time.
-    local ok = terminal.send_to_terminal(text, {
-      submit = opts.submit ~= false,
-      focus = opts.focus ~= false,
-    })
-    if not ok then
-      fail("Claude terminal is not ready")
-    end
-  end
-
-  local bufnr = terminal.get_active_terminal_bufnr()
-  if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-    send_body()
-  else
-    terminal.ensure_visible()
-    vim.defer_fn(send_body, CHANNEL_READY_MS)
-  end
-end
-
 ---Feed staged images to the TUI through its own ctrl+v. Backs <C-v> in the
 ---prompt editor.
 ---@param paths string[]
@@ -95,7 +44,6 @@ end
 function M.edit_prompt(opts)
   opts = opts or {}
   local terminal = require("claudecode.terminal")
-
   local editor = require("ai.editor")
 
   local function channel_of(bufnr)

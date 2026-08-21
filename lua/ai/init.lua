@@ -34,11 +34,6 @@ function M.accept_diff() return invoke("accept_diff") end
 function M.deny_diff() return invoke("deny_diff") end
 function M.tree_add() return invoke("tree_add") end
 
----Send text to the active agent, starting it first when nothing is running.
----@param text string
----@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }?
-function M.send_text(text, opts) return invoke("send_text", text, opts) end
-
 ---Replay the TUI's own image-paste keystroke for each staged file.
 ---
 ---Only the CLI can put image bytes into its request, so this is the one channel
