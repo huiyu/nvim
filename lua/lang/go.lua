@@ -7,7 +7,8 @@ local function rebuild_gopls()
   if vim.fn.isdirectory(cache_dir) == 1 then
     vim.fn.delete(cache_dir, "rf")
   end
-  vim.cmd("LspRestart")
+  -- Nvim 0.12 builtin; lspconfig no longer defines `:LspRestart`.
+  vim.cmd("lsp restart")
   vim.notify("gopls cache cleared and LSP restarted", vim.log.levels.INFO)
 end
 

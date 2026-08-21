@@ -44,7 +44,18 @@ return {
       { "[[",  function() require("illuminate").goto_prev_reference(false) end, desc = "Prev reference" },
       { "]]",  function() require("illuminate").goto_next_reference(false) end, desc = "Next reference" },
       { "<leader>cm", "<cmd>Mason<cr>",                            desc = "Mason" },
-      { "<leader>cl", "<cmd>LspInfo<cr>",                          desc = "Lsp Info" },
+      -- `:LspInfo` was only ever an alias to this checkhealth, and lspconfig
+      -- stops defining it on Nvim 0.12 (see the `:lsp restart` note below).
+      { "<leader>cl", "<cmd>checkhealth vim.lsp<cr>",              desc = "Lsp Info" },
+      -- Servers keep their own project graph, which `checktime` cannot refresh.
+      -- After a structural refactor (files moved across packages, a new
+      -- tsconfig/package.json root, re-linked workspace symlinks) the buffer is
+      -- current but the server still answers from the old graph -- references
+      -- come back empty. Restarting the server is the recovery path.
+      -- Use the Nvim 0.12 builtin `:lsp restart`, NOT lspconfig's `:LspRestart`:
+      -- lspconfig's plugin file returns early when `:lsp` exists, so it never
+      -- creates its own Lsp* commands on 0.12.
+      { "<leader>cL", "<cmd>lsp restart<cr>",                      desc = "Lsp Restart" },
     },
     opts = {
       servers = {
