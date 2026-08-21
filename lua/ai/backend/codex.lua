@@ -167,16 +167,30 @@ local function show_and_focus(term)
   enter_insert(term)
 end
 
+-- Delivery is asynchronous whenever the terminal had to be started, so this
+-- reports failure through `opts.on_error` rather than a return value: by the
+-- time the channel turns out to be missing, the caller has long since returned.
 local function send(text, opts)
   opts = opts or {}
   local term, created = ensure()
   local delay = created and 350 or 0
 
+  local function fail(reason)
+    if opts.on_error then
+      opts.on_error(reason)
+    else
+      vim.notify(reason, vim.log.levels.WARN)
+    end
+  end
+
   vim.defer_fn(function()
-    if not term:buf_valid() then return end
+    if not term:buf_valid() then
+      fail("Codex terminal closed before the text could be sent")
+      return
+    end
     local channel = vim.bo[term.buf].channel
     if not channel or channel <= 0 then
-      vim.notify("Codex terminal is not ready", vim.log.levels.WARN)
+      fail("Codex terminal is not ready")
       return
     end
 
@@ -238,6 +252,15 @@ function M.continue()
   end
   local path = vim.api.nvim_buf_get_name(0)
   start(codex_command({ "resume", "--last" }), project_root(path))
+end
+
+-- Provider-neutral entry point. The composer sends through this; `send` stays
+-- private because its `raw` option is a Codex-specific escape hatch.
+---@param text string
+---@param opts { submit?: boolean, focus?: boolean, on_error?: fun(reason: string) }
+function M.send_text(text, opts)
+  opts = opts or {}
+  send(text, { submit = opts.submit ~= false, on_error = opts.on_error })
 end
 
 function M.select_model()
