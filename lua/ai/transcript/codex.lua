@@ -61,7 +61,8 @@ local function text_of(blocks)
   return table.concat(parts, "\n")
 end
 
-local function entry_from(payload, time)
+---@param tool_names table<string, string> call_id -> tool name, filled as calls are seen
+local function entry_from(payload, time, tool_names)
   local kind = payload.type
 
   if kind == "message" then
@@ -83,10 +84,12 @@ local function entry_from(payload, time)
   elseif kind == "custom_tool_call" then
     local input = payload.input
     if type(input) ~= "string" then input = vim.inspect(input or {}) end
+    local name = payload.name or "tool"
+    if payload.call_id then tool_names[payload.call_id] = name end
     return {
       role = "assistant",
       kind = "tool_call",
-      name = payload.name or "tool",
+      name = name,
       text = input,
       time = time,
     }
@@ -94,7 +97,7 @@ local function entry_from(payload, time)
     return {
       role = "assistant",
       kind = "tool_result",
-      name = "result",
+      name = payload.call_id and tool_names[payload.call_id] or nil,
       text = text_of(payload.output),
       time = time,
     }
@@ -118,6 +121,10 @@ function M.parse(path, cap)
   -- 244 MB Lua heap, streaming costs 68 ms and 21 MB.
   local ring, count = {}, 0
 
+  -- A call always precedes its output, so a forward-filled map is enough to
+  -- label a result with the tool that produced it.
+  local tool_names = {}
+
   for line in handle:lines() do
     if line ~= "" then
       local decoded_ok, record = pcall(vim.json.decode, line)
@@ -128,7 +135,7 @@ function M.parse(path, cap)
         and record.type == "response_item"
         and type(record.payload) == "table"
       then
-        local entry = entry_from(record.payload, hhmm(record.timestamp))
+        local entry = entry_from(record.payload, hhmm(record.timestamp), tool_names)
         if entry then
           count = count + 1
           ring[(count - 1) % cap + 1] = entry

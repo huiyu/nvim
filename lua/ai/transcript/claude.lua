@@ -78,25 +78,41 @@ local function blocks_of(content)
   return {}
 end
 
-local function entry_from(block, role, time)
+---@param tool_names table<string, string> id -> tool name, filled as tool_use is seen
+local function entry_from(block, role, time, tool_names)
   if block.type == "text" then
     if type(block.text) ~= "string" or vim.trim(block.text) == "" then return nil end
     return { role = role, kind = "text", text = block.text, time = time }
   elseif block.type == "thinking" then
+    -- Reasoning text is not persisted: real sessions carry `thinking` blocks
+    -- whose `thinking` field is an empty string, keeping only the signature.
+    -- Skip rather than emit blank entries.
     if type(block.thinking) ~= "string" or vim.trim(block.thinking) == "" then return nil end
     return { role = role, kind = "thinking", text = block.thinking, time = time }
   elseif block.type == "tool_use" then
+    local name = block.name or "tool"
+    if block.id then tool_names[block.id] = name end
     return {
       role = role,
       kind = "tool_call",
-      name = block.name or "tool",
+      name = name,
       text = vim.inspect(block.input or {}),
       time = time,
     }
   elseif block.type == "tool_result" then
     local text = block.content
     if type(text) ~= "string" then text = vim.inspect(text or "") end
-    return { role = role, kind = "tool_result", name = "result", text = text, time = time }
+    return {
+      -- Attributed to the assistant even though the record's role is "user".
+      -- Tool results arrive inside user messages because that is how the API
+      -- frames them, but the user did not type them, and rendering them as a
+      -- user turn invents a conversation that never happened.
+      role = "assistant",
+      kind = "tool_result",
+      name = block.tool_use_id and tool_names[block.tool_use_id] or nil,
+      text = text,
+      time = time,
+    }
   end
   return nil
 end
@@ -118,6 +134,10 @@ function M.parse(path, cap)
     ring[(count - 1) % cap + 1] = entry
   end
 
+  -- tool_use always precedes its tool_result, so a forward-filled map is enough
+  -- to label a result with the tool that produced it.
+  local tool_names = {}
+
   for line in handle:lines() do
     if line ~= "" then
       local decoded_ok, record = pcall(vim.json.decode, line)
@@ -128,7 +148,7 @@ function M.parse(path, cap)
           local time = hhmm(record.timestamp)
           for _, block in ipairs(blocks_of(record.message.content)) do
             if type(block) == "table" then
-              local entry = entry_from(block, role, time)
+              local entry = entry_from(block, role, time, tool_names)
               if entry then push(entry) end
             end
           end
