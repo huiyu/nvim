@@ -54,6 +54,10 @@ vim.keymap.set({ "n", "x" }, "<leader>mj", function() require("util.move").run("
   { desc = "Move line(s) down" })
 vim.keymap.set({ "n", "x" }, "<leader>mk", function() require("util.move").run("up") end,
   { desc = "Move line(s) up" })
+vim.keymap.set({ "n", "x" }, "<leader>mh", function() require("util.move").run("left") end,
+  { desc = "Dedent line(s)" })
+vim.keymap.set({ "n", "x" }, "<leader>ml", function() require("util.move").run("right") end,
+  { desc = "Indent line(s)" })
 
 -- Insert mode
 vim.keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode", noremap = true, silent = true })

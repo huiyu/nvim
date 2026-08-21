@@ -15,11 +15,32 @@ local M = {}
 -- real input, which a headless run never supplies.
 M._getchar = vim.fn.getcharstr
 
+-- Which key continues a run, and what it does. Vertical moves the line,
+-- horizontal indents it -- both are things you do several times in a row, and
+-- both keep the same hjkl vocabulary.
+local DIRECTIONS = {
+  j = "down", k = "up", h = "left", l = "right",
+}
+
 ---One move, in Normal or Visual mode.
----@param direction "up"|"down"
+---@param direction "up"|"down"|"left"|"right"
 ---@param visual boolean
 ---@param count integer
 local function step(direction, visual, count)
+  local horizontal = direction == "left" or direction == "right"
+
+  if horizontal then
+    -- gv keeps the selection so the next repeat has something to indent.
+    local op = direction == "right" and ">" or "<"
+    if visual then
+      vim.cmd(("normal! gv%s"):format(op:rep(1)))
+      vim.cmd("normal! gv")
+    else
+      vim.cmd(("normal! %d%s%s"):format(count, op, op))
+    end
+    return
+  end
+
   if visual then
     -- `:m` needs the '< and '> marks, which only exist outside Visual mode, so
     -- gv restores the selection afterwards and = reindents what moved.
@@ -40,8 +61,10 @@ end
 ---Move, then keep moving while j/k are pressed.
 ---
 ---Anything else ends the run and is fed back, so `<leader>mjjjw` moves three
----lines and then jumps a word -- the trailing key is never swallowed.
----@param direction "up"|"down"
+---lines and then jumps a word -- the trailing key is never swallowed. Directions
+---can be mixed freely within a run: `<leader>mj` then `ljk` moves, indents, and
+---moves back.
+---@param direction "up"|"down"|"left"|"right"
 function M.run(direction)
   local visual = vim.fn.mode():sub(1, 1):match("[vV\22]") ~= nil
   local count = vim.v.count1
@@ -65,10 +88,11 @@ function M.run(direction)
     local got, char = pcall(M._getchar)
     if not got or char == "" or char == "\27" then return end
 
-    if char == "j" or char == "k" then
-      -- Each repeat moves one line: the count applied to the first move is a
-      -- distance, not a rate.
-      local moved = pcall(step, char == "j" and "down" or "up", visual, 1)
+    local next_direction = DIRECTIONS[char]
+    if next_direction then
+      -- Each repeat is one step: the count on the first move is a distance, not
+      -- a rate.
+      local moved = pcall(step, next_direction, visual, 1)
       if not moved then return end
     else
       -- Not ours. Give it back rather than eating it.

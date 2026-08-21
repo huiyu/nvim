@@ -67,5 +67,40 @@ feed({})
 local ok = pcall(move.run, "down")
 t.ok(ok, "moving past the last line does not raise")
 
+-- Horizontal is the same idea applied to indentation: also something done
+-- several times in a row, also driven by the hjkl vocabulary.
+local function indented(lines)
+  local b = buffer(lines)
+  vim.bo[b].shiftwidth = 2
+  vim.bo[b].expandtab = true
+  return b
+end
+
+indented({ "a", "b" })
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+feed({})
+move.run("right")
+t.eq(vim.api.nvim_buf_get_lines(0, 0, 1, false)[1], "  a", "<leader>ml indents once")
+
+indented({ "a", "b" })
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+feed({ "l", "l" })
+move.run("right")
+t.eq(vim.api.nvim_buf_get_lines(0, 0, 1, false)[1], "      a", "bare l keeps indenting")
+
+indented({ "      a", "b" })
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+feed({ "h" })
+move.run("left")
+t.eq(vim.api.nvim_buf_get_lines(0, 0, 1, false)[1], "  a", "h dedents, and repeats")
+
+-- Directions mix freely inside one run.
+indented({ "a", "b", "c" })
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+feed({ "l" })
+move.run("down")
+local after = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+t.eq(table.concat(after, "|"), "b|  a|c", "a run can move then indent")
+
 move._getchar = vim.fn.getcharstr
 t.done()
