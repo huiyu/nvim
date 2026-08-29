@@ -59,6 +59,9 @@ local function build_terminal_cmd()
   -- :terminal -- see lua/ai/editor.lua.
   local wrapper = vim.fn.shellescape(require("ai.editor").wrapper())
   local editor_env = "EDITOR=" .. wrapper .. " VISUAL=" .. wrapper
+  -- Launcher that keeps a failed claude's error on screen; see scripts/agent-run
+  -- and the note on the pane command below.
+  local runner = vim.fn.shellescape(require("ai.editor").runner())
 
   -- Skip the wrapper unless tmux is available AND wrapping is explicitly enabled.
   if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then
@@ -142,7 +145,12 @@ local function build_terminal_cmd()
     "-e EDITOR=$EDITOR",
     "-e VISUAL=$VISUAL",
     "-e NVIM=$NVIM",
-    claude_cmd .. ' "$@"',
+    -- Run claude through the launcher rather than directly. The trailing
+    -- `exit-empty` / `client-detached -> kill-server` teardown below makes the
+    -- tmux client exit 0 however the pane's command ended, so nvim's :terminal
+    -- job reports success and Snacks' auto_close silently closes the panel --
+    -- taking claude's own startup error with it. See scripts/agent-run.
+    runner .. " " .. claude_cmd .. ' "$@"',
     "\\; set-option -g destroy-unattached on",
     "\\; set-option -g exit-empty on",
     -- Hide status bar in wrapper tmux: avoids periodic status redraws

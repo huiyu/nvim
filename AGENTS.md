@@ -37,6 +37,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - Preserve the Claude tmux wrapper and watchdog unless a replacement is tested
   against terminal flicker, CJK rendering, cleanup, resume, and appended CLI
   arguments.
+- Both tmux wrappers run the agent through `scripts/agent-run`, not directly.
+  Their teardown (`exit-empty` plus the `client-detached -> kill-server` hook)
+  makes the tmux client exit 0 however the pane's command ended, so nvim sees
+  success and Snacks' `auto_close` closes the panel -- an agent that fails on
+  startup otherwise just disappears, error and all. The launcher holds the pane
+  on a non-zero exit so the agent's own diagnostics stay readable. Treat it as
+  part of the pane command, not decoration.
 - `<leader>ai` and the TUI's own `ctrl+g` are the same path: `$EDITOR` points at
   `scripts/agent-editor`, which brings the prompt into this Nvim. It needs
   `EDITOR`, `VISUAL` and `NVIM` in the agent terminal's environment, injected at

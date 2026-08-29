@@ -458,4 +458,12 @@ function M.wrapper()
   return vim.fn.stdpath("config") .. "/scripts/agent-editor"
 end
 
+---Launcher that keeps a failed agent's error on screen instead of letting the
+---panel vanish. Used as the pane command inside both tmux wrappers -- see
+---scripts/agent-run for why the exit status cannot be recovered on this side.
+---@return string
+function M.runner()
+  return vim.fn.stdpath("config") .. "/scripts/agent-run"
+end
+
 return M

@@ -350,6 +350,10 @@ TUI。处在布局边缘时该键不做任何事、保持终端输入；浮动�
 tmux wrapper 时由 tmux 申请并自行处理点击；未启用时，落在面板内的点击由 Nvim 吞掉。
 点击其他窗口仍然会正常切过去。
 
+agent 启动失败时，面板会保留、把它自己的报错留在屏幕上，按一次 `<Enter>` 才关闭。
+两个 wrapper 的 tmux 收尾都会向 Nvim 报告成功（无论 agent 怎么退出的），所以在此
+之前面板会静默关闭，报错随 tmux 服务器一起消失，`:messages` 里也什么都不剩。
+
 两个 provider 的翻历史方式完全一致：两个 wrapper 的 tmux 都启用了 `mouse on` 和
 50000 行 history。真实 transcript 归 tmux 所有，Nvim 的终端 buffer 里只有 tmux
 最后合成的那一屏，所以滚动要走 tmux。保持 terminal-input 状态，以鼠标滚轮或

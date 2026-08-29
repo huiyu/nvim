@@ -386,6 +386,12 @@ Under the tmux wrapper tmux asks for it and handles the click itself; without th
 wrapper Nvim swallows clicks that land in the panel. Clicking a different window
 still moves there.
 
+An agent that fails to start keeps its panel open with its own error still on
+screen, and closes on the next `<Enter>`. Both wrappers end with tmux teardown
+that reports success to Nvim however the agent exited, so without this the panel
+closed silently and the message went with the tmux server -- nothing reached
+`:messages` either.
+
 Scrollback works the same way under both providers, because both wrappers run
 tmux with `mouse on` and a 50000-line history. tmux owns the real transcript;
 Nvim's terminal buffer only holds the screenful tmux last composed, so scrolling

@@ -1,0 +1,31 @@
+#!/bin/sh
+# Launcher for the native agent terminals, used inside the tmux wrapper.
+#
+# Without it, an agent that fails on startup just makes the panel vanish. The
+# wrapper's teardown -- `exit-empty on` plus the `client-detached -> kill-server`
+# hook -- means the tmux client exits 0 no matter how the pane's command ended,
+# so nvim's :terminal job reports success, Snacks' `auto_close` closes the
+# window, and the agent's own error text dies with the tmux server. Measured:
+# `sh -c 'exit 1'` through the real wrapper reaches nvim as status 0.
+#
+# The exit status cannot be recovered on nvim's side, so the message is kept
+# where it was printed instead. On failure the pane holds, with the agent's own
+# diagnostics still on screen, until the panel is dismissed.
+#
+# A clean exit is passed straight through, so quitting an agent normally still
+# closes the panel with no extra keystroke. Both CLIs exit 0 when quit from
+# their own UI (verified for Codex: ctrl+c twice -> 0).
+
+"$@"
+status=$?
+[ "$status" -eq 0 ] && exit 0
+
+# $1 is the agent binary; the wrapper always passes the command as-is.
+printf '\n\033[1;31m%s exited with status %s\033[0m\n' "${1:-agent}" "$status"
+printf 'Its output above is still here because the panel would otherwise have\n'
+printf 'closed without showing it. Press Enter to close.\n'
+
+# The pane's tty is still the terminal, so this blocks until the user answers.
+# `|| :` keeps a closed stdin (nvim tearing the job down) from looping.
+read -r _ || :
+exit "$status"

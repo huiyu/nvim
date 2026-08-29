@@ -383,6 +383,10 @@ editor.EDIT_KEY              -- the byte both TUIs bind to "edit in $EDITOR" (0x
 editor.stage_seed(text)      -- text to add to the next prompt this Nvim is handed
 editor.tui_ready(buf)        -- has the agent TUI in buf drawn its input prompt?
 editor.when_ready(get_buf, action, on_timeout)
+
+-- Absolute paths to the two shell helpers the agent terminals need.
+editor.wrapper()  -- scripts/agent-editor, the agents' $EDITOR for ctrl+g
+editor.runner()   -- scripts/agent-run, the pane command inside both wrappers
 ```
 
 `open` is called over RPC by the wrapper, which is blocked in a poll loop while
@@ -436,6 +440,22 @@ keystroke at the right moment instead of swallowing it. That use is safe for the
 same reason content extraction is not: a wrong answer costs one keystroke the
 user can repeat. A numbered line (`❯ 1. Yes, I trust this folder`) is one of the
 CLI's own choice lists, not an input box, and does not count as ready.
+
+### Why `agent-run` exists
+
+An agent that fails on startup used to make the panel vanish with no trace.
+Both tmux wrappers end with `exit-empty on` and a `client-detached ->
+kill-server` hook, and that teardown makes the tmux client exit 0 however the
+pane's command ended -- measured: `sh -c 'exit 1'` through the real wrapper
+reaches nvim as status 0. Nvim's `:terminal` job therefore reports success,
+Snacks' `auto_close` closes the window, and the agent's error text dies with the
+tmux server, leaving nothing in `:messages` either.
+
+The status cannot be recovered on nvim's side, so `scripts/agent-run` keeps the
+message where it was printed: on a non-zero exit it holds the pane, with the
+agent's own diagnostics still on screen, until the panel is dismissed. A clean
+exit passes straight through, so quitting an agent normally still closes the
+panel with no extra keystroke.
 
 ## AI Transcript (`ai.transcript`)
 

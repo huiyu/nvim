@@ -77,6 +77,11 @@ local function terminal_command(args)
     "-e", "VISUAL=" .. wrapper,
     "-e", "NVIM=" .. vim.v.servername,
   }
+  -- The pane runs Codex through the launcher, not directly: the wrapper's own
+  -- teardown reports success to nvim whatever the pane's command did, so a
+  -- Codex that fails on startup would close the panel and take its error with
+  -- it. See scripts/agent-run.
+  command[#command + 1] = require("ai.editor").runner()
   vim.list_extend(command, args)
   vim.list_extend(command, {
     ";", "set-option", "-g", "destroy-unattached", "on",
@@ -86,6 +91,11 @@ local function terminal_command(args)
   })
   return command
 end
+
+-- Indirection so a spec can inspect the wrapper without starting Codex. The
+-- launcher in there is what keeps a failed startup visible, and losing it fails
+-- silently by construction, so it is worth a test.
+M._terminal_command = terminal_command
 
 local function snacks()
   return _G.Snacks or require("snacks")

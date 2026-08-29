@@ -95,4 +95,35 @@ if config.is("claude") then
     "the Claude wrapper routes the wheel into copy-mode, like the Codex one")
 end
 
+-- A failing agent must not take its own error message down with it. The tmux
+-- wrapper's teardown reports success to nvim whatever the pane's command did,
+-- so without the launcher a startup failure is indistinguishable from a clean
+-- exit and Snacks just closes the panel.
+local runner = require("ai.editor").runner()
+t.eq(vim.fn.executable(runner), 1, "scripts/agent-run is present and executable")
+
+-- The script itself: a clean exit passes straight through, a failure reports
+-- the status and says why the panel is still there.
+t.eq(vim.fn.system({ runner, "sh", "-c", "exit 0" }) == "" and vim.v.shell_error, 0,
+  "a clean exit passes through untouched")
+local failed = vim.fn.system({ runner, "sh", "-c", "echo boom; exit 7" })
+t.eq(vim.v.shell_error, 7, "a failure keeps the agent's own exit status")
+t.ok(failed:find("boom", 1, true) ~= nil, "and keeps the agent's own output")
+t.ok(failed:find("exited with status 7", 1, true) ~= nil, "and names the status")
+
+-- Both wrappers have to route the pane through it.
+if config.is("codex") and vim.fn.executable("tmux") == 1 then
+  local cmd = require("ai.backend.codex")._terminal_command({ "codex" })
+  local at = vim.fn.index(cmd, runner)
+  t.ok(at >= 0, "the Codex wrapper runs the pane through agent-run")
+  t.eq(cmd[at + 2], "codex", "with the agent command right after it")
+end
+if config.is("claude") then
+  local spec = require("lazy.core.config").spec.plugins["claudecode.nvim"]
+  local cmd = spec and spec.opts and spec.opts.terminal_cmd or ""
+  if cmd:find("tmux", 1, true) then
+    t.ok(cmd:find(runner, 1, true) ~= nil, "the Claude wrapper runs the pane through agent-run")
+  end
+end
+
 t.done()
