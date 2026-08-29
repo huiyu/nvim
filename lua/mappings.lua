@@ -102,6 +102,12 @@ vim.keymap.set("v", "<leader>Y", '"+y', { desc = "Yank to clipboard" })
 -- input mode. Entering a Snacks terminal triggers its auto-insert behavior;
 -- leaving one first returns to terminal-Normal mode, then changes windows. At
 -- a layout edge, keep terminal input active instead of exiting it for a no-op.
+--
+-- A floating terminal (lazygit, the float-shaped <C-/> shell) has no layout
+-- neighbours at all, but `winnr(direction)` still answers with a window
+-- underneath it, so the edge check alone would let <C-h> (a shell's backspace)
+-- or <C-l> (clear screen) jump out from under the float and leave it hovering
+-- over the editor. Treat a float as all edges.
 for _, nav in ipairs({
   { key = "h", label = "left" },
   { key = "j", label = "lower" },
@@ -113,6 +119,7 @@ for _, nav in ipairs({
   local desc = "Go to " .. nav.label .. " window"
   vim.keymap.set("n", lhs, "<C-w>" .. direction, { desc = desc, silent = true })
   vim.keymap.set("t", lhs, function()
+    if vim.api.nvim_win_get_config(0).relative ~= "" then return "" end
     if vim.fn.winnr(direction) == vim.fn.winnr() then return "" end
     return "<C-\\><C-n><C-w>" .. direction
   end, { desc = desc, expr = true, silent = true })

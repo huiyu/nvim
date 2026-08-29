@@ -330,7 +330,9 @@ Neovim 在 Normal 和 terminal-input 模式下都会接管 `<C-h/j/k/l>`，因�
 直接在编辑器与终端窗口之间移动。这会覆盖 TUI 原有的 Ctrl 快捷键：向后删除
 可用 Backspace，输入换行可用 `<S-Enter>`，picker 导航可用方向键。
 `<C-S-l>` 会把原始 Ctrl+L 字节转发给终端，用于重绘 Codex 或 Claude Code
-TUI。
+TUI。处在布局边缘时该键不做任何事、保持终端输入；浮动终端（lazygit、float 形态的
+`<C-/>` shell）视为四面都是边缘——否则 shell 自己的 `<C-h>`、`<C-l>` 会从浮窗底
+下跳出去。
 
 `<C-\>` 同样在这两种模式下由 Neovim 接管，一次按键直达编辑器窗口，因此
 「文件树 + agent 面板」布局不再需要连按三次 `<C-h>` 才能回到中间。在编辑器

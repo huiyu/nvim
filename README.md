@@ -360,7 +360,10 @@ visible agent after the layout changes.
 can move directly between editor and terminal windows. This replaces the TUI's
 original Ctrl shortcuts; use Backspace for delete-backward, `<S-Enter>` for a
 newline in the agent's input box, and arrow keys in pickers. `<C-S-l>` forwards the original
-Ctrl+L byte to redraw either the Codex or Claude Code TUI.
+Ctrl+L byte to redraw either the Codex or Claude Code TUI. At a layout edge the
+key is a no-op that keeps terminal input active, and a floating terminal
+(lazygit, a float-shaped `<C-/>` shell) counts as all edges — otherwise a
+shell's own `<C-h>` or `<C-l>` would jump out from under the float.
 
 `<C-\>` is owned by Neovim in the same two modes and jumps straight to the
 editor window, so a tree-plus-agent layout no longer needs three `<C-h>` hops to

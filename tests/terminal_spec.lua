@@ -155,4 +155,47 @@ if term.floats() then
     "one <C-/> leaves the terminals entirely, with none revealed behind")
 end
 
+-- Window navigation from Terminal-mode: a float has no layout neighbours, so
+-- <C-h/j/k/l> must stay put there -- `winnr(direction)` alone says otherwise,
+-- because it answers with the window underneath the float. Without this a
+-- shell's own <C-h> (backspace) or <C-l> (clear) jumps out from under lazygit
+-- or the float-shaped <C-/> shell and leaves it hovering over the editor.
+--
+-- The mapping is an expr callback that reads only window state, so it is called
+-- directly: Terminal-mode cannot be entered from feedkeys(..., "x") headless --
+-- it is a top-level input loop, the same reason `:normal i` does nothing in a
+-- terminal buffer -- and the callback is exactly what that mode would run.
+local function nav_rhs(key)
+  local map = vim.fn.maparg(key, "t", false, true)
+  t.ok(type(map.callback) == "function", key .. " is a Terminal-mode expr mapping")
+  return map.callback()
+end
+
+vim.cmd("only")
+vim.cmd("vsplit")
+local floating = Snacks.terminal("sleep 30",
+  { interactive = true, win = { style = "float", width = 0.9, height = 0.9 } })
+vim.wait(300, function() return false end)
+t.eq(relative_of(floating.win), "editor", "a lazygit-style terminal opens as a float")
+vim.api.nvim_set_current_win(floating.win)
+for _, key in ipairs({ "<C-h>", "<C-j>", "<C-k>", "<C-l>" }) do
+  t.eq(nav_rhs(key), "", key .. " is a no-op inside a floating terminal")
+end
+t.eq(vim.api.nvim_get_current_win(), floating.win, "the floating terminal keeps focus")
+floating:close()
+vim.wait(100, function() return false end)
+
+-- The edge rule is unchanged for docked terminals: a real neighbour is reached,
+-- a missing one keeps terminal input active.
+vim.cmd("only")
+vim.cmd("vsplit")
+local left = vim.api.nvim_get_current_win()
+vim.cmd("wincmd l")
+vim.cmd("terminal sleep 30")
+local docked = vim.api.nvim_get_current_win()
+t.ok(docked ~= left and relative_of(docked) == "", "a split terminal is a layout window")
+t.eq(nav_rhs("<C-l>"), "", "<C-l> at the right edge is a no-op in a split terminal")
+t.eq(nav_rhs("<C-h>"), "<C-\\><C-n><C-w>h", "<C-h> from a split terminal moves to the neighbour")
+vim.cmd("only!")
+
 t.done()
