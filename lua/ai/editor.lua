@@ -218,6 +218,10 @@ local function present(path, sentinel)
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
   vim.bo[buf].filetype = "markdown"
+  -- Turns on @file completion (lua/ai/mention.lua): the blink provider in
+  -- lua/plugin/lsp/cmp.lua is gated on this mark, so ordinary markdown
+  -- buffers never see project-file candidates.
+  vim.b[buf].ai_prompt = true
   -- The agent hands over a real .md file, which puts it under conform's
   -- markdown -> prettier rule (lua/lang/frontend.lua). That rule runs on
   -- BufWritePre, and :w here is exactly how the prompt is handed back -- so

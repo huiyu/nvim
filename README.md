@@ -427,6 +427,22 @@ nothing on screen to show for it. Readiness is the one thing read off the
 rendered screen, and only as a trigger: being wrong costs a keystroke, not a
 corrupted prompt.
 
+#### `@` file mentions
+
+Typing `@` plus a fragment completes project files, the way the TUIs' own input
+box does. Candidates come from the project root this Nvim runs in and respect
+`.gitignore` — `git ls-files`, falling back to `fd` and then `rg --files`; with
+none of them available the menu simply stays empty. The query narrows over the
+full relative path, slashes included, and accepting inserts `@path/to/file`.
+
+An `@` directly after a word character is not a mention, so `jeff@gmail.com`
+stays an email; other scripts do count as a boundary, so `看看@init` completes.
+What the agent does with the text differs per provider: Claude Code parses the
+returned `@path` into a real file mention on submit, Codex treats it as a path
+its agent opens itself — both end up reading the file. The source lives in
+`lua/ai/mention.lua` and is enabled only for these prompt buffers, so ordinary
+markdown never sees it.
+
 #### Attaching images
 
 `<C-v>` in the prompt buffer stages the clipboard image; it attaches when you

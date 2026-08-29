@@ -44,6 +44,9 @@ t.eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false), exact, "UC-1: content arrive
 -- would run on the :w that hands it back and reflow the prompt first.
 t.eq(vim.b[buf].autoformat, false, "UC-1: opts out of format-on-save")
 t.eq(vim.bo[buf].bufhidden, "wipe", "UC-1: buffer goes when the window does")
+-- The mark is what turns on @file completion (lua/ai/mention.lua); without it
+-- the blink provider stays disabled and the prompt loses the TUI's @ habit.
+t.eq(vim.b[buf].ai_prompt, true, "UC-1: the buffer is marked as an agent prompt")
 
 -- UC-2: closing the float releases the wrapper.
 released = {}
