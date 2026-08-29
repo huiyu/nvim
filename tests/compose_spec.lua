@@ -49,6 +49,15 @@ for _, w in ipairs(vim.api.nvim_list_wins()) do
 end
 t.eq(shown, { "typed in the box" }, "UC-3: the seed is consumed once, not reused")
 
+-- Close this one too: with a prompt open, compose() returns to it (UC-4 below)
+-- instead of reaching the backend that UC-1 stubs next.
+for _, w in ipairs(vim.api.nvim_list_wins()) do
+  if vim.api.nvim_win_get_config(w).relative == "editor" then
+    pcall(vim.api.nvim_win_close, w, true)
+  end
+end
+vim.wait(200, function() return false end)
+
 -- UC-1/UC-3: the facade hands the backend a seed only when there is a selection.
 local seen = {}
 backend.edit_prompt = function(opts) seen[#seen + 1] = opts end
@@ -87,5 +96,26 @@ t.eq(pcall(require, "ai.composer"), false, "ai.composer is removed")
 -- ai.clipboard survived the composer: <C-v> in the prompt editor still stages
 -- images through it, and the agent's own ctrl+v is still how they get attached.
 t.eq(pcall(require, "ai.clipboard"), true, "ai.clipboard is still in use")
+
+-- UC-4: with a prompt already open, <leader>ai goes back to it instead of
+-- sending ctrl+g -- the TUI is blocked on the wrapper and would swallow the
+-- key. A Visual selection made meanwhile lands in that prompt.
+local open = vim.fn.tempname() .. ".md"
+vim.fn.writefile({ "half written" }, open)
+editor.open(open, open .. ".done")
+vim.wait(200, function() return false end)
+local prompt_win = vim.api.nvim_get_current_win()
+-- Step out without WinLeave, the way a focus change the modal guard cannot see
+-- would leave things.
+vim.cmd("noautocmd wincmd w")
+vim.api.nvim_buf_set_lines(0, 0, -1, false, { "one", "two" })
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+vim.cmd("normal! Vj")
+seen = {}
+ai.compose()
+t.eq(#seen, 0, "UC-4: compose does not reach the backend while a prompt is open")
+t.eq(vim.api.nvim_get_current_win(), prompt_win, "UC-4: compose refocuses the open prompt")
+local lines = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(prompt_win), 0, -1, false)
+t.ok(#lines > 1 and lines[1] == "half written", "UC-4: the selection is appended to the open prompt")
 
 t.done()

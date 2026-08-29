@@ -366,6 +366,12 @@ history。使用默认 wrapper 时保持 terminal-input 状态，以鼠标滚轮
 `<leader>as` 一致。全程不提交——关闭 buffer 只是把文本交回输入框，回车仍然由你自
 己按。
 
+浮窗是**模态**的：窗口键（`<C-h/j/k/l>`、`<C-w>`、`<C-\>`）不会离开它，绕过这
+一层的焦点变化也会被拉回来。浮窗开着时 agent 正阻塞在编辑器上、不读 pty，否则一旦
+出去就再也回不来——再按一次 `<leader>ai` 会回到已打开的 prompt（Visual 选区会追加
+进去），而不是发一个会被 TUI 吞掉的 `ctrl+g`。两个 agent 并排各开一个 prompt 也可
+以，焦点归较新的那个。
+
 这不是我们自建的 buffer，而是 agent 自带的 `ctrl+g`（「在 `$EDITOR` 里编辑当前
 prompt」），Claude Code 和 Codex 都实现了它。`$EDITOR` 指向
 `scripts/agent-editor`，它把 prompt 开在**当前这个** nvim 里，而不是在

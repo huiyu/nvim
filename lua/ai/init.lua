@@ -61,6 +61,9 @@ function M.compose()
     -- has already been read by this point.
     vim.cmd("normal! \27")
   end
+  -- A prompt already open means the TUI is blocked on it and would swallow the
+  -- key; the useful thing is to get back into that buffer.
+  if require("ai.editor").focus_open(seed) then return end
   return invoke("edit_prompt", { seed = seed })
 end
 

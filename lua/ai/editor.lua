@@ -332,6 +332,31 @@ local function present(path, sentinel)
 
   state.open[path] = win
 
+  -- Modal: focus stays here until the prompt is returned or cancelled.
+  --
+  -- The global <C-h/j/k/l> and <C-\> window keys work from a float too, and
+  -- with the agent blocked on the wrapper there is no way back once they fire:
+  -- <leader>ai sends ctrl+g into a TUI that is not reading its pty, and the
+  -- windows underneath (dashboard, agent panel) have nothing to do while the
+  -- prompt is open. So leaving is treated as a slip and undone. Deferred
+  -- because the leave has not happened yet when WinLeave fires, and skipped
+  -- when the destination is another prompt float -- two agents side by side
+  -- may each have one open, and bouncing between them would never settle.
+  vim.api.nvim_create_autocmd("WinLeave", {
+    group = group,
+    buffer = buf,
+    callback = function()
+      vim.schedule(function()
+        if not vim.api.nvim_win_is_valid(win) then return end
+        local now = vim.api.nvim_get_current_win()
+        if now == win or M.is_prompt_win(now) then return end
+        -- Landing in the agent panel put it into Terminal-mode via auto_insert.
+        if vim.fn.mode() == "t" then vim.cmd("stopinsert") end
+        vim.api.nvim_set_current_win(win)
+      end)
+    end,
+  })
+
   vim.wo[win].winbar =
     "  <C-d> return to agent   ·   <C-v> image   ·   <C-c> cancel   ·   also ZZ / :wq"
   vim.wo[win].wrap = true
@@ -343,6 +368,41 @@ local function present(path, sentinel)
   if #lines <= 1 and vim.trim(lines[1] or "") == "" then
     vim.cmd("startinsert!")
   end
+end
+
+---Is `win` one of the prompt floats currently open?
+---@param win integer
+---@return boolean
+function M.is_prompt_win(win)
+  for _, open in pairs(state.open) do
+    if open == win then return true end
+  end
+  return false
+end
+
+---Bring an already-open prompt float back into focus.
+---
+---The way back after focus slipped out despite the modal guard (a prompt for
+---the other agent took it, say). Sending ctrl+g again cannot do this: the TUI
+---is blocked on the wrapper and drops pty input for as long as the float is
+---open, so <leader>ai checks here first. A Visual selection made in the
+---meantime is appended to the prompt the way a seed would have been.
+---@param text string? lines to append to the prompt
+---@return boolean focused false when no prompt is open
+function M.focus_open(text)
+  for path, win in pairs(state.open) do
+    if vim.api.nvim_win_is_valid(win) then
+      if text and text ~= "" then
+        local buf = vim.api.nvim_win_get_buf(win)
+        vim.api.nvim_buf_set_lines(buf, -1, -1, false, vim.split(text, "\n", { plain = true }))
+      end
+      if vim.fn.mode() == "t" then vim.cmd("stopinsert") end
+      vim.api.nvim_set_current_win(win)
+      return true
+    end
+    state.open[path] = nil
+  end
+  return false
 end
 
 ---Open a prompt file handed over by the agent TUI.

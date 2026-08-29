@@ -214,4 +214,51 @@ t.eq(editor.tui_ready(nil), false, "UC-9: a missing buffer is not ready")
 local wrapper = editor.wrapper()
 t.eq(vim.fn.executable(wrapper), 1, "UC-6: the $EDITOR wrapper is executable")
 
+-- UC-10: the float is modal. The global <C-h/j/k/l> window keys work from a
+-- float too, and once focus is in the dashboard or the agent panel there is no
+-- way back: the TUI is blocked on the wrapper and drops the ctrl+g <leader>ai
+-- would send. So a slip out of the float is undone.
+vim.cmd("vsplit")
+local path10 = tmpfile({ "modal" })
+editor.open(path10, path10 .. ".done")
+settle()
+local win10 = float_win()
+for _, key in ipairs({ "<C-h>", "<C-l>", "<C-w>w", "<C-\\>" }) do
+  vim.api.nvim_set_current_win(win10)
+  vim.api.nvim_feedkeys(vim.keycode(key), "tx", false)
+  settle()
+  t.eq(vim.api.nvim_get_current_win(), win10, "UC-10: " .. key .. " does not leave the prompt")
+end
+t.ok(editor.is_prompt_win(win10), "UC-10: the float is known as a prompt window")
+
+-- A second prompt (the other agent's) may take focus: bouncing between two
+-- modal floats would never settle.
+local path10b = tmpfile({ "other agent" })
+editor.open(path10b, path10b .. ".done")
+settle()
+local win10b = vim.api.nvim_get_current_win()
+t.ok(win10b ~= win10 and editor.is_prompt_win(win10b), "UC-10: a second prompt opens and keeps focus")
+settle()
+t.eq(vim.api.nvim_get_current_win(), win10b, "UC-10: the first prompt does not steal focus back")
+
+-- focus_open is the explicit way back, and carries a selection made meanwhile.
+vim.api.nvim_win_close(win10b, true)
+settle()
+-- Force focus elsewhere despite the guard, as a plugin-driven focus change would.
+for _, w in ipairs(vim.api.nvim_list_wins()) do
+  if not editor.is_prompt_win(w) then vim.api.nvim_set_current_win(w) end
+end
+settle()
+t.eq(vim.api.nvim_get_current_win(), win10, "UC-10: the guard also undoes a programmatic leave")
+t.eq(editor.focus_open("picked"), true, "UC-10: focus_open reports an open prompt")
+t.eq(vim.api.nvim_get_current_win(), win10, "UC-10: focus_open lands in the prompt")
+t.eq(vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win10), 0, -1, false), { "modal", "picked" },
+  "UC-10: focus_open appends the selection to the prompt")
+released = {}
+vim.api.nvim_feedkeys(vim.keycode("<C-c>"), "x", false)
+settle()
+t.eq(released, { path10 .. ".done" }, "UC-10: the modal prompt still releases on cancel")
+t.eq(editor.focus_open(), false, "UC-10: focus_open reports nothing once the prompt is closed")
+vim.cmd("only")
+
 t.done()
