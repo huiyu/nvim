@@ -64,6 +64,9 @@ vim.keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode", noremap = true, 
 vim.keymap.set("i", "<C-c>", "<ESC>", { desc = "Exit insert mode", noremap = true, silent = true })
 
 -- Terminal mode
+-- The agent panels opt out of this pair: both CLIs read a quick double Esc as
+-- their own "go back a message", so lua/ai/terminal.lua maps a buffer-local
+-- <Esc> there and leaves `jk` / <C-\> as the way out.
 vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
 vim.keymap.set("t", "jk", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
 vim.keymap.set("t", "<C-q>", function()
@@ -129,8 +132,9 @@ end
 -- a terminal or agent panel on the other, <C-h>/<C-l> need up to three hops to
 -- cross back to the middle. Pressing it inside the editor returns to the window
 -- it came from, so one key travels both ways.
--- Mapping <C-\> in Terminal-mode shadows the built-in <C-\><C-n>; `jk` and
--- <Esc><Esc> above already cover leaving terminal input mode.
+-- Mapping <C-\> in Terminal-mode shadows the built-in <C-\><C-n>; `jk` above
+-- covers leaving terminal input mode everywhere, <Esc><Esc> everywhere but the
+-- agent panels.
 vim.keymap.set("n", "<C-\\>", "<cmd>WindowFocusEditor<cr>",
   { desc = "Go to editor window", silent = true })
 vim.keymap.set("t", "<C-\\>", "<C-\\><C-n><cmd>WindowFocusEditor<cr>",

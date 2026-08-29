@@ -323,7 +323,7 @@ Issue 与 PR 的远程写操作刻意不设置全局快捷键。在 Snacks GitHu
 
 Native coding-agent terminal 进入 Terminal-mode 时不再自动 resize，因此通过
 `<C-h/j/k/l>` 切入时不会出现一行高度的闪动。如果 TUI 发生漂移，先用
-`<Esc><Esc>` 退出输入状态，再以 `<leader>td` 手动修复。打开编号底部终端
+`jk` 退出输入状态，再以 `<leader>td` 手动修复。打开编号底部终端
 后，仍会修复因布局变化而受影响的可见 agent。
 
 Neovim 在 Normal 和 terminal-input 模式下都会接管 `<C-h/j/k/l>`，因此可以
@@ -338,15 +338,30 @@ TUI。处在布局边缘时该键不做任何事、保持终端输入；浮动�
 「文件树 + agent 面板」布局不再需要连按三次 `<C-h>` 才能回到中间。在编辑器
 里再按一次会跳回来源窗口。目标取最宽的普通文件窗口；有多个时取光标最近停留
 过的那个，dashboard 也算编辑器窗口。该映射会遮蔽 terminal-mode 的
-`<C-\><C-n>`，请用 `jk` 或 `<Esc><Esc>` 进入 terminal-Normal 模式。
+`<C-\><C-n>`，请用 `jk` 进入 terminal-Normal 模式。
+
+在 agent 面板里，`<Esc>` 属于 agent 而不是 Nvim。两个 CLI 都把快速双击 Esc 读作
+「回到上一条消息」，因此 Snacks 的双击映射和全局 `<Esc><Esc>` 在面板里都不生效；
+退出 Terminal-mode 请用 `jk` 或 `<C-\>`。普通 `:terminal` 仍保留 `<Esc><Esc>`。
+
+在 agent 面板里点击鼠标同样会保持 terminal-input 状态。只有当终端任务自己申请了
+鼠标上报，Nvim 才会把鼠标事件转发给它，而两个 TUI 都不申请 —— 所以在此之前，任何
+一次点击（包括切换 app 后点回终端窗口的那一下）都会让面板掉回 Normal 模式。启用
+tmux wrapper 时由 tmux 申请并自行处理点击；未启用时，落在面板内的点击由 Nvim 吞掉。
+点击其他窗口仍然会正常切过去。
+
+两个 provider 的翻历史方式完全一致：两个 wrapper 的 tmux 都启用了 `mouse on` 和
+50000 行 history。真实 transcript 归 tmux 所有，Nvim 的终端 buffer 里只有 tmux
+最后合成的那一屏，所以滚动要走 tmux。保持 terminal-input 状态，以鼠标滚轮或
+`<PageUp>` 进入 tmux copy-mode；用滚轮或 `<PageDown>` 向下查看，按 `q` 或
+`<Esc>` 返回 agent 输入。如果已经处于 terminal-Normal mode，同样这些键（外加
+`<C-u>`/`<C-d>`）会转发给 tmux 并自动恢复 terminal input，因此下一次滚轮事件会
+直接落进 copy-mode。使用 `CLAUDE_WRAP_TMUX=0` 或 `CODEX_WRAP_TMUX=0` 时没有
+tmux 可用，请先按 `jk`，再使用 Nvim 的普通滚动命令。
 
 Nvim 内的 Codex 会使用 `--no-alt-screen --yolo`。YOLO 模式会绕过 Codex 的
 审批与内置沙箱；`--no-alt-screen` 则让已完成的聊天输出进入 wrapper 的 tmux
-history。使用默认 wrapper 时保持 terminal-input 状态，以鼠标滚轮或
-`<PageUp>` 进入 tmux copy-mode；用滚轮或 `<PageDown>` 向下查看，按 `q` 或
-`<Esc>` 返回 Codex 输入。如果已经处于 terminal-Normal mode，同样的滚动键
-会转发给 tmux，并自动恢复 terminal input。使用 `CODEX_WRAP_TMUX=0` 时，则先
-按 `<Esc><Esc>`，再使用 Nvim 的普通滚动命令。
+history。
 
 #### 在 buffer 里编辑 prompt
 

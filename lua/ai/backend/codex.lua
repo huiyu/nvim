@@ -61,6 +61,10 @@ local function terminal_command(args)
     "set-option", "-g", "default-terminal", term,
     ";", "set-option", "-g", "history-limit", "50000",
     ";", "set-option", "-g", "mouse", "on",
+    -- These two are half of the scrollback story. The other half is the
+    -- terminal-Normal-mode forwarding in lua/ai/terminal.lua, which sends
+    -- PPage into the pane so a scroll that starts outside terminal input still
+    -- lands in copy-mode instead of the near-empty :terminal buffer.
     ";", "bind-key", "-T", "root", "WheelUpPane", "copy-mode", "-eu",
     ";", "bind-key", "-T", "root", "PPage", "copy-mode", "-eu",
     ";", "new-session", "-A", "-s", "main",
@@ -108,6 +112,10 @@ local function terminal_opts(root)
       position = "right",
       width = ai_config.panel.width,
       wo = { winfixwidth = true },
+      -- Codex reads a quick double Esc itself; Snacks' own <esc> double-tap
+      -- would swallow it. lua/ai/terminal.lua puts Esc back on the wire and
+      -- keeps `jk` / <C-\> as the way out of Terminal-mode.
+      keys = { term_normal = false },
     },
   }
 end
@@ -134,43 +142,12 @@ local function enter_insert(term)
   vim.api.nvim_win_call(win, function() vim.cmd.startinsert() end)
 end
 
--- Nvim Normal-mode scrolling only sees the tmux client's current screen. When
--- the wrapper owns the real history, forward the first scroll action into tmux
--- and return to terminal-input mode; subsequent keys/wheel events are then
--- handled by tmux copy-mode directly.
-local function setup_scrollback_maps(term)
-  if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then return end
-
-  local keys = {
-    ["<C-u>"] = "\27[5~",
-    ["<PageUp>"] = "\27[5~",
-    ["<ScrollWheelUp>"] = "\27[5~",
-    ["<C-d>"] = "\27[6~",
-    ["<PageDown>"] = "\27[6~",
-    ["<ScrollWheelDown>"] = "\27[6~",
-  }
-  for lhs, sequence in pairs(keys) do
-    vim.keymap.set("n", lhs, function()
-      if not term:buf_valid() then return end
-      local channel = vim.bo[term.buf].channel
-      if not channel or channel <= 0 then return end
-      vim.api.nvim_chan_send(channel, sequence)
-      enter_insert(term)
-    end, {
-      buffer = term.buf,
-      desc = "Scroll Codex tmux history",
-      silent = true,
-    })
-  end
-end
-
 local function start(args, root)
   current = snacks().terminal.open(terminal_command(args), terminal_opts(root))
   local term = current
   term:on("TermClose", function()
     if current == term then current = nil end
   end, { buf = true })
-  setup_scrollback_maps(term)
   enter_insert(term)
   return current
 end

@@ -90,6 +90,10 @@ function M.setup()
   if did_setup then return end
   did_setup = true
 
+  -- Input rules for the agent panel itself, independent of which provider owns
+  -- it -- see lua/ai/terminal.lua.
+  require("ai.terminal").setup()
+
   map("n", "<leader>ac", M.toggle, "Toggle " .. config.label)
   map("n", "<leader>af", M.focus, "Focus " .. config.label)
   map("n", "<leader>ar", M.resume, "Resume " .. config.label)

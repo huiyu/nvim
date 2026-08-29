@@ -221,6 +221,55 @@ end)
 run.run_current()
 ```
 
+## AI Panel Input (`ai.terminal`)
+
+Buffer-local input rules for the native agent panel, applied through one
+`TermOpen` hook because both providers open through Snacks — the per-backend
+alternative would need a callback threaded through claudecode.nvim's own
+terminal provider. Ordinary `:terminal` buffers are untouched.
+
+#### API Reference
+
+```lua
+local panel = require("ai.terminal")
+
+panel.setup()      -- install the TermOpen hook; called from ai.setup()
+panel.attach(buf)  -- apply the rules to one agent terminal buffer
+```
+
+Three rules, the first two undoing something Nvim or Snacks does that is right
+for a shell and wrong for an agent TUI:
+
+`<Esc>` is mapped buffer-locally so it goes straight to the agent. Snacks maps
+`<esc>` on its terminal buffers as a 200ms double-tap to Normal mode, and
+`lua/mappings.lua` maps `<Esc><Esc>` globally; between them, neither CLI ever
+received the quick double Esc that both read as "go back a message". The
+buffer-local single `<Esc>` is a complete match, so it wins over the longer
+global sequence without waiting out `timeoutlen`. Snacks' own entry is dropped
+where each terminal is created, via `keys.term_normal = false`. `jk` and `<C-\>`
+still leave Terminal-mode.
+
+Mouse clicks that land inside the panel are swallowed so Terminal-mode survives
+them. Nvim only forwards a mouse event to a terminal job that asked for mouse
+reporting, and neither TUI asks, so Nvim handled the click itself — which means
+leaving Terminal-mode, and made a click that merely returned focus to the
+terminal window look like a random drop into Normal mode. Clicks on another
+window still move there. This applies to the unwrapped path only: under the tmux
+wrapper tmux enables mouse reporting, so Nvim forwards and Terminal-mode
+survives on its own, and mapping there would take the click away from tmux's
+copy-mode. The wrapper is detected from the command recorded on the buffer,
+since who enables the mouse is the only reason that distinction matters.
+
+Scrolling from terminal-Normal mode is forwarded into the pane, and terminal
+input is restored afterwards. This is the wrapped path's counterpart to the
+mouse guard: tmux owns the real transcript, so Nvim's terminal buffer holds
+only the screenful tmux last composed and scrolling it shows nothing useful.
+`<PageUp>`/`<PageDown>`, `<C-u>`/`<C-d>` and the wheel are sent to the pane as
+`<PageUp>`/`<PageDown>`, which the wrapper binds to `copy-mode -eu`; returning
+to terminal input means the next wheel event reaches copy-mode directly instead
+of scrolling the near-empty buffer again. This used to live in
+`ai.backend.codex`, so Claude never had it.
+
 ## AI Selection (`ai.selection`)
 
 Builds agent-ready text from the live visual selection. It sits outside the

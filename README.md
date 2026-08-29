@@ -352,7 +352,7 @@ Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff
 
 Native coding-agent terminals no longer resize automatically when entering
 Terminal-mode, so moving into one with `<C-h/j/k/l>` does not produce a one-row
-flash. If a TUI drifts, exit terminal input with `<Esc><Esc>` and use
+flash. If a TUI drifts, exit terminal input with `jk` and use
 `<leader>td` to repair it. Opening a numbered bottom terminal still repairs the
 visible agent after the layout changes.
 
@@ -370,18 +370,36 @@ editor window, so a tree-plus-agent layout no longer needs three `<C-h>` hops to
 cross back to the middle. Pressing it again from the editor returns to the
 window it came from. It targets the widest normal file window, or the one the
 cursor last sat in when several are open, and the dashboard counts as an editor
-window. This shadows terminal-mode `<C-\><C-n>`; use `jk` or `<Esc><Esc>` to
-reach terminal-Normal mode.
+window. This shadows terminal-mode `<C-\><C-n>`; use `jk` to reach
+terminal-Normal mode.
+
+Inside an agent panel, `<Esc>` belongs to the agent, not to Nvim. Both CLIs read
+a quick double Esc as "go back a message", so neither Snacks' double-tap nor the
+global `<Esc><Esc>` applies there; `jk` and `<C-\>` are the way out of
+Terminal-mode. Ordinary `:terminal` buffers keep `<Esc><Esc>`.
+
+A click inside an agent panel also stays in terminal-input mode. Nvim only hands
+a mouse event to the terminal job when that job asked for mouse reporting, and
+neither TUI does, so without this a click -- including the one that returns focus
+to the terminal window after switching apps -- left the panel in Normal mode.
+Under the tmux wrapper tmux asks for it and handles the click itself; without the
+wrapper Nvim swallows clicks that land in the panel. Clicking a different window
+still moves there.
+
+Scrollback works the same way under both providers, because both wrappers run
+tmux with `mouse on` and a 50000-line history. tmux owns the real transcript;
+Nvim's terminal buffer only holds the screenful tmux last composed, so scrolling
+goes through tmux. Stay in terminal-input mode and use the mouse wheel or
+`<PageUp>` to enter tmux copy-mode; scroll down with the wheel or `<PageDown>`,
+then press `q` or `<Esc>` to return to the agent's input. If you are already in
+terminal-Normal mode, the same keys -- plus `<C-u>`/`<C-d>` -- are forwarded to
+tmux and terminal input is restored automatically, so the next wheel event
+reaches copy-mode directly. With `CLAUDE_WRAP_TMUX=0` or `CODEX_WRAP_TMUX=0`
+there is no tmux to ask, so use `jk` and Nvim's normal scroll commands instead.
 
 Codex runs with `--no-alt-screen --yolo` inside Nvim. YOLO mode bypasses Codex
 approvals and its built-in sandbox, while `--no-alt-screen` lets completed chat
-output enter the wrapper tmux history. With the default wrapper, stay in
-terminal-input mode and use the mouse wheel or `<PageUp>` to enter tmux
-copy-mode; scroll down with the wheel or `<PageDown>`, then press `q` or `<Esc>`
-to return to Codex input. If already in terminal-Normal mode, the same scroll
-keys are forwarded to tmux and restore terminal input automatically.
-With `CODEX_WRAP_TMUX=0`, use `<Esc><Esc>` and Nvim's normal scroll commands
-instead.
+output enter the wrapper tmux history.
 
 #### Editing the prompt in a buffer
 

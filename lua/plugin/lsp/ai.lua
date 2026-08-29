@@ -90,6 +90,30 @@ local function build_terminal_cmd()
     -- than libvterm implements" trap that caused huiyu/nvim#2.
     "set-option -g default-terminal " .. vim.fn.shellescape(term),
     "\\;",
+    -- Claude's Ink TUI never asks for mouse reporting, and nvim only forwards
+    -- a click to a job that did. Without this the pane's clicks are handled by
+    -- nvim instead -- which drops out of Terminal-mode, so clicking back into
+    -- the window after an app switch left the panel in Normal mode. tmux does
+    -- ask, so the click reaches the pane and Terminal-mode survives. Codex
+    -- already had this; the two wrappers now agree.
+    "set-option -g mouse on",
+    "\\;",
+    -- With the mouse on, the wheel reaches tmux and opens copy-mode over the
+    -- real transcript, so the default 2000-line history becomes the limit
+    -- worth raising. Same value as the Codex wrapper.
+    "set-option -g history-limit 50000",
+    "\\;",
+    -- Force copy-mode rather than leaving tmux's default root bindings to
+    -- decide. Claude Code can be put on the alternate screen (`/tui
+    -- fullscreen`), and there tmux's default translates the wheel into arrow
+    -- keys -- which Claude reads as "walk the input history", so scrolling
+    -- would replace whatever is typed in the box. An empty copy-mode you leave
+    -- with `q` is the better failure. PPage is what lua/ai/terminal.lua sends
+    -- when the scroll starts from terminal-Normal mode.
+    "bind-key -T root WheelUpPane copy-mode -eu",
+    "\\;",
+    "bind-key -T root PPage copy-mode -eu",
+    "\\;",
     "new-session -A -s main",
     "-e CLAUDE_CODE_SSE_PORT=$CLAUDE_CODE_SSE_PORT",
     "-e ENABLE_IDE_INTEGRATION=$ENABLE_IDE_INTEGRATION",
@@ -191,6 +215,10 @@ return {
         snacks_win_opts = {
           width = ai_config.panel.width,
           wo = { winfixwidth = true },
+          -- Claude reads a quick double Esc itself; Snacks' own <esc>
+          -- double-tap would swallow it. lua/ai/terminal.lua puts Esc back on
+          -- the wire and keeps `jk` / <C-\> as the way out of Terminal-mode.
+          keys = { term_normal = false },
         },
       },
       -- Bypass proxy for localhost WebSocket connections (IDE integration)
