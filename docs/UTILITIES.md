@@ -140,7 +140,34 @@ window.focus_editor()
 -- Driven by a WinLeave autocmd (not WinEnter: a fresh `split` still shows a
 -- file buffer when WinEnter fires and only becomes a terminal afterwards).
 window.track_editor_win()
+
+-- Quit Nvim, including from inside a Snacks terminal window. Backs <leader>qq
+-- and, with force, <leader>qQ.
+window.quit_all(force)
 ```
+
+`quit_all` exists because `:qall` does not work from inside a Snacks terminal.
+Snacks closes each of its terminal windows from its own `ExitPre`, and Nvim
+refuses to finish a quit whose autocommands made a window disappear -- so
+`:qall` typed in the agent panel or a `<C-/>` terminal closed that terminal and
+then silently dropped the quit, which reads as "the agent exited but Nvim
+stayed". Closing those windows up front, while it is still an ordinary window
+operation, leaves `ExitPre` with nothing to close.
+
+Only the windows are closed; the buffers are left to `ExitPre` as usual. A
+Snacks terminal that is merely hidden never blocked the quit, and not deleting
+buffers keeps this clear of the textlock `nvim_buf_delete` can hit in a nested
+command context.
+
+The unsaved check runs first, because closing the panel is not free. Nvim fires
+`ExitPre` before it looks at modified buffers, so a refused `:qall` today tears
+the agent panel down *and* fails to quit -- both halves of the loss. When a
+modified buffer would make Nvim refuse, `quit_all` touches nothing and lets Nvim
+raise its own `E37`. `<leader>qQ` passes `force`, which is the user saying they
+mean it.
+
+Typing `:qa` by hand still takes the upstream path; only these entry points are
+covered.
 
 ## Terminal (`util.terminal`)
 

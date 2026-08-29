@@ -221,4 +221,64 @@ function M.equalize_respecting_fixed()
   end
 end
 
+--- Buffers Nvim would refuse to quit over. `getbufinfo()` is Vim's own filter,
+--- so this tracks whatever Nvim considers modified; `buftype` drops the
+--- terminal and scratch buffers, which are always "modified" and never block a
+--- quit.
+local function unsaved_buffers()
+  return vim.tbl_filter(function(info)
+    return vim.bo[info.bufnr].buftype == ""
+  end, vim.fn.getbufinfo({ bufmodified = 1 }))
+end
+
+--- Close the Snacks-managed terminal windows, as ordinary window operations.
+---
+--- The window is the whole story: Nvim only drops the quit when an autocommand
+--- made a window disappear, so a Snacks terminal left merely hidden -- toggled
+--- away, buffer still alive -- never blocked it, and the buffers can be left to
+--- `ExitPre` as usual. Not deleting them also keeps this out of reach of the
+--- textlock that `nvim_buf_delete` can hit in a nested command context.
+---
+--- All tabpages deliberately: this only runs on the way out of the editor, and
+--- a terminal parked in another tab keeps the quit from finishing just as well.
+local function close_snacks_terminals()
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win)
+      and vim.b[vim.api.nvim_win_get_buf(win)].snacks_terminal then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+end
+
+-- Indirection so tests can watch which quit was issued without taking the
+-- editor down with them.
+M._quit = function(command) vim.cmd(command) end
+
+--- Quit Nvim, including from inside a Snacks terminal window.
+---
+--- Snacks closes each of its terminal windows from its own `ExitPre`, and Nvim
+--- refuses to finish a quit whose autocommands made a window disappear. So a
+--- plain `:qall` run from inside one -- the agent panel or a `<C-/>` terminal --
+--- closes that terminal and then silently drops the quit, which reads as "the
+--- agent exited but Nvim stayed". Closing those windows first, while it is
+--- still an ordinary window operation, leaves `ExitPre` with nothing to close.
+---
+--- The unsaved check comes first because closing the panel is not free: Nvim
+--- runs `ExitPre` before it looks at modified buffers, so today a refused
+--- `:qall` already tears the agent panel down and does not quit either -- both
+--- halves of the loss. Here the refusal is left entirely to Nvim, which raises
+--- its own E37 without a terminal being touched.
+---
+--- Typing `:qa` by hand still takes the upstream path; only these entry points
+--- are covered.
+---@param force boolean? issue `qall!`, discarding unsaved changes
+function M.quit_all(force)
+  if not force and #unsaved_buffers() > 0 then
+    M._quit("qall")
+    return
+  end
+  close_snacks_terminals()
+  M._quit(force and "qall!" or "qall")
+end
+
 return M

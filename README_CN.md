@@ -289,7 +289,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | 重构 | `<leader>r` | `rf` 提取函数, `rF` 提取到文件, `rx` 提取变量, `ri` 内联, `rb` 提取块, `rB` 提取块到文件, `rs` 选择 |
 | AI | `<leader>a` | Native：`ac` 切换, `af` 聚焦, `ar` 恢复选择, `aR` 继续上次, `am` 模型, `ab` 添加 buffer, `as` 附加选区（v）, `ai` 撰写 prompt（n/v）, `at` 阅读 transcript, `aT` 会话历史；Claude 专属：`aS`, `aa/ad`；CodeCompanion：`ap{c,t,a,i,b,h}` 新建/切换/操作/Inline/添加选区/历史 |
 | 窗口 | `<leader>w` | `ww` 切到其它窗口, `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
-| 退出 | `<leader>q` | `qq/qQ` 退出, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
+| 退出 | `<leader>q` | `qq/qQ` 退出（在 agent 边栏里也有效，直接 `:qall` 则不会退出）, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
 | 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `` ` `` 最近使用（alternate）, `l/f` 最右/第一个, `o` 关闭其他, `s` 列出全部 |
 
 #### GitHub（`<leader>gh`）

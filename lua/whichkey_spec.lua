@@ -126,8 +126,10 @@ local spec = {
   { "<leader>`",  "<C-^>",            desc = "Last buffer",  mode = "n" },
 
   -- Quit/Session
-  { "<leader>qq", "<cmd>qall<cr>",  desc = "Quit all",       mode = "n" },
-  { "<leader>qQ", "<cmd>qa!<cr>",   desc = "Force quit all", mode = "n" },
+  -- Not <cmd>qall<cr>: run from inside a Snacks terminal that only closes the
+  -- terminal and leaves Nvim running. See util.window.quit_all.
+  { "<leader>qq", function() require("util.window").quit_all() end,     desc = "Quit all",       mode = "n" },
+  { "<leader>qQ", function() require("util.window").quit_all(true) end, desc = "Force quit all", mode = "n" },
 
   -- Window management
   { "<leader>ww", "<C-w>p",                       desc = "Other window",        mode = "n" },

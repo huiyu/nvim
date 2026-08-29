@@ -294,7 +294,7 @@ Press any prefix and wait for which-key popup to see available keys.
 | Refactor | `<leader>r` | `rf` extract function, `rF` extract function to file, `rx` extract variable, `ri` inline, `rb` extract block, `rB` extract block to file, `rs` select |
 | AI | `<leader>a` | Native: `ac` toggle, `af` focus, `ar` resume picker, `aR` continue last, `am` model, `ab` add buffer, `as` attach selection (v), `ai` compose prompt (n/v), `at` read transcript, `aT` session history. Claude-only: `aS`, `aa/ad`. CodeCompanion: `ap{c,t,a,i,b,h}` chat/toggle/actions/inline/add selection/history |
 | Window | `<leader>w` | `ww` other window, `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
-| Quit/Session | `<leader>q` | `qq/qQ` quit, `qs` save session, `ql` load last, `q.` load current |
+| Quit/Session | `<leader>q` | `qq/qQ` quit (works from inside an agent panel, where a bare `:qall` does not), `qs` save session, `ql` load last, `q.` load current |
 | Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `` ` `` last used (alternate), `l/f` rightmost/first, `o` close others, `s` list all |
 
 #### GitHub (`<leader>gh`)
