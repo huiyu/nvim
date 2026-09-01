@@ -94,7 +94,7 @@ local spec = {
       "  goto this symbol           g",
       "  instant action             Ctrl",
       "  cycle buffers              Shift (H/L)",
-      "  move a line                Alt (j/k)",
+      "  move / indent a line       , (j/k/h/l)",
       "  fly to visible spot        f (flash, no leader)",
       "",
       "  ── ; — go to a file ─────────────────────",

@@ -244,7 +244,7 @@ which-key 会列出可用键——那个列表由配置本身生成，不会和�
 
 Native coding-agent terminal 进入 Terminal-mode 时不再自动 resize，因此通过
 `<C-h/j/k/l>` 切入时不会出现一行高度的闪动。如果 TUI 发生漂移，先用
-`<C-]>`(或 `jk`)退出输入状态，再以 `<leader>td` 手动修复。打开编号底部终端
+`<C-]>`（或 `jk`）退出输入状态，再以 `<leader>md` 手动修复。打开编号底部终端
 后，仍会修复因布局变化而受影响的可见 agent。
 
 `<C-]>` 是统一且不受中文预编辑影响的退出键：在 Editor Insert 模式中等同
@@ -318,8 +318,9 @@ history。
 `<leader>as` 一致。全程不提交——关闭 buffer 只是把文本交回输入框，回车仍然由你自
 己按。
 
-浮窗是**模态**的：窗口键（`<C-h/j/k/l>`、`<C-w>`、`<C-\>`）不会离开它，绕过这
-一层的焦点变化也会被拉回来。浮窗开着时 agent 正阻塞在编辑器上、不读 pty，否则一旦
+浮窗是**模态**的：窗口导航键（`<C-h/j/k/l>`、`<C-w>`）和相邻的退出按键
+（`<C-\>`）都不会离开它，绕过这一层的焦点变化也会被拉回来。浮窗开着时 agent
+正阻塞在编辑器上、不读 pty，否则一旦
 出去就再也回不来——再按一次 `<leader>ai` 会回到已打开的 prompt（Visual 选区会追加
 进去），而不是发一个会被 TUI 吞掉的 `ctrl+g`。两个 agent 并排各开一个 prompt 也可
 以，焦点归较新的那个。
@@ -494,7 +495,7 @@ Normal 模式的布局优先读取 `NVIM_ENGLISH_INPUT_SOURCE`，未设置时回
 对应语言贡献。语言文件负责扩展共享的 nvim-lspconfig、Conform、lint、
 Treesitter、DAP 和测试 spec；`lua/plugin/lsp/` 只放编辑器级公共默认配置。
 
-**调整文件/grep 搜索范围** — `<leader>.` 与 `<leader>/` 默认显示隐藏和被
+**调整文件/grep 搜索范围** — `;f` 与 `;/` 默认显示隐藏和被
 gitignore 的文件；`.git/` 始终排除，`node_modules`、`target`、`.venv`、
 `Pods` 等重型目录由 `lua/plugin/editor/snacks.lua` 的 `search_exclude` 统一
 过滤。这个过滤不区分是否被 Git 跟踪，因此不要随意加入 `bin`、`out`、

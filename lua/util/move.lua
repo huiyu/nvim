@@ -5,7 +5,7 @@
 -- Moving to <leader> costs a keystroke per move, which is the wrong trade for
 -- something usually done several times in a row.
 --
--- So the first move is <leader>mj / <leader>mk, and after it bare j and k keep
+-- So the first move is ,j / ,k, and after it bare j and k keep
 -- moving until you press anything else. Repeating is one keystroke, and no
 -- top-level j/k is spent to get it.
 
@@ -60,9 +60,9 @@ end
 
 ---Move, then keep moving while j/k are pressed.
 ---
----Anything else ends the run and is fed back, so `<leader>mjjjw` moves three
+---Anything else ends the run and is fed back, so `,jjjw` moves three
 ---lines and then jumps a word -- the trailing key is never swallowed. Directions
----can be mixed freely within a run: `<leader>mj` then `ljk` moves, indents, and
+---can be mixed freely within a run: `,j` then `ljk` moves, indents, and
 ---moves back.
 ---@param direction "up"|"down"|"left"|"right"
 function M.run(direction)

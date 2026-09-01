@@ -252,7 +252,7 @@ composition rules the keys are built on.
 Native coding-agent terminals no longer resize automatically when entering
 Terminal-mode, so moving into one with `<C-h/j/k/l>` does not produce a one-row
 flash. If a TUI drifts, exit terminal input with `<C-]>` (or `jk`) and use
-`<leader>td` to repair it. Opening a numbered bottom terminal still repairs the
+`<leader>md` to repair it. Opening a numbered bottom terminal still repairs the
 visible agent after the layout changes.
 
 `<C-]>` is the uniform, input-method-safe exit key: in Editor Insert mode it
@@ -340,8 +340,9 @@ selection is added to it first, using the same text form `<leader>as` produces.
 Nothing is submitted — closing the buffer hands the text back to the box, and you
 still press Enter yourself.
 
-The float is modal: the window keys (`<C-h/j/k/l>`, `<C-w>`, `<C-\>`) do not
-leave it, and a focus change that slips past that is undone. While it is open
+The float is modal: window navigation (`<C-h/j/k/l>`, `<C-w>`) and the adjacent
+Escape chord (`<C-\>`) do not leave it, and a focus change that slips past that
+is undone. While it is open
 the agent is blocked on the editor and ignores its pty, so there would be no way
 back otherwise — `<leader>ai` pressed again returns to the open prompt (adding a
 Visual selection to it) instead of sending a `ctrl+g` the TUI would swallow. Two
@@ -544,7 +545,7 @@ matching contribution in `lua/lang/`. Language files extend the shared
 `nvim-lspconfig`, Conform, lint, Treesitter, DAP, and test specs; the files in
 `lua/plugin/lsp/` contain editor-wide defaults only.
 
-**Tune file/grep search scope** — the file (`<leader>.`) and grep (`<leader>/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
+**Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
 
 ## License
 
