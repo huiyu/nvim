@@ -5,9 +5,9 @@
 -- listed the builtin objects and treesitter-textobjects' `f`/`c`, but not
 -- mini.ai's `a` (argument) or `o` (block). The manual promises "press d, then
 -- i, and the menu lists the rest", so lua/whichkey_spec.lua carries desc-only
--- entries for every object the manual documents. which-key keeps spec entries
--- in its own trie and never calls vim.keymap.set, so this asserts against the
--- table (see AGENTS.md) rather than maparg().
+-- entries for every object the manual documents. Description-only entries stay
+-- in which-key's trie, so this correctly asserts against the table rather than
+-- maparg() (functional entries with an RHS are real mappings after VimEnter).
 local t = dofile("tests/helper.lua")
 
 -- VeryLazy never fires headless; load what the objects need explicitly.

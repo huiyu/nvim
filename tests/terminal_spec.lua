@@ -142,6 +142,12 @@ if term.floats() then
 
   -- Shells announce the running command through an OSC title sequence.
   vim.api.nvim_chan_send(vim.bo[four].channel, "printf '\\033]2;spec-task\\007'\r")
+  -- Nvim 0.11 consumes title OSC internally rather than emitting TermRequest.
+  -- In an interactive terminal TextChangedT follows the output; headless specs
+  -- stay in Normal mode, so reproduce that lifecycle event once b:term_title
+  -- has been updated.
+  vim.wait(2000, function() return vim.b[four].term_title == "spec-task" end)
+  vim.api.nvim_exec_autocmds("TextChangedT", { buffer = four, modeline = false })
   vim.wait(2000, function() return (title_of(four) or ""):find("spec%-task") ~= nil end)
   t.ok((title_of(four) or ""):find("spec-task", 1, true) ~= nil,
     "the title follows what the shell says is running")

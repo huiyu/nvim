@@ -19,11 +19,27 @@ return {
   -- in only when a directory is actually opened, so both `nvim lua/` and
   -- `:e lua/` land in oil while an ordinary session never loads it.
   init = function()
+    local function open_directory_buffer(buf, path)
+      vim.schedule(function()
+        if not vim.api.nvim_buf_is_valid(buf) then return end
+        -- BufNew also fires for background buffers created by :badd, session
+        -- restoration and plugins. Only replace a window that still displays
+        -- this exact directory buffer; a background add must stay background.
+        local wins = vim.fn.win_findbuf(buf)
+        if #wins == 0 then return end
+        vim.api.nvim_win_call(wins[1], function()
+          if vim.api.nvim_get_current_buf() == buf then
+            require("oil").open(path)
+          end
+        end)
+      end)
+    end
+
     vim.api.nvim_create_autocmd("BufNew", {
       group = vim.api.nvim_create_augroup("oil_directory_buffers", { clear = true }),
       callback = function(ev)
         if ev.file ~= "" and vim.fn.isdirectory(ev.file) == 1 then
-          vim.schedule(function() require("oil").open(ev.file) end)
+          open_directory_buffer(ev.buf, ev.file)
         end
       end,
       desc = "Open a directory buffer in oil",
@@ -33,7 +49,7 @@ return {
     -- autocmd above exists, so `nvim lua/` needs its own check.
     local first = vim.fn.argc() > 0 and vim.fn.argv(0) or nil
     if type(first) == "string" and vim.fn.isdirectory(first) == 1 then
-      vim.schedule(function() require("oil").open(first) end)
+      open_directory_buffer(vim.api.nvim_get_current_buf(), first)
     end
   end,
   keys = {

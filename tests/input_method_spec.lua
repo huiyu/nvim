@@ -97,6 +97,34 @@ t.eq(calls[8], { "macism" }, "leaving input queries before switching")
 complete({ code = 1, stdout = "" })
 t.eq(#calls, 8, "a failed capture does not issue a destructive switch")
 
+-- A failed restore invalidates the source cache. If the user manually picks a
+-- CJK source afterwards, the next Normal transition must still issue the
+-- English switch instead of trusting the stale pre-restore cache.
+local restore_calls = {}
+local restore_pending = {}
+local restore_state = input_method._new({
+  command = "macism",
+  default_source = "com.apple.keylayout.US",
+  run = function(command, callback)
+    restore_calls[#restore_calls + 1] = command
+    restore_pending[#restore_pending + 1] = callback
+  end,
+})
+local function restore_complete(result)
+  local callback = table.remove(restore_pending, 1)
+  t.ok(callback ~= nil, "a restore-edge macism operation is pending")
+  callback(result)
+end
+restore_state.normal(true)
+restore_complete({ code = 0, stdout = "com.sogou.inputmethod.sogou.pinyin\n" })
+restore_complete({ code = 0, stdout = "" })
+restore_state.input()
+restore_complete({ code = 1, stdout = "" })
+restore_state.normal()
+t.eq(restore_calls[4], { "macism", "com.apple.keylayout.US" },
+  "Normal mode retries English after a failed input-source restore")
+restore_complete({ code = 0, stdout = "" })
+
 -- The optional wait is a third argument only on source switches; queries stay
 -- argument-free so macism can still report the current source.
 local wait_calls = {}

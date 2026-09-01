@@ -89,9 +89,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   diffview) block the global prefixes, with `nowait` and a visible disabled
   hint.
 - Do not force-delete ordinary buffers from terminal-specific mappings.
-- which-key registers spec entries in its own trie and never calls
-  `vim.keymap.set`, so `maparg()` cannot see them. Assert against the
-  `whichkey_spec` table instead when a test needs to check one.
+- which-key keeps description-only spec entries in its own trie, so `maparg()`
+  cannot see those. Entries with an RHS are created through `vim.keymap.set`
+  after which-key's scheduled loader runs; assert those with `maparg()` after
+  `VimEnter`, and assert description-only entries against `whichkey_spec`.
 - Window commands should normally affect the current tab only. Be deliberate
   before using global APIs such as `nvim_list_wins()`.
 - Neovim's built-in `gc`/`gcc` commenting is the default; do not reintroduce a

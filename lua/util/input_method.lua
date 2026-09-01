@@ -157,7 +157,11 @@ function M._new(opts)
     run(args, function(result)
       busy = false
       local ok = M._command_succeeded(result)
-      if ok then known_source = target end
+      -- A failed switch makes the cached source untrustworthy: the user may
+      -- select another input method before the next mode transition. Clearing
+      -- it forces Normal mode to issue the English switch instead of falsely
+      -- short-circuiting on the last known value.
+      known_source = ok and target or nil
 
       if token == generation then
         if applied then applied(ok) end

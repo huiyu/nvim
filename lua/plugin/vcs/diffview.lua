@@ -72,13 +72,20 @@ return {
         )
       end
     end
-    local blocks = {}
+    local function block_prefixes(keys)
+      local mappings = {}
+      for _, key in ipairs(keys) do
+        mappings[#mappings + 1] = { "n", key, blocked(key), { desc = "Disabled in Diffview", nowait = true } }
+      end
+      return mappings
+    end
     -- The file openers now live on the `;` prefix (lua/plugin/editor/snacks.lua),
     -- so that is what has to be blocked here; the old <leader> spellings are gone.
-    -- `;` opens files, `s` opens splits; neither survives diffview's layout.
-    for _, key in ipairs({ ";", "s" }) do
-      blocks[#blocks + 1] = { "n", key, blocked(key), { desc = "Disabled in Diffview", nowait = true } }
-    end
+    -- `;` opens files and is unsafe everywhere. `s` opens splits, but the file
+    -- panel already owns exact `s` for stage/unstage; that single-letter panel
+    -- action must win instead of being replaced by the prefix guard.
+    local file_blocks = block_prefixes({ ";" })
+    local layout_blocks = block_prefixes({ ";", "s" })
 
     -- <leader> keeps its global meaning everywhere (Buffer/Explorer/Code, as
     -- the which-key popup advertises); diffview's view-local actions live on
@@ -119,9 +126,9 @@ return {
     end
 
     opts.keymaps = {
-      view = join(blocks, dropped, panel, conflict_hunk, conflict_file),
-      file_panel = join(blocks, dropped, panel, conflict_file),
-      file_history_panel = join(blocks, dropped, panel),
+      view = join(layout_blocks, dropped, panel, conflict_hunk, conflict_file),
+      file_panel = join(file_blocks, dropped, panel, conflict_file),
+      file_history_panel = join(layout_blocks, dropped, panel),
     }
 
     require("diffview").setup(opts)

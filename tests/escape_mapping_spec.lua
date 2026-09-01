@@ -65,23 +65,19 @@ t.ok(comma_terminal.rhs:find("WindowFocusEditor", 1, true) ~= nil,
 -- for the terminals that never negotiate it, so the editor jump stays reachable
 -- where the chord cannot be sent at all.
 --
--- Asserted against the spec table, not maparg: which-key runs `add()` on its
--- own trie and never calls vim.keymap.set, so a spec-registered key is not
--- visible to
--- maparg (`se` included). Loading the plugin first is still worth it -- `add()` runs in the
--- plugin's config, so a malformed entry raises here rather than in a session.
+-- Entries with an RHS are real keymaps once which-key's scheduled loader has
+-- run. Specs execute before the normal VimEnter point, so fire that lifecycle
+-- event explicitly before asserting the live mapping.
 vim.cmd("Lazy! load which-key.nvim")
 t.ok(package.loaded["which-key"] ~= nil, "which-key accepted the spec")
+vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })
+vim.wait(100, function() return vim.fn.maparg("se", "n") ~= "" end)
 
-local leader_editor
-for _, entry in ipairs(require("whichkey_spec")) do
-  if entry[1] == "se" then leader_editor = entry end
-end
-t.ok(leader_editor ~= nil, "se is the plain-key fallback for the editor jump")
-t.ok(leader_editor and type(leader_editor[2]) == "string"
-  and leader_editor[2]:find("WindowFocusEditor", 1, true) ~= nil,
-  "se runs the same command as Ctrl-comma")
-t.ok(leader_editor and (leader_editor.desc or ""):find("Editor window", 1, true) ~= nil,
+local live_editor = mapping("se", "n")
+t.ok(type(live_editor.rhs) == "string"
+  and live_editor.rhs:find("WindowFocusEditor", 1, true) ~= nil,
+  "se is the live plain-key fallback for the editor jump")
+t.ok((live_editor.desc or ""):find("Editor window", 1, true) ~= nil,
   "se is discoverable in the Window group")
 
 t.done()

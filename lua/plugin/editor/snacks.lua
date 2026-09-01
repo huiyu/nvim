@@ -79,6 +79,31 @@ local search_exclude = {
   "dist",
 }
 
+-- Sources whose confirmation target is an editor location. Snacks otherwise
+-- falls back to the first non-floating window when a tab contains only panels,
+-- which can replace Oil or an agent terminal. Non-location pickers such as
+-- commands, registers and vim.ui.select must not split the layout just by
+-- opening, so keep this list explicit instead of applying the hook globally.
+local editor_picker_sources = {
+  buffers = true,
+  diagnostics = true,
+  diagnostics_buffer = true,
+  files = true,
+  git_files = true,
+  git_status = true,
+  grep = true,
+  grep_word = true,
+  jumps = true,
+  loclist = true,
+  lsp_incoming_calls = true,
+  lsp_symbols = true,
+  lsp_workspace_symbols = true,
+  marks = true,
+  qflist = true,
+  recent = true,
+  smart = true,
+}
+
 -- Dashboard banner pool. One is drawn at random per Nvim start.
 -- Keep entries single-line; cowsay wraps them (see `cowsay_quote` below).
 local quotes = {
@@ -309,7 +334,7 @@ return {
     picker = {
       enabled = true,
       ui_select = true, -- replace vim.ui.select with snacks picker
-      -- Give the picker somewhere legitimate to put the file it opens.
+      -- Give location pickers somewhere legitimate to put the file they open.
       --
       -- snacks/picker/core/main.lua filters non-file buffers out of its target
       -- search, but records a `non_float` fallback *before* that filter and
@@ -319,7 +344,9 @@ return {
       -- unconditional. util.window.ensure_editor_win() splits instead, and is
       -- a no-op whenever a real editor window already exists (the normal case).
       on_show = function(picker)
-        picker.main = require("util.window").ensure_editor_win()
+        if editor_picker_sources[picker.opts.source] then
+          picker.main = require("util.window").ensure_editor_win()
+        end
       end,
       sources = {
         -- filename-first display: shorter, scannable in Java deep paths

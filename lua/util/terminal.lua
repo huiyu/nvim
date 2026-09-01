@@ -130,30 +130,38 @@ local SHAPES = {
 
 -- Shells announce the running command through an OSC title sequence, which Nvim
 -- surfaces as `b:term_title`. Reflecting it means the float says what is running
--- in it, not just which number it is.
-vim.api.nvim_create_autocmd("TermRequest", {
+-- in it, not just which number it is. Nvim 0.12 emits TermRequest for title OSC;
+-- 0.11 consumes that sequence internally, but TextChangedT follows the terminal
+-- output that carried it. Listen to both to keep the documented 0.11 floor.
+local function refresh_float_title(buf)
+  -- Deferred: TermRequest fires as the escape sequence arrives, before Nvim
+  -- has finished writing `b:term_title`. TextChangedT is already late enough,
+  -- but sharing the scheduled path coalesces both events on 0.12.
+  vim.schedule(function()
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    local info = vim.b[buf].snacks_terminal
+    if not info or not info.id then return end
+    local win = vim.fn.bufwinid(buf)
+    if win == -1 then return end
+    local ok, config = pcall(vim.api.nvim_win_get_config, win)
+    if not ok or config.relative == "" then return end
+
+    local label = float_title(info.id)
+    local running = vim.b[buf].term_title
+    if type(running) == "string" and vim.trim(running) ~= "" then
+      label = ("%s· %s "):format(label, vim.trim(running))
+    end
+    if vim.b[buf].terminal_float_label == label then return end
+    if pcall(vim.api.nvim_win_set_config, win, { title = label, title_pos = "center" }) then
+      vim.b[buf].terminal_float_label = label
+    end
+  end)
+end
+
+vim.api.nvim_create_autocmd({ "TermRequest", "TextChangedT" }, {
   group = vim.api.nvim_create_augroup("terminal_float_title", { clear = true }),
   callback = function(ev)
-    local info = vim.b[ev.buf].snacks_terminal
-    if not info or not info.id then return end
-
-    -- Deferred: TermRequest fires as the escape sequence arrives, before Nvim
-    -- has finished writing `b:term_title`. Reading it here would always see the
-    -- previous value.
-    vim.schedule(function()
-      if not vim.api.nvim_buf_is_valid(ev.buf) then return end
-      local win = vim.fn.bufwinid(ev.buf)
-      if win == -1 then return end
-      local ok, config = pcall(vim.api.nvim_win_get_config, win)
-      if not ok or config.relative == "" then return end
-
-      local label = float_title(info.id)
-      local running = vim.b[ev.buf].term_title
-      if type(running) == "string" and vim.trim(running) ~= "" then
-        label = ("%s· %s "):format(label, vim.trim(running))
-      end
-      pcall(vim.api.nvim_win_set_config, win, { title = label, title_pos = "center" })
-    end)
+    refresh_float_title(ev.buf)
   end,
 })
 

@@ -17,7 +17,7 @@
 -- this plugin loads late enough to have shadowed them.
 return {
   "echasnovski/mini.bracketed",
-  event = "BufReadPost",
+  event = { "BufReadPost", "BufNewFile" },
   opts = {
     -- Kept: conflict, indent, jump, oldfile, undo.
     buffer     = { suffix = "" }, -- [b/]b -> bufferline

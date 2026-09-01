@@ -7,7 +7,7 @@
 -- gap.
 return {
   "b0o/incline.nvim",
-  event = "BufReadPre",
+  event = { "BufReadPre", "BufNewFile" },
   opts = function()
     local colors = require("solarized-osaka.colors").setup()
     return {

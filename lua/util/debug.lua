@@ -17,15 +17,15 @@ local M = {}
 function M.get_loc()
   local me = debug.getinfo(1, "S")
   local level = 2
-  local info = debug.getinfo(level, "S")
+  local info = debug.getinfo(level, "Sl")
   while info and (info.source == me.source or info.source == "@" .. (vim.env.MYVIMRC or "") or info.what ~= "Lua") do
     level = level + 1
-    info = debug.getinfo(level, "S")
+    info = debug.getinfo(level, "Sl")
   end
   info = info or me
   local source = info.source:sub(2)
   source = vim.uv.fs_realpath(source) or source
-  return source .. ":" .. info.linedefined
+  return source .. ":" .. (info.currentline or info.linedefined)
 end
 
 ---@param value any
@@ -66,6 +66,9 @@ function M.dump(...)
     value = args[1]
   end
   M._dump(value)
+  -- Match vim.print's pass-through contract so replacing it does not change
+  -- expressions or plugin code that uses the printed values afterwards.
+  return ...
 end
 
 ---Which namespace is piling up extmarks, and in which buffer.
