@@ -1,0 +1,149 @@
+#!/bin/sh
+# agent-teardown -- kill a wrapper tmux server and everything its agent left running.
+#
+# Killing the server is not enough. tmux signals only each pane's own process,
+# and the kernel's hangup reaches only the pane's session leader, so anything
+# the agent spawned into a process group of its own -- a Codex exec_command
+# background session, a Bash-tool job -- keeps running with ppid 1 and no
+# terminal, and nothing is left to reap it (measured: a dev-server tree lived
+# three days). So the process tree under every pane is recorded *before* the
+# server goes, and whatever of it survives the server is signalled afterwards:
+# SIGTERM, a grace period, SIGKILL.
+#
+# Shared daemons an agent may have started as a side effect -- an emulator, a
+# Gradle daemon, a container runtime -- are left alone together with their
+# children. NVIM_AGENT_TEARDOWN_IGNORE replaces that pattern; it is an awk ERE,
+# so spell a literal dot as [.]. It is only consulted from the agent's children
+# down: the pane's launcher and the agent itself are never spared, or a plugin
+# path with the wrong word in it would silently exempt the whole tree.
+#
+# Usage:
+#   agent-teardown SOCKET          `-L` name (or, with a slash, `-S` path) of the
+#                                  wrapper server; returns at once, works detached
+#   agent-teardown --wait SOCKET   the same, in the foreground
+#
+# Both wrappers run the first form from their `client-detached` hook -- a hook's
+# run-shell job goes down with the server it is about to kill, hence the
+# detached worker -- and their watchdog runs the second before removing the
+# socket file. The hook only fires with destroy-unattached off: with it on, the
+# server was gone before the hook ran (measured), which is how the leak above
+# went unnoticed behind a `kill-server` hook that never executed.
+#
+# Log: $XDG_STATE_HOME/nvim/agent-teardown.log (~/.local/state/nvim/ by default).
+
+set -u
+
+IGNORE=${NVIM_AGENT_TEARDOWN_IGNORE:-'gradle|kotlin.*[Dd]aemon|crashpad_handler|qemu-system|/emulator/|adb .*fork-server|OrbStack|com[.]docker|ibtoold|CoreSimulator|SkyComputerUseClient'}
+GRACE=2
+LOG=${XDG_STATE_HOME:-$HOME/.local/state}/nvim/agent-teardown.log
+
+usage() {
+  echo "usage: agent-teardown [--wait] SOCKET" >&2
+  exit 2
+}
+
+log() {
+  mkdir -p "${LOG%/*}" 2>/dev/null
+  printf '%s %s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$SOCKET" "$*" >>"$LOG" 2>/dev/null
+}
+
+tmux_() { tmux "$OPT" "$SOCKET" "$@"; }
+
+# One ps snapshot, walked from the pane pids down. Prints "hit PID PGID CMD"
+# for every process to signal and "skip PID PGID CMD" for an ignored one, whose
+# subtree is not entered. Depth 0 is the pane's launcher (agent-run), depth 1
+# the agent; the ignore pattern starts at depth 2, the agent's own children.
+tree_under() {
+  ps -axo pid=,ppid=,pgid=,command= | awk -v roots="$1" -v ignore="$IGNORE" -v self="$$" '
+    {
+      pid = $1; parent[pid] = $2; group[pid] = $3
+      line = $0; sub(/^[ \t]*[0-9]+[ \t]+[0-9]+[ \t]+[0-9]+[ \t]+/, "", line); command[pid] = line
+      children[$2] = children[$2] " " pid
+    }
+    END {
+      n = split(roots, r, /[[:space:]]+/)
+      for (i = 1; i <= n; i++) if (r[i] != "") { queue[++tail] = r[i]; depth[r[i]] = 0 }
+      while (head < tail) {
+        pid = queue[++head]
+        if (!(pid in parent) || pid == self) continue
+        if (depth[pid] >= 2 && command[pid] ~ ignore) { print "skip", pid, group[pid], command[pid]; continue }
+        print "hit", pid, group[pid], command[pid]
+        m = split(children[pid], c, " ")
+        for (j = 1; j <= m; j++) if (c[j] != "") { queue[++tail] = c[j]; depth[c[j]] = depth[pid] + 1 }
+      }
+    }'
+}
+
+# Keep the entries whose process is still there.
+alive() {
+  while read -r kind pid rest; do
+    kill -0 "$pid" 2>/dev/null && printf '%s %s %s\n' "$kind" "$pid" "$rest"
+  done
+}
+
+# Signal the "hit" entries on stdin: each process group once -- unless a spared
+# process shares it -- then every pid on its own.
+signal() {
+  sig=$1
+  list=$(grep '^hit ' | cut -d' ' -f2-)
+  [ -n "$list" ] || return 0
+  printf '%s\n' "$list" | awk '{ print $2 }' | sort -u | while read -r pgid; do
+    case " $SPARED_GROUPS " in *" $pgid "*) continue ;; esac
+    [ "$pgid" -gt 1 ] 2>/dev/null && kill -s "$sig" -- "-$pgid" 2>/dev/null
+  done
+  printf '%s\n' "$list" | while read -r pid pgid cmd; do
+    kill -s "$sig" "$pid" 2>/dev/null
+    log "$sig $pid pgid=$pgid $(printf '%.100s' "$cmd")"
+  done
+}
+
+teardown() {
+  roots=$(tmux_ list-panes -a -F '#{pane_pid}' 2>/dev/null | tr '\n' ' ')
+  if [ -z "$roots" ]; then
+    # Already gone -- the agent exited and exit-empty did its job -- or never up.
+    tmux_ kill-server 2>/dev/null
+    log "nothing to sweep"
+    return 0
+  fi
+  snapshot=$(tree_under "$roots")
+  SPARED_GROUPS=$(printf '%s\n' "$snapshot" | awk '$1 == "skip" { print $3 }' | sort -u | tr '\n' ' ')
+  printf '%s\n' "$snapshot" | awk '$1 == "skip"' | while read -r _ pid pgid cmd; do
+    log "spare $pid pgid=$pgid $(printf '%.100s' "$cmd")"
+  done
+
+  tmux_ kill-server 2>/dev/null
+  sleep 0.3                                  # let tmux's own SIGHUP land first
+  printf '%s\n' "$snapshot" | alive | signal TERM
+  sleep "$GRACE"
+  left=$(printf '%s\n' "$snapshot" | alive)
+  printf '%s\n' "$left" | signal KILL
+  log "done panes=[$roots] hits=$(printf '%s\n' "$snapshot" | grep -c '^hit ') killed=$(printf '%s\n' "$left" | grep -c '^hit ')"
+}
+
+WAIT=0
+if [ "${1-}" = "--wait" ]; then
+  WAIT=1
+  shift
+fi
+[ $# -eq 1 ] || usage
+SOCKET=$1
+case $SOCKET in
+  ""|-*) usage ;;
+  */*) OPT=-S ;;
+  *) OPT=-L ;;
+esac
+
+if [ "$WAIT" -eq 1 ]; then
+  teardown
+  exit 0
+fi
+
+# Detach: the caller must not wait, and a hook's run-shell job goes down with
+# the server. A fresh session keeps the worker clear of any group-wide signal.
+if command -v perl >/dev/null 2>&1; then
+  nohup perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV or exit 1' -- "$0" --wait "$SOCKET" \
+    </dev/null >/dev/null 2>&1 &
+else
+  nohup "$0" --wait "$SOCKET" </dev/null >/dev/null 2>&1 &
+fi
+exit 0

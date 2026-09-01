@@ -438,6 +438,13 @@ libvterm。
 **代价**：包了 tmux 之后，tmux、宿主终端和 Agent TUI 对 CJK 宽字符的
 宽度判定可能不一致，带框 UI 可能有轻微错位。
 
+**收尾**：关闭面板或退出 Nvim 时会运行 `scripts/agent-teardown`：先杀掉 wrapper
+的 tmux server，再清掉 agent 留在自己进程组里的东西——比如 Codex `exec_command`
+起的 dev server、后台 Bash 任务——因为 tmux 只会给 pane 自己的进程发信号。agent
+顺带拉起的共享守护进程（模拟器、Gradle daemon、容器运行时）会被放过；用
+`NVIM_AGENT_TEARDOWN_IGNORE` 设一个 awk 正则可以改这份清单。每次运行记录在
+`~/.local/state/nvim/agent-teardown.log`。
+
 **覆盖配置**：
 - `CLAUDE_WRAP_TMUX=0 nvim` — 一次性 A/B 测试
 - `vim.g.claude_wrap_tmux = false` 写入 `init.lua` — 永久关闭

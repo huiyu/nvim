@@ -482,6 +482,14 @@ layer is Nvim's embedded libvterm.
 between tmux, the host terminal, and the agent TUI. This can produce minor
 misalignment in box-bordered UI.
 
+**Teardown**: closing the panel or quitting Nvim runs `scripts/agent-teardown`,
+which kills the wrapper server and then whatever the agent left running in
+process groups of its own -- a Codex `exec_command` dev server, a background
+Bash job -- since tmux only signals the pane's own process. Shared daemons the
+agent may have started (emulator, Gradle daemon, container runtime) are spared;
+set `NVIM_AGENT_TEARDOWN_IGNORE` to an awk regex to change that list. Runs are
+logged to `~/.local/state/nvim/agent-teardown.log`.
+
 **Overrides**:
 - `CLAUDE_WRAP_TMUX=0 nvim` — disable for one-off A/B testing
 - `vim.g.claude_wrap_tmux = false` in `init.lua` — disable permanently

@@ -126,4 +126,77 @@ if config.is("claude") then
   end
 end
 
+-- Teardown. Quitting Nvim used to leave behind whatever the agent had spawned
+-- into its own process group -- tmux only signals the pane's own process, and
+-- the kernel's hangup only its session leader -- so a Codex exec_command dev
+-- server outlived its Nvim by three days with ppid 1. The wrapper's
+-- client-detached hook now runs scripts/agent-teardown, which records the
+-- pane's process tree before the server goes and sweeps the survivors after.
+-- destroy-unattached has to be off for that hook to run at all: with it on, the
+-- server was gone before the hook fired (measured).
+local editor = require("ai.editor")
+local teardown = editor.teardown and editor.teardown() or ""
+t.eq(vim.fn.executable(teardown), 1, "scripts/agent-teardown is present and executable")
+
+if config.is("codex") and vim.fn.executable("tmux") == 1 then
+  local cmd = require("ai.backend.codex")._terminal_command({ "codex" })
+  local joined = table.concat(cmd, " ")
+  t.ok(joined:find("destroy-unattached off", 1, true) ~= nil,
+    "the Codex wrapper keeps the session until its client-detached hook has run")
+  t.eq(cmd[#cmd - 1], "client-detached", "the Codex wrapper ends with the client-detached hook")
+  t.ok(teardown ~= "" and cmd[#cmd]:find(teardown, 1, true) ~= nil
+    and cmd[#cmd]:find("kill-server", 1, true) ~= nil,
+    "and that hook runs agent-teardown, falling back to kill-server")
+end
+if config.is("claude") then
+  local spec = require("lazy.core.config").spec.plugins["claudecode.nvim"]
+  local cmd = spec and spec.opts and spec.opts.terminal_cmd or ""
+  if cmd:find("tmux", 1, true) then
+    t.ok(cmd:find("destroy-unattached off", 1, true) ~= nil,
+      "the Claude wrapper keeps the session until its client-detached hook has run")
+    local hook = cmd:match("client%-detached (.*)$") or ""
+    t.ok(teardown ~= "" and hook:find(teardown, 1, true) ~= nil
+      and hook:find("kill-server", 1, true) ~= nil,
+      "and its client-detached hook runs agent-teardown, falling back to kill-server")
+  end
+end
+
+-- The script itself, against a throwaway server shaped like a real pane: the
+-- real launcher (agent-run) -> an agent stand-in -> the agent's children, two
+-- of them in process groups of their own. One child is the leak shape (UC-1);
+-- the other names an ignore-listed daemon and must be left alone (UC-R3). The
+-- agent's argv -- and so the launcher's -- carries ignore-listed words too, as
+-- a plugin path can, and that must not exempt the tree: the ignore list only
+-- starts at the agent's children. The stand-in keeps its `&` list so no shell
+-- exec-optimises a level away; agent-run never does, it checks the status.
+if teardown ~= "" and vim.fn.executable("tmux") == 1 and vim.fn.executable("perl") == 1 then
+  local sock = "nvim-spec-teardown-" .. vim.fn.getpid()
+  local orphan = "nvim-spec-orphan-" .. vim.fn.getpid()
+  local keep = "nvim-spec-crashpad_handler-" .. vim.fn.getpid()
+  local children = table.concat({
+    "perl -e 'setpgrp(0,0); sleep 300' " .. orphan .. " &",
+    "perl -e 'setpgrp(0,0); sleep 300' " .. keep .. " &",
+    "sleep 300",
+  }, " ")
+  local function alive(tag) return vim.fn.system({ "pgrep", "-f", tag }) ~= "" end
+  vim.fn.system({ "tmux", "-f", "/dev/null", "-L", sock, "new-session", "-d", "-s", "main",
+    runner, "sh", "-c", children, "--plugin-dir", "/x/gradle/emulator/" })
+  vim.wait(2000, function() return alive(orphan) and alive(keep) end, 100)
+  t.ok(alive(orphan) and alive(keep), "the stand-in tree is up before teardown")
+
+  -- The default form returns at once and does the work detached (a hook's job
+  -- dies with the server); --wait is the watchdog's synchronous form.
+  vim.fn.system({ teardown, "--wait", sock })
+  t.eq(vim.v.shell_error, 0, "agent-teardown --wait exits 0")
+  vim.fn.system({ "tmux", "-L", sock, "list-sessions" })
+  t.ok(vim.v.shell_error ~= 0, "the tmux server is gone")
+  t.ok(not alive(orphan), "the own-process-group child went with it (UC-1)")
+  t.ok(alive(keep), "an ignore-listed process under the pane was left alone (UC-R3)")
+  vim.fn.system({ "pkill", "-f", keep })
+
+  -- A server that is already gone is a no-op, not an error (UC-3).
+  vim.fn.system({ teardown, sock })
+  t.eq(vim.v.shell_error, 0, "agent-teardown on a dead server is a quiet no-op")
+end
+
 t.done()

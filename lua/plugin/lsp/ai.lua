@@ -72,9 +72,11 @@ local function build_terminal_cmd()
   -- notes below.
   --
   -- Dedicated tmux server (-L <socket>) isolates our hooks and sessions from
-  -- the user's regular tmux. The client-detached -> kill-server hook tears
-  -- down this server when the host terminal closes, so claude exits with it
-  -- and we never leak into unrelated sessions.
+  -- the user's regular tmux. When the nvim client goes away -- panel closed,
+  -- nvim quit, host terminal gone -- the client-detached hook runs
+  -- scripts/agent-teardown, which kills this server and then whatever claude
+  -- left running in process groups of its own; a bare kill-server only ever
+  -- reached the pane's own process. See lua/ai/editor.lua teardown_hook.
   --
   -- Wrap in `sh -c '...' _` so that cmd args appended by claudecode.nvim
   -- (e.g. --resume, --continue) land inside the claude invocation via "$@"
@@ -146,18 +148,22 @@ local function build_terminal_cmd()
     "-e VISUAL=$VISUAL",
     "-e NVIM=$NVIM",
     -- Run claude through the launcher rather than directly. The trailing
-    -- `exit-empty` / `client-detached -> kill-server` teardown below makes the
+    -- `exit-empty` / client-detached teardown below makes the
     -- tmux client exit 0 however the pane's command ended, so nvim's :terminal
     -- job reports success and Snacks' auto_close silently closes the panel --
     -- taking claude's own startup error with it. See scripts/agent-run.
     runner .. " " .. claude_cmd .. ' "$@"',
-    "\\; set-option -g destroy-unattached on",
+    -- Off, deliberately: the client-detached hook below is what ends this
+    -- server, and with destroy-unattached on the session -- and the pane's
+    -- process tree the hook has to record -- was gone before the hook ran
+    -- (measured). exit-empty still ends the server when claude itself exits.
+    "\\; set-option -g destroy-unattached off",
     "\\; set-option -g exit-empty on",
     -- Hide status bar in wrapper tmux: avoids periodic status redraws
     -- and stale-frame artifacts on resize (host's tmux.conf still loads,
     -- but status is overridden here per-server).
     "\\; set-option -g status off",
-    "\\; set-hook -g client-detached kill-server",
+    "\\; set-hook -g client-detached " .. vim.fn.shellescape(require("ai.editor").teardown_hook(socket)),
   }, " ")
   return "env TERM=" .. vim.fn.shellescape(term) .. " " .. editor_env
     .. " sh -c " .. vim.fn.shellescape(inner) .. " _"
@@ -165,34 +171,37 @@ end
 
 -- Detached watchdog: polls our nvim pid and tears down the dedicated tmux
 -- server when nvim dies. Needed because when claude is launched via tmux
--- (see build_terminal_cmd above), abruptly closing the host terminal window
--- leaves the tmux server alive — the `client-detached -> kill-server` hook
--- only fires on a graceful detach. In-process exit cleanup cannot cover an
--- abrupt SIGHUP (e.g. terminal tab close). Without this watchdog, orphaned tmux
--- servers (and the claude processes inside them) accumulate across crashes
--- and forced window closes. The watchdog is spawned via `setsid` to leave
--- nvim's process group/session, making it immune to the SIGHUP cascade.
--- Also sweeps stale sockets from prior crashes on startup.
+-- (see build_terminal_cmd above), the client-detached hook cannot run for
+-- every exit -- nvim killed outright, the host terminal torn down -- and
+-- without this, orphaned tmux servers (and the claude processes inside them)
+-- accumulate across crashes and forced window closes. It tears down through
+-- scripts/agent-teardown, synchronously, so the socket file is only removed
+-- once the server and claude's leftover processes are gone. The watchdog is
+-- spawned via `setsid` to leave nvim's process group/session, making it
+-- immune to the SIGHUP cascade. Also sweeps stale servers from prior crashes
+-- on startup, leftovers included.
 if vim.fn.executable("tmux") == 1 and should_wrap_tmux() then
   vim.api.nvim_create_autocmd("VimEnter", {
     group = vim.api.nvim_create_augroup("ClaudeTmuxWatchdog", { clear = true }),
     callback = function()
       local pid = vim.fn.getpid()
+      local teardown = vim.fn.shellescape(require("ai.editor").teardown())
       local script = string.format([[
-        # Sweep stale sockets whose owning nvim pid is gone.
+        # Sweep stale servers whose owning nvim pid is gone.
         for s in /private/tmp/tmux-*/claude-nvim-* /tmp/tmux-*/claude-nvim-*; do
           [ -e "$s" ] || continue
+          case $s in *.lock) continue ;; esac   # tmux's lock file beside the socket
           owner=${s##*claude-nvim-}
           if ! kill -0 "$owner" 2>/dev/null; then
-            tmux -S "$s" kill-server 2>/dev/null
+            %s --wait "$s" || tmux -S "$s" kill-server 2>/dev/null
             rm -f "$s"
           fi
         done
         # Watchdog loop for this nvim instance.
         while kill -0 %d 2>/dev/null; do sleep 2; done
-        tmux -L claude-nvim-%d kill-server 2>/dev/null
+        %s --wait claude-nvim-%d || tmux -L claude-nvim-%d kill-server 2>/dev/null
         rm -f /private/tmp/tmux-*/claude-nvim-%d /tmp/tmux-*/claude-nvim-%d
-      ]], pid, pid, pid, pid)
+      ]], teardown, pid, teardown, pid, pid, pid, pid)
       -- jobstart with detach=true calls setsid, placing the watchdog in a
       -- new session so it survives the SIGHUP cascade through nvim's pgroup.
       vim.fn.jobstart({ "sh", "-c", script }, { detach = true })

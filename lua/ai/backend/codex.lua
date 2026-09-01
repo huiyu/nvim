@@ -15,28 +15,32 @@ local function should_wrap_tmux()
   return vim.g.codex_wrap_tmux ~= false
 end
 
--- A detached watchdog covers abrupt host-terminal closure, where tmux's
--- client-detached hook may not run. It also removes stale wrapper sockets from
--- earlier crashes. Start it on first use because this backend loads lazily,
--- after VimEnter has already fired.
+-- A detached watchdog covers the exits where the wrapper's client-detached
+-- hook cannot run -- nvim killed outright, the host terminal torn down -- and
+-- removes stale wrapper servers from earlier crashes. It tears down through
+-- scripts/agent-teardown, synchronously, so the socket file is only removed
+-- once the server and the agent's leftover processes are gone. Start it on
+-- first use because this backend loads lazily, after VimEnter has fired.
 local function ensure_tmux_watchdog()
   if tmux_watchdog_started then return end
   tmux_watchdog_started = true
 
   local pid = vim.fn.getpid()
+  local teardown = vim.fn.shellescape(require("ai.editor").teardown())
   local script = string.format([[
     for s in /private/tmp/tmux-*/codex-nvim-* /tmp/tmux-*/codex-nvim-*; do
       [ -e "$s" ] || continue
+      case $s in *.lock) continue ;; esac   # tmux's lock file beside the socket
       owner=${s##*codex-nvim-}
       if ! kill -0 "$owner" 2>/dev/null; then
-        tmux -S "$s" kill-server 2>/dev/null
+        %s --wait "$s" || tmux -S "$s" kill-server 2>/dev/null
         rm -f "$s"
       fi
     done
     while kill -0 %d 2>/dev/null; do sleep 2; done
-    tmux -L codex-nvim-%d kill-server 2>/dev/null
+    %s --wait codex-nvim-%d || tmux -L codex-nvim-%d kill-server 2>/dev/null
     rm -f /private/tmp/tmux-*/codex-nvim-%d /tmp/tmux-*/codex-nvim-%d
-  ]], pid, pid, pid, pid)
+  ]], teardown, pid, teardown, pid, pid, pid, pid)
   vim.fn.jobstart({ "sh", "-c", script }, { detach = true })
 end
 
@@ -84,10 +88,18 @@ local function terminal_command(args)
   command[#command + 1] = require("ai.editor").runner()
   vim.list_extend(command, args)
   vim.list_extend(command, {
-    ";", "set-option", "-g", "destroy-unattached", "on",
+    -- Off, deliberately: the client-detached hook below is what ends this
+    -- server, and with destroy-unattached on the session -- and the pane's
+    -- process tree the hook has to record -- was gone before the hook ran
+    -- (measured). exit-empty still ends the server when Codex itself exits.
+    ";", "set-option", "-g", "destroy-unattached", "off",
     ";", "set-option", "-g", "exit-empty", "on",
     ";", "set-option", "-g", "status", "off",
-    ";", "set-hook", "-g", "client-detached", "kill-server",
+    -- When the nvim client goes away -- panel closed, nvim quit, host terminal
+    -- gone -- scripts/agent-teardown kills the server and then the processes
+    -- Codex left behind in their own groups (exec_command sessions), which a
+    -- bare kill-server never reached. See lua/ai/editor.lua teardown_hook.
+    ";", "set-hook", "-g", "client-detached", require("ai.editor").teardown_hook(socket),
   })
   return command
 end

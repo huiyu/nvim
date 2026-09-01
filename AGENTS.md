@@ -38,12 +38,22 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   against terminal flicker, CJK rendering, cleanup, resume, and appended CLI
   arguments.
 - Both tmux wrappers run the agent through `scripts/agent-run`, not directly.
-  Their teardown (`exit-empty` plus the `client-detached -> kill-server` hook)
-  makes the tmux client exit 0 however the pane's command ended, so nvim sees
-  success and Snacks' `auto_close` closes the panel -- an agent that fails on
-  startup otherwise just disappears, error and all. The launcher holds the pane
-  on a non-zero exit so the agent's own diagnostics stay readable. Treat it as
-  part of the pane command, not decoration.
+  Their teardown (`exit-empty` plus the `client-detached` hook) makes the tmux
+  client exit 0 however the pane's command ended, so nvim sees success and
+  Snacks' `auto_close` closes the panel -- an agent that fails on startup
+  otherwise just disappears, error and all. The launcher holds the pane on a
+  non-zero exit so the agent's own diagnostics stay readable. Treat it as part
+  of the pane command, not decoration.
+- Both wrappers end their server through `scripts/agent-teardown` -- from the
+  `client-detached` hook (`editor.teardown_hook`) and from the watchdog -- with
+  `destroy-unattached off`. tmux only signals the pane's own process, so a bare
+  `kill-server` left everything the agent had spawned into a process group of
+  its own running with ppid 1 (a Codex `exec_command` dev server lived three
+  days). The script records each pane's process tree before killing the server,
+  then SIGTERMs and SIGKILLs the survivors, sparing shared daemons from the
+  agent's children down (`NVIM_AGENT_TEARDOWN_IGNORE`). Keep
+  `destroy-unattached` off: with it on, the server was gone before the hook ran
+  and the hook was dead code.
 - `<leader>ai` and the TUI's own `ctrl+g` are the same path: `$EDITOR` points at
   `scripts/agent-editor`, which brings the prompt into this Nvim. It needs
   `EDITOR`, `VISUAL` and `NVIM` in the agent terminal's environment, injected at

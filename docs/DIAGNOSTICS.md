@@ -51,7 +51,7 @@ the update checker runs silently once a day (`bootstrap.lua`).
 
 `lua/config/health.lua` checks the things specific to this configuration:
 
-- Neovim version floor (>= 0.11)
+- Neovim version floor (>= 0.11.3)
 - External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, python3, cc, lazygit, macism) and
   what each one is needed for
 - The macOS Normal-mode input source and whether it came from
@@ -104,7 +104,7 @@ a stale buffer. The two are distinguishable: buffers reload themselves and say
 so — `checktime` runs on `CursorHold`/`BufEnter` among others, and a reload
 prints `File changed on disk -- buffer reloaded`. Without that notification the
 buffer was never behind, so the server is. Server state survives `checktime`, so
-restart it with `<leader>cL`. Structural refactors trigger this: files moved
+restart it with `<leader>mr`. Structural refactors trigger this: files moved
 across packages, a new `tsconfig.json`/`package.json` root, or re-linked
 workspace symlinks after a dependency install — project discovery does not
 reliably pick those up. In Go buffers prefer `\G`, which also clears the
@@ -140,6 +140,13 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   `OPENAI_API_KEY` only disables HTTP Inline/command prompts.
 - Native Claude and Codex TUIs use provider-specific tmux wrappers when tmux is
   installed. Set `CLAUDE_WRAP_TMUX=0` or `CODEX_WRAP_TMUX=0` for an A/B test.
+- Quitting Nvim or closing the panel tears the wrapper server down through
+  `scripts/agent-teardown`, which also ends the processes the agent spawned into
+  their own groups (Codex `exec_command` sessions, background Bash jobs). If a
+  dev server the agent started is still running after Nvim exits, check
+  `~/.local/state/nvim/agent-teardown.log`; if something you wanted kept was
+  killed, add it to `NVIM_AGENT_TEARDOWN_IGNORE` (awk regex; the default spares
+  emulator/qemu, Gradle/Kotlin daemons, adb, OrbStack/Docker, CoreSimulator).
 - Native Codex uses `--yolo`, bypassing Codex approvals and its built-in
   sandbox. It also uses `--no-alt-screen` so its wrapper tmux retains the
   transcript. In terminal-input mode, the mouse wheel or `<PageUp>` enters tmux

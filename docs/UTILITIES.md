@@ -264,7 +264,7 @@ local terminal = require("util.terminal")
 -- TUI repaint. The delay is required: nvim pushes a terminal window's new size
 -- to the pty on an internal ~10ms refresh timer, so a same-tick restore is
 -- never observed and propagates nothing. Uses window APIs so non-modifiable
--- terminal buffers are safe. Bound to <leader>td.
+-- terminal buffers are safe. Bound to <leader>md.
 terminal.fix_drift(win)   -- win defaults to the current window
 
 -- True when buf belongs to the selected native coding agent.
@@ -283,7 +283,7 @@ terminal.focus(count)
 Native coding-agent terminals do not run `fix_drift()` on `TermEnter`, avoiding
 a one-row flash whenever focus moves into the terminal. Opening a numbered
 bottom terminal still repairs the visible agent after the resulting layout
-change. Use `<leader>td` for a manual repair.
+change. Use `<leader>md` for a manual repair.
 
 ## Move (`util.move`)
 
@@ -295,7 +295,7 @@ line, horizontally by indenting it.
 ```lua
 local move = require("util.move")
 
-move.run("down")   -- also "up", "left", "right"; bound to <leader>m{h,j,k,l}
+move.run("down")   -- also "up", "left", "right"; bound to ,{h,j,k,l}
 ```
 
 The first press comes from `<leader>m`, then bare `h`/`j`/`k`/`l` keep going
@@ -465,9 +465,11 @@ editor.stage_seed(text)      -- text to add to the next prompt this Nvim is hand
 editor.tui_ready(buf)        -- has the agent TUI in buf drawn its input prompt?
 editor.when_ready(get_buf, action, on_timeout)
 
--- Absolute paths to the two shell helpers the agent terminals need.
+-- Absolute paths to the shell helpers the agent terminals need.
 editor.wrapper()  -- scripts/agent-editor, the agents' $EDITOR for ctrl+g
 editor.runner()   -- scripts/agent-run, the pane command inside both wrappers
+editor.teardown() -- scripts/agent-teardown, run by the hook and the watchdog
+editor.teardown_hook(socket)  -- the client-detached hook command for a wrapper server
 ```
 
 `open` is called over RPC by the wrapper, which is blocked in a poll loop while
@@ -525,10 +527,10 @@ CLI's own choice lists, not an input box, and does not count as ready.
 ### Why `agent-run` exists
 
 An agent that fails on startup used to make the panel vanish with no trace.
-Both tmux wrappers end with `exit-empty on` and a `client-detached ->
-kill-server` hook, and that teardown makes the tmux client exit 0 however the
-pane's command ended -- measured: `sh -c 'exit 1'` through the real wrapper
-reaches nvim as status 0. Nvim's `:terminal` job therefore reports success,
+Both tmux wrappers end with `exit-empty on` and a `client-detached` teardown
+hook, and that teardown makes the tmux client exit 0 however the pane's command
+ended -- measured: `sh -c 'exit 1'` through the real wrapper reaches nvim as
+status 0. Nvim's `:terminal` job therefore reports success,
 Snacks' `auto_close` closes the window, and the agent's error text dies with the
 tmux server, leaving nothing in `:messages` either.
 
@@ -537,6 +539,33 @@ message where it was printed: on a non-zero exit it holds the pane, with the
 agent's own diagnostics still on screen, until the panel is dismissed. A clean
 exit passes straight through, so quitting an agent normally still closes the
 panel with no extra keystroke.
+
+### Why `agent-teardown` exists
+
+Quitting Nvim used to leave the agent's background work running. tmux signals
+only each pane's own process when a server dies, and the kernel's hangup reaches
+only the pane's session leader, so anything the agent had spawned into a process
+group of its own -- a Codex `exec_command` background session, a Bash-tool job
+-- kept running with ppid 1 and no terminal (measured: a `pnpm dev:server` tree
+outlived its Nvim by three days). Both wrappers now end their server through
+`scripts/agent-teardown`: from the `client-detached` hook (`editor.teardown_hook`)
+and from the watchdog. It records the process tree under every pane, kills the
+server, then SIGTERMs and after two seconds SIGKILLs whatever of that tree is
+still alive. Shared daemons -- emulator, Gradle daemon, container runtime -- are
+spared together with their children, but only from the agent's children down:
+the launcher and the agent itself are never exempt, or a plugin path with the
+wrong word in it would silently spare the whole tree.
+`NVIM_AGENT_TEARDOWN_IGNORE` replaces the pattern (an awk ERE). Each run is
+logged to `~/.local/state/nvim/agent-teardown.log`.
+
+`destroy-unattached` is off in both wrappers on purpose. With it on, the session
+-- and the process tree the hook has to record -- was gone before the hook ran
+(measured), which is how a `kill-server` hook that never executed hid the leak.
+`exit-empty` still ends the server when the agent itself exits; the hook then
+finds no panes and does nothing. The hook's `run-shell` job would die with the
+server it kills, so the script hands the work to a detached copy of itself; the
+watchdog uses the synchronous `--wait` form and only removes the socket file
+afterwards.
 
 ## AI Transcript (`ai.transcript`)
 
