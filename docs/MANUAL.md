@@ -12,8 +12,7 @@ This document covers *using* it.
 ## Contents
 
 - [The idea](#the-idea)
-- [Vim in five minutes](#vim-in-five-minutes)
-- [The grammar](#the-grammar)
+- [The grammar of the keyboard](#the-grammar-of-the-keyboard)
 - [The five prefixes](#the-five-prefixes)
 - [Getting around: `;`](#getting-around-)
 - [Changing code: `,`](#changing-code-)
@@ -54,55 +53,33 @@ Two consequences worth knowing up front:
 
 ---
 
-## Vim in five minutes
+## The grammar of the keyboard
 
-Skip this if you already know Vim.
+Vim is not a pile of shortcuts to memorise. It is a small language, and
+**the commands you have not learned yet are ones you can derive**. And when a
+derivation stalls halfway, which-key in this config lists what can come next.
 
-Vim has **modes**. This is the whole trick, and the only thing that is strange
-at first.
+The eight rules below are the whole grammar. Worth a skim even if you know Vim:
+the later ones are this configuration's own conventions.
 
-| Mode | You are… | Get there | Get out |
-|---|---|---|---|
-| **Normal** | giving commands | `Esc`, or `jk` | — |
-| **Insert** | typing text | `i` | `Esc` or `jk` |
-| **Visual** | selecting | `v` | `Esc` |
+### 1. A key's meaning depends on the mode
 
-You start in Normal mode. Letters are commands, not text. `d` deletes, `y`
-copies ("yank"), `p` pastes. To type, press `i` first.
+You start in **Normal** mode: letters are commands, not text. `i` enters
+**Insert** mode to type; `jk` typed quickly (or `Esc`) brings you back. `v`
+enters **Visual** mode to select. Every rule below is about Normal-mode keys.
 
-**`jk` typed quickly is Escape.** It is on the home row, and it is what you will
-use.
-
-Movement:
+### 2. One edit = verb + target
 
 ```
-h j k l    left, down, up, right
-w  b       next / previous word
-0  $       start / end of line
-gg  G      top / bottom of file
+verb   target
+ d      w        delete to the next word
+ c      i(       change inside the parentheses
+ y      3j       copy this line and 3 below
+ >      G        indent to end of file
+ gc     ip       comment this paragraph
 ```
 
-**Undo is `u`. Redo is `Ctrl-r`.** Try things; you can always undo.
-
-That is enough to survive. The next section is what makes Vim worth learning.
-
----
-
-## The grammar
-
-Vim is not a pile of shortcuts to memorise. It is a small language, and the
-commands you have not learned yet are ones you can *derive*.
-
-Every edit has the same shape:
-
-```
-operator  +  count  +  target
-   d           2         w        delete 2 words
-   c           _         i(       change inside parentheses
-   y           3         j        copy this line and 3 below
-```
-
-### Operators — what to do
+The **verbs** (operators) are few:
 
 | | |
 |---|---|
@@ -114,64 +91,128 @@ operator  +  count  +  target
 | `gc` | comment |
 | `=` | auto-indent |
 
-### Targets — what to do it to
-
-A target is either a **motion** (from here to there) or a **text object**
-(this whole thing, wherever the cursor is inside it).
-
-**Motions** run from the cursor outward:
+A **target** is either a motion (from the cursor to somewhere) or a text
+object (rule 3). A motion on its own moves; after a verb it is the range:
 
 ```
-dw     delete to the start of the next word
-d$     delete to end of line
-d0     delete to start of line
-dG     delete to end of file
-d}     delete to the next blank line
-df,    delete through the next comma
-dt)    delete up to, but not including, the next )
+h j k l    left, down, up, right          w  b  e     next word / previous word / end of word
+0  ^  $    start / first non-blank / end  gg  G       top / bottom of file
+}  {       next / previous blank line     t)  T(      up to the next ) / back to after the previous (
 ```
 
-**Text objects** do not care where the cursor sits inside them. They take
-`i` (inside) or `a` (around, i.e. including the delimiters):
+You do not learn `dw` `d$` `dG` `d}` `dt)` one by one: learn `d`, learn the
+targets, and the combinations already exist.
+
+**which-key:** press `d` (or `c`, `y`) and wait half a second — the popup lists
+every target.
+
+### 3. `i` inside, `a` around
+
+Text objects do not care where the cursor sits inside them. The first letter
+picks **i** (inside) or **a** (around, delimiters included); the second says
+what kind of thing:
+
+| Object | Is | From |
+|---|---|---|
+| `(` `[` `{` `<` | a bracket pair | builtin |
+| `"` `'` `` ` `` | quotes | builtin |
+| `t` | an HTML/XML tag | builtin |
+| `w` `W` `s` `p` | word / WORD / sentence / paragraph | builtin |
+| `f` | a **function** | treesitter |
+| `c` | a **class** | treesitter |
+| `a` | an **argument** — `daa` takes its comma along | treesitter |
+| `o` | a **block**, conditional, or loop body | treesitter |
 
 ```
-di(    delete inside the parentheses      foo(bar) → foo()
-da(    delete around them                 foo(bar) → foo
-ci"    change inside the quotes
-dit    delete inside the HTML/XML tag
-dap    delete this paragraph
+"hello world"    cursor anywhere inside
+ci"   →  ""      keeps the quotes, you type the new text
+ca"   →          takes the quotes too
+
+dif    delete the body of this function, wherever the cursor is in it     daf    delete the whole function
+caa    change this argument                                              vio    select the body of this if
 ```
 
-The `i` / `a` distinction is the single highest-value thing to learn here:
+`i`/`a` also accept an `n` (next) or `l` (last) in between: `cin(` changes
+inside the **next** parentheses without moving there first.
 
-```
-"hello world"        cursor anywhere inside
+**which-key:** press `di` (or `da`, `vi`) and wait half a second — the popup
+lists every object.
 
-ci"   →  ""          keeps the quotes, you type the new text
-ca"   →              takes the quotes too
-```
+### 4. Doubled = this line; uppercase = the variant
 
-### Syntax-aware objects
+A verb typed twice acts on the current line: `dd` `yy` `cc` `>>` `gcc`.
 
-This config adds treesitter-backed objects, so the target can be a real code
-construct rather than a character pair:
+An uppercase letter is the "bigger" or "opposite" version of the same key, at
+every level:
 
-| Target | Is |
+| Lowercase | Uppercase |
 |---|---|
-| `if` / `af` | inside / around a **function** |
-| `ic` / `ac` | inside / around a **class** |
-| `ia` / `aa` | a **parameter** (`daa` deletes the argument *and* its comma) |
-| `io` / `ao` | a **block**, conditional, or loop body |
+| `d` `c` to somewhere | `D` `C` to end of line (= `d$` `c$`) |
+| `i` `a` insert before / after the cursor | `I` `A` insert at start / end of line |
+| `o` open a line below | `O` open a line above |
+| `n` `t` forward | `N` `T` backward |
+| `w` `b` `e` by word | `W` `B` `E` by WORD (whitespace-delimited, bigger) |
+| `p` put after | `P` put before |
+| `;f` find file · `;s` symbol here · `;t` todos | `;F` find from this directory · `;S` symbol in workspace · `;T` todo+fix |
+| `]m` next function start | `]M` next function end |
+| `<S-h>` `<S-l>` | previous / next buffer |
 
-```
-dif    delete the body of this function, wherever the cursor is in it
-daf    delete the whole function
-caa    change this argument
-vio    select the body of this if-statement
-```
+A few single keys are just abbreviations: `x` = `dl`, `D` = `d$`, `C` = `c$`.
+`s` used to be `cl`; here it is the window prefix, so change one character
+with `cl`.
 
-`daa` is worth noting: deleting an argument normally leaves a dangling comma.
-The parameter object knows about the separator and takes it along.
+### 5. A number = a count
+
+Before the verb or before the target, either works: `3dd`, `d3w`, `5j`, `3>>`,
+`10<C-a>`.
+
+### 6. Single-letter namespaces
+
+A few keys do nothing on their own; they open a drawer, and the next letter
+picks from it:
+
+| Drawer | Means | Examples |
+|---|---|---|
+| `[` `]` | previous / next X | `]d` diagnostic · `]e` error · `]h` git hunk · `]q` quickfix · `]m` function · `]c` class · `]x` conflict · `]y` yank history. Uppercase = first / last: `[D` `]Q` |
+| `g` | go somewhere / about the thing under the cursor | `gd` definition · `gr` references · `gI` implementation · `gy` type · `K` docs · `gx` open URL · `gS` split / join · `gv` reselect |
+| `z` | folds and spelling | `zR` open all · `zM` close all · `za` toggle · `z=` suggestions · `zg` add to dictionary |
+| `Ctrl` | act now, no questions, the same in every mode | `<C-h/j/k/l>` windows · `<C-/>` terminal · `<C-o>` back the way you came · `<C-a>` `<C-x>` increment / decrement · `<C-r>` redo |
+
+**which-key:** press `[`, `]`, `g`, or `z` and wait half a second — the popup
+lists the drawer.
+
+### 7. Everything repeats, and everything backs out
+
+Vim remembers what you just did. Whenever you learn a "repeat" key, learn its
+"back out" key with it:
+
+| Did | Repeat | Back out |
+|---|---|---|
+| an edit | `.` | `u` (redo `<C-r>`) |
+| a `/` search | `n` | `N` |
+| a `t` in-line search | `;` | `,` |
+| a `:` command | `@:` | `u` |
+| a macro `qq…q` | `@q` | `u` |
+| the last selection | `gv` | — |
+| the last picker | `;;` | — |
+| put the wrong thing | `[y` `]y` cycle the yank history | — |
+
+The most valuable combination is **one key to move, one key to act**: `*`
+searches the word under the cursor → `cwnew<Esc>` changes the first one →
+`n.` `n.` `n.`, looking at each before deciding. `cgnnew<Esc>` then `.` `.` `.`
+is the shorter form.
+
+Two things differ from stock Vim here. In Normal mode `f` is a flash jump —
+type two or three characters and pick a label — so use `t{char}` for the
+classic single-character search within a line. And `;` and `,` are prefixes,
+so as repeat keys they only fire after a one-second wait; repeat across lines
+with `n.` instead.
+
+### 8. A prefix = a question
+
+Every remaining key hangs under one of five prefixes, each answering one
+question — that is [The idea](#the-idea), and the next section walks through
+them one by one.
 
 ### Why this matters
 
@@ -180,17 +221,8 @@ already works — along with `cif`, `yif`, `>if`, `gcif`, `vif`. Six operators
 times twenty targets is a hundred and twenty commands you never memorised.
 
 When you want to do something new, ask two questions: *what operation?* and
-*what should it apply to?* Then type them in that order.
-
-### A few shortcuts that are just abbreviations
-
-```
-x   = dl      delete char             D   = d$    delete to end of line
-s   = cl      change char             C   = c$    change to end of line
-dd  = d_      delete this line        cc  = c_    change this line
-```
-
-Doubling the operator (`dd`, `yy`, `cc`, `gcc`) always means "this line".
+*what should it apply to?* Then type them in that order. Forget halfway, wait
+half a second, and the menu tells you.
 
 ---
 

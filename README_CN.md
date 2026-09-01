@@ -238,7 +238,7 @@ which-key 会列出可用键——那个列表由配置本身生成，不会和�
 | `-` | 用 oil 打开当前目录（可当文本编辑） |
 | `jk` · `<C-]>` | 退出 Insert / 终端输入 |
 
-**→ [docs/MANUAL_CN.md](docs/MANUAL_CN.md) 有完整讲解**，包含面向 Vim 新手的入门部分。
+**→ [docs/MANUAL_CN.md](docs/MANUAL_CN.md) 有完整讲解**，从键位背后的组合规则讲起。
 
 ### 终端集成
 

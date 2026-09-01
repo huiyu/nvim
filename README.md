@@ -244,8 +244,8 @@ Unprefixed keys worth knowing:
 | `-` | Open the current directory in oil (edit it as text) |
 | `jk` · `<C-]>` | Leave Insert / terminal input |
 
-**→ [docs/MANUAL.md](docs/MANUAL.md) walks through all of it**, including a Vim
-primer if you are new to modal editing.
+**→ [docs/MANUAL.md](docs/MANUAL.md) walks through all of it**, starting with the
+composition rules the keys are built on.
 
 ### Terminal Integration
 

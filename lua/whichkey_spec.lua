@@ -355,4 +355,28 @@ for _, row in ipairs(BRACKET_DESCS) do
   spec[#spec + 1] = { "]" .. suffix, desc = nxt,  mode = mode }
 end
 
+-- Text objects the manual documents, worded like which-key's own presets
+-- ("inner word" / "word with ws"). Two reasons these need spelling out:
+--   * mini.ai maps `i` and `a` as one expr key each and reads the object
+--     letter itself, so which-key never sees `ia`/`aa`/`io`/`ao` -- after
+--     `di` the popup listed the builtin objects and none of mini.ai's.
+--   * treesitter-textobjects registers `if`/`af`/`ic`/`ac` with its own desc
+--     ("Select inner part of a function region"), which reads nothing like
+--     the rest of the list.
+-- Desc-only, like BRACKET_DESCS: which-key shows these and feeds the keys
+-- through to whichever plugin owns the object, so behaviour is untouched.
+local XO = { "x", "o" }
+local TEXTOBJ_DESCS = {
+  -- suffix, around, inner (defaults to "inner " .. around)
+  { "f", "function" },
+  { "c", "class" },
+  { "a", "argument with separator", "inner argument" },
+  { "o", "block/conditional/loop" },
+}
+for _, row in ipairs(TEXTOBJ_DESCS) do
+  local suffix, around, inner = row[1], row[2], row[3] or ("inner " .. row[2])
+  spec[#spec + 1] = { "a" .. suffix, desc = around, mode = XO }
+  spec[#spec + 1] = { "i" .. suffix, desc = inner,  mode = XO }
+end
+
 return vim.list_extend(spec, hidden)
