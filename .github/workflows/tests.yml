@@ -1,0 +1,53 @@
+# Runs the checks AGENTS.md asks for before a change lands. The spec suite is
+# the point: tests/*_spec.lua load the real configuration with `-u init.lua`,
+# so they catch what a startup check cannot, and each spec exits through
+# `cquit` so a failure is a non-zero exit rather than a green log.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch makes the first run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  specs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # 0.11+ is the floor this config checks for; ubuntu's apt neovim is older.
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      # rg and fd back the pickers, tmux backs the agent terminal specs.
+      - name: Install runtime dependencies
+        run: sudo apt-get update && sudo apt-get install -y ripgrep fd-find tmux
+
+      # lazy.nvim bootstraps and clones on first start. Doing it as its own step
+      # keeps a clone failure from being reported as a spec failure.
+      - name: Install plugins
+        run: nvim --headless -u init.lua -i NONE "+Lazy! install" +qa
+
+      - name: Spec suite
+        run: ./tests/run.sh
+
+      - name: Start under the Claude provider
+        run: NVIM_AI_PROVIDER=claude nvim --headless -u init.lua -i NONE +qa
+
+      - name: Start under the Codex provider
+        run: NVIM_AI_PROVIDER=codex nvim --headless -u init.lua -i NONE +qa
+
+      # No trailing-whitespace gate here on purpose. AGENTS.md's local
+      # `git diff --check` inspects changed lines only; the committed tree still
+      # carries trailing whitespace in four files (bootstrap, lsp/dap,
+      # util/logger, util/lsp), so a repo-wide grep would fail every run until
+      # those are cleaned up. Add the gate together with that cleanup.
