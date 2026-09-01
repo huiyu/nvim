@@ -2,7 +2,7 @@ return {
   "stevearc/aerial.nvim",
   cmd = { "AerialToggle", "AerialOpen" },
   keys = {
-    { "<leader>cO", "<cmd>AerialToggle<cr>", desc = "Code outline", mode = "n" },
+    { ",O", "<cmd>AerialToggle<cr>", desc = "Code outline", mode = "n" },
   },
   dependencies = {
     "nvim-treesitter/nvim-treesitter",

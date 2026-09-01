@@ -80,7 +80,7 @@ indented({ "a", "b" })
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
 feed({})
 move.run("right")
-t.eq(vim.api.nvim_buf_get_lines(0, 0, 1, false)[1], "  a", "<leader>ml indents once")
+t.eq(vim.api.nvim_buf_get_lines(0, 0, 1, false)[1], "  a", ",l indents once")
 
 indented({ "a", "b" })
 vim.api.nvim_win_set_cursor(0, { 1, 0 })

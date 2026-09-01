@@ -25,7 +25,7 @@ local options = {
   scrolloff = 4,      -- The number of screen lines to keep above below the cursor
   sidescrolloff = 5,  -- The number of screen columns to keep to the left and right of the cursor.
   termguicolors = true,
-  inccommand = "nosplit", -- Live preview for substitution commands
+  inccommand = "split",   -- Live preview for substitution commands, in a window listing every match
 
   -- User Interface Options --
   wildmenu = true,       -- Display command line’s tab complete options as a menu.

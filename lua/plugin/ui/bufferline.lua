@@ -5,6 +5,12 @@ return {
   keys = {
     { "<S-h>",      "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
     { "<S-l>",      "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
+    -- Tab cycles what the bufferline shows, which here is buffers. Tab pages
+    -- stay on <leader><tab>: they hold layouts (diffview opens one), not files,
+    -- so they are the rarer move. Inside diffview both keys are buffer-local
+    -- there ("next file in the diff"), which is the same idea on its own list.
+    { "<Tab>",      "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
+    { "<S-Tab>",    "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
     { "[b",         "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
     { "]b",         "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
     { "[B",         "<cmd>BufferLineMovePrev<cr>",             desc = "Move buffer left" },
@@ -32,10 +38,73 @@ return {
         tab_separator          = { fg = c.bg_highlight, bg = c.bg_highlight },
         tab_separator_selected = { fg = c.orange, bg = c.orange, bold = true },
         tab_close              = { fg = c.red, bg = c.bg_highlight, bold = true },
+
+        -- The main bar in the same language as the tab badges above: the
+        -- current entry is a filled yellow block, the rest sit on the muted
+        -- teal. Without an explicit background the defaults only brighten the
+        -- selected text, which leaves `separator_style = "slant"` invisible --
+        -- the slant glyph is drawn by the separator's *foreground*, so with no
+        -- colour there is a shape but nothing to see.
+        --
+        -- Slant colour rule (bufferline/config.lua:561): fg is the gap between
+        -- entries, bg is the entry's own fill. Use the theme's darkest teal for
+        -- that gap: a bright foreground turns both slants into white wedges.
+        -- Transparent, not c.bg: Ghostty runs at background-opacity 0.85 with
+        -- blur, and an opaque strip across the top would cut a hole in it.
+        fill                   = { bg = "NONE" },
+        background             = { fg = c.base01, bg = c.bg_highlight },
+        buffer_visible         = { fg = c.base0, bg = c.bg_highlight },
+        buffer_selected        = { fg = c.base4, bg = c.yellow, bold = true, italic = false },
+        separator              = { fg = c.bg, bg = c.bg_highlight },
+        separator_visible      = { fg = c.bg, bg = c.bg_highlight },
+        separator_selected     = { fg = c.bg, bg = c.yellow },
+
+        -- Everything drawn *inside* an entry needs the same background, or it
+        -- keeps the derived default and punches a hole in the orange block.
+        indicator_selected     = { fg = c.yellow, bg = c.yellow },
+        modified               = { fg = c.green, bg = c.bg_highlight },
+        modified_visible       = { fg = c.green, bg = c.bg_highlight },
+        modified_selected      = { fg = c.base4, bg = c.yellow },
+        close_button           = { fg = c.base01, bg = c.bg_highlight },
+        close_button_visible   = { fg = c.base0, bg = c.bg_highlight },
+        close_button_selected  = { fg = c.base4, bg = c.yellow },
+        duplicate              = { fg = c.base01, bg = c.bg_highlight, italic = true },
+        duplicate_visible      = { fg = c.base0, bg = c.bg_highlight, italic = true },
+        duplicate_selected     = { fg = c.base4, bg = c.yellow, italic = true },
+        numbers                = { fg = c.base01, bg = c.bg_highlight },
+        numbers_visible        = { fg = c.base0, bg = c.bg_highlight },
+        numbers_selected       = { fg = c.base4, bg = c.yellow, bold = true },
+        -- diagnostics = "nvim_lsp" puts counts inside the entry too.
+        error                  = { fg = c.red, bg = c.bg_highlight },
+        error_visible          = { fg = c.red, bg = c.bg_highlight },
+        error_selected         = { fg = c.base4, bg = c.yellow, bold = true },
+        error_diagnostic       = { fg = c.red, bg = c.bg_highlight },
+        error_diagnostic_visible = { fg = c.red, bg = c.bg_highlight },
+        error_diagnostic_selected = { fg = c.base4, bg = c.yellow, bold = true },
+        warning                = { fg = c.yellow, bg = c.bg_highlight },
+        warning_visible        = { fg = c.yellow, bg = c.bg_highlight },
+        warning_selected       = { fg = c.base4, bg = c.yellow, bold = true },
+        warning_diagnostic     = { fg = c.yellow, bg = c.bg_highlight },
+        warning_diagnostic_visible = { fg = c.yellow, bg = c.bg_highlight },
+        warning_diagnostic_selected = { fg = c.base4, bg = c.yellow, bold = true },
+        info                   = { fg = c.blue, bg = c.bg_highlight },
+        info_visible           = { fg = c.blue, bg = c.bg_highlight },
+        info_selected          = { fg = c.base4, bg = c.yellow, bold = true },
+        info_diagnostic        = { fg = c.blue, bg = c.bg_highlight },
+        info_diagnostic_visible = { fg = c.blue, bg = c.bg_highlight },
+        info_diagnostic_selected = { fg = c.base4, bg = c.yellow, bold = true },
+        hint                   = { fg = c.cyan, bg = c.bg_highlight },
+        hint_visible           = { fg = c.cyan, bg = c.bg_highlight },
+        hint_selected          = { fg = c.base4, bg = c.yellow, bold = true },
+        hint_diagnostic        = { fg = c.cyan, bg = c.bg_highlight },
+        hint_diagnostic_visible = { fg = c.cyan, bg = c.bg_highlight },
+        hint_diagnostic_selected = { fg = c.base4, bg = c.yellow, bold = true },
+        offset_separator       = { fg = c.bg_highlight, bg = c.bg },
       },
       options = {
         diagnostics = "nvim_lsp",
         always_show_bufferline = false,
+        separator_style = "slant",
         show_tab_indicators = true,
         -- Keep diffview's internal buffers (incl. phantom diffview://null) out of
         -- the bufferline, so BufferLinePick / buffer cycling can't land on them.

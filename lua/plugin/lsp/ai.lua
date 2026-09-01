@@ -225,7 +225,7 @@ return {
           wo = { winfixwidth = true },
           -- Claude reads a quick double Esc itself; Snacks' own <esc>
           -- double-tap would swallow it. lua/ai/terminal.lua puts Esc back on
-          -- the wire and keeps `jk` / <C-\> as the way out of Terminal-mode.
+          -- the wire and keeps `jk` / <C-]> / <C-\> as the way out of Terminal-mode.
           keys = { term_normal = false },
         },
       },

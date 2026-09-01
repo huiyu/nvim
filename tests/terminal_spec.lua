@@ -1,6 +1,6 @@
 -- Guards the terminal identity and position contracts.
 --
--- Identity: `<leader>T1`..`T9` silently shared one terminal for a long time.
+-- Identity: `<C-1>`..`<C-9>` silently shared one terminal for a long time.
 -- Snacks derives identity from cmd/cwd/env/count and never reads `opts.id`, so
 -- passing name strings looked right and did nothing.
 --
@@ -26,7 +26,7 @@ local one = vim.api.nvim_get_current_buf()
 term.toggle(1) -- hide
 term.toggle(2)
 local two = vim.api.nvim_get_current_buf()
-t.ok(one ~= two, "<leader>T1 and <leader>T2 are different terminals")
+t.ok(one ~= two, "<C-1> and <C-2> are different terminals")
 t.eq(vim.bo[one].buftype, "terminal", "terminal 1 is a real terminal")
 term.toggle(2) -- hide
 
@@ -93,7 +93,7 @@ term.toggle(2)
 t.eq(current_id(), 2, "an explicit count overrides the remembered terminal")
 term.toggle()
 
--- <leader>t1..t9 pick which terminal you are looking at; they never close one.
+-- <C-1>..<C-9> pick which terminal you are looking at; they never close one.
 -- Pressing the number of the terminal you are already in used to dismiss it,
 -- which made the numbers a second, competing close key.
 term.focus(1)
@@ -196,6 +196,14 @@ local docked = vim.api.nvim_get_current_win()
 t.ok(docked ~= left and relative_of(docked) == "", "a split terminal is a layout window")
 t.eq(nav_rhs("<C-l>"), "", "<C-l> at the right edge is a no-op in a split terminal")
 t.eq(nav_rhs("<C-h>"), "<C-\\><C-n><C-w>h", "<C-h> from a split terminal moves to the neighbour")
+
+-- Ctrl-comma owns the deliberate terminal/editor jump now that the adjacent
+-- Ctrl-backslash chord is a repeatable Escape. Exercise the Normal half against
+-- real windows; escape_mapping_spec guards the terminal-input prefix.
+vim.api.nvim_feedkeys(vim.keycode("<C-,>"), "tx", false)
+t.eq(vim.api.nvim_get_current_win(), left, "Ctrl-comma reaches the editor from terminal-Normal")
+vim.api.nvim_feedkeys(vim.keycode("<C-,>"), "tx", false)
+t.eq(vim.api.nvim_get_current_win(), docked, "Ctrl-comma toggles back to the terminal")
 vim.cmd("only!")
 
 t.done()

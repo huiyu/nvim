@@ -42,13 +42,17 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "go",
   callback = function(ev)
-    vim.keymap.set("n", "<leader>cR", rebuild_gopls, { buffer = ev.buf, desc = "Rebuild gopls index" })
-    vim.keymap.set("n", "<leader>co", lsp.action["source.organizeImports"],
+    -- <localleader>, not `,`: rebuilding the gopls index means nothing outside a
+    -- Go buffer, and <localleader> is where this config keeps per-filetype
+    -- actions (VimTeX, diffview). `,` stays reserved for code operations that
+    -- work in any language.
+    vim.keymap.set("n", "<localleader>G", rebuild_gopls, { buffer = ev.buf, desc = "Rebuild gopls index" })
+    vim.keymap.set("n", "<localleader>o", lsp.action["source.organizeImports"],
       { buffer = ev.buf, desc = "Organize Imports" })
   end,
 })
 
--- <leader>cx runner (dispatched centrally by util.run; keymap in mappings.lua).
+-- ,x runner (dispatched centrally by util.run; keymap in mappings.lua).
 require("util.run").register("go", function(path)
   return "go run " .. vim.fn.shellescape(path)
 end)
@@ -82,7 +86,10 @@ return {
                 rangeVariableTypes = true,
               },
               analyses = {
-                fieldalignment = true,
+                -- No fieldalignment: gopls removed that analyzer in v0.17.0
+                -- (go.dev/issue/67762) and now rejects the setting outright,
+                -- so every Go buffer opened with it started with an error.
+                -- Struct size/offset is on hover instead.
                 nilness = true,
                 unusedparams = true,
                 unusedwrite = true,

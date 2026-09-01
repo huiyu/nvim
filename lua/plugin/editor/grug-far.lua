@@ -2,8 +2,8 @@ return {
   "MagicDuck/grug-far.nvim",
   cmd = "GrugFar",
   keys = {
-    { "<leader>sr", function() require("grug-far").open() end,                                          desc = "Search and replace", mode = { "n", "v" } },
-    { "<leader>sW", function() require("grug-far").open({ prefills = { search = vim.fn.expand("<cword>") } }) end, desc = "Replace current word", mode = "n" },
+    { ",F", function() require("grug-far").open() end,                                          desc = "Search and replace", mode = { "n", "v" } },
+    { ",w", function() require("grug-far").open({ prefills = { search = vim.fn.expand("<cword>") } }) end, desc = "Replace current word", mode = "n" },
   },
   opts = {},
 }

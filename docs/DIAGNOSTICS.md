@@ -20,13 +20,13 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | Plugin missing / errored | `:Lazy` (load times, errors, status) · `:Lazy log` |
 | "Is my setup OK?" (deps/servers/version) | **`:checkhealth config`** |
 | Anything broken (LSP/TS/providers) | `:checkhealth` |
-| LSP not attaching / misbehaving | `:checkhealth vim.lsp` (`<leader>cl`) · `:lsp restart` (`<leader>cL`) |
+| LSP not attaching / misbehaving | `:checkhealth vim.lsp` (`<leader>mi`) · `:lsp restart` (`<leader>mr`) |
 | No completion | `:checkhealth blink.cmp` · verify LSP attached (`:checkhealth vim.lsp`) |
 | No / wrong highlight | `:checkhealth nvim-treesitter` · `:InspectTree` · `:Inspect` |
 | Formatting does nothing | `:ConformInfo` · then `:checkhealth conform` |
 | CodeCompanion Chat fails | `:checkhealth config` · `:CodeCompanionChat` · `:messages` |
 | GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `:messages` |
-| Mason tool missing | `:Mason` (`<leader>cm`) · `:checkhealth mason` |
+| Mason tool missing | `:Mason` (`<leader>mm`) · `:checkhealth mason` |
 | Error flashed by | `:messages` · `:Noice errors` |
 | "Where did this keymap/option come from?" | `:verbose map <lhs>` · `:verbose set <opt>?` |
 | Config won't load cleanly | headless self-check (below) |
@@ -52,8 +52,10 @@ the update checker runs silently once a day (`bootstrap.lua`).
 `lua/config/health.lua` checks the things specific to this configuration:
 
 - Neovim version floor (>= 0.11)
-- External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, python3, cc, lazygit) and
+- External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, python3, cc, lazygit, macism) and
   what each one is needed for
+- The macOS Normal-mode input source and whether it came from
+  `NVIM_ENGLISH_INPUT_SOURCE` or the system keyboard-layout fallback
 - Active AI provider, native CLI, selected ACP bridge, and optional
   CodeCompanion HTTP inline/command credentials
 - Whether `scripts/agent-editor` is executable. Both agent TUIs bind `ctrl+g` to
@@ -67,11 +69,22 @@ the update checker runs silently once a day (`bootstrap.lua`).
 Run the full suite with plain `:checkhealth` (includes the above plus every
 plugin's own checks).
 
+### macOS input-source switching
+
+- **Ghostty's window chrome flashes when returning to input mode** — macism's
+  default CJK workaround creates a temporary key window, so Ghostty briefly
+  loses and regains focus. Set `NVIM_MACISM_WAIT_TIME_MS=0` before starting Nvim
+  to skip that window.
+- **The first Chinese characters arrive as English after disabling the flash** —
+  the macism workaround was needed on this machine. Unset
+  `NVIM_MACISM_WAIT_TIME_MS` (or set it to `150`) and restart Nvim to restore the
+  reliable path.
+
 ## LSP
 
-- `:checkhealth vim.lsp` (mapped to `<leader>cl`) — attached clients, root dir,
+- `:checkhealth vim.lsp` (mapped to `<leader>mi`) — attached clients, root dir,
   capabilities
-- `:lsp restart` (mapped to `<leader>cL`) — restart the servers attached to the
+- `:lsp restart` (mapped to `<leader>mr`) — restart the servers attached to the
   current buffer
 - `:lua vim.lsp.log.get_filename()` — path to the server stderr / protocol log
 - Servers are declared per language in `lua/lang/*.lua` (`opts.servers`) and
@@ -94,7 +107,7 @@ buffer was never behind, so the server is. Server state survives `checktime`, so
 restart it with `<leader>cL`. Structural refactors trigger this: files moved
 across packages, a new `tsconfig.json`/`package.json` root, or re-linked
 workspace symlinks after a dependency install — project discovery does not
-reliably pick those up. In Go buffers prefer `<leader>cR`, which also clears the
+reliably pick those up. In Go buffers prefer `\G`, which also clears the
 gopls cache before restarting.
 
 If the log has grown large, inspect its path with
@@ -246,7 +259,7 @@ rather than a broken viewer.
 
 - `:messages` — message history
 - `:Noice` / `:Noice errors` — noice handles notifications (the snacks notifier
-  is disabled); `<leader>n` opens history, `<leader>un` dismisses
+  is disabled); `<leader>mnh` opens history, `<leader>un` dismisses
 
 ## Inspecting keymaps & options
 
@@ -270,5 +283,7 @@ A clean run prints `errmsg=[]` and no tracebacks.
 | Variable | Effect |
 |----------|--------|
 | `NVIM_AI_PROVIDER` | Select `claude` (default) or `codex` for Native AI, ACP Chat, and HTTP Inline |
+| `NVIM_ENGLISH_INPUT_SOURCE` | Override the macOS keyboard layout used in Normal and Terminal-Normal modes |
+| `NVIM_MACISM_WAIT_TIME_MS` | Set macism's CJK workaround wait; `0` disables its temporary focus window |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |
 | `NVIM_DEV=1` | `util.logger` defaults to `DEBUG` (more verbose) |

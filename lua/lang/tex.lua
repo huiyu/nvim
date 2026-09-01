@@ -11,7 +11,7 @@
 -- and `--cask skim` (PDF viewer with SyncTeX). texlab is auto-installed by mason
 -- (it is an `opts.servers` entry; see lua/plugin/lsp/lsp.lua), so no brew needed.
 
--- <leader>cx runner (dispatched centrally by util.run; keymap in mappings.lua).
+-- ,x runner (dispatched centrally by util.run; keymap in mappings.lua).
 -- "Running" a .tex file means producing a PDF: a one-shot latexmk build. `-cd`
 -- makes latexmk chdir into the file's directory so relative \input/\includegraphics
 -- resolve. For interactive/continuous compilation prefer VimTeX's <localleader>ll.
@@ -19,10 +19,15 @@ require("util.run").register({ "tex", "plaintex" }, function(path)
   return "latexmk -cd -pdf -interaction=nonstopmode -synctex=1 " .. vim.fn.shellescape(path)
 end)
 
--- Buffer-local setup for TeX buffers: a curated set of <leader>c* shortcuts under
--- the which-key "Code" group (mirrors go.lua/python.lua), plus prose-friendly
--- editing. VimTeX's full native map set still lives under <localleader>l (e.g.
--- \ll compile, \lv view, \lt TOC) — these are just the discoverable highlights.
+-- Buffer-local setup for TeX buffers: the compile/view highlights on
+-- <localleader>, plus prose-friendly editing.
+--
+-- <localleader>, not <leader>c: these only mean anything in a TeX buffer, and
+-- AGENTS.md reserves <localleader> for exactly that ("real file-editing
+-- contexts use <localleader> (VimTeX)"). They used to sit on <leader>cb/cv/cs/
+-- ck/ct/ce, which spent six letters of the global Code namespace on one
+-- filetype -- and collided with the refactor actions that now live there.
+-- VimTeX's own full map set is still under <localleader>l (\ll, \lv, \lt).
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "tex", "plaintex" },
   group = vim.api.nvim_create_augroup("tex_setup", { clear = true }),
@@ -30,12 +35,12 @@ vim.api.nvim_create_autocmd("FileType", {
     local map = function(lhs, rhs, desc)
       vim.keymap.set("n", lhs, rhs, { buffer = ev.buf, desc = desc })
     end
-    map("<leader>cb", "<cmd>VimtexCompile<cr>",   "Compile (toggle continuous)")
-    map("<leader>cv", "<cmd>VimtexView<cr>",      "View PDF (Skim)")
-    map("<leader>cs", "<cmd>VimtexStop<cr>",      "Stop compile")
-    map("<leader>ck", "<cmd>VimtexClean<cr>",     "Clean aux files")
-    map("<leader>ct", "<cmd>VimtexTocToggle<cr>", "Toggle TOC")
-    map("<leader>ce", "<cmd>VimtexErrors<cr>",    "Show errors")
+    map("<localleader>b", "<cmd>VimtexCompile<cr>",   "Compile (toggle continuous)")
+    map("<localleader>v", "<cmd>VimtexView<cr>",      "View PDF (Skim)")
+    map("<localleader>s", "<cmd>VimtexStop<cr>",      "Stop compile")
+    map("<localleader>k", "<cmd>VimtexClean<cr>",     "Clean aux files")
+    map("<localleader>t", "<cmd>VimtexTocToggle<cr>", "Toggle TOC")
+    map("<localleader>e", "<cmd>VimtexErrors<cr>",    "Show errors")
 
     -- LaTeX is prose: soft-wrap at word boundaries and spell-check by default.
     -- Toggle per buffer with <leader>uw (wrap) and <leader>us (spell).
@@ -58,6 +63,12 @@ return {
       --   Preset:    Custom
       --   Command:   nvim
       --   Arguments: --headless -c "VimtexInverseSearch %line '%file'"
+      -- VimTeX refuses to load below nvim 0.12.4 and its ftplugin aborts with
+      -- `echoerr`, which breaks the whole FileType chain -- including the
+      -- <localleader> maps below, which silently never registered. This machine
+      -- runs 0.12.2. Skip the check until the floor is met; drop this line once
+      -- Neovim is upgraded.
+      vim.g.vimtex_version_check = 0
       vim.g.vimtex_view_method = "skim"
       vim.g.vimtex_view_skim_sync = 1     -- jump Skim to the cursor's line on view
       vim.g.vimtex_view_skim_activate = 1 -- bring Skim to the foreground on view

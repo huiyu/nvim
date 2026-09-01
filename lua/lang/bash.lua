@@ -1,4 +1,4 @@
--- <leader>cx runner (dispatched centrally by util.run; keymap in mappings.lua).
+-- ,x runner (dispatched centrally by util.run; keymap in mappings.lua).
 require("util.run").register({ "sh", "bash" }, function(path)
   return "bash " .. vim.fn.shellescape(path)
 end)

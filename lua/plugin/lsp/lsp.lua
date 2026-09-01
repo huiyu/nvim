@@ -43,10 +43,10 @@ return {
       -- Non-LSP keys (global mappings are fine for these)
       { "[[",  function() require("illuminate").goto_prev_reference(false) end, desc = "Prev reference" },
       { "]]",  function() require("illuminate").goto_next_reference(false) end, desc = "Next reference" },
-      { "<leader>cm", "<cmd>Mason<cr>",                            desc = "Mason" },
+      { "<leader>mm", "<cmd>Mason<cr>",                            desc = "Mason" },
       -- `:LspInfo` was only ever an alias to this checkhealth, and lspconfig
       -- stops defining it on Nvim 0.12 (see the `:lsp restart` note below).
-      { "<leader>cl", "<cmd>checkhealth vim.lsp<cr>",              desc = "Lsp Info" },
+      { "<leader>mi", "<cmd>checkhealth vim.lsp<cr>",              desc = "Lsp Info" },
       -- Servers keep their own project graph, which `checktime` cannot refresh.
       -- After a structural refactor (files moved across packages, a new
       -- tsconfig/package.json root, re-linked workspace symlinks) the buffer is
@@ -55,7 +55,7 @@ return {
       -- Use the Nvim 0.12 builtin `:lsp restart`, NOT lspconfig's `:LspRestart`:
       -- lspconfig's plugin file returns early when `:lsp` exists, so it never
       -- creates its own Lsp* commands on 0.12.
-      { "<leader>cL", "<cmd>lsp restart<cr>",                      desc = "Lsp Restart" },
+      { "<leader>mr", "<cmd>lsp restart<cr>",                      desc = "Lsp Restart" },
     },
     opts = {
       servers = {
@@ -78,7 +78,9 @@ return {
       vim.keymap.set("n",      "grt", function() Snacks.picker.lsp_type_definitions() end, { desc = "Goto Type Definition" })
       vim.keymap.set("n",      "gO",  function() Snacks.picker.lsp_symbols() end,           { desc = "Document Symbols" })
       vim.keymap.set({ "n", "x" }, "gra", function() vim.lsp.buf.code_action() end, { desc = "Code Action" })
-      vim.keymap.set("n",      "grn", function() vim.lsp.buf.rename() end,       { desc = "Rename" })
+      -- expr + :IncRename so the rename previews live; see plugin/lsp/inc-rename.lua
+      vim.keymap.set("n",      "grn", function() return ":IncRename " .. vim.fn.expand("<cword>") end,
+        { desc = "Rename", expr = true })
 
       -- Buffer-local LSP mappings via LspAttach (for non-default keybindings)
       vim.api.nvim_create_autocmd("LspAttach", {
@@ -87,15 +89,21 @@ return {
           local map = function(lhs, rhs, desc, mode)
             vim.keymap.set(mode or "n", lhs, rhs, { buffer = buf, desc = desc })
           end
-          map("gd",  function() Snacks.picker.lsp_definitions() end,      "Goto Definition")
+          -- reuse_win = false: jump in *this* window even when the target file
+          -- is already open elsewhere. Following a call chain means reading
+          -- downward from where the cursor is; letting the jump throw focus to
+          -- another split loses that thread.
+          map("gd",  function() Snacks.picker.lsp_definitions({ jump = { reuse_win = false } }) end, "Goto Definition")
           map("gr",  function() Snacks.picker.lsp_references() end,       "References")
           map("gI",  function() Snacks.picker.lsp_implementations() end,  "Goto Implementation")
           map("gy",  function() Snacks.picker.lsp_type_definitions() end, "Goto Type Definition")
           map("gD",  function() vim.lsp.buf.declaration() end,  "Goto Declaration")
           map("K",   function() vim.lsp.buf.hover() end,        "Hover")
           map("gK",  function() vim.lsp.buf.signature_help() end, "Signature Help")
-          map("<leader>ca", function() vim.lsp.buf.code_action() end, "Code action", { "n", "v" })
-          map("<leader>cr", function() vim.lsp.buf.rename() end,      "Rename")
+          map(",a", function() vim.lsp.buf.code_action() end, "Code action", { "n", "v" })
+          vim.keymap.set("n", ",r",
+            function() return ":IncRename " .. vim.fn.expand("<cword>") end,
+            { buffer = buf, desc = "Rename", expr = true })
         end,
       })
 

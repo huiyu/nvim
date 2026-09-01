@@ -7,12 +7,12 @@ vim.api.nvim_create_autocmd("FileType", {
   pattern = "python",
   group = vim.api.nvim_create_augroup("python_keymaps", { clear = true }),
   callback = function(ev)
-    vim.keymap.set("n", "<leader>co", lsp.action["source.organizeImports"],
+    vim.keymap.set("n", "<localleader>o", lsp.action["source.organizeImports"],
       { buffer = ev.buf, desc = "Organize Imports" })
   end,
 })
 
--- <leader>cx runner (dispatched centrally by util.run; keymap in mappings.lua).
+-- ,x runner (dispatched centrally by util.run; keymap in mappings.lua).
 require("util.run").register("python", function(path)
   return "python3 " .. vim.fn.shellescape(path)
 end)
@@ -118,7 +118,7 @@ return {
       }
     end,
     keys = {
-      { "<leader>cv", "<cmd>VenvSelect<cr>", desc = "Select virtualenv", ft = "python" },
+      { "<localleader>v", "<cmd>VenvSelect<cr>", desc = "Select virtualenv", ft = "python" },
     },
   },
   {

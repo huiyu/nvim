@@ -223,7 +223,7 @@ local path10 = tmpfile({ "modal" })
 editor.open(path10, path10 .. ".done")
 settle()
 local win10 = float_win()
-for _, key in ipairs({ "<C-h>", "<C-l>", "<C-w>w", "<C-\\>" }) do
+for _, key in ipairs({ "<C-h>", "<C-l>", "<C-w>w", "<C-,>" }) do
   vim.api.nvim_set_current_win(win10)
   vim.api.nvim_feedkeys(vim.keycode(key), "tx", false)
   settle()

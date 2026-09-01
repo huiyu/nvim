@@ -5,7 +5,13 @@ return {
 	opts = {
 		options = {
 			icons_enabled = true,
-			theme = "solarized_dark",
+			-- "auto" resolves to lualine.themes.<colors_name>, which
+			-- solarized-osaka ships. lualine's built-in "solarized_dark" is the
+			-- classic palette instead, so its section backgrounds and foregrounds
+			-- (#002b36 / #073642) sit a shade off this colorscheme's own
+			-- (#001419 / #002c38) and the statusline never quite matches the
+			-- editor behind it.
+			theme = "auto",
 			section_separators = { left = "", right = "" },
 			component_separators = { left = "", right = "" },
 			disabled_filetypes = {},

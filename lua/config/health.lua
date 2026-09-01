@@ -15,12 +15,19 @@ local executables = {
   { "fd",      "snacks file finding, venv-selector",                   false },
   { "node",    "AI ACP adapters, claudecode, markdown-preview, JS run", false },
   { "tmux",    "native AI TUI frame wrapper",                          false },
-  { "go",      "go toolchain, <leader>cx for Go",                      false },
-  { "python3", "debugpy venv, <leader>cx for Python",                  false },
-  { "cc",      "<leader>cx compile & run for C",                       false },
+  { "go",      "go toolchain, ,x runner for Go",                       false },
+  { "python3", "debugpy venv, ,x runner for Python",                    false },
+  { "cc",      ",x compile & run for C",                                false },
   { "lazygit", "<leader>gg git UI",                                    false },
-  { "gh",      "<leader>gh GitHub pickers and status",                 false },
+  { "gh",      "<leader>G GitHub pickers and status",                  false },
 }
+
+-- Platform-gated tools, appended so `:checkhealth config` elsewhere does not
+-- warn about something that platform could never use.
+if vim.fn.has("macunix") == 1 then
+  table.insert(executables,
+    { "macism", "macOS input-source switching between Normal and input", false })
+end
 
 -- Mason packages worth surfacing (Mason installs lazily, so absence is info).
 local mason_packages = { "lua-language-server", "vtsls", "gopls", "prettier" }
@@ -57,6 +64,19 @@ function M.check()
       health.error(("%s not found — needed for %s"):format(exe, why))
     else
       health.warn(("%s not found — %s unavailable"):format(exe, why))
+    end
+  end
+
+  health.start("config: input method")
+  if vim.fn.has("macunix") ~= 1 then
+    health.info("automatic input-source switching is only enabled on macOS")
+  else
+    local source, origin = require("util.input_method").default_source()
+    if source then
+      health.ok(("Normal-mode source is %s (%s)"):format(source, origin))
+    else
+      health.warn("Normal-mode input source could not be detected",
+        { "Set NVIM_ENGLISH_INPUT_SOURCE to a macOS input-source ID" })
     end
   end
 

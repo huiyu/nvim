@@ -6,7 +6,7 @@ return {
     highlight = { timer = 200 },
   },
   keys = {
-    { "<leader>p", "<cmd>YankyRingHistory<cr>", desc = "Yank history" },
+    { "<leader>yh", "<cmd>YankyRingHistory<cr>", desc = "Yank history" },
     { "y",  "<Plug>(YankyYank)",                      mode = { "n", "x" }, desc = "Yank text" },
     { "p",  "<Plug>(YankyPutAfter)",                   mode = { "n", "x" }, desc = "Put after cursor" },
     { "P",  "<Plug>(YankyPutBefore)",                  mode = { "n", "x" }, desc = "Put before cursor" },

@@ -7,13 +7,13 @@ vim.api.nvim_create_autocmd("FileType", {
   pattern = { "c", "cpp" },
   callback = function(ev)
     -- Switch between source (.c/.cpp) and header (.h/.hpp) via clangd.
-    vim.keymap.set("n", "<leader>ch", "<cmd>LspClangdSwitchSourceHeader<cr>",
+    vim.keymap.set("n", "<localleader>h", "<cmd>LspClangdSwitchSourceHeader<cr>",
       { buffer = ev.buf, desc = "Switch Source/Header (C/C++)" })
 
   end,
 })
 
--- <leader>cx runner: compile & run (dispatched centrally by util.run).
+-- ,x runner: compile & run (dispatched centrally by util.run).
 local function compile_and_run(cc)
   return function(path)
     local out = vim.fn.fnamemodify(path, ":r")

@@ -3,7 +3,7 @@
 -- This file owns the language itself and is runtime-agnostic: the same setup
 -- applies whether the code targets Node, the browser, Deno or Bun. Web-frontend
 -- tooling (HTML / CSS / Tailwind) lives in `lang/frontend.lua`, not here.
--- <leader>cx runners (dispatched centrally by util.run; keymap in mappings.lua).
+-- ,x runners (dispatched centrally by util.run; keymap in mappings.lua).
 -- TS has no dependency-free single-file runner, so use `npx tsx` (resolves a
 -- project/global tsx; the terminal shows a clear error if tsx is unavailable).
 require("util.run").register("javascript", function(path)

@@ -1,7 +1,7 @@
 -- Run the current file with a per-filetype command.
 --
 -- Language modules (lua/lang/*.lua) register their runner via M.register(ft,
--- builder); a single <leader>cx keymap (see lua/mappings.lua) dispatches by the
+-- builder); a single ,x keymap (see lua/mappings.lua) dispatches by the
 -- current buffer's filetype. Scope is deliberately small: "quickly run this
 -- script", not a task runner or build/debug system.
 local M = {}

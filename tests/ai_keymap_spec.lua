@@ -31,12 +31,19 @@ for _, lhs in ipairs({ " ai", " at", " aT" }) do
   t.ok(desc:find(label, 1, true) ~= nil, lhs .. " describes the active provider")
 end
 
--- UC-R9 is deferred with issue #14, so lua/mappings.lua must be untouched: the
--- pre-existing terminal-mode maps are all still present and no <C-S-e>/<C-S-t>
--- was added.
-for _, lhs in ipairs({ "<C-\\>", "<C-q>", "<C-h>", "<C-l>", "<C-S-l>" }) do
+-- UC-R9 is deferred with issue #14: the unrelated terminal-mode maps remain
+-- present and no <C-S-e>/<C-S-t> chord was added.
+--
+-- <C-q> is no longer in this list. It used to close the terminal, and was
+-- removed deliberately: `exit`, <C-/> and :bd! already cover it, so the chord
+-- only offered a way to force-delete a buffer. What replaced the guard is the
+-- assertion below -- <C-c> must stay unmapped in Terminal-mode, because it is
+-- SIGINT and shadowing it would make a runaway process unkillable.
+for _, lhs in ipairs({ "<C-h>", "<C-l>", "<C-S-l>" }) do
   t.ok(mapped(lhs, "t"), "UC-R3: terminal-mode " .. lhs .. " is unchanged")
 end
+t.ok(not mapped("<C-q>", "t"), "close-terminal chord stays removed")
+t.ok(not mapped("<C-c>", "t"), "terminal-mode <C-c> stays unmapped (SIGINT)")
 t.ok(not mapped("<C-S-e>", "t"), "issue #14: no <C-S-e> chord was added this round")
 t.ok(not mapped("<C-S-t>", "t"), "issue #14: no <C-S-t> chord was added this round")
 

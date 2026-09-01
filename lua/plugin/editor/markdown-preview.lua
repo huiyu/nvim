@@ -21,13 +21,14 @@ return {
     vim.g.mkdp_auto_close = 0
   end,
   keys = {
-    { "<leader>cp", "<cmd>MarkdownPreviewToggle<cr>", desc = "Toggle Markdown Preview", ft = "markdown" },
+    { "<localleader>p", "<cmd>MarkdownPreviewToggle<cr>", desc = "Toggle Markdown Preview", ft = "markdown" },
     -- Entry point from anywhere. mkdp's server exposes no directory index, so
     -- browsing happens on the Neovim side: pick any markdown under cwd, open
-    -- it, hand that buffer to mkdp. Deliberately not ft-gated — this is how
-    -- you *reach* a markdown file.
+    -- it, hand that buffer to mkdp. Not ft-gated, and so on `;` rather than
+    -- <localleader>: this is how you *reach* a markdown file, which is what
+    -- the `;` prefix is for. <localleader>p toggles the preview once there.
     {
-      "<leader>cP",
+      ";P",
       function()
         -- Inherits hidden/ignored/exclude from the `files` source (snacks.lua).
         -- Extensions are limited to what g:mkdp_filetypes covers; add "mdx"

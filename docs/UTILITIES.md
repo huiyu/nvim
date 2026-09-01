@@ -4,7 +4,7 @@ This document provides detailed documentation for all utility modules in the Neo
 
 ## Overview
 
-The utility modules provide focused helpers for logging, LSP, table manipulation, terminals, windows, and running the current file. For diagnostic and debugging workflows (health checks, profiling, LSP/treesitter inspection), see [DIAGNOSTICS.md](DIAGNOSTICS.md).
+The utility modules provide focused helpers for logging, debug inspection, LSP, table manipulation, macOS input sources, terminals, windows, and running the current file. For diagnostic and debugging workflows (health checks, profiling, LSP/treesitter inspection), see [DIAGNOSTICS.md](DIAGNOSTICS.md).
 
 ## Core Utilities
 
@@ -53,6 +53,86 @@ logger.clear_history()                  -- Clear all history
 export NVIM_LOG_LEVEL=DEBUG    # Set logging level
 export NVIM_DEV=1              # Enable development logging
 ```
+
+## Debug Inspection (`util.debug`)
+
+Throwaway helpers for working *on* this configuration. Distinct from
+`util.logger`, which carries messages a user of the config should see.
+
+`init.lua` wires the module into two globals, lazily, so a startup that never
+debugs never loads it:
+
+```lua
+_G.dd = function(...) require("util.debug").dump(...) end
+vim.print = _G.dd
+```
+
+`dd(value, ...)` pretty-prints through `vim.notify`, titled with the file and
+line that called it, and syntax-highlighted as Lua. Taking over `vim.print`
+means `:lua =expr` lands in the same view. A call in a fast event is deferred
+rather than dropped (`vim.notify` and treesitter are both unavailable there).
+
+Note that `dd` reports the *caller's* frame, so `return dd(x)` mis-attributes:
+a Lua tail call replaces the calling frame outright. Use `dd(x)` as a statement.
+
+The rest is for a slowdown, not a value:
+
+```lua
+local debug = require("util.debug")
+
+debug.extmark_leaks()          -- extmark count per namespace/buffer, worst first
+debug.module_leaks("^snacks")  -- estimated MB per loaded module, worst first
+debug.get_upvalue(fn, "state") -- reach a plugin's local state when it exposes none
+```
+
+`module_leaks()` sizes are an estimate, not a measurement: the per-type constants
+are nominal and shared references are counted once. Use it to rank modules
+against each other, not to trust a total.
+
+Because `dd` is a global, `.luarc.json` lists it in `diagnostics.globals`
+alongside `vim` and `Snacks`.
+
+## macOS Input Method (`util.input_method`)
+
+Keeps Normal and Terminal-Normal modes on an English keyboard layout while
+restoring the last captured input source in Insert and terminal-input modes.
+The module serializes `macism` operations so a rapid `Esc`/`i` sequence cannot
+leave a stale switch as the final system state. It does nothing for headless
+Nvim or non-macOS processes.
+
+`setup()` is called by `lua/autocmds.lua`. The public inspection API is:
+
+```lua
+local input_method = require("util.input_method")
+
+local source, origin = input_method.default_source()
+-- source: e.g. "com.apple.keylayout.ABC"
+-- origin: "NVIM_ENGLISH_INPUT_SOURCE" or "macOS keyboard layout"
+```
+
+Resolution order:
+
+1. `NVIM_ENGLISH_INPUT_SOURCE`, when non-empty.
+2. An enabled keyboard layout from `AppleEnabledInputSources`, preferring a
+   Latin one (`ABC`, `US`, `Colemak`, `British`, …). That list is in the user's
+   own order, so its first layout may be non-Latin — and Normal mode on a
+   non-Latin layout is worse than no switching at all, since `d`, `w` and `:`
+   would stop reaching Nvim. A non-Latin layout is still used when it is the
+   only one enabled.
+3. `defaults read com.apple.HIToolbox AppleCurrentKeyboardLayoutInputSourceID`.
+
+Detection is deferred to the first UI event rather than run from `setup()`:
+steps 2 and 3 shell out, and headless Nvim can never use the result.
+
+The current text-entry source is not stored in an environment variable. It is
+queried with `macism` whenever Insert or terminal-input mode is left and kept in
+the Nvim process for the next restoration.
+
+`NVIM_MACISM_WAIT_TIME_MS` is passed as macism's optional third argument on
+source switches. Leave it unset for macism's built-in wait (currently 150ms),
+set it to a positive millisecond value to shorten that wait, or set it to `0`
+to disable the temporary focus-stealing window. Disabling the workaround removes
+the Ghostty focus flash but can make the first CJK characters race on macOS 26.
 
 ## LSP Utilities (`util.lsp`)
 
@@ -127,7 +207,8 @@ local window = require("util.window")
 -- :WindowCloseCurrent - Close current window
 -- :WindowFocusEditor  - Jump to the editor window in the current tab; press
 --                       again from the editor to return to the origin window.
---                       Bound to <C-\> in Normal and terminal-input mode.
+--                       Bound to <C-,> in Normal and terminal-input mode, and
+--                       to `se` where that chord cannot be sent.
 
 -- Jump to the editor area, or back to where the jump started. An editor window
 -- is a non-floating window in the current tab whose buffer has an empty
@@ -194,7 +275,7 @@ terminal.is_agent_buf(buf)
 -- were last in. Bound to <C-/>.
 terminal.toggle(count)
 
--- Show a terminal and put the cursor in it; never closes. Bound to <leader>t1-9,
+-- Show a terminal and put the cursor in it; never closes. Bound to <C-1>-<C-9>,
 -- which are for choosing which terminal you look at, not for dismissing one.
 terminal.focus(count)
 ```
@@ -244,7 +325,7 @@ run.register({ "sh", "bash" }, function(path)  -- multiple filetypes at once
   return "bash " .. vim.fn.shellescape(path)
 end)
 
--- Write and run the current buffer's file in a split terminal (bound to <leader>cx).
+-- Write and run the current buffer's file in a split terminal (bound to ,x).
 run.run_current()
 ```
 

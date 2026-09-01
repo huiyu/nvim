@@ -16,7 +16,7 @@
 **可选（按功能）：**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg`（项目）/ `<leader>gf`（当前文件历史）
 - **[tmux](https://github.com/tmux/tmux)** — 把选中的 Native Agent TUI 包到 `:terminal` 里，避免残影和帧撕裂；自动检测（详见[终端集成](#终端集成)）
-- **[GitHub CLI](https://cli.github.com/)** — 已认证的 `gh`，供 `<leader>gh` GitHub picker 与状态使用
+- **[GitHub CLI](https://cli.github.com/)** — 已认证的 `gh`，供 `<leader>G` GitHub picker 与状态使用
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** 或 **[Codex](https://developers.openai.com/codex/cli/)** — Native coding agent
 - **Node.js >= 22 + npm** — CodeCompanion ACP bridge 进程
 - `ANTHROPIC_API_KEY` 或 `OPENAI_API_KEY` — 可选；所选 provider 的 CodeCompanion HTTP Inline/命令 Prompt
@@ -80,9 +80,10 @@ nvim
 │   │   ├── ui/               # 界面和主题插件
 │   │   └── vcs/              # Git 集成
 │   └── util/                 # 工具模块
+├── .github/workflows/       # CI：spec 套件 + 两个 provider 启动检查
 ├── scripts/                 # Agent TUI 的 $EDITOR wrapper
 ├── tests/                   # Headless spec 套件（tests/run.sh）
-└── docs/                     # DIAGNOSTICS.md, UTILITIES.md
+└── docs/                     # MANUAL.md, DIAGNOSTICS.md, UTILITIES.md
 ```
 
 ### 插件列表
@@ -93,6 +94,7 @@ nvim
 |------|------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
 | [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏 |
+| [incline](https://github.com/b0o/incline.nvim) | 每个窗口右上角的文件名标签（当前窗口除外） |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择） |
 | [noice](https://github.com/folke/noice.nvim) | 增强命令行、消息、通知 |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
@@ -113,16 +115,18 @@ nvim
 | [snacks](https://github.com/folke/snacks.nvim) | Picker（模糊查找）、启动页、文件浏览器、终端、缩进线、平滑滚动、通知、重命名 |
 | [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
-| [harpoon](https://github.com/ThePrimeagen/harpoon) | 常用文件快速跳转（`<leader>1-9`） |
+| [harpoon](https://github.com/ThePrimeagen/harpoon) | 钉住的文件快速跳转（`;1`-`;9`，`;h` 打开列表） |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank 历史环 |
 | [dial](https://github.com/monaqa/dial.nvim) | 增强递增/递减（布尔值、日期等） |
 | [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | 提取函数/变量、内联 |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | 增强文本对象 |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | 单行/多行切换（`gS`） |
+| [mini.bracketed](https://github.com/echasnovski/mini.bracketed) | 补充 `[`/`]` 跳转，只占用本配置未使用的后缀（`x` 冲突、`i` 缩进、`c` 注释、`j` 跳转表、`o` oldfile、`u` undo） |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | 包围符号操作 |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | 自动配对括号 |
 | [persistence](https://github.com/folke/persistence.nvim) | 会话管理 |
 | [guess-indent](https://github.com/NMAC427/guess-indent.nvim) | 自动检测缩进 |
+| [oil](https://github.com/stevearc/oil.nvim) | 把目录当 buffer 编辑：改行名即重命名，`dd`/`p` 即移动文件。`-` 打开上级目录，`;o` 开浮窗 |
 
 #### LSP 与开发工具
 
@@ -138,6 +142,7 @@ nvim
 | [neogen](https://github.com/danymat/neogen) | 自动生成注释/文档 |
 | [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema 验证 |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua 开发（类型补全） |
+| [inc-rename](https://github.com/smjonas/inc-rename.nvim) | 带实时预览的 LSP 重命名，绑在 `grn` / `,r` |
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code 集成（仅 Claude provider） |
 | [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | 随 provider 选择的 ACP Chat，以及 HTTP Inline/命令 Prompt |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | 自动保存、按项目感知的 CodeCompanion Chat 历史 |
@@ -189,142 +194,65 @@ brew install --cask skim            # 支持 SyncTeX 的 PDF 阅读器
 - `<localleader>lt`(`\lt`)— 目录;`\lk` 清理、`\le` 错误列表
 - 保存文件即用 `latexindent` 自动格式化(可用 `<leader>uf` 开关)
 
-同样的操作也镜像到了 **`<leader>c`(Code)组**,方便 which-key 发现:
+日常操作也直接放在 `<localleader>` 上，少按一个键，并会出现在 `\` 的 which-key 弹窗里：
 
 | 键位 | 操作 |
 |------|------|
-| `<leader>cb` | 编译(连续模式开关) |
-| `<leader>cv` | 用 Skim 看 PDF |
-| `<leader>cs` | 停止编译 |
-| `<leader>ck` | 清理辅助文件 |
-| `<leader>ct` | 目录开关 |
-| `<leader>ce` | 错误列表 |
-| `<leader>cx` | 一次性 `latexmk` 出 PDF |
+| `\b` | 编译(连续模式开关) |
+| `\v` | 用 Skim 看 PDF |
+| `\s` | 停止编译 |
+| `\k` | 清理辅助文件 |
+| `\t` | 目录开关 |
+| `\e` | 错误列表 |
+| `,x` | 一次性 `latexmk` 出 PDF（通用的"运行当前文件"键） |
 
 TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leader>us` 开关)。
 
-### 键位参考
+### 键位
 
-**Leader**: `Space` | **Local Leader**: `\` | **键位指南**: `<leader>?`
+**Leader**：`Space` · **Local leader**：`\` · **速查表**：`<leader>?`
 
-#### 选哪个前缀？（意图 → 按键）
+每个键都在回答一个问题，前缀决定是哪一个：
 
-所有键位遵循同一条设计规则：**动作越高频，前缀越快**。修饰键组合（`Ctrl`/`Shift`/`Alt`）是零思考的肌肉记忆；序列前缀（`g`、`[`/`]`、`z`）负责移动光标；`<leader>` 是命令面板——最慢，但有 which-key 兜底。
+| 前缀 | 问题 | 例子 |
+|------|------|------|
+| `;` | 我要去哪个文件 / 符号 / 位置？ | `;<space>` 智能查找、`;f` 找文件、`;/` 全局搜索、`;s` 符号、`;1`-`;9` 钉住的文件 |
+| `,` | 对眼前这段代码做什么？ | `,a` code action、`,f` 格式化、`,r` 重命名、`,j`/`,k` 移动行、`,e*` 提取 |
+| `s` | 这个窗口怎么办？ | `ss`/`sv` 分屏、`sd` 关闭、`se` 跳编辑器、`s=` 均分 |
+| `\` | **当前文件类型**有什么？ | `\o` 整理 import（Go/Python）、VimTeX、diffview |
+| `<leader>` | 其余，按领域分组 | `g` git、`G` GitHub、`d` 调试、`t` 测试、`a` AI、`x` 诊断、`m` 管理、`s` 会话、`y` 复制、`u` 开关、`b` buffer、`q` 退出 |
 
-从"我想做什么"出发：
+频率决定深度：天天用的是两键，其余归到 `<leader>`。按下任一前缀等半秒，
+which-key 会列出可用键——那个列表由配置本身生成，不会和文档脱节。
 
-| 我想…… | 用 | 例子 |
-|--------|----|------|
-| 执行命令 / 管理东西 | `<leader>` + 域首字母 | `<leader>gs` git 状态, `<leader>bd` 删 buffer, `<leader>ca` code action |
-| 去下一个/上一个同类目标 | `]` / `[` + 类别 | `]d` 诊断, `]h` hunk, `]b` buffer——可连按迭代 |
-| 跳到光标下符号的相关位置 | `g` | `gd` 定义, `gr` 引用, `gI` 实现——一击即中 |
-| 瞬发高频动作 | `Ctrl` | `<C-h/j/k/l>` 窗口, `<C-/>` 终端 |
-| 循环切换 buffer | `Shift` | `<S-h>` / `<S-l>` |
-| 移动某个东西（不是光标） | `Alt` | `<A-j>` / `<A-k>` 移动行 |
-| 飞到屏幕上任意可见位置 | `s` | Flash：`s` + 2 字符 + 标签 |
+值得记住的无前缀键：
 
-口诀：**空格发命令，括号翻上下，g 键做解析，Ctrl 秒动作，Shift 来回切，Alt 搬东西，s 键飞全屏。**
+| 键 | 作用 |
+|----|------|
+| `f` / `F` | Flash 跳转 / Treesitter 跳转（Normal + Visual；`df-`、`ct)` 仍走原生） |
+| `<C-h/j/k/l>` | 窗口移动——在终端输入状态下同样可用 |
+| `<C-,>` | 跳到编辑器区域，再按一次跳回 |
+| `<C-/>` · `<C-1>`-`<C-9>` | 切换终端 · 直达第 1-9 个终端 |
+| `<S-h>` / `<S-l>` · `<Tab>` / `<S-Tab>` | 上/下一个 buffer |
+| `g` · `[` / `]` · `z` | 跳转+LSP · 上/下一个某物 · 折叠与拼写 |
+| `-` | 用 oil 打开当前目录（可当文本编辑） |
+| `jk` · `<C-]>` | 退出 Insert / 终端输入 |
 
-两个值得刻意练习的区分：
-
-- **`]d` vs `gd`** —— 括号回答"从这里往后，下一个在哪？"（按位置迭代，可连按）；`g` 回答"这个符号的定义在哪？"（按语义解析，一步到位）。
-- **`<S-h>` 就是大写 `H`** —— 它覆盖了原生 `H`/`L`（跳屏幕顶/底）。这是有意的取舍：切 buffer 的频率远高于屏内跳转，且 `gg`/`G`/相对行号可以替代（`M` 未被占用）。
-
-#### 触发键前缀
-
-按任意前缀稍等即可看到 which-key 弹窗。
-
-| 前缀 | 类别 |
-|------|------|
-| `<leader>` | 主命令面板 |
-| `g` | 跳转 / LSP（`gd` 定义, `gr` 引用, `K` 悬浮, `gI` 实现, `gy` 类型, `gD` 声明, `gK` 签名, `gS` 单行切换） |
-| `s` / `S` | Flash 跳转 / Treesitter 跳转 |
-| `[` / `]` | 前/后导航（`b` buffer, `d` 诊断, `e` 错误, `w` 警告, `h` hunk, `q` quickfix, `t` todo, `y` yank, `B` 移动 buffer） |
-| `z` | 折叠 / 拼写 |
-| `<C-w>` | 窗口操作 |
-
-#### 顶层快捷键
-
-| 键位 | 功能 |
-|------|------|
-| `<Esc>` | 清除搜索高亮 |
-| `<C-/>` | 切换终端 |
-| `<C-h/j/k/l>` | 窗口导航（Normal + terminal input） |
-| `<C-\>` | 跳到编辑器窗口，再按一次跳回（Normal + terminal input） |
-| `<C-S-l>` | 重绘当前 TUI（terminal input） |
-| `<C-Up/Down/Left/Right>` | 窗口大小调整 |
-| `<A-j>` / `<A-k>` | 移动行（n, i, v） |
-| `<S-h>` / `<S-l>` | 上/下一个 buffer |
-| `<leader><space>` | 智能查找（buffers + 最近 + cwd 文件，按 frecency 加权） |
-| `<leader>.` | 在 cwd 查找文件 |
-| `<leader>/` | 搜索项目（grep） |
-| `<leader>,` | 缓冲区列表 |
-| `<leader>:` | 命令历史 |
-| `<leader>'` | 恢复上次 picker |
-| `<leader>\`` | 上一个 buffer（alternate） |
-| `<leader>?` | 键位指南 |
-| `<leader>l` | Lazy 插件管理 |
-| `<leader>n` | 通知历史 |
-| `<leader>e` / `<leader>E` | 文件树 / 文件浏览器 |
-| `<leader>-` / `<leader>\|` | 水平 / 垂直分屏 |
-| `<leader>1-9` | Harpoon 跳转到文件 |
-| `<leader>h` / `<leader>H` | Harpoon 快捷菜单 / 添加文件 |
-| `<leader>p` | Yank 历史 — 见 [Yanky](#yanky增强复制粘贴) |
-
-#### Leader 分组
-
-| 分组 | 键 | 说明 |
-|------|----|------|
-| 查找 | `<leader>f` | `ff` cwd 文件, `fF` 当前 buffer 目录, `fd` 浏览目录, `fe` 浏览器（含被忽略文件）, `fr` 最近, `fb` buffer, `fg` git 文件, `fp` 项目, `fc` nvim 配置, `fn` 新建, `fs/fS` 保存/另存为, `fR` 重命名, `fD` 删除, `fy/fY` 复制路径（绝对/项目相对）, `ft/fT` 终端 |
-| 搜索 | `<leader>s` | `sb` buffer, `sB` 所有开启 buffer, `sd` 当前目录, `sp` 项目, `sw` 当前词, `ss/sS` 符号（buffer/workspace）, `sR` 恢复, `sh` 帮助, `sk` 键位, `sm` 标记, `sj` 跳转, `sc/sC` 命令历史/命令, `s"` 寄存器, `sM` man, `sr/sW` 替换, `st/sT` todo, `sn{a,d,h,l,t}` noice（全部/清除/历史/最新/picker） |
-| 代码 | `<leader>c` | `ca` 操作, `cr` 重命名, `cf` 格式化, `cd` 诊断, `cm` Mason, `cl` LSP 信息, `cL` 重启 LSP, `cn` 生成注释, `co` 整理导入, `cO` 大纲, `cs/cS` 符号（buffer/workspace）, `cv` 虚拟环境（py）, `cp` Markdown 预览（md）, `cP` 浏览 cwd 下 Markdown 并预览, `cx` 运行当前文件（按文件类型：go/c/cpp/py/js/ts/sh）, `cR` 重建 gopls 索引（go） |
-| Buffer | `<leader>b` | `bd` 删除, `bo` 删除其他, `bD` 删除+窗口, `bl/br` 删除左/右, `bj` 选择, `bp` 固定, `bP` 关闭未固定 |
-| 调试 | `<leader>d` | `db/dB` 断点/条件断点, `dc/da` 继续/带参运行, `dC` 运行到光标, `dg` 跳到行（不执行）, `di` 步入, `do` 步出, `dO` 步过, `dj/dk` 上/下栈帧, `dP` 暂停, `dr` REPL, `ds` 会话, `dw` 悬浮 widget, `dt` 终止, `dl` 重跑 |
-| Git | `<leader>g` | `gs` 状态, `gb` 分支, `gc/gC` 提交, `gl/gL` blame, `gp` 预览, `gr/gR` 重置, `gS` 暂存/取消暂存, `gT` 切换行 blame, `gd` diff, `gv` diff 视图, `gm` diff 主分支, `gM` 选择 ref diff, `gV` 文件历史, `gH` git 日志, `gh*` GitHub |
-| 测试 | `<leader>T` | `Tm` 测试方法, `Td` 调试方法, `Tf` 测试文件, `TS` 摘要, `To` 输出, `TD/Th` 显示/隐藏诊断 |
-| 移动 | `<leader>m` | `mj`/`mk` 移动当前行或选区，`mh`/`ml` 减少/增加缩进；之后直接按 `h`/`j`/`k`/`l` 连续操作，方向可混用 |
-| 终端 | `<leader>t` | `t1-9` 切到指定终端（不会关闭）, `td` 修复 agent TUI 漂移, `tx` 关闭终端 buffer。开关由 `<C-/>` 负责 |
-| 切换 | `<leader>u` | `uf/uF` 自动格式化, `us` 拼写, `uw` 换行, `ul/uL` 行号, `ud` 诊断, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` 背景, `un` 关闭通知, `uR` markdown 渲染 |
-| 诊断 | `<leader>x` | `xx/xX` 诊断（项目/buffer）, `xL/xQ` loclist/quickfix picker, `xl/xq` 切换 loclist/quickfix 窗口, `xt/xT` todo |
-| 重构 | `<leader>r` | `rf` 提取函数, `rF` 提取到文件, `rx` 提取变量, `ri` 内联, `rb` 提取块, `rB` 提取块到文件, `rs` 选择 |
-| AI | `<leader>a` | Native：`ac` 切换, `af` 聚焦, `ar` 恢复选择, `aR` 继续上次, `am` 模型, `ab` 添加 buffer, `as` 附加选区（v）, `ai` 撰写 prompt（n/v）, `at` 阅读 transcript, `aT` 会话历史；Claude 专属：`aS`, `aa/ad`；CodeCompanion：`ap{c,t,a,i,b,h}` 新建/切换/操作/Inline/添加选区/历史 |
-| 窗口 | `<leader>w` | `ww` 切到其它窗口, `wd` 删除, `wo` 关闭其他, `w=` 均分, `wm` 缩放 |
-| 退出 | `<leader>q` | `qq/qQ` 退出（在 agent 边栏里也有效，直接 `:qall` 则不会退出）, `qs` 保存会话, `ql` 加载上次, `q.` 加载当前 |
-| 标签页 | `<leader><tab>` | `<tab><tab>` 新建, `d` 关闭, `]/[` 下/上一个, `` ` `` 最近使用（alternate）, `l/f` 最右/第一个, `o` 关闭其他, `s` 列出全部 |
-
-#### GitHub（`<leader>gh`）
-
-| 键位 | 功能 |
-|------|------|
-| `f` / `F` | 按当前分支打开当前文件/可视行，或打开固定到 commit 的永久链接 |
-| `r` | 打开仓库 GitHub 主页 |
-| `i` / `I` | 用 Snacks GitHub picker 打开 Open /全部 Issues |
-| `p` / `P` | 用 Snacks GitHub picker 打开 Open /全部 PRs |
-| `c` | 显示当前分支 PR 及其可用操作 |
-| `a` | 打开仓库的 GitHub Actions 页面 |
-| `n` | 打开 GitHub notifications |
-| `s` | 在浮窗中显示账号级 `gh status` |
-
-Issue 与 PR 的远程写操作刻意不设置全局快捷键。在 Snacks GitHub picker
-中按 `<cr>`，再选择打开详情、评论、review 或 merge 等操作。这组键依赖已
-认证的 GitHub CLI（`gh auth status`）；`:checkhealth config` 会报告是否找到。
-
-#### Yanky（增强复制/粘贴）
-
-| 键位 | 功能 |
-|------|------|
-| `y` / `p` / `P` | Yank / Put（带历史） |
-| `[y` / `]y` | 循环 yank 历史 |
-| `<leader>p` | 打开 yank 历史（`:YankyRingHistory`，走 snacks ui-select） |
-| `<leader>y`（v） | 选区 yank 到匿名寄存器 |
-| `<leader>Y`（v） | 选区 yank 到系统剪贴板（`+`） |
+**→ [docs/MANUAL_CN.md](docs/MANUAL_CN.md) 有完整讲解**，包含面向 Vim 新手的入门部分。
 
 ### 终端集成
 
 Native coding-agent terminal 进入 Terminal-mode 时不再自动 resize，因此通过
 `<C-h/j/k/l>` 切入时不会出现一行高度的闪动。如果 TUI 发生漂移，先用
-`jk` 退出输入状态，再以 `<leader>td` 手动修复。打开编号底部终端
+`<C-]>`(或 `jk`)退出输入状态，再以 `<leader>td` 手动修复。打开编号底部终端
 后，仍会修复因布局变化而受影响的可见 agent。
+
+`<C-]>` 是统一且不受中文预编辑影响的退出键：在 Editor Insert 模式中等同
+`<Esc>`；在包括 Claude/Codex 面板在内的所有终端中进入 terminal-Normal，
+不会把该按键发送给子进程。在 Normal 中继续按仍是无副作用的 Escape，不再
+触发原生 tag jump，因此不会把光标下的文字拿去查 tag 并产生 `E426`。
+`help` 与 `man` 缓冲区例外，保留原生 tag jump——`<C-]>` 是它们跟随链接的
+唯一方式；在那里清除搜索高亮仍可用 `<Esc>` 或 `<C-\>`。
 
 Neovim 在 Normal 和 terminal-input 模式下都会接管 `<C-h/j/k/l>`，因此可以
 直接在编辑器与终端窗口之间移动。这会覆盖 TUI 原有的 Ctrl 快捷键：向后删除
@@ -334,15 +262,20 @@ TUI。处在布局边缘时该键不做任何事、保持终端输入；浮动�
 `<C-/>` shell）视为四面都是边缘——否则 shell 自己的 `<C-h>`、`<C-l>` 会从浮窗底
 下跳出去。
 
-`<C-\>` 同样在这两种模式下由 Neovim 接管，一次按键直达编辑器窗口，因此
-「文件树 + agent 面板」布局不再需要连按三次 `<C-h>` 才能回到中间。在编辑器
-里再按一次会跳回来源窗口。目标取最宽的普通文件窗口；有多个时取光标最近停留
-过的那个，dashboard 也算编辑器窗口。该映射会遮蔽 terminal-mode 的
-`<C-\><C-n>`，请用 `jk` 进入 terminal-Normal 模式。
+由于 `<C-\>` 紧挨 `<C-]>`，它在 Normal、Insert、Visual 和 terminal-input 中都
+执行同样的安全退出。在 Normal 中连续按也没有副作用，因此两个相邻组合都不会因
+误触而突然切换窗口。
+
+`<C-,>` 可以从 terminal input 或侧栏直接跳到编辑器窗口；在编辑器中再按一次会
+回到来源窗口。它依赖 Ghostty 与 Nvim 协商的扩展键盘协议，以便和普通逗号区分；
+如果 Nvim 外面还有一层 tmux，需要为其启用 `extended-keys`。在拿不到该协议的
+环境里(原生 Terminal.app、ssh 会话、较老的 tmux),用 `se` 完成同样的
+跳转。
 
 在 agent 面板里，`<Esc>` 属于 agent 而不是 Nvim。两个 CLI 都把快速双击 Esc 读作
 「回到上一条消息」，因此 Snacks 的双击映射和全局 `<Esc><Esc>` 在面板里都不生效；
-退出 Terminal-mode 请用 `jk` 或 `<C-\>`。普通 `:terminal` 仍保留 `<Esc><Esc>`。
+`<C-]>` 或相邻的 `<C-\>` 都只进入 terminal-Normal，不带修饰键的 `jk` 同理，
+`<C-,>` 则直接回到编辑器。普通 `:terminal` 仍保留 `<Esc><Esc>`。
 
 在 agent 面板里点击鼠标同样会保持 terminal-input 状态。只有当终端任务自己申请了
 鼠标上报，Nvim 才会把鼠标事件转发给它，而两个 TUI 都不申请 —— 所以在此之前，任何
@@ -512,19 +445,37 @@ libvterm。
 
 **提示——抑制 recap CJK 错位框**：Claude Code 的 session recap 是最显眼的 CJK 错位受害者。在 `~/.claude/settings.json` 设置 `"awaySummaryEnabled": false` 可关闭。注意这是 Claude Code 的全局配置，不属于 nvim。
 
+#### macOS 输入法
+
+安装 `macism` 后，Nvim 会让 Normal 与 Terminal-Normal 模式保持在自动探测到的
+拉丁键盘布局。进入 Insert 或终端输入模式时恢复离开前使用的输入源；离开这些
+输入模式时先记录当前输入源，再切回英文。因此原先是英文就保持英文，原先是
+搜狗/苹果拼音则会在回到文字输入时恢复。
+
+Normal 模式的布局优先读取 `NVIM_ENGLISH_INPUT_SOURCE`，未设置时回退到 macOS
+已启用的键盘布局（优先选拉丁布局，而不是系统列出的第一个；必要时再使用最近
+布局）。配置刻意不监听 `FocusGained` /
+`FocusLost`，所以在 Nvim 与其他应用之间切换不会改写其他应用的输入法状态。
+
+`NVIM_MACISM_WAIT_TIME_MS=0` 会关闭 macism 临时抢焦点窗口，从而消除 Ghostty
+可见的焦点闪动。代价是关闭 macism 的 CJK 激活 workaround，在 macOS 26 上开头
+几个字符可能仍按英文输入；不设置该变量则使用 macism 内置等待（当前为 150ms）。
+
 ### 配置项
 
 在 `init.lua` 里插件加载前设置。
 
 | 选项 | 说明 |
 |------|------|
-| `vim.g.terminal_position` | `"float"`（默认）或 `"bottom"`，决定 `<leader>t1`-`t9` 在哪里打开。只在启动时选定，不支持运行时切换——Snacks 在开窗那一刻定死窗口形态，edgy 又独立判断终端是否属于底部边栏，运行时切换意味着要在每一次隐藏、显示、重排里维持两者一致。 |
+| `vim.g.terminal_position` | `"float"`（默认）或 `"bottom"`，决定 `<C-1>`-`<C-9>` 在哪里打开。只在启动时选定，不支持运行时切换——Snacks 在开窗那一刻定死窗口形态，edgy 又独立判断终端是否属于底部边栏，运行时切换意味着要在每一次隐藏、显示、重排里维持两者一致。 |
 
 ### 环境变量
 
 | 变量 | 说明 |
 |------|------|
 | `NVIM_AI_PROVIDER` | `claude`（默认）或 `codex`；为当前 Nvim 进程选择 Native Agent、CodeCompanion ACP Chat 与 HTTP Inline adapter |
+| `NVIM_ENGLISH_INPUT_SOURCE` | Normal 模式使用的 macOS 输入源 ID；未设置时使用 macOS 已启用的拉丁键盘布局 |
+| `NVIM_MACISM_WAIT_TIME_MS` | 可选的 macism CJK workaround 等待时间；设为 `0` 可去掉临时焦点窗口，但可能出现首字符竞态 |
 | `NVIM_LOG_LEVEL` | `util.logger` 日志级别：`DEBUG`/`INFO`/`WARN`/`ERROR`（默认 `WARN`） |
 | `NVIM_DEV=1` | 把 `util.logger` 设为 `DEBUG`（更详细的日志） |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — 覆盖 Claude Code 的 tmux 包裹默认行为。默认开。详见 [Native Agent 的 tmux 包裹](#native-agent-的-tmux-包裹)。 |

@@ -7,9 +7,16 @@ return {
     "nvim-tree/nvim-web-devicons",
   },
   opts = {
-    -- the presets plugin, adds help for a bunch of default keybindings in Neovim
-    -- No actual key bindings are created
-    preset = "classic",
+    -- Window preset. "classic" spans the full width along the bottom, which
+    -- fills left-to-right but *sorts* top-to-bottom -- so a column reads a,b,
+    -- the next d,g, and scanning across a row gives a,d,q,s,u,x: alphabetical
+    -- everywhere except the direction the eye actually travels. "helix" caps
+    -- the width instead, so the list is effectively one column and reads in
+    -- order. Costs a corner of the editor while the popup is up.
+    --
+    -- The presets *plugin* below is unrelated: it documents built-in keys and
+    -- creates no mappings of its own.
+    preset = "helix",
     presets = {
       operators = true,    -- adds help for operators like d, y, ... and registers them for motion / text object completion
       motions = true,      -- adds help for motions

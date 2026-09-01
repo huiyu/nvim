@@ -334,7 +334,7 @@ local function present(path, sentinel)
 
   -- Modal: focus stays here until the prompt is returned or cancelled.
   --
-  -- The global <C-h/j/k/l> and <C-\> window keys work from a float too, and
+  -- The global <C-h/j/k/l> and <C-,> window keys work from a float too, and
   -- with the agent blocked on the wrapper there is no way back once they fire:
   -- <leader>ai sends ctrl+g into a TUI that is not reading its pty, and the
   -- windows underneath (dashboard, agent panel) have nothing to do while the

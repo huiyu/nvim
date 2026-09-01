@@ -3,7 +3,7 @@ return {
   event = "BufWritePre",
   cmd = "ConformInfo",
   keys = {
-    { "<leader>cf", function() require("conform").format() end, desc = "Format", mode = { "n", "v" } },
+    { ",f", function() require("conform").format() end, desc = "Format", mode = { "n", "v" } },
   },
   opts = {
     default_format_opts = {

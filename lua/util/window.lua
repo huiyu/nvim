@@ -151,6 +151,36 @@ local function pick_editor_win()
   return best
 end
 
+--- Guarantee a window a file can be opened into, and return it.
+---
+--- snacks' picker picks its target window in snacks/picker/core/main.lua. That
+--- filter excludes non-file buffers correctly, but records a `non_float`
+--- fallback *before* the filter runs and returns it when nothing qualifies --
+--- so a layout of only an oil listing and an agent panel has the picked file
+--- land on top of one of them. No window variable prevents that; the fallback
+--- is unconditional.
+---
+--- So when the tab has no editor window at all, split the current one
+--- horizontally and hand back the new half. The panel stays on screen, and the
+--- file gets somewhere legitimate to go.
+---@return integer win
+function M.ensure_editor_win()
+  local win = pick_editor_win()
+  if win then return win end
+  -- Split from a real layout window, not whatever is current: this runs from
+  -- the picker's on_show, when the current window is the picker's own float.
+  local base
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(w).relative == "" then base = w; break end
+  end
+  local created
+  vim.api.nvim_win_call(base or 0, function()
+    vim.cmd("belowright split")
+    created = vim.api.nvim_get_current_win()
+  end)
+  return created
+end
+
 --- Returns win if it is still a usable jump target in the current tab.
 local function resolve_win(win)
   if not win or not vim.api.nvim_win_is_valid(win) then return nil end
@@ -181,7 +211,7 @@ function M.focus_editor()
     local origin = resolve_win(vim.t.editor_win_origin)
     if origin == cur then origin = nil end
     -- Nothing recorded yet (the key was first pressed inside the editor), so
-    -- behave like <leader>ww and hand focus to the previous window.
+    -- behave like `sw` and hand focus to the previous window.
     if not origin then
       local prev = resolve_win(vim.fn.win_getid(vim.fn.winnr('#')))
       if prev ~= cur then origin = prev end

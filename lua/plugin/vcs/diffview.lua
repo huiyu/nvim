@@ -62,7 +62,7 @@ return {
     -- buffers, so diffview's own keymap hook is the only place these
     -- buffer-local overrides can land. `nowait` makes the override fire
     -- immediately — without it Vim keeps waiting for the longer global maps,
-    -- so a fast `<leader>ff` would still reach the picker and break the view.
+    -- so a fast `;f` would still reach the picker and break the view.
     local function blocked(key)
       return function()
         vim.notify(
@@ -73,7 +73,10 @@ return {
       end
     end
     local blocks = {}
-    for _, key in ipairs({ "<leader>f", "<leader><space>", "<leader>.", "<leader>/", "<leader>," }) do
+    -- The file openers now live on the `;` prefix (lua/plugin/editor/snacks.lua),
+    -- so that is what has to be blocked here; the old <leader> spellings are gone.
+    -- `;` opens files, `s` opens splits; neither survives diffview's layout.
+    for _, key in ipairs({ ";", "s" }) do
       blocks[#blocks + 1] = { "n", key, blocked(key), { desc = "Disabled in Diffview", nowait = true } }
     end
 

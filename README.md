@@ -16,7 +16,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 **Optional (feature-specific):**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg` (project) / `<leader>gf` (file history)
 - **[tmux](https://github.com/tmux/tmux)** — wraps the selected native-agent TUI inside `:terminal` to prevent stale or torn frames; auto-detected (see [Terminal Integration](#terminal-integration))
-- **[GitHub CLI](https://cli.github.com/)** — authenticated `gh` for `<leader>gh` GitHub pickers and status
+- **[GitHub CLI](https://cli.github.com/)** — authenticated `gh` for `<leader>G` GitHub pickers and status
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** or **[Codex](https://developers.openai.com/codex/cli/)** — selected native coding agent
 - **Node.js >= 22 + npm** — CodeCompanion ACP bridge processes
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — optional; selected provider's CodeCompanion HTTP inline/command prompts
@@ -85,9 +85,10 @@ nvim
 │   │   ├── ui/               # UI and theme plugins
 │   │   └── vcs/              # Git integration
 │   └── util/                 # Utility modules
+├── .github/workflows/       # CI: spec suite + both provider startups
 ├── scripts/                 # $EDITOR wrapper for the agent TUIs
 ├── tests/                   # Headless spec suite (tests/run.sh)
-└── docs/                     # DIAGNOSTICS.md, UTILITIES.md
+└── docs/                     # MANUAL.md, DIAGNOSTICS.md, UTILITIES.md
 ```
 
 ### Plugins
@@ -98,6 +99,7 @@ nvim
 |--------|-------------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
 | [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line |
+| [incline](https://github.com/b0o/incline.nvim) | Per-window filename label, on every window but the focused one |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick |
 | [noice](https://github.com/folke/noice.nvim) | Enhanced cmdline, messages, notifications |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
@@ -118,16 +120,18 @@ nvim
 | [snacks](https://github.com/folke/snacks.nvim) | Picker (fuzzy finder), dashboard, file explorer, terminal, indent guides, smooth scroll, notifications, rename |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
-| [harpoon](https://github.com/ThePrimeagen/harpoon) | Quick file navigation (`<leader>1-9`) |
+| [harpoon](https://github.com/ThePrimeagen/harpoon) | Pinned-file jumps (`;1`-`;9`, `;h` menu) |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank history ring |
 | [dial](https://github.com/monaqa/dial.nvim) | Enhanced increment/decrement (booleans, dates, etc.) |
 | [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | Extract function/variable, inline |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | Enhanced text objects |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | Toggle single-line/multi-line (`gS`) |
+| [mini.bracketed](https://github.com/echasnovski/mini.bracketed) | Extra `[`/`]` motions on the suffixes this config leaves free (`x` conflict, `i` indent, `c` comment, `j` jump, `o` oldfile, `u` undo) |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | Surround manipulation |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | Auto-close pairs |
 | [persistence](https://github.com/folke/persistence.nvim) | Session management |
 | [guess-indent](https://github.com/NMAC427/guess-indent.nvim) | Auto-detect indentation |
+| [oil](https://github.com/stevearc/oil.nvim) | Edit a directory as a buffer: rename, move (`dd`/`p`) and create files as text. `-` for the parent directory, `;o` for a float |
 
 #### LSP & Development
 
@@ -143,6 +147,7 @@ nvim
 | [neogen](https://github.com/danymat/neogen) | Generate annotations/docstrings |
 | [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema validation |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua development (type completion) |
+| [inc-rename](https://github.com/smjonas/inc-rename.nvim) | LSP rename with live preview, on `grn` / `,r` |
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code integration (Claude provider only) |
 | [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | Provider-aware ACP chat plus HTTP inline/command prompts |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | Auto-saved, project-aware CodeCompanion chat history |
@@ -194,167 +199,70 @@ brew install --cask skim            # PDF viewer with SyncTeX
 - `<localleader>lt` (`\lt`) — table of contents; `\lk` clean, `\le` errors
 - Save the file to auto-format with `latexindent` (toggle with `<leader>uf`)
 
-The same actions are mirrored under the **`<leader>c` (Code)** group for which-key discoverability:
+The everyday actions are also on `<localleader>` directly, one key shorter, and show up in the `\` which-key popup:
 
 | Key | Action |
 |-----|--------|
-| `<leader>cb` | Compile (toggle continuous) |
-| `<leader>cv` | View PDF in Skim |
-| `<leader>cs` | Stop compilation |
-| `<leader>ck` | Clean aux files |
-| `<leader>ct` | Toggle table of contents |
-| `<leader>ce` | Show error list |
-| `<leader>cx` | One-shot `latexmk` build to PDF |
+| `\b` | Compile (toggle continuous) |
+| `\v` | View PDF in Skim |
+| `\s` | Stop compilation |
+| `\k` | Clean aux files |
+| `\t` | Toggle table of contents |
+| `\e` | Show error list |
+| `,x` | One-shot `latexmk` build to PDF (the generic "run this file" key) |
 
 TeX buffers also enable soft `wrap` and `spell` by default (toggle with `<leader>uw` / `<leader>us`).
 
-### Keybinding Reference
+### Keybindings
 
-**Leader**: `Space` | **Local leader**: `\` | **Keybinding guide**: `<leader>?`
+**Leader**: `Space` · **Local leader**: `\` · **Cheat sheet**: `<leader>?`
 
-#### Which Prefix? (Intent → Key)
+Every key answers one question, and the prefix says which:
 
-One design rule governs everything: **the more frequent the action, the faster the prefix**. Modifier chords (`Ctrl`/`Shift`/`Alt`) are instant muscle memory; sequence prefixes (`g`, `[`/`]`, `z`) move the cursor; `<leader>` is the command palette — slowest, but which-key has your back.
+| Prefix | Question | Examples |
+|--------|----------|----------|
+| `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;1`-`;9` pinned files |
+| `,` | What do I do to this code? | `,a` code action, `,f` format, `,r` rename, `,j`/`,k` move line, `,e*` extract |
+| `s` | What about this window? | `ss`/`sv` split, `sd` close, `se` editor window, `s=` equalize |
+| `\` | What does *this filetype* offer? | `\o` organize imports (Go/Python), VimTeX, diffview |
+| `<leader>` | Everything else, by domain | `g` git, `G` GitHub, `d` debug, `t` test, `a` AI, `x` diagnostics, `m` manage, `s` session, `y` yank, `u` toggles, `b` buffer, `q` quit |
 
-Start from what you want to do:
+Frequency decides depth: what you reach for constantly is two keys, the rest
+lives under `<leader>`. Press any prefix and wait — which-key lists what is
+there, generated from the config itself.
 
-| I want to… | Use | Examples |
-|------------|-----|----------|
-| Run a command / manage things | `<leader>` + domain letter | `<leader>gs` git status, `<leader>bd` delete buffer, `<leader>ca` code action |
-| Step to the next/prev one of something | `]` / `[` + kind | `]d` diagnostic, `]h` hunk, `]b` buffer — repeat to iterate |
-| Jump to something about the symbol under cursor | `g` | `gd` definition, `gr` references, `gI` implementation — one shot |
-| Do an instant, every-minute action | `Ctrl` | `<C-h/j/k/l>` windows, `<C-/>` terminal |
-| Cycle through the bufferline | `Shift` | `<S-h>` / `<S-l>` |
-| Move something (not the cursor) | `Alt` | `<A-j>` / `<A-k>` move line |
-| Fly to any spot I can see | `s` | Flash jump: `s` + 2 chars + label |
-
-Mnemonic: **Space commands, brackets step, g resolves, Ctrl acts, Shift cycles, Alt moves, s flies.**
-
-Two distinctions worth training deliberately:
-
-- **`]d` vs `gd`** — brackets answer *"where is the next one from here?"* (position-based, repeatable); `g` answers *"where is THE definition of this?"* (semantic, lands in one jump).
-- **`<S-h>` is literally `H`** — it shadows native `H`/`L` (jump to top/bottom of visible screen). Deliberate trade: buffer switching is far more frequent, and `gg`/`G`/relative jumps cover the loss (`M` is untouched).
-
-#### Trigger Key Prefixes
-
-Press any prefix and wait for which-key popup to see available keys.
-
-| Prefix | Category |
-|--------|----------|
-| `<leader>` | Main command palette (all groups below) |
-| `g` | Goto / LSP (`gd` definition, `gr` references, `K` hover, `gI` impl, `gy` type def, `gD` declaration, `gK` signature, `gS` splitjoin) |
-| `s` / `S` | Flash jump / Treesitter jump |
-| `[` / `]` | Prev / Next navigation (`b` buffer, `d` diagnostic, `e` error, `w` warning, `h` hunk, `q` quickfix, `t` todo, `y` yank, `B` move buffer) |
-| `z` | Folds / Spelling (`zR` open all, `zM` close all, `zK` peek) |
-| `<C-w>` | Window operations |
-
-#### Top-level Shortcuts
+Unprefixed keys worth knowing:
 
 | Key | Action |
 |-----|--------|
-| `<Esc>` | Clear search highlight |
-| `<C-/>` | Toggle terminal |
-| `<C-h/j/k/l>` | Window navigation (Normal + terminal input) |
-| `<C-\>` | Go to the editor window; press again to return (Normal + terminal input) |
-| `<C-S-l>` | Redraw the active TUI (terminal input) |
-| `<C-Up/Down/Left/Right>` | Window resize |
-| `<A-j>` / `<A-k>` | Move line up/down (n, i, v) |
-| `<S-h>` / `<S-l>` | Prev / Next buffer |
-| `<leader><space>` | Smart find (buffers + recent + files, all filtered to cwd, frecency-boosted) |
-| `<leader>.` | Find file in cwd (incl. hidden + gitignored; heavy build/dep dirs excluded) |
-| `<leader>/` | Search project grep (incl. hidden + gitignored; heavy build/dep dirs excluded) |
-| `<leader>,` | Buffers |
-| `<leader>:` | Command history |
-| `<leader>'` | Resume last picker |
-| `<leader>\`` | Last buffer (alternate) |
-| `<leader>?` | Keybinding guide |
-| `<leader>l` | Lazy (plugin manager) |
-| `<leader>n` | Notification history |
-| `<leader>e` / `<leader>E` | File tree / File explorer |
-| `<leader>-` / `<leader>\|` | Split below / right |
-| `<leader>1-9` | Harpoon: jump to file 1-9 |
-| `<leader>h` / `<leader>H` | Harpoon quick menu / add file |
-| `<leader>p` | Yank history — see [Yanky](#yanky-enhanced-yankpaste) |
+| `f` / `F` | Flash jump / Treesitter jump (Normal + Visual; `df-`, `ct)` stay native) |
+| `<C-h/j/k/l>` | Move between windows — works from terminal input too |
+| `<C-,>` | Jump to the editor area, press again to return |
+| `<C-/>` · `<C-1>`-`<C-9>` | Toggle terminal · jump to terminal 1-9 |
+| `<S-h>` / `<S-l>` · `<Tab>` / `<S-Tab>` | Previous / next buffer |
+| `g` · `[` / `]` · `z` | Goto+LSP · prev/next thing · folds and spelling |
+| `-` | Open the current directory in oil (edit it as text) |
+| `jk` · `<C-]>` | Leave Insert / terminal input |
 
-#### Leader Groups
-
-| Group | Key | Description |
-|-------|-----|-------------|
-| Find/Files | `<leader>f` | `ff` files in cwd, `fF` from buffer dir, `fd` browse directory, `fe` explorer (with ignored), `fr` recent, `fb` buffers, `fg` git files, `fp` projects, `fc` nvim config, `fn` new, `fs/fS` save/save-as, `fR` rename, `fD` delete, `fy/fY` yank path (abs/project), `ft/fT` terminal |
-| Search | `<leader>s` | `sb` buffer, `sB` open buffers, `sd` current dir, `sp` project, `sw` word, `ss/sS` symbols (buffer/workspace), `sR` resume, `sh` help, `sk` keymaps, `sm` marks, `sj` jumps, `sc/sC` cmd history/cmds, `s"` registers, `sM` man, `sr/sW` replace, `st/sT` todos, `sn{a,d,h,l,t}` noice (all/dismiss/history/last/pick) |
-| Code | `<leader>c` | `ca` action, `cr` rename, `cf` format, `cd` diagnostics, `cm` Mason, `cl` LSP info, `cL` restart LSP, `cn` generate annotations, `co` organize imports, `cO` outline, `cs/cS` symbols (buffer/workspace), `cv` select venv (py), `cp` markdown preview (md), `cP` browse cwd markdown → preview, `cx` run current file (by filetype: go/c/cpp/py/js/ts/sh), `cR` rebuild gopls index (go) |
-| Buffer | `<leader>b` | `bd` delete, `bo` delete others, `bD` delete+window, `bl/br` delete left/right, `bj` pick, `bp` pin, `bP` close unpinned |
-| Debug | `<leader>d` | `db/dB` breakpoint/conditional, `dc/da` continue/with-args, `dC` run to cursor, `dg` goto line, `di` step into, `do` step out, `dO` step over, `dj/dk` down/up frame, `dP` pause, `dr` REPL, `ds` session, `dw` widgets, `dt` terminate, `dl` run last |
-| Git | `<leader>g` | `gs` status, `gb` branches, `gc/gC` commits, `gl/gL` blame, `gp` preview, `gr/gR` reset, `gS` stage/unstage, `gT` toggle line blame, `gd` diff, `gv` diffview, `gm` diff main, `gM` diff pick ref, `gV` file history, `gH` git log, `gh*` GitHub |
-| Test | `<leader>T` | `Tm` test method, `Td` debug method, `Tf` test file, `TS` summary, `To` output, `TD/Th` show/hide diagnostic |
-| Move | `<leader>m` | `mj`/`mk` move the line or selection, `mh`/`ml` dedent/indent; then bare `h`/`j`/`k`/`l` keep going, mixing freely |
-| Terminal | `<leader>t` | `t1-9` switch to a dedicated terminal (never closes), `td` fix agent TUI drift, `tx` close terminal buffer. `<C-/>` is the open/close toggle |
-| Toggle/UI | `<leader>u` | `uf/uF` autoformat, `us` spell, `uw` wrap, `ul/uL` numbers, `ud` diagnostics, `uh` inlay hints, `uT` treesitter, `uc` conceal, `ub` background, `un` dismiss notifs, `uR` markdown render |
-| Diagnostics | `<leader>x` | `xx/xX` diagnostics (project/buffer), `xL/xQ` loclist/quickfix picker, `xl/xq` toggle loclist/quickfix window, `xt/xT` todos |
-| Refactor | `<leader>r` | `rf` extract function, `rF` extract function to file, `rx` extract variable, `ri` inline, `rb` extract block, `rB` extract block to file, `rs` select |
-| AI | `<leader>a` | Native: `ac` toggle, `af` focus, `ar` resume picker, `aR` continue last, `am` model, `ab` add buffer, `as` attach selection (v), `ai` compose prompt (n/v), `at` read transcript, `aT` session history. Claude-only: `aS`, `aa/ad`. CodeCompanion: `ap{c,t,a,i,b,h}` chat/toggle/actions/inline/add selection/history |
-| Window | `<leader>w` | `ww` other window, `wd` delete, `wo` close others, `w=` equalize, `wm` zoom |
-| Quit/Session | `<leader>q` | `qq/qQ` quit (works from inside an agent panel, where a bare `:qall` does not), `qs` save session, `ql` load last, `q.` load current |
-| Tab | `<leader><tab>` | `<tab><tab>` new, `d` close, `]/[` next/prev, `` ` `` last used (alternate), `l/f` rightmost/first, `o` close others, `s` list all |
-
-#### GitHub (`<leader>gh`)
-
-| Key | Action |
-|-----|--------|
-| `f` / `F` | Open the current file/visual lines on its branch / as a commit permalink |
-| `r` | Open the repository home page |
-| `i` / `I` | Open issues / all issues in the Snacks GitHub picker |
-| `p` / `P` | Open pull requests / all pull requests in the Snacks GitHub picker |
-| `c` | Show the current branch PR and its available actions |
-| `a` | Open the repository's GitHub Actions page |
-| `n` | Open GitHub notifications |
-| `s` | Show account-wide `gh status` in a floating window |
-
-Issue and PR mutations are intentionally not assigned global mappings. In a
-Snacks GitHub picker, press `<cr>` to choose an action such as opening details,
-commenting, reviewing, or merging. These mappings require an authenticated
-GitHub CLI (`gh auth status`); `:checkhealth config` reports whether it is found.
-
-#### Diffview (in-view keys)
-
-Launch keys live in the Git group (`<leader>gv/gm/gM/gV/gH`). Once inside a diff view these buffer-local keys apply — press `g?` for the full context-sensitive help:
-
-| Key | Action |
-|-----|--------|
-| `<tab>` / `<s-tab>` | Next / previous file's diff |
-| `[F` / `]F` | First / last file |
-| `\e` / `\b` (`<localleader>`) | Focus / toggle the file panel |
-| `gf` | Open the file in the previous tabpage |
-| `<C-w><C-f>` / `<C-w>gf` | Open the file in a split / new tab |
-| `g<C-x>` | Cycle diff layout |
-| `-` / `s`, `S` / `U` | (file panel) stage/unstage entry, stage/unstage all |
-| `X` | (file panel) restore entry to the left side |
-| `i` / `f` | (file panel) toggle list/tree, flatten empty dirs |
-| `L` | (file panel) open commit log |
-| `[x` / `]x` | Previous / next merge conflict |
-| `\c{o,t,b,a}` | Resolve conflict: ours / theirs / base / all (uppercase = whole file) |
-| `dx` | Delete the conflict region |
-| `y` | (file history) copy the commit hash |
-
-**Inside Diffview, `<leader>` keeps its global meaning** — the Buffer, Explorer, and Code groups work exactly as the which-key popup advertises, and diffview's own view-local actions live on `<localleader>` (`\`) instead. The one exception: the file/buffer openers `<leader>f`, `<leader><space>`, `<leader>.`, `<leader>/`, `<leader>,` would load a file into a diff window and break the layout, so they are neutralized (with `nowait`, so a fast `<leader>ff` can't slip through) and show a hint instead (exit with `<leader>gq` first). Configured in `lua/plugin/vcs/diffview.lua`.
-
-#### Yanky (Enhanced Yank/Paste)
-
-| Key | Action |
-|-----|--------|
-| `y` / `p` / `P` | Yank / Put (with history) |
-| `[y` / `]y` | Cycle through yank history |
-| `<leader>p` | Open yank history (`:YankyRingHistory` via snacks ui-select) |
-| `<leader>y` (v) | Yank selection to unnamed register |
-| `<leader>Y` (v) | Yank selection to system clipboard (`+`) |
+**→ [docs/MANUAL.md](docs/MANUAL.md) walks through all of it**, including a Vim
+primer if you are new to modal editing.
 
 ### Terminal Integration
 
 Native coding-agent terminals no longer resize automatically when entering
 Terminal-mode, so moving into one with `<C-h/j/k/l>` does not produce a one-row
-flash. If a TUI drifts, exit terminal input with `jk` and use
+flash. If a TUI drifts, exit terminal input with `<C-]>` (or `jk`) and use
 `<leader>td` to repair it. Opening a numbered bottom terminal still repairs the
 visible agent after the layout changes.
+
+`<C-]>` is the uniform, input-method-safe exit key: in Editor Insert mode it
+acts as `<Esc>`; in every terminal, including Claude/Codex panels, it reaches
+terminal-Normal without sending the chord to the child process. Repeating it in
+Normal mode remains a harmless Escape instead of invoking Nvim's native tag
+jump, so it never turns the word under the cursor into an `E426` lookup.
+`help` and `man` buffers keep the builtin tag jump, since `<C-]>` is how they
+follow a link and they have no second key for it; `<Esc>` and `<C-\>` still
+clear the search highlight there.
 
 `<C-h/j/k/l>` is owned by Neovim in both Normal and terminal-input mode, so it
 can move directly between editor and terminal windows. This replaces the TUI's
@@ -365,18 +273,23 @@ key is a no-op that keeps terminal input active, and a floating terminal
 (lazygit, a float-shaped `<C-/>` shell) counts as all edges — otherwise a
 shell's own `<C-h>` or `<C-l>` would jump out from under the float.
 
-`<C-\>` is owned by Neovim in the same two modes and jumps straight to the
-editor window, so a tree-plus-agent layout no longer needs three `<C-h>` hops to
-cross back to the middle. Pressing it again from the editor returns to the
-window it came from. It targets the widest normal file window, or the one the
-cursor last sat in when several are open, and the dashboard counts as an editor
-window. This shadows terminal-mode `<C-\><C-n>`; use `jk` to reach
-terminal-Normal mode.
+Because `<C-\>` sits beside `<C-]>`, it performs the same safe Escape in Normal,
+Insert, Visual, and terminal-input modes. Repeated presses remain harmless in
+Normal mode, so either adjacent chord can be used without an accidental window
+jump.
+
+`<C-,>` jumps directly from terminal input or a sidebar to the editor window.
+Pressing it from the editor returns to the source window. It relies on the
+extended-key protocol negotiated by Ghostty and Nvim to remain distinct from a
+plain comma; an outer tmux must have `extended-keys` enabled. Where that
+protocol is unavailable — a bare Terminal.app, an ssh session, an older tmux —
+`se` does the same jump with plain keys.
 
 Inside an agent panel, `<Esc>` belongs to the agent, not to Nvim. Both CLIs read
 a quick double Esc as "go back a message", so neither Snacks' double-tap nor the
-global `<Esc><Esc>` applies there; `jk` and `<C-\>` are the way out of
-Terminal-mode. Ordinary `:terminal` buffers keep `<Esc><Esc>`.
+global `<Esc><Esc>` applies there. `<C-]>` or the adjacent `<C-\>` reaches
+terminal-Normal, `jk` does the same without a modifier, and `<C-,>` jumps
+straight back to the editor. Ordinary `:terminal` buffers keep `<Esc><Esc>`.
 
 A click inside an agent panel also stays in terminal-input mode. Nvim only hands
 a mouse event to the terminal job when that job asked for mouse reporting, and
@@ -576,19 +489,42 @@ misalignment in box-bordered UI.
 
 **Tip — suppress the recap CJK box**: Claude Code's session recap is the most visible CJK width offender. Set `"awaySummaryEnabled": false` in `~/.claude/settings.json` to suppress it. This is Claude Code's global config, not nvim's.
 
+#### macOS input method
+
+When `macism` is available, Nvim keeps Normal and Terminal-Normal modes on the
+detected Latin keyboard layout. Entering Insert or terminal-input mode
+restores the input source that was active before leaving it; leaving those modes
+captures the current source before switching back to English. This preserves
+both cases: English stays English, while Sogou/Apple Pinyin is restored after
+returning to text entry.
+
+The Normal-mode layout comes from `NVIM_ENGLISH_INPUT_SOURCE`, falling back to
+an enabled macOS keyboard layout — a Latin one in preference to whatever the
+system lists first — and then to the last-used layout.
+There are deliberately no `FocusGained`/`FocusLost` hooks, so moving between
+Nvim and another application does not rewrite the other application's
+input-source state.
+
+`NVIM_MACISM_WAIT_TIME_MS=0` disables macism's temporary focus window and its
+visible Ghostty focus flash. This trades away macism's CJK activation workaround
+and may let the first characters through as English on macOS 26; leave the
+variable unset to use macism's built-in wait (currently 150ms).
+
 ### Configuration
 
 Set these in `init.lua` before plugins load.
 
 | Option | Description |
 |--------|-------------|
-| `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where `<leader>t1`-`t9` open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
+| `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where `<C-1>`-`<C-9>` open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `NVIM_AI_PROVIDER` | `claude` (default) or `codex`; selects the native agent, CodeCompanion ACP Chat, and HTTP inline adapter for this Nvim process |
+| `NVIM_ENGLISH_INPUT_SOURCE` | macOS input-source ID used in Normal mode; falls back to an enabled keyboard layout reported by macOS, preferring a Latin one |
+| `NVIM_MACISM_WAIT_TIME_MS` | Optional macism CJK workaround wait; `0` removes the temporary focus window at the cost of possible first-character races |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold: `DEBUG`/`INFO`/`WARN`/`ERROR` (default `WARN`) |
 | `NVIM_DEV=1` | Sets `util.logger` to `DEBUG` (verbose logging) |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — override default Claude Code tmux wrap. Default on. See [native-agent tmux wrappers](#native-agent-tmux-wrappers). |

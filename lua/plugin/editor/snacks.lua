@@ -140,59 +140,43 @@ return {
   "folke/snacks.nvim",
   lazy = false,
   keys = {
-    -- ── Top-level shortcuts (Doom-style) ────────────────────────────────
-    -- <space> = smart picker (buffers + recent + files, frecency-boosted),
-    --           filtered to cwd so all three sources stay within the project.
-    -- . = pure file find in cwd, / = search project
-    { "<leader><space>", function() Snacks.picker.smart({ filter = { cwd = true } }) end,                  desc = "Smart find (buffers/recent/files, cwd-only)" },
-    { "<leader>.",       function() Snacks.picker.files() end,                                             desc = "Find file in cwd" },
-    { "<leader>/",       function() Snacks.picker.grep() end,                                              desc = "Search project" },
-    { "<leader>,",       function() Snacks.picker.buffers() end,                                           desc = "Buffers" },
-    { "<leader>:",       function() Snacks.picker.command_history() end,                                   desc = "Command history" },
-    { "<leader>'",       function() Snacks.picker.resume() end,                                            desc = "Resume last picker" },
+    -- ── `;` — go to a file ──────────────────────────────────────────────
+    -- One prefix, one question: "which file do I want to be in?" Everything
+    -- that answers it lives here at two keys, so reaching a file never costs
+    -- three. `;` itself stays unmapped, so the builtin repeat-f/t still runs
+    -- after 'timeoutlen' -- and flash owns the character motions here anyway.
+    --
+    -- What deliberately stays out: acting *on* a file (create, rename, delete,
+    -- yank its path) is <leader>f, and it is low-frequency by nature.
+    { ";<space>", function() Snacks.picker.smart({ filter = { cwd = true } }) end,                  desc = "Smart find (buffers/recent/files, cwd-only)" },
+    { ";;",       function() Snacks.picker.resume() end,                                            desc = "Resume last picker" },
+    { ";f",       function() Snacks.picker.files() end,                                             desc = "Find file in cwd" },
+    { ";F",       function() Snacks.picker.files({ cwd = vim.fn.expand("%:p:h") }) end,             desc = "Find file from here (buffer dir)" },
+    { ";r",       function() Snacks.picker.recent({ filter = { cwd = true } }) end,                 desc = "Recent files" },
+    { ";b",       function() Snacks.picker.buffers() end,                                           desc = "Buffers" },
+    { ";g",       function() Snacks.picker.git_files() end,                                         desc = "Git files" },
+    { ";n",       function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end,           desc = "Find file in nvim config" },
+    -- "Who calls this?" -- the question `gr` (all references) answers too
+    -- loosely, since it also returns the definition and same-named strings.
+    { ";c",       function() Snacks.picker.lsp_incoming_calls() end,                                desc = "LSP incoming calls" },
+    { ";p",       function() Snacks.picker.projects() end,                                          desc = "Switch project" },
+    { ";d",       function() Snacks.explorer({ cwd = vim.fn.expand("%:p:h"), focus = "list" }) end, desc = "Browse directory" },
+    { ";/",       function() Snacks.picker.grep() end,                                              desc = "Search project" },
+    { ";w",       function() Snacks.picker.grep_word() end,                                         desc = "Search word under cursor", mode = { "n", "x" } },
+    -- Symbols and in-file matches answer the same question as the file
+    -- pickers above -- "where do I need to be?" -- so they share the prefix.
+    { ";s",       function() Snacks.picker.lsp_symbols() end,                                       desc = "Symbol in buffer" },
+    { ";S",       function() Snacks.picker.lsp_workspace_symbols() end,                             desc = "Symbol in workspace" },
+    { ";l",       function() Snacks.picker.lines() end,                                             desc = "Lines in this buffer" },
+    { ";D",       function() Snacks.picker.grep({ cwd = vim.fn.expand("%:p:h") }) end,              desc = "Search current directory" },
+    { ";j",       function() Snacks.picker.jumps() end,                                             desc = "Jumps" },
+    { ";m",       function() Snacks.picker.marks() end,                                             desc = "Marks" },
 
-    -- ── <leader>f — File ────────────────────────────────────────────────
-    { "<leader>ff",      function() Snacks.picker.files() end,                                             desc = "Find file in cwd" },
-    { "<leader>fF",      function() Snacks.picker.files({ cwd = vim.fn.expand("%:p:h") }) end,             desc = "Find file from here (buffer dir)" },
-    { "<leader>fd",      function() Snacks.explorer({ cwd = vim.fn.expand("%:p:h"), focus = "list" }) end, desc = "Find directory (browse)" },
-    { "<leader>fr",      function() Snacks.picker.recent({ filter = { cwd = true } }) end,                 desc = "Recent files" },
-    { "<leader>fb",      function() Snacks.picker.buffers() end,                                           desc = "Buffers" },
-    { "<leader>fg",      function() Snacks.picker.git_files() end,                                         desc = "Git files" },
-    { "<leader>fp",      function() Snacks.picker.projects() end,                                          desc = "Switch project" },
-    { "<leader>fc",      function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end,           desc = "Find file in nvim config" },
-    { "<leader>fn",      "<cmd>enew<cr>",                                                                  desc = "New file" },
-    { "<leader>fs",      "<cmd>w<cr>",                                                                     desc = "Save file" },
+    -- ── <leader>y — yank a path ─────────────────────────────────────────
+    -- Visual-mode <leader>yy/<leader>yc yank the selection (lua/mappings.lua);
+    -- these two yank the current file's path.
     {
-      "<leader>fS",
-      function()
-        vim.ui.input({ prompt = "Save as: ", default = vim.fn.expand("%:p"), completion = "file" }, function(name)
-          if name and name ~= "" then vim.cmd("saveas " .. vim.fn.fnameescape(name)) end
-        end)
-      end,
-      desc = "Save file as..."
-    },
-    { "<leader>fR", function() Snacks.rename.rename_file() end,                          desc = "Rename/move file" },
-    {
-      "<leader>fD",
-      function()
-        local path = vim.fn.expand("%:p")
-        if path == "" then
-          vim.notify("No file for current buffer", vim.log.levels.WARN); return
-        end
-        local modified = vim.bo.modified and "\nUnsaved buffer changes will be lost." or ""
-        if vim.fn.confirm("Delete '" .. path .. "'?" .. modified, "&Yes\n&No", 2) == 1 then
-          if vim.fn.delete(path) ~= 0 then
-            vim.notify("Failed to delete: " .. path, vim.log.levels.ERROR)
-            return
-          end
-          vim.cmd("bdelete!")
-          vim.notify("Deleted: " .. path)
-        end
-      end,
-      desc = "Delete this file"
-    },
-    {
-      "<leader>fy",
+      "<leader>ya",
       function()
         local path = vim.fn.expand("%:p")
         if path == "" then
@@ -204,7 +188,7 @@ return {
       desc = "Yank file path (absolute)"
     },
     {
-      "<leader>fY",
+      "<leader>yr",
       function()
         local path = vim.fn.expand("%:p")
         if path == "" then
@@ -217,27 +201,14 @@ return {
       end,
       desc = "Yank file path from project"
     },
-    { "<leader>ft", function() Snacks.terminal() end,                                    desc = "Terminal (root)" },
-    { "<leader>fT", function() Snacks.terminal(nil, { cwd = vim.uv.cwd() }) end,         desc = "Terminal (cwd)" },
-
     -- ── <leader>s — Search ──────────────────────────────────────────────
-    { "<leader>sb", function() Snacks.picker.lines() end,                                desc = "Search buffer" },
-    { "<leader>sB", function() Snacks.picker.grep_buffers() end,                         desc = "Search all open buffers" },
-    { "<leader>sd", function() Snacks.picker.grep({ cwd = vim.fn.expand("%:p:h") }) end, desc = "Search current directory" },
-    { "<leader>sp", function() Snacks.picker.grep() end,                                 desc = "Search project (cwd)" },
-    { "<leader>sw", function() Snacks.picker.grep_word() end,                            desc = "Word under cursor",       mode = { "n", "x" } },
-    { "<leader>ss", function() Snacks.picker.lsp_symbols() end,                          desc = "Symbol in buffer" },
-    { "<leader>sS", function() Snacks.picker.lsp_workspace_symbols() end,                desc = "Symbol in workspace" },
-    { "<leader>sR", function() Snacks.picker.resume() end,                               desc = "Resume" },
-    { "<leader>sh", function() Snacks.picker.help() end,                                 desc = "Help pages" },
-    { "<leader>sk", function() Snacks.picker.keymaps() end,                              desc = "Keymaps" },
-    { "<leader>sm", function() Snacks.picker.marks() end,                                desc = "Marks" },
-    { "<leader>sj", function() Snacks.picker.jumps() end,                                desc = "Jumps" },
-    { "<leader>sc", function() Snacks.picker.command_history() end,                      desc = "Command history" },
-    { "<leader>sC", function() Snacks.picker.commands() end,                             desc = "Commands" },
-    { '<leader>s"', function() Snacks.picker.registers() end,                            desc = "Registers" },
+    { "<leader>mh", function() Snacks.picker.help() end,                                 desc = "Help pages" },
+    { "<leader>mk", function() Snacks.picker.keymaps() end,                              desc = "Keymaps" },
+    { "<leader>mc", function() Snacks.picker.command_history() end,                      desc = "Command history" },
+    { "<leader>mC", function() Snacks.picker.commands() end,                             desc = "Commands" },
+    { '<leader>y"', function() Snacks.picker.registers() end,                            desc = "Registers" },
     {
-      "<leader>sM",
+      "<leader>mM",
       function()
         local name = vim.fn.input("Man: ")
         if name and name ~= "" then vim.cmd("Man " .. vim.fn.fnameescape(name)) end
@@ -246,8 +217,6 @@ return {
     },
 
     -- ── Code (LSP symbols) ──────────────────────────────────────────────
-    { "<leader>cs", function() Snacks.picker.lsp_symbols() end,           desc = "Document Symbols" },
-    { "<leader>cS", function() Snacks.picker.lsp_workspace_symbols() end, desc = "Workspace Symbols" },
 
     -- ── Diagnostics ─────────────────────────────────────────────────────
     { "<leader>xx", function() Snacks.picker.diagnostics() end,           desc = "Diagnostics" },
@@ -264,7 +233,7 @@ return {
 
     -- ── Explorer / misc snacks ──────────────────────────────────────────
     {
-      "<leader>e",
+      ";e",
       function()
         require("snacks").explorer({
           hidden = true,
@@ -275,21 +244,7 @@ return {
       mode = { "n", "v" },
     },
     {
-      "<leader>E",
-      function()
-        require("snacks").explorer({
-          hidden = true,
-          layout = { preset = "default" },
-          auto_close = true,
-          focus =
-          "list"
-        })
-      end,
-      desc = "File explorer",
-      mode = { "n", "v" }
-    },
-    {
-      "<leader>fe",
+      ";E",
       function()
         require("snacks").explorer({
           hidden = true,
@@ -305,7 +260,6 @@ return {
     },
     -- Notifications are handled by noice (snacks notifier is disabled), so these
     -- route to it. require("noice") loads the plugin on demand, like noice's own maps.
-    { "<leader>n",  function() require("noice").cmd("history") end, desc = "Notification history" },
     { "<leader>un", function() require("noice").cmd("dismiss") end, desc = "Dismiss notifications" },
     {
       "<leader>gg",
@@ -327,15 +281,22 @@ return {
     },
     { "<C-/>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
     { "<C-_>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
-    { "<leader>t1", function() require("util.terminal").focus(1) end, desc = "Terminal 1" },
-    { "<leader>t2", function() require("util.terminal").focus(2) end, desc = "Terminal 2" },
-    { "<leader>t3", function() require("util.terminal").focus(3) end, desc = "Terminal 3" },
-    { "<leader>t4", function() require("util.terminal").focus(4) end, desc = "Terminal 4" },
-    { "<leader>t5", function() require("util.terminal").focus(5) end, desc = "Terminal 5" },
-    { "<leader>t6", function() require("util.terminal").focus(6) end, desc = "Terminal 6" },
-    { "<leader>t7", function() require("util.terminal").focus(7) end, desc = "Terminal 7" },
-    { "<leader>t8", function() require("util.terminal").focus(8) end, desc = "Terminal 8" },
-    { "<leader>t9", function() require("util.terminal").focus(9) end, desc = "Terminal 9" },
+    -- Terminal switching, reachable from inside a terminal.
+    --
+    -- Bound in Terminal-mode as well as Normal, so hopping between terminals no
+    -- longer means leaving terminal input first. Ctrl digits need the
+    -- extended-key protocol -- Ghostty negotiates it, and tmux passes it through
+    -- with `extended-keys on` -- which this config already relies on for <C-,>.
+    -- There is no plain-key fallback; the old <leader>t1-9 was removed.
+    { "<C-1>", mode = { "n", "t" }, function() require("util.terminal").focus(1) end, desc = "Terminal 1" },
+    { "<C-2>", mode = { "n", "t" }, function() require("util.terminal").focus(2) end, desc = "Terminal 2" },
+    { "<C-3>", mode = { "n", "t" }, function() require("util.terminal").focus(3) end, desc = "Terminal 3" },
+    { "<C-4>", mode = { "n", "t" }, function() require("util.terminal").focus(4) end, desc = "Terminal 4" },
+    { "<C-5>", mode = { "n", "t" }, function() require("util.terminal").focus(5) end, desc = "Terminal 5" },
+    { "<C-6>", mode = { "n", "t" }, function() require("util.terminal").focus(6) end, desc = "Terminal 6" },
+    { "<C-7>", mode = { "n", "t" }, function() require("util.terminal").focus(7) end, desc = "Terminal 7" },
+    { "<C-8>", mode = { "n", "t" }, function() require("util.terminal").focus(8) end, desc = "Terminal 8" },
+    { "<C-9>", mode = { "n", "t" }, function() require("util.terminal").focus(9) end, desc = "Terminal 9" },
   },
   opts = {
     image = {
@@ -348,6 +309,18 @@ return {
     picker = {
       enabled = true,
       ui_select = true, -- replace vim.ui.select with snacks picker
+      -- Give the picker somewhere legitimate to put the file it opens.
+      --
+      -- snacks/picker/core/main.lua filters non-file buffers out of its target
+      -- search, but records a `non_float` fallback *before* that filter and
+      -- returns it when nothing qualifies. A tab holding only an oil listing
+      -- and an agent panel therefore gets the file dropped on top of one of
+      -- them, and no window variable prevents it -- the fallback is
+      -- unconditional. util.window.ensure_editor_win() splits instead, and is
+      -- a no-op whenever a real editor window already exists (the normal case).
+      on_show = function(picker)
+        picker.main = require("util.window").ensure_editor_win()
+      end,
       sources = {
         -- filename-first display: shorter, scannable in Java deep paths
         -- hidden: show dotfiles; ignored: also search gitignored files

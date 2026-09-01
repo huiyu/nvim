@@ -9,6 +9,10 @@ local cmd = vim.api.nvim_create_user_command
 local autocmd = vim.api.nvim_create_autocmd
 local augroup = vim.api.nvim_create_augroup
 
+-- On macOS, keep Normal mode on the detected keyboard layout and restore the
+-- previous input method in Insert and terminal-input modes.
+require("util.input_method").setup()
+
 --- Window Management Commands
 --- Custom commands for efficient window handling
 
@@ -103,6 +107,25 @@ autocmd("FileType", {
     vim.keymap.set("n", "q", "<cmd>close<cr>", {
       buffer = event.buf,
       silent = true,
+    })
+  end,
+})
+
+-- Give <C-]> back to the buffers that navigate with it.
+-- lua/mappings.lua takes the global Normal-mode <C-]> for a repeatable Escape,
+-- because input methods that swallow bare Esc leave no other way out. That
+-- trade is fine everywhere a tag jump is incidental, but `help` and `man` have
+-- no second key for following a link, so the builtin wins in those buffers.
+-- The Escape half is not lost with it: <Esc> and <C-\> still clear hlsearch.
+autocmd("FileType", {
+  group = augroup("tag_jump_filetypes", { clear = true }),
+  pattern = { "help", "man" },
+  callback = function(event)
+    vim.keymap.set("n", "<C-]>", "<C-]>", {
+      buffer = event.buf,
+      remap = false,
+      silent = true,
+      desc = "Follow tag under cursor",
     })
   end,
 })

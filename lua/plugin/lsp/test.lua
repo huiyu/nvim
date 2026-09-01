@@ -8,13 +8,13 @@ return {
       "nvim-treesitter/nvim-treesitter"
     },
     keys = {
-      { "<leader>Tm", function() require("neotest").run.run() end,                     desc = "Test current method",  mode = { "n", "v" } },
-      { "<leader>Td", function() require("neotest").run.run({ strategy = "dap" }) end, desc = "Debug current method", mode = { "n", "v" } },
-      { "<leader>Tf", function() require("neotest").run.run(vim.fn.expand("%")) end,   desc = "Test current file",    mode = { "n", "v" } },
-      { "<leader>TS", function() require("neotest").summary.toggle() end,              desc = "Toggle test summary",  mode = { "n", "v" } },
-      { "<leader>To", function() require("neotest").output.open() end,                 desc = "Toggle test output",   mode = { "n", "v" } },
-      { "<leader>TD", function() require("neotest").diagnostic.show() end,             desc = "Show test diagnostic", mode = { "n", "v" } },
-      { "<leader>Th", function() require("neotest").diagnostic.hide() end,             desc = "Hide test diagnostic", mode = { "n", "v" } },
+      { "<leader>tm", function() require("neotest").run.run() end,                     desc = "Test current method",  mode = { "n", "v" } },
+      { "<leader>td", function() require("neotest").run.run({ strategy = "dap" }) end, desc = "Debug current method", mode = { "n", "v" } },
+      { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end,   desc = "Test current file",    mode = { "n", "v" } },
+      { "<leader>tS", function() require("neotest").summary.toggle() end,              desc = "Toggle test summary",  mode = { "n", "v" } },
+      { "<leader>to", function() require("neotest").output.open() end,                 desc = "Toggle test output",   mode = { "n", "v" } },
+      { "<leader>tD", function() require("neotest").diagnostic.show() end,             desc = "Show test diagnostic", mode = { "n", "v" } },
+      { "<leader>th", function() require("neotest").diagnostic.hide() end,             desc = "Hide test diagnostic", mode = { "n", "v" } },
     },
     opts = {},
     config = function(_, opts)

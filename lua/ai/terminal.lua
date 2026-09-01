@@ -62,7 +62,7 @@ end
 -- Snacks' entry through `keys.term_normal = false` where each terminal is
 -- created, the global pair through the mapping below, which is a complete
 -- match and therefore wins over the longer global sequence without waiting out
--- 'timeoutlen'. `jk` and <C-\> still leave Terminal-mode.
+-- 'timeoutlen'. `jk`, <C-]>, and <C-\> still leave Terminal-mode.
 ---@param buf integer
 local function pass_esc_to_agent(buf)
   vim.keymap.set("t", "<Esc>", "<Esc>", {
