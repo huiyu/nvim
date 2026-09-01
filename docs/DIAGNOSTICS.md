@@ -150,7 +150,9 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 - Native Codex uses `--yolo`, bypassing Codex approvals and its built-in
   sandbox. It also uses `--no-alt-screen` so its wrapper tmux retains the
   transcript. In terminal-input mode, the mouse wheel or `<PageUp>` enters tmux
-  copy-mode; use `q` or `<Esc>` to return. Scroll keys pressed from
+  copy-mode; use `q` or `<Esc>` to return. Leaving terminal input and entering
+  it again through `i`, `a`, or any other input-mode transition also cancels
+  copy-mode and follows the live bottom. Scroll keys pressed from
   terminal-Normal mode are forwarded to tmux automatically. With
   `CODEX_WRAP_TMUX=0`, leave terminal input first and use Nvim's normal scroll
   commands.

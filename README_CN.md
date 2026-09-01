@@ -291,10 +291,12 @@ agent 启动失败时，面板会保留、把它自己的报错留在屏幕上�
 50000 行 history。真实 transcript 归 tmux 所有，Nvim 的终端 buffer 里只有 tmux
 最后合成的那一屏，所以滚动要走 tmux。保持 terminal-input 状态，以鼠标滚轮或
 `<PageUp>` 进入 tmux copy-mode；用滚轮或 `<PageDown>` 向下查看，按 `q` 或
-`<Esc>` 返回 agent 输入。如果已经处于 terminal-Normal mode，同样这些键（外加
-`<C-u>`/`<C-d>`）会转发给 tmux 并自动恢复 terminal input，因此下一次滚轮事件会
-直接落进 copy-mode。使用 `CLAUDE_WRAP_TMUX=0` 或 `CODEX_WRAP_TMUX=0` 时没有
-tmux 可用，请先按 `jk`，再使用 Nvim 的普通滚动命令。
+`<Esc>` 返回 agent 输入。也可以先退出 terminal input，再通过任意 Normal-mode
+入口键（`i`、`a`、`I`、`A` 等）重新进入；这会自动退出 copy-mode 并回到实时
+底部。如果已经处于 terminal-Normal mode，同一组滚动键（外加
+`<C-u>`/`<C-d>`）会转发给 tmux，并在不退出 copy-mode 的前提下恢复 terminal
+input，让下一次滚轮事件继续浏览历史。使用 `CLAUDE_WRAP_TMUX=0` 或
+`CODEX_WRAP_TMUX=0` 时没有 tmux 可用，请先按 `jk`，再使用 Nvim 的普通滚动命令。
 
 Nvim 内的 Codex 会使用 `--no-alt-screen --yolo`。YOLO 模式会绕过 Codex 的
 审批与内置沙箱；`--no-alt-screen` 则让已完成的聊天输出进入 wrapper 的 tmux

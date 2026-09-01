@@ -74,6 +74,29 @@ if vim.fn.executable("tmux") == 1 then
   for _, lhs in ipairs({ "<PageUp>", "<PageDown>", "<ScrollWheelUp>", "<C-u>", "<C-d>" }) do
     t.ok(buffer_local_n(lhs), "a wrapped panel forwards " .. lhs .. " into tmux history")
   end
+
+  local socket = "nvim-spec-" .. vim.fn.getpid()
+  local tmux = function(...)
+    local command = { "tmux", "-L", socket }
+    vim.list_extend(command, { ... })
+    return vim.system(command, { text = true }):wait()
+  end
+  local pane_in_mode = function()
+    return vim.trim(tmux("display-message", "-p", "-t", "main:", "#{pane_in_mode}").stdout or "")
+  end
+
+  t.ok(vim.wait(2000, function()
+    return tmux("display-message", "-p", "-t", "main:", "#{session_name}").code == 0
+  end, 10), "the wrapped tmux server is ready")
+  t.eq(tmux("copy-mode", "-u", "-t", "main:").code, 0,
+    "the wrapped panel can enter tmux copy-mode")
+  t.eq(pane_in_mode(), "1", "tmux reports that scrollback is active")
+  vim.b[wrapped].ai_preserve_scrollback_once = true
+  vim.api.nvim_exec_autocmds("TermEnter", { buffer = wrapped, modeline = false })
+  t.eq(pane_in_mode(), "1", "the scroll-forwarding TermEnter preserves copy-mode once")
+  vim.api.nvim_exec_autocmds("TermEnter", { buffer = wrapped, modeline = false })
+  t.ok(vim.wait(1000, function() return pane_in_mode() == "0" end, 10),
+    "manually resuming terminal input returns tmux to the live bottom")
   vim.fn.jobstop(vim.bo[wrapped].channel)
 end
 

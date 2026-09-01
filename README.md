@@ -310,11 +310,14 @@ tmux with `mouse on` and a 50000-line history. tmux owns the real transcript;
 Nvim's terminal buffer only holds the screenful tmux last composed, so scrolling
 goes through tmux. Stay in terminal-input mode and use the mouse wheel or
 `<PageUp>` to enter tmux copy-mode; scroll down with the wheel or `<PageDown>`,
-then press `q` or `<Esc>` to return to the agent's input. If you are already in
-terminal-Normal mode, the same keys -- plus `<C-u>`/`<C-d>` -- are forwarded to
-tmux and terminal input is restored automatically, so the next wheel event
-reaches copy-mode directly. With `CLAUDE_WRAP_TMUX=0` or `CODEX_WRAP_TMUX=0`
-there is no tmux to ask, so use `jk` and Nvim's normal scroll commands instead.
+then press `q` or `<Esc>` to return to the agent's input. Leaving terminal input
+and entering it again by any Normal-mode entry key (`i`, `a`, `I`, `A`, and so
+on) also exits copy-mode and snaps to the live bottom. If you are already in
+terminal-Normal mode, the same scroll keys -- plus `<C-u>`/`<C-d>` -- are
+forwarded to tmux and terminal input is restored without exiting copy-mode, so
+the next wheel event continues through the history. With `CLAUDE_WRAP_TMUX=0`
+or `CODEX_WRAP_TMUX=0` there is no tmux to ask, so use `jk` and Nvim's normal
+scroll commands instead.
 
 Codex runs with `--no-alt-screen --yolo` inside Nvim. YOLO mode bypasses Codex
 approvals and its built-in sandbox, while `--no-alt-screen` lets completed chat

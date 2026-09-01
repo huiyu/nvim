@@ -22,6 +22,40 @@ local function wrapped_in_tmux(buf)
   return type(cmd) == "string" and cmd:find("tmux", 1, true) ~= nil
 end
 
+---@param buf integer
+---@return string|nil
+local function tmux_socket(buf)
+  local info = vim.b[buf].snacks_terminal
+  local cmd = info and info.cmd
+  if type(cmd) == "table" then
+    for i, part in ipairs(cmd) do
+      if part == "-L" and cmd[i + 1] then return tostring(cmd[i + 1]) end
+    end
+    return nil
+  end
+  if type(cmd) ~= "string" then return nil end
+  return cmd:match("%-L%s+([%w._-]+)")
+end
+
+-- Re-entering terminal input means "resume talking to the live agent". If the
+-- wrapper tmux is still in copy-mode, merely running :startinsert leaves the
+-- old history frame on screen and sends subsequent keys to copy-mode instead
+-- of the TUI. Cancelling the mode returns the attached client to the live
+-- bottom without injecting a literal q/Esc into the agent.
+---@param buf integer
+local function follow_live_output(buf)
+  local socket = tmux_socket(buf)
+  if not socket or vim.fn.executable("tmux") ~= 1 then return end
+  -- Wait for the local tmux control command: if this were fire-and-forget, the
+  -- first character typed immediately after `i`/`a` could still land in
+  -- copy-mode before the cancellation process ran. A missing/closing wrapper
+  -- fails quickly and is harmless during panel startup or teardown.
+  vim.system(
+    { "tmux", "-L", socket, "copy-mode", "-q", "-t", "main:" },
+    { timeout = 250 }
+  ):wait()
+end
+
 -- Nvim only forwards a mouse event to the terminal job when the job asked for
 -- mouse reporting. An agent TUI never asks, so Nvim handles the click itself --
 -- and handling it means leaving Terminal-mode. Coming back to the window
@@ -98,6 +132,11 @@ local function forward_scrollback(buf)
       local channel = vim.bo[buf].channel
       if not channel or channel <= 0 then return end
       vim.api.nvim_chan_send(channel, sequence)
+      -- This startinsert is part of entering tmux copy-mode, not a request to
+      -- resume the live agent. Let exactly this TermEnter preserve scrollback;
+      -- a later manual or automatic terminal-input transition will cancel
+      -- copy-mode and follow the bottom as usual.
+      vim.b[buf].ai_preserve_scrollback_once = true
       -- Safe unconditionally: the mapping is buffer-local, so the terminal is
       -- the current buffer of the current window whenever it runs.
       vim.cmd.startinsert()
@@ -126,11 +165,24 @@ end
 ---per-backend alternative would need a callback threaded through
 ---claudecode.nvim's own terminal provider.
 function M.setup()
+  local group = vim.api.nvim_create_augroup("ai_terminal_input", { clear = true })
   vim.api.nvim_create_autocmd("TermOpen", {
-    group = vim.api.nvim_create_augroup("ai_terminal_input", { clear = true }),
+    group = group,
     callback = function(event)
       if require("util.terminal").is_agent_buf(event.buf) then M.attach(event.buf) end
     end,
+  })
+  vim.api.nvim_create_autocmd("TermEnter", {
+    group = group,
+    callback = function(event)
+      if not require("util.terminal").is_agent_buf(event.buf) or not wrapped_in_tmux(event.buf) then return end
+      if vim.b[event.buf].ai_preserve_scrollback_once then
+        vim.b[event.buf].ai_preserve_scrollback_once = nil
+        return
+      end
+      follow_live_output(event.buf)
+    end,
+    desc = "Return an AI tmux panel to live output when resuming input",
   })
 end
 
