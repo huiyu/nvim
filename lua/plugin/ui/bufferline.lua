@@ -5,12 +5,9 @@ return {
   keys = {
     { "<S-h>",      "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
     { "<S-l>",      "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
-    -- Tab cycles what the bufferline shows, which here is buffers. Tab pages
-    -- stay on <leader><tab>: they hold layouts (diffview opens one), not files,
-    -- so they are the rarer move. Inside diffview both keys are buffer-local
-    -- there ("next file in the diff"), which is the same idea on its own list.
-    { "<Tab>",      "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
-    { "<S-Tab>",    "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
+    -- Keep Tab available for its native <C-I> jumplist meaning in terminals
+    -- that cannot distinguish the two. Shift-H/L are the fast pair; [b/]b
+    -- retain the standard previous/next vocabulary and which-key discovery.
     { "[b",         "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
     { "]b",         "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
     { "[B",         "<cmd>BufferLineMovePrev<cr>",             desc = "Move buffer left" },

@@ -174,7 +174,6 @@ local spec = {
       "  ── Alt / Shift ──────────────────────────",
       "  (Alt belongs to tmux -- see huiyu/nvim#12)",
       "  <S-h> / <S-l>    Prev / Next buffer",
-      "  <Tab> / <S-Tab>  Next / Prev buffer (same pair)",
       "",
       "  ── Yanky ────────────────────────────────",
       "  y / p / P        Yank / Put (with history)",
@@ -230,7 +229,7 @@ local spec = {
   end, desc = "Keybinding guide", mode = "n" },
 
   -- Alternate file: toggle between this buffer and the last one *this window*
-  -- held. Distinct from cycling the buffer list (<S-h>/<S-l>, <Tab>) -- it is
+  -- held. Distinct from cycling the buffer list (<S-h>/<S-l>) -- it is
   -- two files ping-ponging, which is the impl/test loop. Lives on `;` because
   -- it answers the same question as the rest of that prefix, and `a` because
   -- the native <C-^> is Ctrl+Shift+6 on this keyboard.

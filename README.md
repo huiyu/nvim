@@ -239,7 +239,7 @@ Unprefixed keys worth knowing:
 | `<C-h/j/k/l>` | Move between windows — works from terminal input too |
 | `<C-,>` | Jump to the editor area, press again to return |
 | `<C-/>` · `<C-1>`-`<C-9>` | Toggle terminal · jump to terminal 1-9 |
-| `<S-h>` / `<S-l>` · `<Tab>` / `<S-Tab>` | Previous / next buffer |
+| `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
 | `g` · `[` / `]` · `z` | Goto+LSP · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
 | `jk` · `<C-]>` | Leave Insert / terminal input |
