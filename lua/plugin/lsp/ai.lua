@@ -1,5 +1,8 @@
 local ai_config = require("ai.config")
 
+-- One side effect of this: lazy.nvim writes lazy-lock.json from the specs it
+-- can see, so `:Lazy update` run from a Codex process drops claudecode.nvim's
+-- line. Update the lock under the Claude provider, or put the line back.
 if not ai_config.is("claude") then return {} end
 
 -- Whether to wrap claude in a dedicated tmux server when launching the

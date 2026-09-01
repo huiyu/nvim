@@ -108,7 +108,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - Neovim's built-in `gc`/`gcc` commenting is the default; do not reintroduce a
   comment plugin without a concrete missing capability.
 - Add or remove plugins through lazy.nvim specs and include the resulting
-  `lazy-lock.json` change.
+  `lazy-lock.json` change. Update the lock from a Claude-provider Nvim: a Codex
+  process has no `claudecode.nvim` spec, so lazy prunes that line from the lock.
 
 ## Documentation
 
