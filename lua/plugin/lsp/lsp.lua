@@ -107,7 +107,7 @@ return {
         end,
       })
 
-      -- Register LSP server configs via vim.lsp.config() (Neovim 0.11+ / mason-lspconfig v2).
+      -- Register LSP server configs via vim.lsp.config() (Neovim 0.11.3+ / mason-lspconfig v2).
       -- Re-enable after registering settings: mason-lspconfig's automatic_enable
       -- may have enabled the server earlier with empty config, so we re-enable
       -- here to make the just-registered settings actually take effect.

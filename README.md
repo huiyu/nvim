@@ -7,7 +7,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 ### Requirements
 
 **Required:**
-- **Neovim** >= 0.11.0 (uses `vim.lsp.config`/`vim.lsp.enable`, `vim.hl`, `vim.diagnostic.jump`)
+- **Neovim** >= 0.11.3 (uses `vim.lsp.config`/`vim.lsp.enable`, `vim.hl`, `vim.diagnostic.jump`)
 - **Git**
 - A [Nerd Font](https://www.nerdfonts.com/) for icon display
 - **ripgrep** (`rg`) — powers `Snacks.picker.grep` / `live_grep` / `:grep`

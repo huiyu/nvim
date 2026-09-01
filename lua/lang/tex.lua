@@ -53,6 +53,10 @@ vim.api.nvim_create_autocmd("FileType", {
 return {
   {
     "lervag/vimtex",
+    -- v2.18 is the last release before VimTeX raised its Neovim requirement
+    -- from 0.10 to 0.12.4. Keep the documented 0.11.3 floor honest instead of
+    -- disabling VimTeX's version guard and running an unsupported revision.
+    version = "v2.18",
     -- VimTeX recommends against lazy-loading: it owns its filetype detection and
     -- inverse-search needs the plugin live before the first PDF<->source sync.
     -- The startup cost is small (heavy autoload stays deferred until a tex buffer).
@@ -63,12 +67,6 @@ return {
       --   Preset:    Custom
       --   Command:   nvim
       --   Arguments: --headless -c "VimtexInverseSearch %line '%file'"
-      -- VimTeX refuses to load below nvim 0.12.4 and its ftplugin aborts with
-      -- `echoerr`, which breaks the whole FileType chain -- including the
-      -- <localleader> maps below, which silently never registered. This machine
-      -- runs 0.12.2. Skip the check until the floor is met; drop this line once
-      -- Neovim is upgraded.
-      vim.g.vimtex_version_check = 0
       vim.g.vimtex_view_method = "skim"
       vim.g.vimtex_view_skim_sync = 1     -- jump Skim to the cursor's line on view
       vim.g.vimtex_view_skim_activate = 1 -- bring Skim to the foreground on view

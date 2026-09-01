@@ -17,16 +17,21 @@ concurrency:
 
 jobs:
   specs:
+    strategy:
+      fail-fast: false
+      matrix:
+        neovim: [v0.11.3, stable]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      # 0.11+ is the floor this config checks for; ubuntu's apt neovim is older.
+      # Exercise both the advertised floor and the current stable release;
+      # ubuntu's apt Neovim is older than either.
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
-          version: stable
+          version: ${{ matrix.neovim }}
 
       # rg and fd back the pickers, tmux backs the agent terminal specs.
       - name: Install runtime dependencies

@@ -7,7 +7,7 @@
 ### 环境要求
 
 **必装：**
-- **Neovim** >= 0.11.0（用到 `vim.lsp.config`/`vim.lsp.enable`、`vim.hl`、`vim.diagnostic.jump`）
+- **Neovim** >= 0.11.3（用到 `vim.lsp.config`/`vim.lsp.enable`、`vim.hl`、`vim.diagnostic.jump`）
 - **Git**
 - [Nerd Font](https://www.nerdfonts.com/)（图标显示）
 - **ripgrep** (`rg`) — `Snacks.picker.grep` / `live_grep` / `:grep` 的底层
