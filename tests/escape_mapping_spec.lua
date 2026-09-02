@@ -23,9 +23,25 @@ end
 
 for _, lhs in ipairs({ "<C-]>", "<C-\\>" }) do
   local normal = mapping(lhs, "n")
-  t.ok(normal.rhs:find("nohlsearch", 1, true) ~= nil,
-    "repeated Normal-mode " .. lhs .. " stays a harmless Escape")
+  t.ok(type(normal.callback) == "function",
+    "Normal-mode " .. lhs .. " uses the input-source-aware Escape callback")
+  t.eq(normal.desc, "Escape with Normal input source",
+    "Normal-mode " .. lhs .. " documents its input-source behavior")
 end
+
+local input_method = require("util.input_method")
+local original_ensure = input_method.ensure_normal_source
+local source_requests = 0
+input_method.ensure_normal_source = function()
+  source_requests = source_requests + 1
+  return true
+end
+local mode_before = vim.api.nvim_get_mode().mode
+mapping("<C-\\>", "n").callback()
+input_method.ensure_normal_source = original_ensure
+t.eq(source_requests, 1, "the Normal Escape requests the Normal input source")
+t.eq(vim.api.nvim_get_mode().mode, mode_before,
+  "the Normal Escape does not change modes")
 
 -- `help` and `man` navigate with <C-]>, so the global Escape steps aside there.
 -- maparg reports the mapping of the *current* buffer, so the scratch buffer has
@@ -41,8 +57,8 @@ for _, ft in ipairs({ "help", "man" }) do
   t.eq(restored.rhs, "<C-]>", ft .. " follows the tag under the cursor")
   t.eq(restored.noremap, 1, ft .. " reaches the builtin, not the global Escape")
   -- The Escape half is not lost with the tag jump.
-  t.ok(mapping("<C-\\>", "n").rhs:find("nohlsearch", 1, true) ~= nil,
-    ft .. " keeps <C-\\> as the Escape that clears hlsearch")
+  t.ok(type(mapping("<C-\\>", "n").callback) == "function",
+    ft .. " keeps <C-\\> as the input-source-aware Escape")
 
   vim.api.nvim_set_current_buf(origin)
   vim.api.nvim_buf_delete(buf, { force = true })

@@ -242,7 +242,7 @@ Unprefixed keys worth knowing:
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
 | `g` · `[` / `]` · `z` | Goto+LSP · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
-| `jk` · `<C-]>` | Leave Insert / terminal input |
+| `jk` · `<C-]>` / `<C-\>` | Input-safe Escape; in Normal, use its input source |
 
 **→ [docs/MANUAL.md](docs/MANUAL.md) walks through all of it**, starting with the
 composition rules the keys are built on.
@@ -257,9 +257,10 @@ visible agent after the layout changes.
 
 `<C-]>` is the uniform, input-method-safe exit key: in Editor Insert mode it
 acts as `<Esc>`; in every terminal, including Claude/Codex panels, it reaches
-terminal-Normal without sending the chord to the child process. Repeating it in
-Normal mode remains a harmless Escape instead of invoking Nvim's native tag
-jump, so it never turns the word under the cursor into an `E426` lookup.
+terminal-Normal without sending the chord to the child process. In Normal mode
+it remains an Escape instead of invoking Nvim's native tag jump and also returns
+a manually selected input method to the Normal-mode layout, so it never turns
+the word under the cursor into an `E426` lookup.
 `help` and `man` buffers keep the builtin tag jump, since `<C-]>` is how they
 follow a link and they have no second key for it; `<Esc>` and `<C-\>` still
 clear the search highlight there.
@@ -275,7 +276,8 @@ shell's own `<C-h>` or `<C-l>` would jump out from under the float.
 
 Because `<C-\>` sits beside `<C-]>`, it performs the same safe Escape in Normal,
 Insert, Visual, and terminal-input modes. Repeated presses remain harmless in
-Normal mode, so either adjacent chord can be used without an accidental window
+Normal mode: they neither change modes nor overwrite the source awaiting
+restoration, so either adjacent chord can be used without an accidental window
 jump.
 
 `<C-,>` jumps directly from terminal input or a sidebar to the editor window.
@@ -509,6 +511,13 @@ restores the input source that was active before leaving it; leaving those modes
 captures the current source before switching back to English. This preserves
 both cases: English stays English, while Sogou/Apple Pinyin is restored after
 returning to text entry.
+
+If an input method is selected manually while already in Normal mode, press
+`<C-\>` or (outside `help`/`man`) `<C-]>` to capture it and return to the Normal
+layout without leaving Normal mode. The next Insert or terminal-input entry
+restores that source only when Nvim actually switched it away. Repeating the
+key is idempotent; if the Normal layout was already active, entering input mode
+does not apply a stale saved source.
 
 The Normal-mode layout comes from `NVIM_ENGLISH_INPUT_SOURCE`, falling back to
 an enabled macOS keyboard layout — a Latin one in preference to whatever the

@@ -136,6 +136,7 @@ function M._new(opts)
   local known_source
   local input_ready = false
   local capture_requested = false
+  local restore_pending = false
 
   local reconcile
 
@@ -146,7 +147,7 @@ function M._new(opts)
 
   local function switch_to(target, token, applied)
     if known_source == target then
-      if applied then applied(true) end
+      if applied then applied(true, token == generation) end
       finish(token)
       return
     end
@@ -163,8 +164,9 @@ function M._new(opts)
       -- short-circuiting on the last known value.
       known_source = ok and target or nil
 
-      if token == generation then
-        if applied then applied(ok) end
+      local current = token == generation
+      if applied then applied(ok, current) end
+      if current then
         finish(token)
       else
         reconcile()
@@ -177,19 +179,34 @@ function M._new(opts)
     local token = generation
 
     if mode == "normal" and capture_requested then
+      local capture = capture_requested
       capture_requested = false
       busy = true
       run({ command }, function(result)
         busy = false
         local current = result.code == 0 and source_id(result.stdout) or nil
         if current then
-          previous = current
           known_source = current
+          -- An explicit Normal-mode request that finds the default source did
+          -- not close anything. Preserve an earlier pending restoration rather
+          -- than replacing its source with English.
+          if capture == "transition" or current ~= default then
+            previous = current
+          end
         end
 
         if token == generation and mode == "normal" then
-          if current then
-            switch_to(default, token)
+          if current and current ~= default then
+            -- This switch owns the restoration only after macism succeeds. If
+            -- Insert begins while macism is running, reconcile() waits for the
+            -- result and restores only when English was actually applied.
+            restore_pending = false
+            switch_to(default, token, function(ok)
+              restore_pending = ok
+            end)
+          elseif current then
+            if capture == "transition" then restore_pending = false end
+            finish(token)
           else
             -- Do not switch when the source could not be captured: losing the
             -- value needed for restoration is worse than leaving Normal mode
@@ -208,9 +225,19 @@ function M._new(opts)
       return
     end
 
-    switch_to(previous, token, function(ok)
-      if token == generation and mode == "input" then input_ready = ok end
-    end)
+    if restore_pending then
+      switch_to(previous, token, function(ok, current)
+        if current and mode == "input" then
+          input_ready = ok
+          if ok then restore_pending = false end
+        end
+      end)
+    else
+      -- No Nvim-owned switch preceded this input transition. Leave the user's
+      -- current source alone, but capture it when input mode is left.
+      input_ready = true
+      finish(token)
+    end
   end
 
   local state = {}
@@ -221,7 +248,20 @@ function M._new(opts)
     generation = generation + 1
     mode = "normal"
     settled = -1
-    capture_requested = initial == true or input_ready
+    capture_requested = (initial == true or input_ready) and "transition" or false
+    input_ready = false
+    reconcile()
+  end
+
+  ---Use the Normal-mode source without changing modes.
+  ---Repeated calls while a request is pending are a no-op. A completed call
+  ---queries again so a source selected manually in Normal mode can be caught.
+  function state.normal_source()
+    if mode == "normal" and settled ~= generation then return end
+    generation = generation + 1
+    mode = "normal"
+    settled = -1
+    capture_requested = "explicit"
     input_ready = false
     reconcile()
   end
@@ -245,6 +285,31 @@ function M._new(opts)
   return state
 end
 
+local function resolve()
+  if controller == nil then
+    local default = M.default_source()
+    controller = default and M._new({
+      command = "macism",
+      default_source = default,
+      wait_time = vim.env[wait_env_name],
+      run = system_run,
+    }) or false
+  end
+  return controller or nil
+end
+
+---Use the configured Normal-mode input source without leaving Normal mode.
+---The captured source is restored on the next InsertEnter/TermEnter only when
+---this request (or an ordinary input-mode leave) actually switched it away.
+---@return boolean enabled
+function M.ensure_normal_source()
+  if not registered or #vim.api.nvim_list_uis() == 0 then return false end
+  local state = resolve()
+  if not state then return false end
+  state.normal_source()
+  return true
+end
+
 ---Enable automatic input-source switching for an attached macOS UI.
 ---@return boolean enabled
 function M.setup()
@@ -259,19 +324,6 @@ function M.setup()
   -- `--headless +qa` check -- would pay for a feature it can never use. `false`
   -- records a resolution that already failed, so a machine without a detectable
   -- layout does not re-shell on every InsertEnter.
-  local function resolve()
-    if controller == nil then
-      local default = M.default_source()
-      controller = default and M._new({
-        command = "macism",
-        default_source = default,
-        wait_time = vim.env[wait_env_name],
-        run = system_run,
-      }) or false
-    end
-    return controller or nil
-  end
-
   local function with_ui(callback)
     return function()
       -- During init.lua the terminal UI has not attached yet. Check at event

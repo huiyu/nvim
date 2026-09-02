@@ -128,6 +128,15 @@ The current text-entry source is not stored in an environment variable. It is
 queried with `macism` whenever Insert or terminal-input mode is left and kept in
 the Nvim process for the next restoration.
 
+`ensure_normal_source()` backs the Normal-mode `<C-\>` and `<C-]>` mappings. It
+queries the current source without changing modes, captures a non-default
+source, and switches to the Normal layout. The state machine records restoration
+ownership only after that switch succeeds, so the next Insert/terminal-input
+entry leaves the current source alone when the mapping closed nothing. Repeated
+requests are serialized and do not replace a pending CJK restoration with the
+already-active Normal layout. (`help` and `man` keep their buffer-local builtin
+`<C-]>`; `<C-\>` remains available there.)
+
 `NVIM_MACISM_WAIT_TIME_MS` is passed as macism's optional third argument on
 source switches. Leave it unset for macism's built-in wait (currently 150ms),
 set it to a positive millisecond value to shorten that wait, or set it to `0`

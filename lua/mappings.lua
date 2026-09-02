@@ -43,13 +43,18 @@ vim.keymap.set("n", ",x", function() require("util.run").run_current() end, { de
 -- Normal mode only: mapping bare <Esc> in insert mode can add latency to / mis-fire
 -- on terminal escape sequences (arrows, Alt, F-keys), and there's no hlsearch to clear there.
 vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<cr><Esc>", { desc = "Escape and clear hlsearch" })
--- A repeatable Escape chord for input methods that consume bare Esc. Mapping
--- it in Normal mode is intentional: repeated presses must stay harmless rather
--- than falling through to the native tag jump. `help` and `man` buffers are the
--- exception -- <C-]> is their primary navigation -- and lua/autocmds.lua gives
--- the builtin back there, buffer-locally.
-vim.keymap.set("n", "<C-]>", "<cmd>nohlsearch<cr><Esc>", { desc = "Escape and clear hlsearch" })
-vim.keymap.set("n", "<C-\\>", "<cmd>nohlsearch<cr><Esc>", { desc = "Escape and clear hlsearch" })
+-- A repeatable Escape chord for input methods that consume bare Esc. In Normal
+-- mode it also captures a manually selected input method and returns to the
+-- Normal source without changing modes; InsertEnter restores only a source
+-- that Nvim actually switched away. `help` and `man` buffers are the exception
+-- -- <C-]> is their primary navigation -- and lua/autocmds.lua gives the
+-- builtin back there, buffer-locally.
+local function normal_escape()
+  vim.cmd.nohlsearch()
+  require("util.input_method").ensure_normal_source()
+end
+vim.keymap.set("n", "<C-]>", normal_escape, { desc = "Escape with Normal input source" })
+vim.keymap.set("n", "<C-\\>", normal_escape, { desc = "Escape with Normal input source" })
 
 -- Better up/down on wrapped lines
 vim.keymap.set({ "n", "x" }, "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, desc = "Down" })

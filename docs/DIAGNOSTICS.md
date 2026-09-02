@@ -71,6 +71,10 @@ plugin's own checks).
 
 ### macOS input-source switching
 
+- **A Chinese input method was selected while already in Normal mode** — press
+  `<C-\>` or, outside `help`/`man`, `<C-]>`. Nvim stays in Normal mode, switches
+  to its detected Latin layout, and restores the captured source on the next
+  Insert only if that switch succeeded. Repeating the chord is harmless.
 - **Ghostty's window chrome flashes when returning to input mode** — macism's
   default CJK workaround creates a temporary key window, so Ghostty briefly
   loses and regains focus. Set `NVIM_MACISM_WAIT_TIME_MS=0` before starting Nvim
