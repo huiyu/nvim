@@ -37,19 +37,33 @@ jobs:
       - name: Install runtime dependencies
         run: sudo apt-get update && sudo apt-get install -y ripgrep fd-find tmux
 
+      # `-u init.lua` does not put the checkout on the runtimepath, so
+      # `require("options")` fails unless the checkout *is* stdpath("config") --
+      # which it is on a real machine, where the repo lives at ~/.config/nvim.
+      - name: Expose the checkout as the Neovim config directory
+        run: |
+          mkdir -p "$HOME/.config"
+          ln -s "$GITHUB_WORKSPACE" "$HOME/.config/nvim"
+
       # lazy.nvim bootstraps and clones on first start. Doing it as its own step
       # keeps a clone failure from being reported as a spec failure.
+      #
+      # A headless `+qa` exits 0 even when init.lua raised, so every startup
+      # below asks v:errmsg instead of trusting the exit status.
       - name: Install plugins
-        run: nvim --headless -u init.lua -i NONE "+Lazy! install" +qa
+        run: nvim --headless -u init.lua -i NONE "+Lazy! install" "$FAIL_ON_ERRMSG" +qa
+        env: { FAIL_ON_ERRMSG: '+lua if vim.v.errmsg ~= "" then vim.cmd("cquit 1") end' }
 
       - name: Spec suite
         run: ./tests/run.sh
 
       - name: Start under the Claude provider
-        run: NVIM_AI_PROVIDER=claude nvim --headless -u init.lua -i NONE +qa
+        run: NVIM_AI_PROVIDER=claude nvim --headless -u init.lua -i NONE "$FAIL_ON_ERRMSG" +qa
+        env: { FAIL_ON_ERRMSG: '+lua if vim.v.errmsg ~= "" then vim.cmd("cquit 1") end' }
 
       - name: Start under the Codex provider
-        run: NVIM_AI_PROVIDER=codex nvim --headless -u init.lua -i NONE +qa
+        run: NVIM_AI_PROVIDER=codex nvim --headless -u init.lua -i NONE "$FAIL_ON_ERRMSG" +qa
+        env: { FAIL_ON_ERRMSG: '+lua if vim.v.errmsg ~= "" then vim.cmd("cquit 1") end' }
 
       # No trailing-whitespace gate here on purpose. AGENTS.md's local
       # `git diff --check` inspects changed lines only; the committed tree still
