@@ -44,6 +44,13 @@ return {
             -- the file can land in the picker's own window.
             vim.schedule(function()
               vim.cmd.edit(vim.fn.fnameescape(path))
+              -- Buffer-local, so absent for a file mkdp does not claim; the
+              -- pick has still opened the file, which is then the whole result.
+              if vim.fn.exists(":MarkdownPreview") ~= 2 then
+                vim.notify(("MarkdownPreview is not available for filetype %q (not in g:mkdp_filetypes)")
+                  :format(vim.bo.filetype), vim.log.levels.WARN)
+                return
+              end
               vim.cmd("MarkdownPreview")
             end)
           end,

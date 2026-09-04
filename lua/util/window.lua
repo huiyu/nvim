@@ -1,5 +1,6 @@
 local M = {}
 
+local vim_error = require("util.vim_error")
 
 local SPECIAL_BUFTYPES = {
   'help', 'quickfix', 'terminal', 'prompt', 'nofile', 'acwrite', 'nowrite'
@@ -18,12 +19,15 @@ local SPECIAL_FILETYPES = {
   'dap-repl', 'dapui',                                       -- Debugging
 }
 
+--- Nil once the window is gone: the list `close_others` walks is a snapshot,
+--- and closing one window can take a paired one with it (a picker's list and
+--- input, an edgy relayout), so a later entry may no longer exist.
 local function get_win_info(win_id)
+  if not vim.api.nvim_win_is_valid(win_id) then return nil end
   local buf_id = vim.api.nvim_win_get_buf(win_id)
 
   return {
-    is_valid = vim.api.nvim_win_is_valid(win_id),
-    is_current = ((win_id) == vim.api.nvim_get_current_win()),
+    is_current = (win_id == vim.api.nvim_get_current_win()),
     is_preview = vim.wo[win_id].previewwindow,
     is_modifiable = vim.bo[buf_id].modifiable,
     filetype = vim.bo[buf_id].filetype,
@@ -31,9 +35,12 @@ local function get_win_info(win_id)
   }
 end
 
+--- Close the current window. Nvim refuses over the last window (E444) or a
+--- modified buffer that cannot be hidden (E37); that refusal is one warning
+--- here, not a traceback out of :WindowCloseCurrent.
 function M.close_current()
-  local win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_close(win, false)
+  local ok, err = pcall(vim.api.nvim_win_close, vim.api.nvim_get_current_win(), false)
+  if not ok then vim_error.notify(err) end
 end
 
 -- Function to close all windows except the current one and special windows
@@ -51,13 +58,15 @@ function M.close_others()
     -- - Is not a preview window
     -- - Does not have a special buffer type
     -- - Does not have a special file type
-    if info.is_modifiable and
+    if info and info.is_modifiable and
         not info.is_current and
         not info.is_preview and
         not vim.list_contains(SPECIAL_BUFTYPES, info.buftype) and
         not vim.list_contains(SPECIAL_FILETYPES, info.filetype) then
-      -- Close the window if it meets all the criteria
-      vim.api.nvim_win_close(win, false)
+      -- Nvim refuses over the last ordinary window, as when this runs from a
+      -- float above a single split. One warning, and the rest of the loop.
+      local ok, err = pcall(vim.api.nvim_win_close, win, false)
+      if not ok then vim_error.notify(err) end
     end
   end
 end

@@ -3,6 +3,14 @@ local lsp = require("util.lsp")
 ---Clear gopls cache and restart LSP to force a full re-index.
 ---Useful after large refactors, branch switches, or rebases.
 local function rebuild_gopls()
+  -- Checked before the cache goes: `:lsp restart` refuses when no client is
+  -- attached, which used to leave the cache deleted, the index not rebuilt,
+  -- and a traceback on screen.
+  if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
+    vim.notify("No LSP client attached to this buffer, nothing to restart. "
+      .. "Reopen the file (:e) to start gopls, then rebuild.", vim.log.levels.WARN)
+    return
+  end
   local cache_dir = vim.fn.expand("~/Library/Caches/gopls")
   if vim.fn.isdirectory(cache_dir) == 1 then
     vim.fn.delete(cache_dir, "rf")

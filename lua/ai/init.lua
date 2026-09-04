@@ -7,13 +7,9 @@ local function backend()
   return require("ai.backend." .. config.provider)
 end
 
-local function invoke(method, ...)
-  local fn = backend()[method]
-  if type(fn) ~= "function" then
-    vim.notify(("%s does not support %s"):format(config.label, method), vim.log.levels.WARN)
-    return
-  end
-
+--- Run `fn` for `method` and turn a failure into a notification: the facade
+--- is reached from mappings, where an escaped error is a traceback.
+local function guard(method, fn, ...)
   local args = { ... }
   local ok, result = xpcall(function() return fn(unpack(args)) end, debug.traceback)
   if not ok then
@@ -21,6 +17,15 @@ local function invoke(method, ...)
     return
   end
   return result
+end
+
+local function invoke(method, ...)
+  local fn = backend()[method]
+  if type(fn) ~= "function" then
+    vim.notify(("%s does not support %s"):format(config.label, method), vim.log.levels.WARN)
+    return
+  end
+  return guard(method, fn, ...)
 end
 
 function M.toggle() return invoke("toggle") end
@@ -67,8 +72,14 @@ function M.compose()
   return invoke("edit_prompt", { seed = seed })
 end
 
-function M.transcript() require("ai.transcript").open_current() end
-function M.transcript_pick() require("ai.transcript").pick() end
+-- Not backend methods, so not `invoke`; the same guard, so a failing view is
+-- a notification like every other <leader>a key.
+function M.transcript()
+  return guard("transcript", function() return require("ai.transcript").open_current() end)
+end
+function M.transcript_pick()
+  return guard("transcript_pick", function() return require("ai.transcript").pick() end)
+end
 
 function M.info()
   return {

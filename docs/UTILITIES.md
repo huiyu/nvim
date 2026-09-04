@@ -202,6 +202,36 @@ local has_value = tbl:containsValue(2)     -- true
 local result = tbl:get()                   -- Get underlying table
 ```
 
+## Vim Errors (`util.vim_error`)
+
+Nvim's own line for a refused Ex command or API call. `vim.cmd` and the
+`nvim_*` API turn a refusal -- last window, read-only file, no client attached
+-- into a Lua error, and a mapping or command callback that lets it escape
+prints an `E5108` block with a stack traceback for what `:q` typed by hand
+shows as one line.
+
+#### API Reference
+
+```lua
+local vim_error = require("util.vim_error")
+
+-- The message Nvim would have printed, without Lua's wrapping:
+-- "vim/_core/editor.lua:0: nvim_exec2(), line 1: Vim(write):E45: ..." and
+-- "Vim:E444: ..." both come back as "E45: ..." and "E444: ...". Anything else
+-- is returned as it is.
+vim_error.message(err)
+
+-- vim.notify that line at WARN, optionally prefixed with the action.
+local ok, err = pcall(vim.cmd, "update")
+if not ok then vim_error.notify(err, "Run current file") end
+```
+
+`:WindowCloseCurrent`, `:WindowCloseOthers` and `,x` report through it. Where
+the refusal is known before the call -- `:GoplsRebuildIndex` with no client,
+`;P` on a file mkdp does not claim, `<leader>gm`/`<leader>gM` outside a
+repository, `<leader>at` when the view fails -- the entry point checks first
+and notifies, so none of them ends in a traceback.
+
 ## Window Management (`util.window`)
 
 Advanced window management utilities.
@@ -212,8 +242,10 @@ Advanced window management utilities.
 local window = require("util.window")
 
 -- Window operations (via autocmds)
--- :WindowCloseOthers  - Close eligible splits in the current tab only
--- :WindowCloseCurrent - Close current window
+-- :WindowCloseOthers  - Close eligible splits in the current tab only. A close
+--                       Nvim refuses (the last split, from a float) is a warning.
+-- :WindowCloseCurrent - Close current window; the last window (E444) or a
+--                       modified buffer that cannot be hidden (E37) is a warning.
 -- :WindowFocusEditor  - Jump to the editor window in the current tab; press
 --                       again from the editor to return to the origin window.
 --                       Bound to <C-,> in Normal and terminal-input mode, and
@@ -340,7 +372,9 @@ run.register({ "sh", "bash" }, function(path)  -- multiple filetypes at once
   return "bash " .. vim.fn.shellescape(path)
 end)
 
--- Write and run the current buffer's file in a split terminal (bound to ,x).
+-- Flush unsaved edits (:update) and run the current buffer's file in a split
+-- terminal (bound to ,x). A refused flush -- read-only file, unwritable
+-- directory -- is a warning, and nothing runs.
 run.run_current()
 ```
 

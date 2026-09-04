@@ -155,7 +155,9 @@ autocmd({
     -- CursorHold raises E11 several times a second.
     if vim.fn.getcmdwintype() ~= "" then return end
 
-    vim.cmd("checktime")
+    -- Best effort: textlock refuses it as well (E565), and a poll that fires
+    -- again within `updatetime` has nothing to say about a skipped turn.
+    pcall(vim.cmd, "checktime")
   end,
 })
 

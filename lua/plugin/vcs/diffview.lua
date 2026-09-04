@@ -1,3 +1,16 @@
+--- Run git in the current directory. Returns the output lines, or nil and
+--- git's first stderr line -- "fatal: not a git repository ..." -- when it
+--- refused. `vim.fn.system` folded that stderr into the output, where it then
+--- passed for a ref name.
+local function git(...)
+  local result = vim.system({ "git", ... }, { text = true }):wait()
+  if result.code ~= 0 then
+    local reason = vim.split(result.stderr or "", "\n", { trimempty = true })[1]
+    return nil, reason or ("git exited with " .. result.code)
+  end
+  return vim.split(result.stdout or "", "\n", { trimempty = true })
+end
+
 return {
   "sindrets/diffview.nvim",
   cmd = { "DiffviewOpen", "DiffviewFileHistory" },
@@ -7,9 +20,14 @@ return {
     {
       "<leader>gm",
       function()
+        local inside, reason = git("rev-parse", "--is-inside-work-tree")
+        if not inside then
+          vim.notify("Diff against main branch: " .. reason, vim.log.levels.WARN)
+          return
+        end
         -- Detect main branch: check for main, then master, fallback to HEAD
-        local main = vim.fn.system("git rev-parse --verify --quiet main"):find("%w") and "main"
-          or vim.fn.system("git rev-parse --verify --quiet master"):find("%w") and "master"
+        local main = git("rev-parse", "--verify", "--quiet", "main") and "main"
+          or git("rev-parse", "--verify", "--quiet", "master") and "master"
           or "HEAD"
         vim.cmd("DiffviewOpen " .. main)
       end,
@@ -21,17 +39,19 @@ return {
       function()
         -- Fuzzy pick a git ref (branches, tags, recent commits) then diff against it.
         -- Goes through vim.ui.select, which snacks.picker (ui_select=true) intercepts.
+        local branches, reason = git("branch", "--all", "--format=%(refname:short)")
+        if not branches then
+          vim.notify("Diff against commit/branch: " .. reason, vim.log.levels.WARN)
+          return
+        end
         local refs = {}
-        local branches = vim.fn.systemlist("git branch --all --format='%(refname:short)'")
         for _, b in ipairs(branches) do
           table.insert(refs, { ref = b, display = " " .. b })
         end
-        local tags = vim.fn.systemlist("git tag --sort=-creatordate")
-        for _, t in ipairs(tags) do
+        for _, t in ipairs(git("tag", "--sort=-creatordate") or {}) do
           table.insert(refs, { ref = t, display = " " .. t })
         end
-        local commits = vim.fn.systemlist("git log --oneline -50")
-        for _, c in ipairs(commits) do
+        for _, c in ipairs(git("log", "--oneline", "-50") or {}) do
           local hash = c:match("^(%S+)")
           table.insert(refs, { ref = hash, display = " " .. c })
         end
