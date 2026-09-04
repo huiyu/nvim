@@ -104,7 +104,7 @@ nvim
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME 高亮 |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮 |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | 颜色代码高亮 |
-| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染 |
+| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染（`\r`） |
 
 #### 编辑器
 

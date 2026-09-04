@@ -378,7 +378,7 @@ does different things in different filetypes, which is the point.
 | Go | `\o` organize imports · `\G` rebuild the gopls index |
 | Python | `\o` organize imports · `\v` select virtualenv |
 | C/C++ | `\h` switch between source and header |
-| Markdown | `\p` toggle preview |
+| Markdown | `\p` toggle preview · `\r` toggle in-editor rendering |
 | LaTeX | `\b` build · `\v` view PDF · `\t` table of contents · `\e` errors · `\k` clean |
 | Diffview | `\e` focus file panel · `\co` / `\ct` resolve conflict (ours/theirs) |
 

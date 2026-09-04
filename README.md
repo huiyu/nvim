@@ -109,7 +109,7 @@ nvim
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME highlights |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Color code highlighting |
-| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering |
+| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering (`\r`) |
 
 #### Editor
 

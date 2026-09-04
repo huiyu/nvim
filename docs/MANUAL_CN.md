@@ -350,7 +350,7 @@ Ctrl-,                             直达编辑器，再按跳回
 | Go | `\o` 整理 import · `\G` 重建 gopls 索引 |
 | Python | `\o` 整理 import · `\v` 选择虚拟环境 |
 | C/C++ | `\h` 在源文件和头文件间切换 |
-| Markdown | `\p` 切换预览 |
+| Markdown | `\p` 切换预览 · `\r` 切换编辑器内渲染 |
 | LaTeX | `\b` 编译 · `\v` 看 PDF · `\t` 目录 · `\e` 错误 · `\k` 清理 |
 | Diffview | `\e` 聚焦文件面板 · `\co` / `\ct` 解决冲突（用我方/对方） |
 
