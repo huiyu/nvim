@@ -250,11 +250,17 @@ buffers keeps this clear of the textlock `nvim_buf_delete` can hit in a nested
 command context.
 
 The unsaved check runs first, because closing the panel is not free. Nvim fires
-`ExitPre` before it looks at modified buffers, so a refused `:qall` today tears
-the agent panel down *and* fails to quit -- both halves of the loss. When a
-modified buffer would make Nvim refuse, `quit_all` touches nothing and lets Nvim
-raise its own `E37`. `<leader>qQ` passes `force`, which is the user saying they
-mean it.
+`ExitPre` before it looks at modified buffers, so a refused `:qall` tears the
+agent panel down *and* fails to quit -- and issued from inside the panel it then
+drops the quit without a word, since the autocommand closed the current window.
+So when a modified buffer would make Nvim refuse, `quit_all` issues no `:qall`
+at all: it refuses on its own, with a `vim.notify` warning that names the
+unsaved buffers and points at `<leader>qQ`. Going through `vim.cmd` would also
+have turned Nvim's refusal into an `E5108` Lua traceback rather than the
+one-line `E37` that `:qa` shows. Which buffers count is Nvim's own rule, read
+through the `'modified'` option: `nofile`, `nowrite`, `terminal` and `prompt`
+buffers never count, while an `acwrite` buffer (oil) blocks the quit like a
+file. `<leader>qQ` passes `force`, which is the user saying they mean it.
 
 Typing `:qa` by hand still takes the upstream path; only these entry points are
 covered.

@@ -59,25 +59,61 @@ t.eq(issued, { "qall!" }, "the forcing variant issues :qall!")
 t.ok(not vim.api.nvim_win_is_valid(forced_win), "which also closes the terminal window")
 
 -- Closing the panel is not free, so a quit Nvim is going to refuse must not do
--- it: otherwise a stray <leader>qq tears the agent panel down AND fails to
--- quit, which is what a plain :qall does today.
+-- it. Nor may it issue :qall and leave the refusal to Nvim: ExitPre closes the
+-- panel before Nvim looks at modified buffers, and from inside the panel the
+-- quit is then dropped without a word. The refusal is a message of our own.
 issued = {}
 local kept = open_terminal()
 local kept_win = kept.win
 local dirty = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_buf_set_name(dirty, "unsaved-file.txt")
 vim.api.nvim_buf_set_lines(dirty, 0, -1, false, { "unsaved" })
 t.eq(vim.bo[dirty].modified, true, "there is an unsaved buffer")
 
+local notified = {}
+local real_notify = vim.notify
+vim.notify = function(msg, level) notified[#notified + 1] = { msg = msg, level = level } end
+
 win.quit_all()
-t.eq(issued, { "qall" }, "an unsaved buffer still hands the refusal to Nvim")
-t.ok(vim.api.nvim_win_is_valid(kept_win), "and the agent panel survives the refused quit")
+t.eq(issued, {}, "an unsaved buffer refuses the quit without issuing :qall")
+t.ok(vim.api.nvim_win_is_valid(kept_win), "and the agent panel survives the refusal")
+t.eq(#notified, 1, "the refusal is a single notification")
+t.eq(notified[1] and notified[1].level, vim.log.levels.WARN, "at WARN level")
+t.ok(notified[1] and notified[1].msg:find("unsaved-file.txt", 1, true) ~= nil,
+  "which names the unsaved buffer")
+t.ok(notified[1] and notified[1].msg:find("<leader>qQ", 1, true) ~= nil,
+  "and points at the forcing variant")
 
 -- ...but the forcing variant is the user saying they mean it.
-issued = {}
+issued, notified = {}, {}
 win.quit_all(true)
 t.eq(issued, { "qall!" }, "qall! is issued even with unsaved buffers")
+t.eq(#notified, 0, "without a notification")
 t.ok(not vim.api.nvim_win_is_valid(kept_win), "and it does close the terminal window")
-
 vim.bo[dirty].modified = false
+
+-- Which buffers count is Nvim's own rule, not `buftype == ""`: an acwrite
+-- buffer (oil) blocks the quit like a file, while a scratch buffer carries the
+-- raw changed flag permanently and never blocks it.
+local acwrite = vim.api.nvim_create_buf(true, false)
+vim.bo[acwrite].buftype = "acwrite"
+vim.api.nvim_buf_set_lines(acwrite, 0, -1, false, { "pending" })
+issued, notified = {}, {}
+win.quit_all()
+t.eq(issued, {}, "a modified acwrite buffer refuses the quit")
+t.eq(#notified, 1, "with the same notification")
+vim.bo[acwrite].modified = false
+
+local scratch = vim.api.nvim_create_buf(true, false)
+vim.bo[scratch].buftype = "nofile"
+vim.api.nvim_buf_set_lines(scratch, 0, -1, false, { "scratch" })
+local listed = vim.tbl_map(function(info) return info.bufnr end, vim.fn.getbufinfo({ bufmodified = 1 }))
+t.ok(vim.list_contains(listed, scratch), "getbufinfo() lists a scratch buffer as modified")
+issued, notified = {}, {}
+win.quit_all()
+t.eq(issued, { "qall" }, "but it does not block the quit")
+t.eq(#notified, 0, "and raises no notification")
+
+vim.notify = real_notify
 win._quit = real_quit
 t.done()
