@@ -66,9 +66,12 @@ local spec = {
   -- See BRACKET_DESCS below.
   { "g",             group = "Goto",            mode = { "n", "x", "o" } },
   { "z",             group = "Fold/Spell",      mode = { "n", "x" } },
-  -- <localleader> is per-filetype only: VimTeX compile/view, diffview's panel
-  -- and conflict actions, gopls/venv/source-header. Nothing global lives here,
-  -- so the same letter can mean different things in a .tex and a .go buffer.
+  -- <localleader> is per-filetype: VimTeX compile/view, diffview's panel and
+  -- conflict actions, gopls/venv/source-header, so the same letter can mean
+  -- different things in a .tex and a .go buffer. The one global tenant is the
+  -- digit row, `\1`..`\9` for terminal 1-9 (lua/plugin/editor/snacks.lua):
+  -- letters stay free for filetypes, and plain keys survive an outer tmux
+  -- where the old Ctrl-digit chords did not.
   { "<localleader>", group = "This filetype",   mode = "n" },
 
   -- The marks plugin labels all four jump-to-mark prefixes identically as
@@ -142,10 +145,10 @@ local spec = {
       "  <C-w>           Window operations",
       "  r / R           Flash remote (operator mode)",
       "",
-      "  ── Ctrl ─────────────────────────────────",
+      "  ── Terminals ────────────────────────────",
       "  <C-/>            Open/close terminal (the one you are in)",
-      "  <C-1> .. <C-9>   Switch to terminal 1-9 (works from",
-      "                   terminal input too)",
+      "  \\1 .. \\9         Switch to terminal 1-9 (Normal mode;",
+      "                   from terminal input: jk first)",
       "  <leader>md       Fix terminal TUI drift",
       "",
       "  ── <leader>m — the editor itself ────────",

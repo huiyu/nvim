@@ -224,7 +224,7 @@ Every key answers one question, and the prefix says which:
 | `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;1`-`;9` pinned files |
 | `,` | What do I do to this code? | `,a` code action, `,f` format, `,r` rename, `,j`/`,k` move line, `,e*` extract |
 | `s` | What about this window? | `ss`/`sv` split, `sd` close, `se` editor window, `s=` equalize |
-| `\` | What does *this filetype* offer? | `\o` organize imports (Go/Python), VimTeX, diffview |
+| `\` | What does *this filetype* offer? | `\o` organize imports (Go/Python), VimTeX, diffview; `\1`-`\9` terminal 1-9 |
 | `<leader>` | Everything else, by domain | `g` git, `G` GitHub, `d` debug, `t` test, `a` AI, `x` diagnostics, `m` manage, `s` session, `y` yank, `u` toggles, `b` buffer, `q` quit |
 
 Frequency decides depth: what you reach for constantly is two keys, the rest
@@ -238,7 +238,7 @@ Unprefixed keys worth knowing:
 | `f` / `F` | Flash jump / Treesitter jump (Normal + Visual; `df-`, `ct)` stay native) |
 | `<C-h/j/k/l>` | Move between windows — works from terminal input too |
 | `<C-,>` | Jump to the editor area, press again to return |
-| `<C-/>` · `<C-1>`-`<C-9>` | Toggle terminal · jump to terminal 1-9 |
+| `<C-/>` | Toggle terminal; `\1`-`\9` jump to terminal 1-9 (Normal mode) |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
 | `g` · `[` / `]` · `z` | Goto+LSP · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
@@ -285,7 +285,10 @@ Pressing it from the editor returns to the source window. It relies on the
 extended-key protocol negotiated by Ghostty and Nvim to remain distinct from a
 plain comma; an outer tmux must have `extended-keys` enabled. Where that
 protocol is unavailable — a bare Terminal.app, an ssh session, an older tmux —
-`se` does the same jump with plain keys.
+`se` does the same jump with plain keys. Terminal numbers avoid the protocol
+altogether: `\1`-`\9` are plain keys because Ghostty encodes Ctrl+digit as
+legacy bytes under an outer tmux, so the old `<C-1>`-`<C-9>` chords never
+arrived there.
 
 Inside an agent panel, `<Esc>` belongs to the agent, not to Nvim. Both CLIs read
 a quick double Esc as "go back a message", so neither Snacks' double-tap nor the
@@ -537,7 +540,7 @@ Set these in `init.lua` before plugins load.
 
 | Option | Description |
 |--------|-------------|
-| `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where `<C-1>`-`<C-9>` open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
+| `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where `\1`-`\9` open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
 
 ### Environment Variables
 

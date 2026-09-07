@@ -230,7 +230,7 @@ half a second, and the menu tells you.
 
 ```
 ;  go somewhere            ,  change this code
-s  windows                 \  this filetype only
+s  windows                 \  this filetype
 <Space>  everything else
 ```
 
@@ -371,7 +371,9 @@ is open beside your code.
 ## This filetype: `\`
 
 `\` holds actions that only mean something in the file you are in. The same key
-does different things in different filetypes, which is the point.
+does different things in different filetypes, which is the point. The digit row
+is the one global exception: `\1`-`\9` jump to terminal 1-9 from any file,
+because plain keys survive an outer tmux where Ctrl-digit chords do not.
 
 | Filetype | Keys |
 |---|---|
@@ -461,7 +463,7 @@ its own actions and `<Space>gq` closes it.
 
 ```
 Ctrl-/       toggle a terminal
-Ctrl-1 … 9   jump straight to terminal 1-9, even from inside another one
+\1 … \9      jump straight to terminal 1-9 (Normal mode; inside one, jk first)
 <Space>ac    open the AI panel
 <Space>ai    write a prompt in a real Neovim buffer
 ```

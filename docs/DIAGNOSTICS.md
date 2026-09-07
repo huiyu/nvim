@@ -279,6 +279,18 @@ rather than a broken viewer.
 - `:verbose map <lhs>` / `:verbose nmap <lhs>` — where a mapping was set
 - `:verbose set <option>?` — where an option was last set
 - which-key popup (press a prefix and wait); `<leader>?` is the trigger cheatsheet
+- **A Ctrl chord works in bare Ghostty but not under tmux** — see what actually
+  reaches the pane. Run this inside the tmux pane, press the chord, then `<C-c>`:
+
+  ```sh
+  printf '\e[>4;2m'; cat -v
+  ```
+
+  `^[[27;5;44~` means the chord arrived (here `<C-,>`); a bare character or a
+  control byte means the terminal never encoded it. tmux only relays
+  modifyOtherKeys, and Ghostty's legacy table pre-empts that for Ctrl+digit
+  (Ctrl+1 is a bare `1`, Ctrl+3 is Esc, Ctrl+7 is `<C-_>`), which is why the
+  terminal numbers live on `\1`-`\9` rather than Ctrl-digits.
 
 ## Config self-check (headless)
 

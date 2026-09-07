@@ -244,7 +244,7 @@ end
 
 ---Show terminal `count` and put the cursor in it. Never closes anything.
 ---
----This is what <C-1>..<C-9> do. They are for choosing *which* terminal you are
+---This is what `\1`..`\9` do. They are for choosing *which* terminal you are
 ---looking at, so pressing the number of the terminal you are already in has to
 ---leave it open -- closing is <C-/>'s single job.
 ---@param count integer

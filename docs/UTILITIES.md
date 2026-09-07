@@ -322,7 +322,7 @@ terminal.is_agent_buf(buf)
 -- were last in. Bound to <C-/>.
 terminal.toggle(count)
 
--- Show a terminal and put the cursor in it; never closes. Bound to <C-1>-<C-9>,
+-- Show a terminal and put the cursor in it; never closes. Bound to `\1`-`\9`,
 -- which are for choosing which terminal you look at, not for dismissing one.
 terminal.focus(count)
 ```

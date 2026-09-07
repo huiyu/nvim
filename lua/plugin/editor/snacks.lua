@@ -306,22 +306,25 @@ return {
     },
     { "<C-/>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
     { "<C-_>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
-    -- Terminal switching, reachable from inside a terminal.
+    -- Terminal switching: <localleader>1..9 in Normal mode.
     --
-    -- Bound in Terminal-mode as well as Normal, so hopping between terminals no
-    -- longer means leaving terminal input first. Ctrl digits need the
-    -- extended-key protocol -- Ghostty negotiates it, and tmux passes it through
-    -- with `extended-keys on` -- which this config already relies on for <C-,>.
-    -- There is no plain-key fallback; the old <leader>t1-9 was removed.
-    { "<C-1>", mode = { "n", "t" }, function() require("util.terminal").focus(1) end, desc = "Terminal 1" },
-    { "<C-2>", mode = { "n", "t" }, function() require("util.terminal").focus(2) end, desc = "Terminal 2" },
-    { "<C-3>", mode = { "n", "t" }, function() require("util.terminal").focus(3) end, desc = "Terminal 3" },
-    { "<C-4>", mode = { "n", "t" }, function() require("util.terminal").focus(4) end, desc = "Terminal 4" },
-    { "<C-5>", mode = { "n", "t" }, function() require("util.terminal").focus(5) end, desc = "Terminal 5" },
-    { "<C-6>", mode = { "n", "t" }, function() require("util.terminal").focus(6) end, desc = "Terminal 6" },
-    { "<C-7>", mode = { "n", "t" }, function() require("util.terminal").focus(7) end, desc = "Terminal 7" },
-    { "<C-8>", mode = { "n", "t" }, function() require("util.terminal").focus(8) end, desc = "Terminal 8" },
-    { "<C-9>", mode = { "n", "t" }, function() require("util.terminal").focus(9) end, desc = "Terminal 9" },
+    -- Plain keys on purpose. These were <C-1>..<C-9>, which only exist under an
+    -- extended-key protocol: Nvim negotiates kitty's directly in Ghostty, but
+    -- an outer tmux speaks only modifyOtherKeys, and Ghostty's legacy ctrl
+    -- table pre-empts that encoding for digits -- ctrl+1 arrived as a bare `1`,
+    -- ctrl+3 as Esc, ctrl+7 as <C-_> -- so the chords silently died inside
+    -- tmux while <C-,> kept working. `\` + digit survives every terminal.
+    -- Normal mode only: a backslash typed in terminal input belongs to the
+    -- shell, so from inside a terminal it is `jk` (or <C-]>) first.
+    { "<localleader>1", function() require("util.terminal").focus(1) end, desc = "Terminal 1" },
+    { "<localleader>2", function() require("util.terminal").focus(2) end, desc = "Terminal 2" },
+    { "<localleader>3", function() require("util.terminal").focus(3) end, desc = "Terminal 3" },
+    { "<localleader>4", function() require("util.terminal").focus(4) end, desc = "Terminal 4" },
+    { "<localleader>5", function() require("util.terminal").focus(5) end, desc = "Terminal 5" },
+    { "<localleader>6", function() require("util.terminal").focus(6) end, desc = "Terminal 6" },
+    { "<localleader>7", function() require("util.terminal").focus(7) end, desc = "Terminal 7" },
+    { "<localleader>8", function() require("util.terminal").focus(8) end, desc = "Terminal 8" },
+    { "<localleader>9", function() require("util.terminal").focus(9) end, desc = "Terminal 9" },
   },
   opts = {
     image = {

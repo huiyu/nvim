@@ -22,4 +22,14 @@ t.eq(mapping("<leader>xT"), {}, "Diagnostics no longer duplicates filtered Todo 
 t.ok(mapping("[t").desc == "Prev todo", "[t keeps previous-Todo navigation")
 t.ok(mapping("]t").desc == "Next todo", "]t keeps next-Todo navigation")
 
+-- Terminal switching is the localleader digit row, plain keys in Normal mode.
+-- The Ctrl-digit chords died inside an outer tmux (Ghostty encodes ctrl+digit
+-- as legacy bytes under modifyOtherKeys), so they stay gone rather than linger
+-- as a second, environment-dependent route.
+for n = 1, 9 do
+  t.ok(mapping("<localleader>" .. n).desc == "Terminal " .. n, "\\" .. n .. " focuses terminal " .. n)
+  t.eq(mapping("<C-" .. n .. ">"), {}, "<C-" .. n .. "> is no longer a terminal key")
+  t.eq(mapping("<C-" .. n .. ">", "t"), {}, "<C-" .. n .. "> is gone from terminal mode too")
+end
+
 t.done()
