@@ -273,6 +273,11 @@ rather than a broken viewer.
 - `:messages` — message history
 - `:Noice` / `:Noice errors` — noice handles notifications (the snacks notifier
   is disabled); `<leader>mnh` opens history, `<leader>un` dismisses
+- **"Working directory … no longer exists; started in … instead"** — the shell's
+  directory was deleted under it (a pruned worktree, a removed temp dir). Nvim
+  moved to the nearest surviving ancestor, or `~`. Without this, Snacks'
+  dashboard terminal sections crash on the nil cwd at `UIEnter`
+  (`util.cwd`).
 
 ## Inspecting keymaps & options
 

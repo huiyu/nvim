@@ -7,6 +7,9 @@
 _G.dd = function(...) return require("util.debug").dump(...) end
 vim.print = _G.dd
 
+-- A deleted working directory is recovered before anything can trip over it.
+require("util.cwd").setup()
+
 -- Initialize core configuration
 require("options")
 require("mappings")

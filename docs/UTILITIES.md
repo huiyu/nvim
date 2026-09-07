@@ -232,6 +232,31 @@ the refusal is known before the call -- `:GoplsRebuildIndex` with no client,
 repository, `<leader>at` when the view fails -- the entry point checks first
 and notifies, so none of them ends in a traceback.
 
+## Working Directory (`util.cwd`)
+
+A shell whose directory was deleted under it still starts Nvim, but the process
+then has no working directory: `vim.uv.cwd()` is nil, and the first thing to
+hash it -- Snacks' dashboard terminal sections, at `UIEnter` -- dies with a
+traceback for what is really "your directory is gone". `init.lua` runs the
+recovery before options and plugins load.
+
+#### API Reference
+
+```lua
+local cwd = require("util.cwd")
+
+-- Move to the nearest surviving ancestor of the shell's $PWD (a pruned
+-- worktree lands in its repository, a removed temp dir in its parent), or to
+-- ~ when even that is unknown. Returns the one-line report, nil when the cwd
+-- was fine.
+cwd.recover()
+
+-- Startup entry: recover, and notify the report once noice is up (VeryLazy).
+-- At init time vim.notify is the builtin echo, which the dashboard's first
+-- draw wipes.
+cwd.setup()
+```
+
 ## Window Management (`util.window`)
 
 Advanced window management utilities.
