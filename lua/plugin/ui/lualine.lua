@@ -23,7 +23,9 @@ return {
 				{
 					"filename",
 					file_status = true, -- displays file status (readonly status, modified status)
-					path = 0, -- 0 = just filename, 1 = relative path, 2 = absolute path
+					-- 1 = path relative to cwd (`%:~:.`), so a monorepo's
+					-- packages/db/src/client.ts is distinguishable from its siblings.
+					path = 1,
 					fmt = function(name)
 						if vim.bo.buftype ~= "terminal" then
 							return name
