@@ -490,6 +490,13 @@ layer is Nvim's embedded libvterm.
 between tmux, the host terminal, and the agent TUI. This can produce minor
 misalignment in box-bordered UI.
 
+**Keys**: both wrappers run tmux with `extended-keys always` and
+`extended-keys-format csi-u`. tmux's default (`extended-keys off`) turns the
+`ESC[13;2u` that `<S-Enter>` sends into a bare Enter, which submits the message
+instead of inserting a newline. `always` keeps the modifier without waiting for
+the TUI to request it, and CSI u is the form both Claude Code and Codex parse.
+Every key with a legacy encoding reaches the TUI unchanged.
+
 **Teardown**: closing the panel or quitting Nvim runs `scripts/agent-teardown`,
 which kills the wrapper server and then whatever the agent left running in
 process groups of its own -- a Codex `exec_command` dev server, a background

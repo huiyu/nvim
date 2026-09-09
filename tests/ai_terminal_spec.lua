@@ -31,6 +31,16 @@ local function open_panel(cmd)
   return term.buf
 end
 
+---tmux leaves its socket file behind when a server exits, so a spec that
+---started one removes the file too, or every run adds one to /tmp/tmux-*/.
+---@param socket string
+local function remove_socket(socket)
+  local dir = (vim.env.TMUX_TMPDIR and vim.env.TMUX_TMPDIR ~= "") and vim.env.TMUX_TMPDIR or "/tmp"
+  for _, path in ipairs(vim.fn.glob(dir .. "/tmux-*/" .. socket, false, true)) do
+    vim.fn.delete(path)
+  end
+end
+
 ---Is `lhs` mapped in Terminal-mode, and is that mapping buffer-local?
 local function buffer_local(lhs)
   local m = vim.fn.maparg(lhs, "t", false, true)
@@ -98,6 +108,10 @@ if vim.fn.executable("tmux") == 1 then
   t.ok(vim.wait(1000, function() return pane_in_mode() == "0" end, 10),
     "manually resuming terminal input returns tmux to the live bottom")
   vim.fn.jobstop(vim.bo[wrapped].channel)
+  -- jobstop only detaches the client; the server and its cat pane would
+  -- outlive the run otherwise (39 of them had piled up under /tmp/tmux-*/).
+  tmux("kill-server")
+  remove_socket(socket)
 end
 
 -- The Claude wrapper is where mouse reporting is turned on for that provider.
@@ -116,6 +130,19 @@ if config.is("claude") then
     "the Claude wrapper routes PPage into copy-mode, like the Codex one")
   t.ok(not wraps or cmd:find("bind-key -T root WheelUpPane copy-mode -eu", 1, true) ~= nil,
     "the Claude wrapper routes the wheel into copy-mode, like the Codex one")
+  -- <S-CR> arrives as ESC[13;2u. tmux's default `extended-keys off` turns that
+  -- into a bare CR, which submits the message instead of adding a newline.
+  t.ok(not wraps or cmd:find("set-option -g extended-keys always", 1, true) ~= nil,
+    "the Claude wrapper keeps modified Enter chords (extended-keys always)")
+  t.ok(not wraps or cmd:find("set-option -g extended-keys-format csi-u", 1, true) ~= nil,
+    "and emits them as CSI u, the form both TUIs parse")
+end
+if config.is("codex") and vim.fn.executable("tmux") == 1 then
+  local joined = table.concat(require("ai.backend.codex")._terminal_command({ "codex" }), " ")
+  t.ok(joined:find("set-option -g extended-keys always", 1, true) ~= nil,
+    "the Codex wrapper keeps modified Enter chords (extended-keys always)")
+  t.ok(joined:find("set-option -g extended-keys-format csi-u", 1, true) ~= nil,
+    "and emits them as CSI u, which Codex parses (it ignores the xterm form)")
 end
 
 -- A failing agent must not take its own error message down with it. The tmux
@@ -220,6 +247,7 @@ if teardown ~= "" and vim.fn.executable("tmux") == 1 and vim.fn.executable("perl
   -- A server that is already gone is a no-op, not an error (UC-3).
   vim.fn.system({ teardown, sock })
   t.eq(vim.v.shell_error, 0, "agent-teardown on a dead server is a quiet no-op")
+  remove_socket(sock)
 end
 
 t.done()

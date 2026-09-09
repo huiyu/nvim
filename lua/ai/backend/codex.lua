@@ -65,6 +65,16 @@ local function terminal_command(args)
     "set-option", "-g", "default-terminal", term,
     ";", "set-option", "-g", "history-limit", "50000",
     ";", "set-option", "-g", "mouse", "on",
+    -- <S-CR> reaches this pane as CSI u (ESC[13;2u) from lua/mappings.lua.
+    -- Under tmux's default `extended-keys off` that collapses to a bare CR,
+    -- which submits the message instead of inserting a newline (measured on
+    -- tmux 3.6b). `always` keeps the modifier without waiting for the pane to
+    -- ask -- Codex never requests modifyOtherKeys, and tmux ignores its kitty
+    -- request -- and `csi-u` matters because Codex (crossterm) does not parse
+    -- tmux's default xterm form ESC[27;2;13~. Every key with a legacy encoding
+    -- still reaches the pane byte-for-byte as before.
+    ";", "set-option", "-g", "extended-keys", "always",
+    ";", "set-option", "-g", "extended-keys-format", "csi-u",
     -- These two are half of the scrollback story. The other half is the
     -- terminal-Normal-mode forwarding in lua/ai/terminal.lua, which sends
     -- PPage into the pane so a scroll that starts outside terminal input still

@@ -442,6 +442,12 @@ libvterm。
 **代价**：包了 tmux 之后，tmux、宿主终端和 Agent TUI 对 CJK 宽字符的
 宽度判定可能不一致，带框 UI 可能有轻微错位。
 
+**按键**：两个 wrapper 的 tmux 都设置了 `extended-keys always` 和
+`extended-keys-format csi-u`。tmux 默认的 `extended-keys off` 会把 `<S-Enter>`
+发出的 `ESC[13;2u` 压成普通回车，结果是直接发送消息而不是换行。`always` 让
+tmux 不等 TUI 申请就保留修饰键，CSI u 则是 Claude Code 和 Codex 都能解析的
+格式。其他有传统编码的按键到 TUI 时不受影响。
+
 **收尾**：关闭面板或退出 Nvim 时会运行 `scripts/agent-teardown`：先杀掉 wrapper
 的 tmux server，再清掉 agent 留在自己进程组里的东西——比如 Codex `exec_command`
 起的 dev server、后台 Bash 任务——因为 tmux 只会给 pane 自己的进程发信号。agent

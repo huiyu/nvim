@@ -296,6 +296,17 @@ rather than a broken viewer.
   modifyOtherKeys, and Ghostty's legacy table pre-empts that for Ctrl+digit
   (Ctrl+1 is a bare `1`, Ctrl+3 is Esc, Ctrl+7 is `<C-_>`), which is why the
   terminal numbers live on `\1`-`\9` rather than Ctrl-digits.
+- **Shift+Enter submits instead of inserting a newline in an agent panel** —
+  the wrapper tmux has to keep the modifier. Inside the pane, `$TMUX` already
+  points at the wrapper, so:
+
+  ```sh
+  tmux show-options -s | grep extended-keys
+  ```
+
+  Expected `extended-keys always` and `extended-keys-format csi-u`. With
+  tmux's default `off`, the `ESC[13;2u` that `<S-CR>` sends arrives as a bare
+  CR; the `cat -v` probe above prints `^[[13;2u` when it gets through.
 
 ## Config self-check (headless)
 

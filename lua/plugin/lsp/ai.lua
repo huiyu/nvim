@@ -106,6 +106,18 @@ local function build_terminal_cmd()
     -- already had this; the two wrappers now agree.
     "set-option -g mouse on",
     "\\;",
+    -- Keep modified Enter chords intact on their way into the pane, as the
+    -- Codex wrapper does: tmux's default `extended-keys off` turns the CSI u
+    -- ESC[13;2u that lua/mappings.lua sends for <S-CR> into a bare CR, which
+    -- submits instead of inserting a newline (measured on tmux 3.6b). Claude
+    -- Code parses ESC[13;2u -- it is what its /terminal-setup teaches iTerm2 --
+    -- and claudecode.nvim's own buffer-local <S-CR> (backslash + Enter) keeps
+    -- working regardless, so this is about the two wrappers agreeing on what a
+    -- chord means, not a fix Claude needs on its own.
+    "set-option -g extended-keys always",
+    "\\;",
+    "set-option -g extended-keys-format csi-u",
+    "\\;",
     -- With the mouse on, the wheel reaches tmux and opens copy-mode over the
     -- real transcript, so the default 2000-line history becomes the limit
     -- worth raising. Same value as the Codex wrapper.
