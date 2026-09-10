@@ -78,7 +78,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   | `;` | "Which file/symbol/position do I want to be at?" | `;f` find file, `;s` symbol, `;1`-`;9` harpoon |
   | `,` | "What do I do to the code in front of me?" | `,a` code action, `,f` format, `,j` move line |
   | `s` | "What about this window?" | `ss` split, `sd` close, `se` editor window |
-  | `<localleader>` (`\`) | "What does *this filetype* offer?" | `\o` organize imports, VimTeX, diffview; `\1`-`\9` terminal 1-9 |
+  | `<localleader>` (`\`) | "What does *this filetype* offer?" | `\o` organize imports, VimTeX, diffview; `\1`-`\9` only in terminal buffers |
   | `<leader>` | Everything else, grouped by domain | `<leader>g` git, `<leader>d` debug |
 
   High frequency earns two keys, so anything reached constantly belongs on one

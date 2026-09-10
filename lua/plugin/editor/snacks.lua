@@ -161,6 +161,22 @@ local function color_squares()
   return { "printf", "%s\n", table.concat(lines, "\n") }
 end
 
+-- Dashboard data is optional. Keep gh failures visible in their own section
+-- without triggering Snacks' job-error popup. Capturing output and closing
+-- stdin also prevents gh from probing the dashboard's noninteractive terminal.
+local function dashboard_gh(args)
+  return vim.list_extend({
+    "sh", "-c", [[
+unset GH_FORCE_TTY
+if output=$(GH_PROMPT_DISABLED=1 GH_PAGER=cat GH_NO_UPDATE_NOTIFIER=1 GH_NO_EXTENSION_UPDATE_NOTIFIER=1 NO_COLOR=1 gh "$@" </dev/null 2>&1); then
+  printf '%s\n' "$output"
+else
+  printf 'GitHub unavailable\n%s\n' "$output"
+fi
+]], "dashboard-gh",
+  }, args)
+end
+
 return {
   "folke/snacks.nvim",
   lazy = false,
@@ -176,24 +192,33 @@ return {
     { ";<space>", function() Snacks.picker.smart({ filter = { cwd = true } }) end,                  desc = "Smart find (buffers/recent/files, cwd-only)" },
     { ";;",       function() Snacks.picker.resume() end,                                            desc = "Resume last picker" },
     { ";f",       function() Snacks.picker.files() end,                                             desc = "Find file in cwd" },
-    { ";F",       function() Snacks.picker.files({ cwd = vim.fn.expand("%:p:h") }) end,             desc = "Find file from here (buffer dir)" },
+    { ";i",       function() Snacks.picker.files({ ignored = false, exclude = {} }) end,           desc = "Find file (respect gitignore)" },
+    { ";F",       function() Snacks.picker.files({ cwd = require("util.cwd").buffer_dir() }) end,   desc = "Find file from here (buffer dir)" },
     { ";r",       function() Snacks.picker.recent({ filter = { cwd = true } }) end,                 desc = "Recent files" },
     { ";b",       function() Snacks.picker.buffers() end,                                           desc = "Buffers" },
     { ";g",       function() Snacks.picker.git_files() end,                                         desc = "Git files" },
     { ";n",       function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end,           desc = "Find file in nvim config" },
+    {
+      ";N",
+      function()
+        Snacks.picker.files({ cwd = require("lazy.core.config").options.root, ignored = false, exclude = {} })
+      end,
+      desc = "Find plugin source file",
+    },
     -- "Who calls this?" -- the question `gr` (all references) answers too
     -- loosely, since it also returns the definition and same-named strings.
     { ";c",       function() Snacks.picker.lsp_incoming_calls() end,                                desc = "LSP incoming calls" },
     { ";p",       function() Snacks.picker.projects() end,                                          desc = "Switch project" },
-    { ";d",       function() Snacks.explorer({ cwd = vim.fn.expand("%:p:h"), focus = "list" }) end, desc = "Browse directory" },
+    { ";d",       function() Snacks.explorer({ cwd = require("util.cwd").buffer_dir(), focus = "list" }) end, desc = "Browse directory" },
     { ";/",       function() Snacks.picker.grep() end,                                              desc = "Search project" },
+    { ";?",       function() Snacks.picker.grep({ ignored = false, exclude = {} }) end,            desc = "Search project (respect gitignore)" },
     { ";w",       function() Snacks.picker.grep_word() end,                                         desc = "Search word under cursor", mode = { "n", "x" } },
     -- Symbols and in-file matches answer the same question as the file
     -- pickers above -- "where do I need to be?" -- so they share the prefix.
     { ";s",       function() Snacks.picker.lsp_symbols() end,                                       desc = "Symbol in buffer" },
     { ";S",       function() Snacks.picker.lsp_workspace_symbols() end,                             desc = "Symbol in workspace" },
     { ";l",       function() Snacks.picker.lines() end,                                             desc = "Lines in this buffer" },
-    { ";D",       function() Snacks.picker.grep({ cwd = vim.fn.expand("%:p:h") }) end,              desc = "Search current directory" },
+    { ";D",       function() Snacks.picker.grep({ cwd = require("util.cwd").buffer_dir() }) end,    desc = "Search current directory" },
     { ";j",       function() Snacks.picker.jumps() end,                                             desc = "Jumps" },
     { ";m",       function() Snacks.picker.marks() end,                                             desc = "Marks" },
 
@@ -306,25 +331,7 @@ return {
     },
     { "<C-/>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
     { "<C-_>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
-    -- Terminal switching: <localleader>1..9 in Normal mode.
-    --
-    -- Plain keys on purpose. These were <C-1>..<C-9>, which only exist under an
-    -- extended-key protocol: Nvim negotiates kitty's directly in Ghostty, but
-    -- an outer tmux speaks only modifyOtherKeys, and Ghostty's legacy ctrl
-    -- table pre-empts that encoding for digits -- ctrl+1 arrived as a bare `1`,
-    -- ctrl+3 as Esc, ctrl+7 as <C-_> -- so the chords silently died inside
-    -- tmux while <C-,> kept working. `\` + digit survives every terminal.
-    -- Normal mode only: a backslash typed in terminal input belongs to the
-    -- shell, so from inside a terminal it is `jk` (or <C-]>) first.
-    { "<localleader>1", function() require("util.terminal").focus(1) end, desc = "Terminal 1" },
-    { "<localleader>2", function() require("util.terminal").focus(2) end, desc = "Terminal 2" },
-    { "<localleader>3", function() require("util.terminal").focus(3) end, desc = "Terminal 3" },
-    { "<localleader>4", function() require("util.terminal").focus(4) end, desc = "Terminal 4" },
-    { "<localleader>5", function() require("util.terminal").focus(5) end, desc = "Terminal 5" },
-    { "<localleader>6", function() require("util.terminal").focus(6) end, desc = "Terminal 6" },
-    { "<localleader>7", function() require("util.terminal").focus(7) end, desc = "Terminal 7" },
-    { "<localleader>8", function() require("util.terminal").focus(8) end, desc = "Terminal 8" },
-    { "<localleader>9", function() require("util.terminal").focus(9) end, desc = "Terminal 9" },
+    -- Numbered switching is buffer-local, installed by TermOpen in autocmds.lua.
   },
   opts = {
     image = {
@@ -437,10 +444,11 @@ return {
               -- Plain `gh api` instead of the gh-notify extension: gh ships its
               -- own template/jq engine, so this needs no extra install. The feed
               -- is account-wide, hence no `has_gh_remote` guard.
-              cmd = [[gh api 'notifications?per_page=5' --template ]]
-                  .. [['{{range .}}{{tablerow (timeago .updated_at) ]]
-                  .. [[(.repository.full_name | truncate 18 | color "cyan") ]]
-                  .. [[(.subject.title | truncate 24)}}{{end}}{{tablerender}}']],
+              cmd = dashboard_gh({ "api", "notifications?per_page=5", "--template",
+                [[{{range .}}{{tablerow (timeago .updated_at) ]]
+                  .. [[(.repository.full_name | truncate 18) ]]
+                  .. [[(.subject.title | truncate 24)}}{{end}}{{tablerender}}]],
+              }),
               action = function() vim.ui.open("https://github.com/notifications") end,
               key = "n",
               icon = "󰂚 ",
@@ -449,7 +457,7 @@ return {
             },
             {
               title = "Open Issues",
-              cmd = "gh issue list -L 3",
+              cmd = dashboard_gh({ "issue", "list", "-L", "3" }),
               -- Capital I opens snacks' native GitHub issue picker (fuzzy + live
               -- preview); <cr> shows the action menu, <a-b> opens in the browser.
               -- Lowercase i on the left opens the full issues list webpage.
@@ -462,7 +470,7 @@ return {
             {
               icon = "󰜘 ",
               title = "Open PRs",
-              cmd = "gh pr list -L 3",
+              cmd = dashboard_gh({ "pr", "list", "-L", "3" }),
               -- Capital O opens snacks' native GitHub PR picker (fuzzy + live
               -- preview/diff); <cr> shows the action menu, <a-b> opens in the
               -- browser. Lowercase o on the left opens the full PR list webpage.

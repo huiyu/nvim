@@ -9,6 +9,28 @@
 --
 -- Complementary to the tree on ;e, not a replacement: the tree stays for
 -- browsing, oil is opened for a specific edit and closed again.
+local function open_oil(floating)
+  local dir
+  if vim.bo.buftype == "terminal" then
+    -- Snacks protects its terminal window with fixbuf. Opening Oil there
+    -- makes it swap buffers during :edit, leaving focus on the agent. Choose
+    -- and focus an editor window first, keeping the terminal's directory.
+    dir = require("util.cwd").buffer_dir()
+    vim.api.nvim_set_current_win(require("util.window").ensure_editor_win())
+    vim.cmd("stopinsert")
+  end
+  if floating then
+    require("oil").open_float(dir, { preview = {} })
+  else
+    if dir and vim.api.nvim_buf_get_name(0) == "" then
+      -- :edit can reuse an unnamed buffer. Pre-create Oil's buffer so its
+      -- original-buffer record still points at the blank editor when q runs.
+      vim.fn.bufadd("oil://" .. dir:gsub("/+$", "") .. "/")
+    end
+    require("oil").open(dir)
+  end
+end
+
 return {
   "stevearc/oil.nvim",
   dependencies = { "nvim-tree/nvim-web-devicons" },
@@ -53,12 +75,12 @@ return {
     end
   end,
   keys = {
-    { ";o", function() require("oil").open_float(nil, { preview = {} }) end,
+    { ";o", function() open_oil(true) end,
       desc = "Oil file manager (float)" },
     -- oil's own convention, and the reason it is worth the shadowing: `-`
     -- reaches the current file's directory in one key. It replaces the builtin
     -- "first non-blank of the previous line" motion, which `k^` already covers.
-    { "-", function() require("oil").open() end, desc = "Oil: parent directory" },
+    { "-", function() open_oil(false) end, desc = "Oil: parent directory" },
   },
   opts = {
     default_file_explorer = true,
@@ -81,7 +103,6 @@ return {
       ["<C-r>"] = "actions.refresh",
       ["go"] = "actions.open_external",
       ["q"] = { "actions.close", mode = "n" },
-      ["h"] = { "actions.parent", mode = "n" },
     },
     view_options = { show_hidden = true },
     float = { padding = 8, border = "rounded", max_width = 200 },

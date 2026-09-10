@@ -207,8 +207,8 @@ end
 
 ---Show terminal `count` and put the cursor in it. Never closes anything.
 ---
----This is what `\1`..`\9` do. They are for choosing *which* terminal you are
----looking at, so pressing the number of the terminal you are already in has to
+---This is what terminal-local `\1`..`\9` do in Normal mode. They choose
+---which terminal you are looking at, so pressing its own number has to
 ---leave it open -- closing is <C-/>'s single job.
 ---@param count integer
 function M.focus(count)

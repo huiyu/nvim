@@ -14,6 +14,17 @@ return {
     { "<C-b>", function() if not require("noice.lsp").scroll(-4) then return "<C-b>" end end, mode = { "i", "n", "s" }, expr = true, desc = "Scroll backward" },
   },
   opts = {
+    routes = {
+      {
+        filter = {
+          event = "notify",
+          find = "^No information available$",
+          error = false,
+          warning = false,
+        },
+        opts = { skip = true },
+      },
+    },
     lsp = {
       override = {
         ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
@@ -25,7 +36,7 @@ return {
       command_palette = true,
       long_message_to_split = true,
       inc_rename = true,
-      lsp_doc_border = false,
+      lsp_doc_border = true,
     },
   },
 }

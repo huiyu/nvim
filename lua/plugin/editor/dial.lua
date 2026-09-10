@@ -22,22 +22,30 @@ return {
     { "g<C-a>", dial("inc_gvisual"), mode = "v",  expr = true, desc = "Increment" },
     { "g<C-x>", dial("dec_gvisual"), mode = "v",  expr = true, desc = "Decrement" },
   },
-  config = function()
+  opts = function()
     local augend = require("dial.augend")
-    require("dial.config").augends:register_group({
-      default = {
-        augend.integer.alias.decimal,
-        augend.integer.alias.hex,
-        augend.date.alias["%Y/%m/%d"],
-        augend.date.alias["%Y-%m-%d"],
-        augend.constant.alias.bool,
-        augend.semver.alias.semver,
-        augend.constant.new({ elements = { "&&", "||" }, word = false, cyclic = true }),
-        augend.constant.new({ elements = { "==", "!=" }, word = false, cyclic = true }),
-        augend.constant.new({ elements = { "yes", "no" }, word = true, cyclic = true }),
-        augend.constant.new({ elements = { "and", "or" }, word = true, cyclic = true }),
-        augend.constant.new({ elements = { "True", "False" }, word = true, cyclic = true }),
+    return {
+      augends = {
+        default = {
+          augend.integer.alias.decimal,
+          augend.integer.alias.hex,
+          augend.date.alias["%Y/%m/%d"],
+          augend.date.alias["%Y-%m-%d"],
+          augend.constant.alias.bool,
+          augend.semver.alias.semver,
+          augend.constant.new({ elements = { "&&", "||" }, word = false, cyclic = true }),
+          augend.constant.new({ elements = { "==", "!=" }, word = false, cyclic = true }),
+          augend.constant.new({ elements = { "yes", "no" }, word = true, cyclic = true }),
+          augend.constant.new({ elements = { "and", "or" }, word = true, cyclic = true }),
+          augend.constant.new({ elements = { "True", "False" }, word = true, cyclic = true }),
+        },
       },
-    })
+      filetypes = {},
+    }
+  end,
+  config = function(_, opts)
+    local config = require("dial.config")
+    config.augends:register_group(opts.augends)
+    config.augends:on_filetype(opts.filetypes)
   end,
 }

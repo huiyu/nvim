@@ -22,7 +22,7 @@ local options = {
   -- Text Rendering Options --
   encoding = "utf-8", -- " Use unicode file encoding
   fileencoding = "utf-8",
-  scrolloff = 4,      -- The number of screen lines to keep above below the cursor
+  scrolloff = 8,      -- Keep context above and below the cursor while scrolling
   sidescrolloff = 5,  -- The number of screen columns to keep to the left and right of the cursor.
   termguicolors = true,
   inccommand = "split",   -- Live preview for substitution commands, in a window listing every match

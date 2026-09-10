@@ -14,6 +14,21 @@ require("util.run").register("typescript", function(path)
 end)
 
 return {
+  -- Keep the usual numbers/dates/toggles and add JS/TS declaration keywords.
+  {
+    "monaqa/dial.nvim",
+    optional = true,
+    opts = function(_, opts)
+      local augend = require("dial.augend")
+      local declarations = vim.list_extend(vim.deepcopy(opts.augends.default), {
+        augend.constant.new({ elements = { "let", "const" }, word = true, cyclic = true }),
+      })
+      for _, ft in ipairs({ "javascript", "javascriptreact", "typescript", "typescriptreact" }) do
+        opts.filetypes[ft] = declarations
+      end
+    end,
+  },
+
   -- LSP: vtsls (a vscode-tsserver wrapper) for JS/TS, plus ESLint.
   {
     "neovim/nvim-lspconfig",

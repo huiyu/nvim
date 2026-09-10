@@ -169,9 +169,9 @@ end
 --- land on top of one of them. No window variable prevents that; the fallback
 --- is unconditional.
 ---
---- So when the tab has no editor window at all, split the current one
---- horizontally and hand back the new half. The panel stays on screen, and the
---- file gets somewhere legitimate to go.
+--- So when the tab has no editor window at all, create an empty horizontal
+--- split and hand it back. The panel stays on screen. Starting with a blank
+--- buffer also lets Oil's close restore an editor instead of a copied terminal.
 ---@return integer win
 function M.ensure_editor_win()
   local win = pick_editor_win()
@@ -184,7 +184,7 @@ function M.ensure_editor_win()
   end
   local created
   vim.api.nvim_win_call(base or 0, function()
-    vim.cmd("belowright split")
+    vim.cmd("belowright new")
     created = vim.api.nvim_get_current_win()
   end)
   return created

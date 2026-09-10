@@ -20,6 +20,26 @@ local function nearest_existing(path)
   end
 end
 
+--- Local directory for file browsing/searching from the current buffer.
+--- Oil supplies its directory; files supply their parent. Terminals, unnamed
+--- buffers and other virtual buffers use the window/tab cwd, never their URI.
+---@return string
+function M.buffer_dir()
+  local dir
+  if vim.bo.filetype == "oil" and package.loaded.oil then
+    dir = package.loaded.oil.get_current_dir()
+  elseif vim.bo.buftype == "" then
+    local name = vim.api.nvim_buf_get_name(0)
+    if name ~= "" and not name:match("^%a[%w+.-]*://") then
+      dir = is_dir(name) and name or vim.fs.dirname(name)
+    end
+  end
+  return (dir and nearest_existing(dir))
+      or nearest_existing(vim.fn.getcwd())
+      or vim.uv.os_homedir()
+      or "/"
+end
+
 --- Try to make `dir` the working directory.
 ---
 --- Checked through `vim.uv.cwd()` rather than chdir()'s return value: that is

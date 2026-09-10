@@ -8,6 +8,19 @@ The utility modules provide focused helpers for logging, debug inspection, LSP, 
 
 ## Core Utilities
 
+### Working directories (`util.cwd`)
+
+`buffer_dir()` returns an existing local directory for the current buffer:
+the parent of an ordinary file, the displayed local Oil directory, or the
+current window/tab working directory for terminals, unnamed buffers and other
+virtual buffers. Missing directories fall back to their nearest existing
+ancestor, then the cwd, home or `/`. It neither changes the cwd nor loads Oil.
+The directory-scoped `;d`, `;F`, and `;D` mappings share this resolver.
+
+`recover()` repairs a deleted process cwd and returns a one-line report, or
+nil when no repair was needed. `setup()` runs it at startup and schedules any
+report after the UI has loaded.
+
 ### 📝 Logger (`util.logger`)
 
 Structured logging framework with level control and history.
@@ -288,6 +301,11 @@ window.focus_editor()
 -- file buffer when WinEnter fires and only becomes a terminal afterwards).
 window.track_editor_win()
 
+-- Return an editor window in the current tab, creating an empty horizontal
+-- split when only panels remain. Does not move focus; the caller decides when
+-- to enter it. Used by location pickers and Oil's terminal entry points.
+window.ensure_editor_win()
+
 -- Quit Nvim, including from inside a Snacks terminal window. Backs <leader>qq
 -- and, with force, <leader>qQ.
 window.quit_all(force)
@@ -347,8 +365,8 @@ terminal.is_agent_buf(buf)
 -- were last in. Bound to <C-/>.
 terminal.toggle(count)
 
--- Show a terminal and put the cursor in it; never closes. Bound to `\1`-`\9`,
--- which are for choosing which terminal you look at, not for dismissing one.
+-- Show a terminal and put the cursor in it; never closes. Bound to `\1`-`\9`
+-- only in terminal buffers' Normal mode (installed on TermOpen).
 terminal.focus(count)
 ```
 

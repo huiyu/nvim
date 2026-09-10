@@ -270,9 +270,43 @@ rather than a broken viewer.
 
 ## Runtime errors & messages
 
+- **Oil opens from an agent panel but focus stays in the TUI, and `q` hides the
+  terminal** — Snacks protects terminal windows from buffer replacement. The
+  `-` and `;o` mappings now focus an editor window in the current tab before
+  opening Oil, creating a blank editor split if needed. Leave terminal input
+  first with `Ctrl-\` or `jk`; plain `-` in terminal input still goes to the TUI.
+- **Dashboard GitHub sections show "GitHub unavailable"** — the original `gh`
+  error appears in that section without a job-error popup. `EOF` and
+  `connection reset by peer` indicate a failed connection; if the address is
+  `127.0.0.1:7890`, check the local proxy used by Nvim's inherited proxy
+  environment. Retry `gh api 'notifications?per_page=5'`, `gh issue list -L 3`,
+  or `gh pr list -L 3` in a terminal. For authentication errors, use
+  `gh auth status`. Dashboard results, including an unavailable message, are
+  cached for five minutes and retried when the dashboard is opened after expiry.
+  These background commands run without interactive prompts or terminal probes.
+- **Explorer reports "Not a directory: term:…"** — `;d`, `;F`, and `;D` now
+  resolve a local directory with `util.cwd.buffer_dir()`: the file's parent,
+  the displayed Oil directory, or the current window/tab cwd for terminals and
+  other virtual buffers. Restart Nvim after updating to replace the old mappings.
 - `:messages` — message history
 - `:Noice` / `:Noice errors` — noice handles notifications (the snacks notifier
   is disabled); `<leader>mnh` opens history, `<leader>un` dismisses
+- The exact informational notification `No information available` is hidden;
+  warnings, errors and other messages remain visible. LSP hover/signature
+  documentation has a border (`lsp_doc_border` in `lua/plugin/ui/noice.lua`).
+- **Color previews are missing** — `:ColorizerAttachToBuffer` reattaches the
+  current buffer; `:ColorizerToggle` toggles previews. Hex/RGB/HSL and CSS
+  variable references are enabled; variable definitions must be in the same
+  buffer. Tailwind previews are limited to the frontend filetypes in
+  `lua/lang/frontend.lua`; custom project colors also need an attached
+  `tailwindcss` LSP (`:checkhealth vim.lsp`).
+- **A file is missing from search** — `;i` / `;?` respect `.gitignore` and have
+  no extra directory exclusions; `;f` / `;/` include ignored files but exclude
+  common build/dependency directories. Choose the appropriate scope.
+- **Zen mode** — `sz` toggles the current file's centered view. It leaves
+  terminal/special buffers alone. Returning to a regular split exits zen mode;
+  file edits remain in the original buffer. `scrolloff` is eight for editing
+  and zero for terminals; keep `splitkeep=screen` for Edgy's layout handling.
 - **"Working directory … no longer exists; started in … instead"** — the shell's
   directory was deleted under it (a pruned worktree, a removed temp dir). Nvim
   moved to the nearest surviving ancestor, or `~`. Without this, Snacks'
@@ -295,7 +329,10 @@ rather than a broken viewer.
   control byte means the terminal never encoded it. tmux only relays
   modifyOtherKeys, and Ghostty's legacy table pre-empts that for Ctrl+digit
   (Ctrl+1 is a bare `1`, Ctrl+3 is Esc, Ctrl+7 is `<C-_>`), which is why the
-  terminal numbers live on `\1`-`\9` rather than Ctrl-digits.
+  terminal numbers use buffer-local `\1`-`\9` in terminal-Normal mode.
+  From a file, use `3<C-/>` to select terminal 3. The `\` digit mappings do
+  not exist in ordinary files, even when a terminal is visible; restart Nvim
+  after updating to remove the old global mappings from a running session.
 - **Shift+Enter submits instead of inserting a newline in an agent panel** —
   the wrapper tmux has to keep the modifier. Inside the pane, `$TMUX` already
   points at the wrapper, so:

@@ -48,12 +48,21 @@ autocmd("WinLeave", {
 -- Disables line numbers and scrolloff to prevent rendering glitches
 autocmd("TermOpen", {
   group = augroup("terminal_ui_fix", { clear = true }),
-  callback = function()
+  callback = function(event)
     vim.opt_local.number = false
     vim.opt_local.relativenumber = false
     vim.opt_local.scrolloff = 0
     vim.opt_local.sidescrolloff = 0
     vim.opt_local.signcolumn = "no"
+
+    -- Terminal-only actions belong on <localleader>. Plain keys also survive
+    -- outer tmux sessions where Ctrl-digit encodings are lost. Leave terminal
+    -- input untouched: use jk / Ctrl-] before choosing a numbered terminal.
+    for n = 1, 9 do
+      vim.keymap.set("n", "<localleader>" .. n, function()
+        require("util.terminal").focus(n)
+      end, { buffer = event.buf, desc = "Terminal " .. n })
+    end
   end,
 })
 

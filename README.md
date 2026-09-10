@@ -99,16 +99,16 @@ nvim
 |--------|-------------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
 | [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line |
-| [incline](https://github.com/b0o/incline.nvim) | Per-window filename label, on every window but the focused one |
+| [incline](https://github.com/b0o/incline.nvim) | Top-right filename labels in file windows; pink for the focused window, `[+]` for unsaved changes |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick |
-| [noice](https://github.com/folke/noice.nvim) | Enhanced cmdline, messages, notifications |
+| [noice](https://github.com/folke/noice.nvim) | Enhanced cmdline/messages; bordered LSP docs and quiet empty-hover notifications |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | Sticky function/class header (`<leader>uC`) |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | Modern code folding |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME highlights |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor |
-| [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Color code highlighting |
+| [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL and CSS variable previews; Tailwind colors in frontend files |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering (`\r`) |
 
 #### Editor
@@ -117,12 +117,12 @@ nvim
 |--------|-------------|
 | [flash](https://github.com/folke/flash.nvim) | Fast navigation with labels |
 | [which-key](https://github.com/folke/which-key.nvim) | Keybinding help popup |
-| [snacks](https://github.com/folke/snacks.nvim) | Picker (fuzzy finder), dashboard, file explorer, terminal, indent guides, smooth scroll, notifications, rename |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker, dashboard, file explorer, terminal, indent guides, smooth scroll, rename, zen mode (`sz`) |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | Pinned-file jumps (`;1`-`;9`, `;h` menu) |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank history ring |
-| [dial](https://github.com/monaqa/dial.nvim) | Enhanced increment/decrement (booleans, dates, etc.) |
+| [dial](https://github.com/monaqa/dial.nvim) | Increment/decrement booleans, dates, etc.; `let` / `const` in JS/TS |
 | [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | Extract function/variable, inline |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | Enhanced text objects |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | Toggle single-line/multi-line (`gS`) |
@@ -224,7 +224,7 @@ Every key answers one question, and the prefix says which:
 | `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;1`-`;9` pinned files |
 | `,` | What do I do to this code? | `,a` code action, `,f` format, `,r` rename, `,j`/`,k` move line, `,e*` extract |
 | `s` | What about this window? | `ss`/`sv` split, `sd` close, `se` editor window, `s=` equalize |
-| `\` | What does *this filetype* offer? | `\o` organize imports (Go/Python), VimTeX, diffview; `\1`-`\9` terminal 1-9 |
+| `\` | What does *this filetype* offer? | `\o` organize imports (Go/Python), VimTeX, diffview; `\1`-`\9` inside terminal buffers |
 | `<leader>` | Everything else, by domain | `g` git, `G` GitHub, `d` debug, `t` test, `a` AI, `x` diagnostics, `m` manage, `s` session, `y` yank, `u` toggles, `b` buffer, `q` quit |
 
 Frequency decides depth: what you reach for constantly is two keys, the rest
@@ -238,7 +238,7 @@ Unprefixed keys worth knowing:
 | `f` / `F` | Flash jump / Treesitter jump (Normal + Visual; `df-`, `ct)` stay native) |
 | `<C-h/j/k/l>` | Move between windows — works from terminal input too |
 | `<C-,>` | Jump to the editor area, press again to return |
-| `<C-/>` | Toggle terminal; `\1`-`\9` jump to terminal 1-9 (Normal mode) |
+| `<C-/>` | Toggle terminal; `3<C-/>` selects terminal 3 from a file; `\1`-`\9` switch from terminal-Normal |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
 | `g` · `[` / `]` · `z` | Goto+LSP · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
@@ -286,9 +286,14 @@ extended-key protocol negotiated by Ghostty and Nvim to remain distinct from a
 plain comma; an outer tmux must have `extended-keys` enabled. Where that
 protocol is unavailable — a bare Terminal.app, an ssh session, an older tmux —
 `se` does the same jump with plain keys. Terminal numbers avoid the protocol
-altogether: `\1`-`\9` are plain keys because Ghostty encodes Ctrl+digit as
+altogether: terminal-local `\1`-`\9` are plain keys because Ghostty encodes Ctrl+digit as
 legacy bytes under an outer tmux, so the old `<C-1>`-`<C-9>` chords never
 arrived there.
+
+The number mappings exist only in terminal buffers, in Normal mode (`jk` or
+`<C-]>` first from terminal input). Ordinary files keep `\` for their filetype
+actions. From a file, use `<C-/>` to reopen the last terminal, or `3<C-/>` to
+select terminal 3 directly.
 
 Inside an agent panel, `<Esc>` belongs to the agent, not to Nvim. Both CLIs read
 a quick double Esc as "go back a message", so neither Snacks' double-tap nor the
@@ -547,7 +552,7 @@ Set these in `init.lua` before plugins load.
 
 | Option | Description |
 |--------|-------------|
-| `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where `\1`-`\9` open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
+| `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where numbered terminals open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
 
 ### Environment Variables
 
@@ -576,6 +581,10 @@ matching contribution in `lua/lang/`. Language files extend the shared
 `lua/plugin/lsp/` contain editor-wide defaults only.
 
 **Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
+
+Use `;i` (files) or `;?` (text) to respect `.gitignore` instead, with hidden files
+still visible and no extra directory exclusions. `;N` searches installed plugin
+source files; `;n` searches this configuration.
 
 ## License
 

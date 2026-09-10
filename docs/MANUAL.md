@@ -252,11 +252,13 @@ Every way of reaching a file, a symbol, or a position.
 |---|---|
 | `;<Space>` | **Smart find** — recent + open + all files, ranked by how often you use them. Start here. |
 | `;f` | Find file by name in the project |
+| `;i` | Find files respecting `.gitignore`, including hidden files |
 | `;F` | Find file next to the current one |
 | `;r` | Recently opened |
 | `;b` | Open buffers |
 | `;g` | Files tracked by git |
 | `;n` | Files in this Neovim config |
+| `;N` | Source files in the lazy.nvim plugin installation directory |
 | `;p` | Switch project |
 | `;a` | **Alternate file** — bounce between the last two files. The implementation/test loop. |
 | `;;` | Reopen the last search, with its results intact |
@@ -269,12 +271,17 @@ and floats them to the top.
 | Key | Does |
 |---|---|
 | `;/` | Search the whole project |
+| `;?` | Search text respecting `.gitignore`, including hidden files |
 | `;w` | Search the word under the cursor |
 | `;l` | Search lines in this file |
 | `;D` | Search this directory |
 | `;s` | Symbols (functions, classes) in this file |
 | `;S` | Symbols across the project |
 | `;c` | **Who calls this?** — incoming calls for the symbol under the cursor |
+
+`;f` and `;/` include gitignored files but skip common build/dependency
+directories. `;i` and `;?` use `.gitignore` without those extra exclusions, so
+tracked source inside a directory such as `build/` remains searchable.
 
 ### Browsing
 
@@ -284,6 +291,19 @@ and floats them to the top.
 | `;d` | Browse the current file's directory |
 | `;o` | **oil** — edit the directory as text (see below) |
 | `-` | oil, on the parent directory |
+
+`;d`, `;F`, and `;D` use the file's directory or the displayed Oil directory.
+From terminals and other panels, they use the current window/tab working directory.
+
+From a terminal (including Claude/Codex), leave terminal input with `Ctrl-\`
+or `jk`, then press `-` or `;o`. Oil opens with focus in the current tab's editor
+area, creating an empty editor split if needed. `q` closes Oil and returns to
+the editor; the terminal stays open.
+
+Inside Oil, `h/j/k/l` keep their normal cursor motions so filenames are easy to
+edit. Use `-` to go to the parent directory, Enter to open the selected file or
+directory, `g?` to see Oil's keymaps, and `q` to close. Edit filenames or add/delete
+lines, then `:w` to review and confirm the filesystem changes.
 
 ### Pinned files
 
@@ -327,6 +347,10 @@ file they are simply not there.
 
 Works on a Visual selection too.
 
+`Ctrl-a` / `Ctrl-x` increment and decrement numbers, dates, versions, booleans
+and the configured logical operators. In JS/TS (including JSX/TSX), they also
+cycle `let` / `const`; this keyword rule does not apply to other filetypes.
+
 ### Refactoring
 
 | Key | Does |
@@ -355,6 +379,20 @@ The `,e*` extractions work on a Visual selection.
 | `se` | Jump to the editor area |
 | `s=` | Equalize sizes |
 | `sm` | Zoom this window / restore |
+| `sz` | Toggle zen mode for the current file |
+
+`sz` opens the file in a centered, 100-column view, covers the statusline and
+tab bar, and dims code outside the current scope. Press it again to return to
+the previous layout; file edits remain in the same buffer. Terminals and other
+special buffers do not enter zen mode. `sm` remains the ordinary split zoom.
+
+`scrolloff = 8` tries to keep eight screen lines above and below the cursor,
+scrolling before you reach an edge. Files near their beginning/end and small
+windows cannot always provide that much context. Terminal windows use zero.
+`splitkeep = "screen"` keeps text on the same screen line when horizontal
+splits open, close or resize; Edgy uses it to keep sidebar layout changes steady.
+The alternative `"cursor"` keeps the relative cursor position, while `"topline"`
+keeps each window's first visible line.
 
 **Moving between windows does not use `s`** — it is one key:
 
@@ -370,10 +408,10 @@ is open beside your code.
 
 ## This filetype: `\`
 
-`\` holds actions that only mean something in the file you are in. The same key
-does different things in different filetypes, which is the point. The digit row
-is the one global exception: `\1`-`\9` jump to terminal 1-9 from any file,
-because plain keys survive an outer tmux where Ctrl-digit chords do not.
+`\` holds actions that only mean something in the buffer you are in. The same
+key does different things in different filetypes, which is the point. Terminal
+buffers add `\1`-`\9` in Normal mode to choose a numbered terminal; those keys
+do not appear in ordinary files, even while a terminal is open beside them.
 
 | Filetype | Keys |
 |---|---|
@@ -383,6 +421,12 @@ because plain keys survive an outer tmux where Ctrl-digit chords do not.
 | Markdown | `\p` toggle preview · `\r` toggle in-editor rendering |
 | LaTeX | `\b` build · `\v` view PDF · `\t` table of contents · `\e` errors · `\k` clean |
 | Diffview | `\e` focus file panel · `\co` / `\ct` resolve conflict (ours/theirs) |
+| Terminal | `\1`-`\9` choose terminal 1-9 (Normal mode) |
+
+Color previews show hex, `rgb()`, `hsl()` and CSS `var(--name)` references.
+CSS variable definitions are resolved within the buffer. Frontend files also
+preview Tailwind classes, using the Tailwind LSP for project-specific colors
+when it is attached. `:ColorizerToggle` toggles previews in the current buffer.
 
 Press `\` and wait to see what the current file offers.
 
@@ -463,13 +507,17 @@ its own actions and `<Space>gq` closes it.
 
 ```
 Ctrl-/       toggle a terminal
-\1 … \9      jump straight to terminal 1-9 (Normal mode; inside one, jk first)
+3<Ctrl-/>    select terminal 3 from a file (Normal mode)
+\1 … \9      choose terminal 1-9 from a terminal buffer (jk first)
 <Space>ac    open the AI panel
 <Space>ai    write a prompt in a real Neovim buffer
 ```
 
 `Ctrl-]` leaves terminal input without disturbing the program running in it —
 useful because `Esc` belongs to the AI CLIs themselves.
+
+The numbered `\` keys focus or create the selected terminal and never close
+it when pressed again. `<C-/>` opens/closes the current or last-used terminal.
 
 ---
 

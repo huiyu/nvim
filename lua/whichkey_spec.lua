@@ -68,10 +68,8 @@ local spec = {
   { "z",             group = "Fold/Spell",      mode = { "n", "x" } },
   -- <localleader> is per-filetype: VimTeX compile/view, diffview's panel and
   -- conflict actions, gopls/venv/source-header, so the same letter can mean
-  -- different things in a .tex and a .go buffer. The one global tenant is the
-  -- digit row, `\1`..`\9` for terminal 1-9 (lua/plugin/editor/snacks.lua):
-  -- letters stay free for filetypes, and plain keys survive an outer tmux
-  -- where the old Ctrl-digit chords did not.
+  -- different things in a .tex and a .go buffer. Terminal buffers add their
+  -- own digit row, `\1`..`\9`, on TermOpen (lua/autocmds.lua).
   { "<localleader>", group = "This filetype",   mode = "n" },
 
   -- The marks plugin labels all four jump-to-mark prefixes identically as
@@ -105,7 +103,8 @@ local spec = {
       "  ;;               Resume last picker",
       "  ;f / ;F          Find file (cwd / buffer dir)",
       "  ;r / ;b / ;g     Recent / Buffers / Git files",
-      "  ;n / ;p          Nvim config / Switch project",
+      "  ;n / ;N / ;p     Nvim config / Plugin source / Project",
+      "  ;i / ;?          Files / grep respecting gitignore",
       "  ;c               LSP incoming calls (who calls this)",
       "  ;e / ;E / ;d     Tree / Explorer+ignored / Browse dir",
       "  ;o               Oil (edit dir as a buffer)",
@@ -147,7 +146,8 @@ local spec = {
       "",
       "  ── Terminals ────────────────────────────",
       "  <C-/>            Open/close terminal (the one you are in)",
-      "  \\1 .. \\9         Switch to terminal 1-9 (Normal mode;",
+      "  3<C-/>           Open terminal 3 from a file",
+      "  \\1 .. \\9         Switch terminal (terminal buffers only;",
       "                   from terminal input: jk first)",
       "  <leader>md       Fix terminal TUI drift",
       "",
@@ -171,6 +171,7 @@ local spec = {
       "  sw / se          Other window / editor window",
       "  sd / so          Close this / close others",
       "  s= / sm          Equalize / toggle zoom",
+      "  sz               Toggle zen mode (file window)",
       "  (<C-h/j/k/l> still moves between windows)",
       "  <C-a> / <C-x>    Increment / Decrement",
       "",

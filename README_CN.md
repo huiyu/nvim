@@ -94,16 +94,16 @@ nvim
 |------|------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
 | [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏 |
-| [incline](https://github.com/b0o/incline.nvim) | 每个窗口右上角的文件名标签（当前窗口除外） |
+| [incline](https://github.com/b0o/incline.nvim) | 文件窗口右上角的文件名标签；当前窗口显示粉色，`[+]` 表示未保存的修改 |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择） |
-| [noice](https://github.com/folke/noice.nvim) | 增强命令行、消息、通知 |
+| [noice](https://github.com/folke/noice.nvim) | 增强命令行和消息；LSP 文档带边框，过滤无内容的悬浮提示通知 |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | 粘性函数/类头（`<leader>uC`） |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | 现代代码折叠 |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME 高亮 |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮 |
-| [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | 颜色代码高亮 |
+| [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL、CSS 变量颜色预览；前端文件支持 Tailwind 颜色 |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染（`\r`） |
 
 #### 编辑器
@@ -112,12 +112,12 @@ nvim
 |------|------|
 | [flash](https://github.com/folke/flash.nvim) | 快速跳转导航 |
 | [which-key](https://github.com/folke/which-key.nvim) | 键位提示弹窗 |
-| [snacks](https://github.com/folke/snacks.nvim) | Picker（模糊查找）、启动页、文件浏览器、终端、缩进线、平滑滚动、通知、重命名 |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker、启动页、文件浏览器、终端、缩进线、平滑滚动、重命名、专注模式（`sz`） |
 | [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | 钉住的文件快速跳转（`;1`-`;9`，`;h` 打开列表） |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank 历史环 |
-| [dial](https://github.com/monaqa/dial.nvim) | 增强递增/递减（布尔值、日期等） |
+| [dial](https://github.com/monaqa/dial.nvim) | 递增/递减布尔值、日期等；JS/TS 中切换 `let` / `const` |
 | [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | 提取函数/变量、内联 |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | 增强文本对象 |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | 单行/多行切换（`gS`） |
@@ -219,7 +219,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | `;` | 我要去哪个文件 / 符号 / 位置？ | `;<space>` 智能查找、`;f` 找文件、`;/` 全局搜索、`;s` 符号、`;1`-`;9` 钉住的文件 |
 | `,` | 对眼前这段代码做什么？ | `,a` code action、`,f` 格式化、`,r` 重命名、`,j`/`,k` 移动行、`,e*` 提取 |
 | `s` | 这个窗口怎么办？ | `ss`/`sv` 分屏、`sd` 关闭、`se` 跳编辑器、`s=` 均分 |
-| `\` | **当前文件类型**有什么？ | `\o` 整理 import（Go/Python）、VimTeX、diffview；`\1`-`\9` 第 1-9 个终端 |
+| `\` | **当前文件类型**有什么？ | `\o` 整理 import（Go/Python）、VimTeX、diffview；终端 buffer 内的 `\1`-`\9` |
 | `<leader>` | 其余，按领域分组 | `g` git、`G` GitHub、`d` 调试、`t` 测试、`a` AI、`x` 诊断、`m` 管理、`s` 会话、`y` 复制、`u` 开关、`b` buffer、`q` 退出 |
 
 频率决定深度：天天用的是两键，其余归到 `<leader>`。按下任一前缀等半秒，
@@ -232,7 +232,7 @@ which-key 会列出可用键——那个列表由配置本身生成，不会和�
 | `f` / `F` | Flash 跳转 / Treesitter 跳转（Normal + Visual；`df-`、`ct)` 仍走原生） |
 | `<C-h/j/k/l>` | 窗口移动——在终端输入状态下同样可用 |
 | `<C-,>` | 跳到编辑器区域，再按一次跳回 |
-| `<C-/>` | 切换终端；`\1`-`\9` 直达第 1-9 个终端（Normal 模式） |
+| `<C-/>` | 开关终端；文件中用 `3<C-/>` 打开终端 3；终端 Normal 模式下用 `\1`-`\9` 切换 |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | 上/下一个 buffer |
 | `g` · `[` / `]` · `z` | 跳转+LSP · 上/下一个某物 · 折叠与拼写 |
 | `-` | 用 oil 打开当前目录（可当文本编辑） |
@@ -271,8 +271,12 @@ TUI。处在布局边缘时该键不做任何事、保持终端输入；浮动�
 回到来源窗口。它依赖 Ghostty 与 Nvim 协商的扩展键盘协议，以便和普通逗号区分；
 如果 Nvim 外面还有一层 tmux，需要为其启用 `extended-keys`。在拿不到该协议的
 环境里(原生 Terminal.app、ssh 会话、较老的 tmux),用 `se` 完成同样的
-跳转。终端编号则完全不依赖该协议：`\1`-`\9` 是普通按键，因为在外层 tmux 下
+跳转。终端编号则完全不依赖该协议：终端内的 `\1`-`\9` 是普通按键，因为在外层 tmux 下
 Ghostty 会把 Ctrl+数字编码成旧式字节，原来的 `<C-1>`-`<C-9>` 根本传不到 Nvim。
+
+编号映射只存在于终端 buffer 的 Normal 模式下（在终端输入中先按 `jk` 或
+`<C-]>`）。普通文件的 `\` 保留给文件类型操作；从文件用 `<C-/>` 重开上次的终端，
+或用 `3<C-/>` 直接打开终端 3。
 
 在 agent 面板里，`<Esc>` 属于 agent 而不是 Nvim。两个 CLI 都把快速双击 Esc 读作
 「回到上一条消息」，因此 Snacks 的双击映射和全局 `<Esc><Esc>` 在面板里都不生效；
@@ -490,7 +494,7 @@ Normal 模式的布局优先读取 `NVIM_ENGLISH_INPUT_SOURCE`，未设置时回
 
 | 选项 | 说明 |
 |------|------|
-| `vim.g.terminal_position` | `"float"`（默认）或 `"bottom"`，决定 `\1`-`\9` 在哪里打开。只在启动时选定，不支持运行时切换——Snacks 在开窗那一刻定死窗口形态，edgy 又独立判断终端是否属于底部边栏，运行时切换意味着要在每一次隐藏、显示、重排里维持两者一致。 |
+| `vim.g.terminal_position` | `"float"`（默认）或 `"bottom"`，决定编号终端在哪里打开。只在启动时选定，不支持运行时切换——Snacks 在开窗那一刻定死窗口形态，edgy 又独立判断终端是否属于底部边栏，运行时切换意味着要在每一次隐藏、显示、重排里维持两者一致。 |
 
 ### 环境变量
 
@@ -522,3 +526,6 @@ gitignore 的文件；`.git/` 始终排除，`node_modules`、`target`、`.venv`
 `Pods` 等重型目录由 `lua/plugin/editor/snacks.lua` 的 `search_exclude` 统一
 过滤。这个过滤不区分是否被 Git 跟踪，因此不要随意加入 `bin`、`out`、
 `vendor` 这类可能包含源码的通用目录名。
+
+`;i`（文件）和 `;?`（文本）遵守 `.gitignore`，仍显示隐藏文件，并取消额外的
+目录排除。`;N` 搜索已安装插件的源码，`;n` 搜索这份配置。

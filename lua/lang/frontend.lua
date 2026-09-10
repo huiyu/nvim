@@ -4,6 +4,23 @@
 -- (see `lang/typescript.lua`). A Node backend pulls in only the language file;
 -- a browser/frontend project layers this on top.
 return {
+  -- Tailwind color previews, including project colors reported by its LSP.
+  {
+    "catgoose/nvim-colorizer.lua",
+    optional = true,
+    opts = function(_, opts)
+      for _, ft in ipairs({
+        "html", "css", "scss", "less", "postcss",
+        "javascript", "javascriptreact", "typescript", "typescriptreact",
+        "vue", "svelte",
+      }) do
+        opts.filetypes[ft] = {
+          parsers = { tailwind = { enable = true, lsp = true } },
+        }
+      end
+    end,
+  },
+
   -- LSP: HTML, CSS and Tailwind.
   {
     "neovim/nvim-lspconfig",
