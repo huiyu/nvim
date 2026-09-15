@@ -17,11 +17,8 @@ local hidden = {
 
 local spec = {
   -- Which-key group labels
-  -- Everything about the editor rather than the code in it: look something up
-  -- (help, man, keymaps, commands, Noice history) or administer it (Lazy,
-  -- Mason, LSP status/restart). Splitting those across a Reference group and a
-  -- Manage group meant guessing which half a key was in; both answer "the
-  -- editor, not my project". `m` came free when line-moving went to `,`.
+  -- Manage covers the editor itself: config/plugin files, help, man, keymaps,
+  -- commands, Noice history, Lazy, Mason, and LSP status/restart.
   { "<leader>m",     group = "Manage",          mode = { "n", "v" } },
   -- `,` is the twin of `;`: where `;` answers "which file do I want to be in?",
   -- `,` answers "what do I do to the code in front of me?" -- LSP actions,
@@ -103,18 +100,17 @@ local spec = {
       "  ;;               Resume last picker",
       "  ;f / ;F          Find file (cwd / buffer dir)",
       "  ;r / ;b / ;g     Recent / Buffers / Git files",
-      "  ;n / ;N / ;p     Nvim config / Plugin source / Project",
+      "  ;p               Switch project",
       "  ;i / ;?          Files / grep respecting gitignore",
       "  ;c               LSP incoming calls (who calls this)",
-      "  ;e / ;E / ;d     Tree / Explorer+ignored / Browse dir",
-      "  ;o               Oil (edit dir as a buffer)",
+      "  ;o / -           Oil float / Oil parent dir (edit dir as text)",
       "  ;h / ;H          Harpoon menu / add file",
       "  ;1 .. ;9         Jump to pinned file 1-9",
       "  ;/ / ;w          Grep project / word under cursor",
       "  ;s / ;S          Symbol in buffer / workspace",
       "  ;l / ;D          Lines here / grep current dir",
       "  ;j / ;m          Jumps / Marks",
-      "  ;a               Alternate file (toggle back+forth)",
+      "  ;a               Last used buffer (toggle)",
       "  ;t / ;T          Todos / Todo+Fixme",
       "",
       "  <leader>ya / yr  Yank file path (absolute / project)",
@@ -152,6 +148,7 @@ local spec = {
       "  <leader>md       Fix terminal TUI drift",
       "",
       "  ── <leader>m — the editor itself ────────",
+      "  mf / mF          Nvim config / Plugin source",
       "  mh / mM / mk     Help / Man / Keymaps",
       "  mC / mc          Commands / Command history",
       "  ml / mm          Lazy / Mason",
@@ -232,12 +229,10 @@ local spec = {
     vim.keymap.set("n", "<Esc>", "<cmd>close<cr>", { buffer = buf, silent = true })
   end, desc = "Keybinding guide", mode = "n" },
 
-  -- Alternate file: toggle between this buffer and the last one *this window*
-  -- held. Distinct from cycling the buffer list (<S-h>/<S-l>) -- it is
-  -- two files ping-ponging, which is the impl/test loop. Lives on `;` because
-  -- it answers the same question as the rest of that prefix, and `a` because
-  -- the native <C-^> is Ctrl+Shift+6 on this keyboard.
-  { ";a",  "<C-^>",  desc = "Alternate file (toggle)",  mode = "n" },
+  -- Nvim's alternate buffer is normally the last buffer this window held.
+  -- `;a` follows builtin <C-^>: A -> B -> ;a returns to A, then ;a returns to B.
+  -- This is file navigation, so it stays under `;`; `a` means "alternate".
+  { ";a",  "<C-^>",  desc = "Last used buffer (toggle)",  mode = "n" },
 
   -- Quit/Session
   -- Not <cmd>qall<cr>: run from inside a Snacks terminal that only closes the

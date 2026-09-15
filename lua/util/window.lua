@@ -209,10 +209,11 @@ function M.track_editor_win()
 end
 
 --- Jump to the editor area from anywhere, and back again.
---- A layout with a file tree on one side and a terminal or agent panel on the
---- other needs up to three <C-h>/<C-l> hops to cross back to the middle; this
---- collapses that into one key. Pressing it inside the editor returns to the
---- window it came from, so the same key travels in both directions.
+--- A layout with a side panel (oil, aerial) on one side and a terminal or
+--- agent panel on the other needs up to three <C-h>/<C-l> hops to cross back
+--- to the middle; this collapses that into one key. Pressing it inside the
+--- editor returns to the window it came from, so the same key travels in both
+--- directions.
 function M.focus_editor()
   local cur = vim.api.nvim_get_current_win()
 

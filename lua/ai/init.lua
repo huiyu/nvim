@@ -125,14 +125,16 @@ function M.setup()
     map("n", "<leader>ad", M.deny_diff, "Deny AI diff")
   end
 
+  -- oil is the only directory view in this config (no tree sidebar), so the
+  -- backend's tree-add command is offered there alone.
   if config.native.capabilities.tree_add then
     vim.api.nvim_create_autocmd("FileType", {
       group = vim.api.nvim_create_augroup("ai_tree_keymaps", { clear = true }),
-      pattern = { "NvimTree", "neo-tree", "oil", "minifiles", "snacks_picker_list" },
+      pattern = { "oil" },
       callback = function(event)
         vim.keymap.set("n", "<leader>aS", M.tree_add, {
           buffer = event.buf,
-          desc = "Add file from tree to " .. config.label,
+          desc = "Add file under cursor to " .. config.label,
           silent = true,
         })
       end,

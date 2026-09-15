@@ -59,7 +59,7 @@ t.eq(cwd.buffer_dir(), local_cwd, "the terminal resolves to the window cwd")
 
 vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })
 vim.wait(50, function() return false end, 10)
-for _, entry in ipairs({ { ";d", "explorer" }, { ";F", "files" }, { ";D", "grep" } }) do
+for _, entry in ipairs({ { ";F", "files" }, { ";D", "grep" } }) do
   vim.api.nvim_set_current_buf(terminal_buf)
   local mapping = vim.fn.maparg(entry[1], "n", false, true)
   t.ok(type(mapping.callback) == "function", entry[1] .. " has a live Normal-mode mapping")

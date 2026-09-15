@@ -117,9 +117,17 @@ for _, case in ipairs({ { ";f", true, false }, { ";i", false, true }, { ";?", fa
   picker:close()
   vim.wait(50, function() return false end, 10)
 end
-local plugins = open_picker(";N", "files")
+for _, key in ipairs({ ";n", ";N" }) do
+  t.eq(vim.fn.maparg(key, "n", false, true), {}, key .. " no longer opens editor management files")
+end
+local config_files = open_picker("<leader>mf", "files")
+t.eq(config_files.opts.cwd, vim.fn.stdpath("config"),
+  "<leader>mf searches the Nvim configuration from another project")
+config_files:close()
+vim.wait(50, function() return false end, 10)
+local plugins = open_picker("<leader>mF", "files")
 t.eq(plugins.opts.cwd, require("lazy.core.config").options.root,
-  ";N searches the configured plugin installation directory")
+  "<leader>mF searches the configured plugin installation directory")
 t.ok(vim.wait(5000, function() return not plugins:is_active() and plugins:count() > 0 end, 10),
   "plugin source search returns files")
 plugins:close()

@@ -2,13 +2,14 @@
 --
 -- netrw is disabled in lua/options.lua, so until now a directory buffer landed
 -- on an empty nameless buffer -- `:e lua/` did nothing useful. oil fills that,
--- and adds the operation the file tree is worst at: editing the listing as
+-- and adds the operation a tree sidebar is worst at: editing the listing as
 -- text. Rename a line and `:w`; `dd` a line and `p` it in another directory to
 -- move the file; write a new line to create one. Changes are staged until `:w`,
 -- which shows the resulting shell-level operations for confirmation.
 --
--- Complementary to the tree on ;e, not a replacement: the tree stays for
--- browsing, oil is opened for a specific edit and closed again.
+-- This is the only directory view in the config: there is no tree sidebar.
+-- Pickers (`;f`, `;/`, ...) answer "which file do I want"; oil answers "what
+-- is in this directory" and "change these files", then closes again.
 local function open_oil(floating)
   local dir
   if vim.bo.buftype == "terminal" then

@@ -13,6 +13,64 @@ require("util.run").register("typescript", function(path)
   return "npx tsx " .. vim.fn.shellescape(path)
 end)
 
+-- tsserver discovers consumers only after their projects have been loaded.
+-- Register workspace configs on first attach so references from a shared
+-- package also include apps whose files have never been opened in Neovim.
+local preloaded = setmetatable({}, { __mode = "k" })
+local function preload_projects(client)
+  local root = client.config.root_dir
+  if preloaded[client] or not root or client:is_stopped() then return end
+
+  local workspace = vim.fn.filereadable(root .. "/pnpm-workspace.yaml") == 1
+  if not workspace then
+    local ok, package = pcall(function()
+      return vim.json.decode(table.concat(vim.fn.readfile(root .. "/package.json"), "\n"))
+    end)
+    workspace = ok and type(package) == "table" and type(package.workspaces) == "table"
+  end
+  preloaded[client] = true
+  if not workspace then return end
+
+  local function failed(message)
+    preloaded[client] = nil
+    vim.notify("vtsls: project preload failed: " .. message, vim.log.levels.WARN)
+  end
+
+  -- Keep discovery asynchronous and respect ignore files. No hidden buffers,
+  -- generated solution config, or changes to the project's compiler options.
+  local command = { "rg", "--files", "--null", "-g", "tsconfig.json", "-g", "jsconfig.json" }
+  for _, dir in ipairs({ "node_modules", ".git", "dist", "build", "coverage", ".output", ".wxt" }) do
+    vim.list_extend(command, { "-g", "!" .. dir .. "/**", "-g", "!**/" .. dir .. "/**" })
+  end
+  local ok, err = pcall(vim.system, command, { cwd = root }, vim.schedule_wrap(function(result)
+    if client:is_stopped() then return end
+    if result.code ~= 0 and result.code ~= 1 then
+      failed(vim.trim(result.stderr or "") ~= "" and vim.trim(result.stderr) or "config discovery failed")
+      return
+    end
+    local configs = vim.split(result.stdout or "", "\0", { plain = true, trimempty = true })
+    if #configs < 2 then return end
+    table.sort(configs)
+    local files = vim.tbl_map(function(file) return { fileName = root .. "/" .. file } end, configs)
+    local sent = client:request("workspace/executeCommand", {
+      command = "typescript.tsserverRequest",
+      arguments = { "openExternalProject", {
+        -- An identifier for tsserver's in-memory project group, not a disk file.
+        projectFileName = root .. "/.nvim-vtsls-projects",
+        rootFiles = files,
+        options = vim.empty_dict(),
+      } },
+    }, function(request_err, response)
+      if client:is_stopped() then return end
+      if request_err or type(response) ~= "table" or response.success ~= true then
+        failed(request_err and request_err.message or "tsserver did not load the projects")
+      end
+    end)
+    if not sent then failed("language server rejected the request") end
+  end))
+  if not ok then failed(tostring(err)) end
+end
+
 return {
   -- Keep the usual numbers/dates/toggles and add JS/TS declaration keywords.
   {
@@ -40,6 +98,7 @@ return {
           },
         },
         vtsls = {
+          on_attach = preload_projects,
           filetypes = {
             "javascript",
             "javascriptreact",

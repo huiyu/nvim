@@ -108,14 +108,6 @@ return {
         custom_filter = function(buf_number)
           return not vim.api.nvim_buf_get_name(buf_number):match("diffview://")
         end,
-        offsets = {
-          {
-            filetype = "snacks_layout_box",
-            text = "File Explorer",
-            highlight = "Directory",
-            text_align = "left",
-          },
-        },
       },
     }
   end,

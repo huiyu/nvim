@@ -107,7 +107,7 @@ return {
     local file_blocks = block_prefixes({ ";" })
     local layout_blocks = block_prefixes({ ";", "s" })
 
-    -- <leader> keeps its global meaning everywhere (Buffer/Explorer/Code, as
+    -- <leader> keeps its global meaning everywhere (Buffer/Git/AI, as
     -- the which-key popup advertises); diffview's view-local actions live on
     -- <localleader> instead, per Vim convention. Drop the plugin's <leader>
     -- defaults and re-add the same actions under <localleader>.

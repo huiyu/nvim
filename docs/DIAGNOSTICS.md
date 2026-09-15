@@ -102,17 +102,29 @@ above instead. Buffer-local server commands such as
 `:LspClangdSwitchSourceHeader` are unaffected — they come from `vim.lsp.config`
 `on_attach`, not that plugin file.
 
-Empty results from a working server (reference search returns nothing for a
-symbol that clearly has callers) usually means a stale server project graph, not
-a stale buffer. The two are distinguishable: buffers reload themselves and say
-so — `checktime` runs on `CursorHold`/`BufEnter` among others, and a reload
-prints `File changed on disk -- buffer reloaded`. Without that notification the
-buffer was never behind, so the server is. Server state survives `checktime`, so
-restart it with `<leader>mr`. Structural refactors trigger this: files moved
-across packages, a new `tsconfig.json`/`package.json` root, or re-linked
-workspace symlinks after a dependency install — project discovery does not
-reliably pick those up. In Go buffers prefer `\G`, which also clears the
-gopls cache before restarting.
+Empty reference results can mean a stale project graph or a consumer project
+that has not been loaded. `checktime` refreshes buffers, not language-server
+state. After files move across packages, workspace symlinks change, or project
+configs are added, try `<leader>mr`. In Go buffers prefer `\G`, which also
+clears the gopls cache before restarting.
+
+For TypeScript/JavaScript workspaces, `lang/typescript.lua` preloads projects
+when vtsls first attaches. It recognizes a root `pnpm-workspace.yaml` or
+`package.json` with `workspaces` (npm/Yarn), asynchronously finds visible,
+non-ignored `tsconfig.json`/`jsconfig.json` files with `rg`, and registers them
+with tsserver when at least two configs exist. Dependencies and common build
+directories are excluded. Each config keeps its own compiler options; no
+source buffers or config files are created. This lets `gr` / `grr` find callers
+in other packages without opening their files first. Loading more projects
+uses more server memory, and references become available when loading finishes.
+
+Preloading runs once per LSP client. After adding/removing projects, use
+`<leader>mr` to restart the server and rescan. After editing the Neovim configuration
+itself, restart Neovim first so the new callback is installed. A preload failure
+is reported in `:messages`. Projects outside those workspace roots, ignored
+configs, and configs with custom names are not automatically discovered.
+`;c` queries incoming calls, which still has tsserver project-scope limitations;
+preloading does not make it equivalent to Find References.
 
 If the log has grown large, inspect its path with
 `:lua print(vim.lsp.log.get_filename())`. After finishing diagnosis, restart
@@ -270,6 +282,11 @@ rather than a broken viewer.
 
 ## Runtime errors & messages
 
+- **`gx` opens only the first half of a terminal table URL** — the mapping now
+  reconstructs parenthesized or angle-bracket links across up to 16 rows in the
+  same column. Leave terminal input with `Ctrl-\` or `jk`, then press `gx` on
+  either part. The closing delimiter must be present in the terminal buffer;
+  if the TUI has truncated the link, use the complete URL in `<leader>at`.
 - **Oil opens from an agent panel but focus stays in the TUI, and `q` hides the
   terminal** — Snacks protects terminal windows from buffer replacement. The
   `-` and `;o` mappings now focus an editor window in the current tab before
@@ -284,8 +301,8 @@ rather than a broken viewer.
   `gh auth status`. Dashboard results, including an unavailable message, are
   cached for five minutes and retried when the dashboard is opened after expiry.
   These background commands run without interactive prompts or terminal probes.
-- **Explorer reports "Not a directory: term:…"** — `;d`, `;F`, and `;D` now
-  resolve a local directory with `util.cwd.buffer_dir()`: the file's parent,
+- **A directory-scoped picker reports "Not a directory: term:…"** — `;F` and
+  `;D` resolve a local directory with `util.cwd.buffer_dir()`: the file's parent,
   the displayed Oil directory, or the current window/tab cwd for terminals and
   other virtual buffers. Restart Nvim after updating to replace the old mappings.
 - `:messages` — message history
@@ -318,6 +335,10 @@ rather than a broken viewer.
 - `:verbose map <lhs>` / `:verbose nmap <lhs>` — where a mapping was set
 - `:verbose set <option>?` — where an option was last set
 - which-key popup (press a prefix and wait); `<leader>?` is the trigger cheatsheet
+- **Which-key hints stop appearing while mappings still work** — check for the
+  red `● REC @…` statusline indicator, or run `:echo reg_recording()`. Which-key
+  pauses its triggers during macro recording; if a register is shown, press
+  `q` in Normal mode to stop recording and restore the hints.
 - **A Ctrl chord works in bare Ghostty but not under tmux** — see what actually
   reaches the pane. Run this inside the tmux pane, press the chord, then `<C-c>`:
 

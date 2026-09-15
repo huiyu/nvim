@@ -182,13 +182,10 @@ return {
   lazy = false,
   keys = {
     -- ── `;` — go to a file ──────────────────────────────────────────────
-    -- One prefix, one question: "which file do I want to be in?" Everything
-    -- that answers it lives here at two keys, so reaching a file never costs
-    -- three. `;` itself stays unmapped, so the builtin repeat-f/t still runs
-    -- after 'timeoutlen' -- and flash owns the character motions here anyway.
-    --
-    -- What deliberately stays out: acting *on* a file (create, rename, delete,
-    -- yank its path) is <leader>f, and it is low-frequency by nature.
+    -- Project navigation uses two keys under `;`. The bare prefix stays
+    -- unmapped so builtin repeat-f/t still runs after 'timeoutlen'.
+    -- Nvim config and installed plugin source are editor maintenance:
+    -- their file pickers live under <leader>mf / <leader>mF in Manage below.
     { ";<space>", function() Snacks.picker.smart({ filter = { cwd = true } }) end,                  desc = "Smart find (buffers/recent/files, cwd-only)" },
     { ";;",       function() Snacks.picker.resume() end,                                            desc = "Resume last picker" },
     { ";f",       function() Snacks.picker.files() end,                                             desc = "Find file in cwd" },
@@ -197,19 +194,10 @@ return {
     { ";r",       function() Snacks.picker.recent({ filter = { cwd = true } }) end,                 desc = "Recent files" },
     { ";b",       function() Snacks.picker.buffers() end,                                           desc = "Buffers" },
     { ";g",       function() Snacks.picker.git_files() end,                                         desc = "Git files" },
-    { ";n",       function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end,           desc = "Find file in nvim config" },
-    {
-      ";N",
-      function()
-        Snacks.picker.files({ cwd = require("lazy.core.config").options.root, ignored = false, exclude = {} })
-      end,
-      desc = "Find plugin source file",
-    },
     -- "Who calls this?" -- the question `gr` (all references) answers too
     -- loosely, since it also returns the definition and same-named strings.
     { ";c",       function() Snacks.picker.lsp_incoming_calls() end,                                desc = "LSP incoming calls" },
     { ";p",       function() Snacks.picker.projects() end,                                          desc = "Switch project" },
-    { ";d",       function() Snacks.explorer({ cwd = require("util.cwd").buffer_dir(), focus = "list" }) end, desc = "Browse directory" },
     { ";/",       function() Snacks.picker.grep() end,                                              desc = "Search project" },
     { ";?",       function() Snacks.picker.grep({ ignored = false, exclude = {} }) end,            desc = "Search project (respect gitignore)" },
     { ";w",       function() Snacks.picker.grep_word() end,                                         desc = "Search word under cursor", mode = { "n", "x" } },
@@ -251,7 +239,15 @@ return {
       end,
       desc = "Yank file path from project"
     },
-    -- ── <leader>s — Search ──────────────────────────────────────────────
+    -- ── <leader>m — Manage the editor ────────────────────────────────────
+    { "<leader>mf", function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end, desc = "Find Nvim config file" },
+    {
+      "<leader>mF",
+      function()
+        Snacks.picker.files({ cwd = require("lazy.core.config").options.root, ignored = false, exclude = {} })
+      end,
+      desc = "Find plugin source file",
+    },
     { "<leader>mh", function() Snacks.picker.help() end,                                 desc = "Help pages" },
     { "<leader>mk", function() Snacks.picker.keymaps() end,                              desc = "Keymaps" },
     { "<leader>mc", function() Snacks.picker.command_history() end,                      desc = "Command history" },
@@ -281,33 +277,10 @@ return {
     { "<leader>gc", function() Snacks.picker.git_log_file() end,          desc = "Buffer commits" },
     { "<leader>gC", function() Snacks.picker.git_log() end,               desc = "Project commits" },
 
-    -- ── Explorer / misc snacks ──────────────────────────────────────────
-    {
-      ";e",
-      function()
-        require("snacks").explorer({
-          hidden = true,
-          focus = "list",
-        })
-      end,
-      desc = "File tree",
-      mode = { "n", "v" },
-    },
-    {
-      ";E",
-      function()
-        require("snacks").explorer({
-          hidden = true,
-          ignored = true,
-          layout = { preset = "default" },
-          auto_close = true,
-          focus =
-          "list"
-        })
-      end,
-      desc = "File explorer (with ignored)",
-      mode = { "n", "v" }
-    },
+    -- ── Misc snacks ─────────────────────────────────────────────────────
+    -- No tree sidebar: directories are browsed and edited through oil (`-`,
+    -- `;o`, lua/plugin/editor/oil.lua) and files are reached through the
+    -- pickers above.
     -- Notifications are handled by noice (snacks notifier is disabled), so these
     -- route to it. require("noice") loads the plugin on demand, like noice's own maps.
     { "<leader>un", function() require("noice").cmd("dismiss") end, desc = "Dismiss notifications" },
@@ -392,7 +365,7 @@ return {
           { icon = "󰈞 ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
           { icon = "󰊄 ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
           { icon = "󰋚 ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
-          { icon = "󰙅 ", key = "e", desc = "Explorer", action = ":lua Snacks.explorer({hidden=true, layout={preset='default'}, auto_close=true, focus='list'})" },
+          { icon = "󰙅 ", key = "e", desc = "Browse Files", action = ":Oil" },
           { icon = "󰒓 ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
           { icon = "󰒲 ", key = "l", desc = "Lazy", action = ":Lazy" },
           -- Repo/GitHub jumps: open the repo / issues list / PRs list in browser.

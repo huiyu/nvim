@@ -33,8 +33,6 @@ return {
         right  = { size = ai.panel.width },
         bottom = { size = 15 },
       },
-      -- snacks explorer (multi-window: list + input) doesn't fit edgy's
-      -- single-window-per-slot model; let snacks own its sidebar.
       right = {
         {
           title = ai.label,

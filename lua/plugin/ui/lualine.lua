@@ -21,6 +21,13 @@ return {
 			lualine_b = { "branch" },
 			lualine_c = {
 				{
+					function()
+						local register = vim.fn.reg_recording()
+						return register == "" and "" or "● REC @" .. register
+					end,
+					color = "DiagnosticError",
+				},
+				{
 					"filename",
 					file_status = true, -- displays file status (readonly status, modified status)
 					-- 1 = path relative to cwd (`%:~:.`), so a monorepo's
@@ -69,4 +76,16 @@ return {
 		tabline = {},
 		extensions = {},
 	},
+	config = function(_, opts)
+		local lualine = require("lualine")
+		lualine.setup(opts)
+		vim.api.nvim_create_autocmd({ "RecordingEnter", "RecordingLeave" }, {
+			group = vim.api.nvim_create_augroup("lualine_recording", { clear = true }),
+			callback = function()
+				-- Queue the refresh so RecordingLeave finishes clearing reg_recording().
+				lualine.refresh({ place = { "statusline" } })
+			end,
+			desc = "Refresh the macro recording indicator",
+		})
+	end,
 }

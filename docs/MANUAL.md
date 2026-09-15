@@ -41,7 +41,7 @@ answering one question:
 | anything else | `<Space>` | git, tests, debugging, AI… |
 
 Nothing is filed by which plugin provides it. `;f` finds a file whether that
-comes from a picker, a tree, or something else — you press it because you want
+comes from a picker, oil, or something else — you press it because you want
 a file, not because you remember a plugin name.
 
 Two consequences worth knowing up front:
@@ -181,6 +181,11 @@ picks from it:
 **which-key:** press `[`, `]`, `g`, or `z` and wait half a second — the popup
 lists the drawer.
 
+`gx` opens the nearest HTTP(S) URL on the current line, or the current file
+when there is no URL. In terminal-Normal mode, it also joins links enclosed in
+`(...)` or `<...>` that wrap within a table column; the cursor can be on either
+part. Leave terminal input with `Ctrl-\` or `jk` first.
+
 ### 7. Everything repeats, and everything backs out
 
 Vim remembers what you just did. Whenever you learn a "repeat" key, learn its
@@ -196,6 +201,10 @@ Vim remembers what you just did. Whenever you learn a "repeat" key, learn its
 | the last selection | `gv` | — |
 | the last picker | `;;` | — |
 | put the wrong thing | `[y` `]y` cycle the yank history | — |
+
+While recording a macro, the statusline shows a red `● REC @q` before the
+filename (`q` is the current register). Press `q` in Normal mode to stop;
+the indicator disappears. Which-key pauses its hints during recording.
 
 The most valuable combination is **one key to move, one key to act**: `*`
 searches the word under the cursor → `cwnew<Esc>` changes the first one →
@@ -257,11 +266,14 @@ Every way of reaching a file, a symbol, or a position.
 | `;r` | Recently opened |
 | `;b` | Open buffers |
 | `;g` | Files tracked by git |
-| `;n` | Files in this Neovim config |
-| `;N` | Source files in the lazy.nvim plugin installation directory |
 | `;p` | Switch project |
-| `;a` | **Alternate file** — bounce between the last two files. The implementation/test loop. |
+| `;a` | **Last used buffer (toggle)** — return to the previous buffer in this window. |
 | `;;` | Reopen the last search, with its results intact |
+
+Nvim calls that previous buffer the **alternate buffer**. After opening A,
+then B in the same window, `;a` goes back to A; another `;a` returns to B.
+It uses the builtin `Ctrl-^` and is useful when alternating between an
+implementation and its test.
 
 `;<Space>` is the one to build a habit around. It learns which files you touch
 and floats them to the top.
@@ -285,14 +297,15 @@ tracked source inside a directory such as `build/` remains searchable.
 
 ### Browsing
 
+There is no tree sidebar. Directories are browsed and edited through oil,
+and files are reached through the pickers above.
+
 | Key | Does |
 |---|---|
-| `;e` | File tree sidebar |
-| `;d` | Browse the current file's directory |
 | `;o` | **oil** — edit the directory as text (see below) |
-| `-` | oil, on the parent directory |
+| `-` | oil, on the current file's directory |
 
-`;d`, `;F`, and `;D` use the file's directory or the displayed Oil directory.
+`;F` and `;D` use the file's directory or the displayed Oil directory.
 From terminals and other panels, they use the current window/tab working directory.
 
 From a terminal (including Claude/Codex), leave terminal input with `Ctrl-\`
@@ -445,12 +458,21 @@ Press `\` and wait to see what the current file offers.
 | `<Space>x` | Diagnostics | error list, quickfix, location list |
 | `<Space>a` | AI | Claude / Codex panels, prompts, transcript |
 | `<Space>b` | Buffer | delete, pin, close others |
-| `<Space>m` | Manage | help, man, keymaps, Lazy, Mason, LSP status |
+| `<Space>m` | Manage | config, plugin source, help, man, keymaps, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
 | `<Space>y` | Yank | copy file path, yank history, registers |
 | `<Space>u` | Toggle/UI | wrap, spell, diagnostics, colorscheme |
 | `<Space><Tab>` | Tab | tab pages |
 | `<Space>q` | Quit | quit all |
+
+### Config and plugin files
+
+| Key | Does |
+|---|---|
+| `<Space>mf` | Find files in this Neovim config |
+| `<Space>mF` | Find source files in the lazy.nvim plugin installation directory |
+
+These live under Manage because they maintain the editor itself.
 
 ---
 

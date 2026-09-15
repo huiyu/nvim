@@ -98,7 +98,7 @@ nvim
 | Plugin | Description |
 |--------|-------------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator |
 | [incline](https://github.com/b0o/incline.nvim) | Top-right filename labels in file windows; pink for the focused window, `[+]` for unsaved changes |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick |
 | [noice](https://github.com/folke/noice.nvim) | Enhanced cmdline/messages; bordered LSP docs and quiet empty-hover notifications |
@@ -117,7 +117,7 @@ nvim
 |--------|-------------|
 | [flash](https://github.com/folke/flash.nvim) | Fast navigation with labels |
 | [which-key](https://github.com/folke/which-key.nvim) | Keybinding help popup |
-| [snacks](https://github.com/folke/snacks.nvim) | Picker, dashboard, file explorer, terminal, indent guides, smooth scroll, rename, zen mode (`sz`) |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker, dashboard, terminal, indent guides, smooth scroll, rename, zen mode (`sz`) |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | Pinned-file jumps (`;1`-`;9`, `;h` menu) |
@@ -583,8 +583,8 @@ matching contribution in `lua/lang/`. Language files extend the shared
 **Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
 
 Use `;i` (files) or `;?` (text) to respect `.gitignore` instead, with hidden files
-still visible and no extra directory exclusions. `;N` searches installed plugin
-source files; `;n` searches this configuration.
+still visible and no extra directory exclusions. Under Manage, `<leader>mf`
+searches this configuration and `<leader>mF` searches installed plugin source files.
 
 ## License
 

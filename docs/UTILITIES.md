@@ -8,6 +8,21 @@ The utility modules provide focused helpers for logging, debug inspection, LSP, 
 
 ## Core Utilities
 
+### URLs (`util.url`)
+
+`open()` implements Normal-mode `gx`: open the nearest HTTP(S) URL on the
+current row through `vim.ui.open`, falling back to the current file. It handles
+Markdown wrappers without discarding balanced parentheses in URL paths, and
+preserves Unicode hostnames, paths and query values.
+
+In terminal buffers, URLs enclosed in parentheses or angle brackets can span
+up to 16 consecutive rows in the same table column. Alignment uses display
+width, including CJK text; padding and vertical rules separate columns. The
+full URL must reach its closing delimiter before continuation is accepted.
+Either part of a wrapped URL resolves to the same target. Blank rows, table
+separators and new URLs stop the lookup. Ordinary source lines are never joined.
+The module loads on the first `gx` and does not modify the buffer or cursor.
+
 ### Working directories (`util.cwd`)
 
 `buffer_dir()` returns an existing local directory for the current buffer:
@@ -15,7 +30,8 @@ the parent of an ordinary file, the displayed local Oil directory, or the
 current window/tab working directory for terminals, unnamed buffers and other
 virtual buffers. Missing directories fall back to their nearest existing
 ancestor, then the cwd, home or `/`. It neither changes the cwd nor loads Oil.
-The directory-scoped `;d`, `;F`, and `;D` mappings share this resolver.
+The directory-scoped `;F` and `;D` mappings share this resolver, as does Oil
+when it is opened from a terminal.
 
 `recover()` repairs a deleted process cwd and returns a one-line report, or
 nil when no repair was needed. `setup()` runs it at startup and schedules any

@@ -93,7 +93,7 @@ nvim
 | 插件 | 说明 |
 |------|------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏 |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识 |
 | [incline](https://github.com/b0o/incline.nvim) | 文件窗口右上角的文件名标签；当前窗口显示粉色，`[+]` 表示未保存的修改 |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择） |
 | [noice](https://github.com/folke/noice.nvim) | 增强命令行和消息；LSP 文档带边框，过滤无内容的悬浮提示通知 |
@@ -112,7 +112,7 @@ nvim
 |------|------|
 | [flash](https://github.com/folke/flash.nvim) | 快速跳转导航 |
 | [which-key](https://github.com/folke/which-key.nvim) | 键位提示弹窗 |
-| [snacks](https://github.com/folke/snacks.nvim) | Picker、启动页、文件浏览器、终端、缩进线、平滑滚动、重命名、专注模式（`sz`） |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker、启动页、终端、缩进线、平滑滚动、重命名、专注模式（`sz`） |
 | [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | 钉住的文件快速跳转（`;1`-`;9`，`;h` 打开列表） |
@@ -528,4 +528,4 @@ gitignore 的文件；`.git/` 始终排除，`node_modules`、`target`、`.venv`
 `vendor` 这类可能包含源码的通用目录名。
 
 `;i`（文件）和 `;?`（文本）遵守 `.gitignore`，仍显示隐藏文件，并取消额外的
-目录排除。`;N` 搜索已安装插件的源码，`;n` 搜索这份配置。
+目录排除。管理组中的 `<leader>mf` 搜索这份配置，`<leader>mF` 搜索已安装插件的源码。
