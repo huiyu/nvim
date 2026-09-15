@@ -108,6 +108,31 @@ fixture({
 check(1, 13, "https://example.com/路径?q=你好", "wrapped Unicode paths and queries are preserved")
 check(2, 2, "https://example.com/路径?q=你好", "a Unicode continuation resolves to the same URL")
 
+-- CJK prose runs straight into a link without a space. Codex renders links as
+-- `label (url)`; fullwidth punctuation after the wrapper, or after a bare URL,
+-- is never part of it, while Unicode URL text still is.
+local function col_of(line, needle) return line:find(needle, 1, true) - 1 end
+local codex = "  打开 本地预览 (http://localhost:3105/agent)，点击侧栏 Profile。"
+fixture({ codex }, true)
+for _, needle in ipairs({ "本地预览", "3105", ")", "点击" }) do
+  check(1, col_of(codex, needle), "http://localhost:3105/agent",
+    "fullwidth punctuation after a parenthesized URL is left out")
+end
+local prose = "  详情见“https://example.com/docs”，以及 https://example.com/other、https://例子.测试/中文?q=你好#位置。"
+fixture({
+  prose,
+  "  打开 http://localhost:3105/agent，点击侧栏 Profile。",
+  "  （https://example.com/full），然后",
+  "  (https://example.com/路",
+  "  径?q=你好)，然后",
+}, true)
+check(1, col_of(prose, "docs"), "https://example.com/docs", "curly quotes end a URL")
+check(1, col_of(prose, "other"), "https://example.com/other", "an ideographic comma ends a URL")
+check(1, col_of(prose, "例子"), "https://例子.测试/中文?q=你好#位置", "Unicode URL text runs up to the fullwidth period")
+check(2, 20, "http://localhost:3105/agent", "a bare URL ends at the fullwidth comma")
+check(3, 8, "https://example.com/full", "fullwidth parentheses are not part of the URL")
+check(5, 2, "https://example.com/路径?q=你好", "a wrapped URL still joins before the fullwidth comma")
+
 local file = vim.fn.tempname() .. ".txt"
 local buf = fixture({ "no URL here" }, false)
 a.nvim_buf_set_name(buf, file)

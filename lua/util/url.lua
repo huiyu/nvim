@@ -3,6 +3,11 @@ local M = {}
 -- Include UTF-8 bytes so removing the <cfile> shortcut does not truncate URLs
 -- with Unicode hostnames, paths, or query values.
 local url_chars = "[%w%-%._~:/?#%[%]@!$&'()*+,;%%=\128-\255]+"
+-- CJK and fullwidth punctuation (，。、（）「」“”…) never appear unencoded in a
+-- URL, and CJK prose runs straight into a link without a space, so the first
+-- such character ends the URL text.
+local cjk_punctuation =
+  [=[[\u2018\u2019\u201c\u201d\u2026\u3000-\u303f\uff01-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]]=]
 local max_lines = 16
 
 -- Terminal table columns are separated by padding or vertical rules. Keep
@@ -29,6 +34,14 @@ local function cells(line)
   return result
 end
 
+local function url_piece(text)
+  local piece = text:match("^" .. url_chars)
+  if not piece then return nil end
+  local stop = vim.fn.match(piece, cjk_punctuation)
+  if stop >= 0 then piece = piece:sub(1, stop) end
+  return piece
+end
+
 local function trim_url(url)
   -- Sentence punctuation and Markdown wrappers are not part of the URL;
   -- balanced parentheses inside a path (e.g. a Wikipedia URL) are.
@@ -46,7 +59,7 @@ end
 local function candidate(rows, row, cell, start, terminal)
   local opening = cell.text:sub(start - 1, start - 1)
   local tail = cell.text:sub(start)
-  local piece = tail:match("^" .. url_chars)
+  local piece = url_piece(tail)
   local fallback = {
     url = trim_url(piece),
     spans = { { row = row, first = cell.col + start - 1, last = cell.col + start + #piece - 2 } },
@@ -63,7 +76,7 @@ local function candidate(rows, row, cell, start, terminal)
       end
       if not continuation or continuation.text:find("https?://") then break end
       cell, start, tail = continuation, 1, continuation.text
-      piece = tail:match("^" .. url_chars)
+      piece = url_piece(tail)
       -- Use a Unicode-aware pattern: table rules are now valid token bytes too.
       if not piece or vim.fn.match(piece, [[^[-_=─━═┄┅┈┉]\+$]]) >= 0 then break end
     end

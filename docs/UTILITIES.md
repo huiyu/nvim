@@ -13,7 +13,9 @@ The utility modules provide focused helpers for logging, debug inspection, LSP, 
 `open()` implements Normal-mode `gx`: open the nearest HTTP(S) URL on the
 current row through `vim.ui.open`, falling back to the current file. It handles
 Markdown wrappers without discarding balanced parentheses in URL paths, and
-preserves Unicode hostnames, paths and query values.
+preserves Unicode hostnames, paths and query values. CJK and fullwidth
+punctuation (`，。、（）「」“”…`) ends the URL text, so prose that runs straight
+into a link without a space never leaks into it.
 
 In terminal buffers, URLs enclosed in parentheses or angle brackets can span
 up to 16 consecutive rows in the same table column. Alignment uses display
