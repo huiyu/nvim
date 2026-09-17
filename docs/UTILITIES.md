@@ -485,11 +485,14 @@ only the screenful tmux last composed and scrolling it shows nothing useful.
 `<PageUp>`/`<PageDown>`, `<C-u>`/`<C-d>` and the wheel are sent to the pane as
 `<PageUp>`/`<PageDown>`, which the wrapper binds to `copy-mode -eu`; returning
 to terminal input means the next wheel event reaches copy-mode directly instead
-of scrolling the near-empty buffer again. That automatic transition is marked
-for one event so it preserves copy-mode; any later `TermEnter` -- whether from
-`i`, `a`, another terminal-input entry key, or automatic focus -- runs
-`tmux copy-mode -q` and returns the panel to its live bottom. This used to live
-in `ai.backend.codex`, so Claude never had it.
+of scrolling the near-empty buffer again. A wheel event that reaches tmux
+directly is bound to `copy-mode -e` rather than `-eu`: the page jump `-u` adds
+belongs to `<PageUp>`, not to one notch of the wheel, which then scrolls 2 lines
+per event because Ghostty sends three of them per notch. That automatic
+transition is marked for one event so it preserves copy-mode; any later
+`TermEnter` -- whether from `i`, `a`, another terminal-input entry key, or
+automatic focus -- runs `tmux copy-mode -q` and returns the panel to its live
+bottom. This used to live in `ai.backend.codex`, so Claude never had it.
 
 ## AI Selection (`ai.selection`)
 

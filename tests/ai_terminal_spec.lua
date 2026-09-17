@@ -128,8 +128,14 @@ if config.is("claude") then
   -- history rather than the transcript.
   t.ok(not wraps or cmd:find("bind-key -T root PPage copy-mode -eu", 1, true) ~= nil,
     "the Claude wrapper routes PPage into copy-mode, like the Codex one")
-  t.ok(not wraps or cmd:find("bind-key -T root WheelUpPane copy-mode -eu", 1, true) ~= nil,
+  t.ok(not wraps or cmd:find("bind-key -T root WheelUpPane copy-mode -e", 1, true) ~= nil,
     "the Claude wrapper routes the wheel into copy-mode, like the Codex one")
+  -- `-e` without `-u`: entering copy-mode must not also jump a page, and the
+  -- wheel steps 2 lines per event because Ghostty sends 3 per notch.
+  t.ok(not wraps or cmd:find("bind-key -T root WheelUpPane copy-mode -eu", 1, true) == nil,
+    "and does not page-jump on the first notch")
+  t.ok(not wraps or cmd:find("bind-key -T copy-mode WheelUpPane send-keys -X -N 2 scroll-up", 1, true) ~= nil,
+    "and slows the wheel to 2 lines per event")
   -- <S-CR> arrives as ESC[13;2u. tmux's default `extended-keys off` turns that
   -- into a bare CR, which submits the message instead of adding a newline.
   t.ok(not wraps or cmd:find("set-option -g extended-keys always", 1, true) ~= nil,

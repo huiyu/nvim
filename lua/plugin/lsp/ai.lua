@@ -130,9 +130,27 @@ local function build_terminal_cmd()
     -- would replace whatever is typed in the box. An empty copy-mode you leave
     -- with `q` is the better failure. PPage is what lua/ai/terminal.lua sends
     -- when the scroll starts from terminal-Normal mode.
-    "bind-key -T root WheelUpPane copy-mode -eu",
+    --
+    -- The wheel enters copy-mode without `-u`, which PPage keeps: `-u` scrolls
+    -- a full page on entry, so the first notch used to jump a whole screen. A
+    -- page is what PageUp means; it is not what one notch means.
+    "bind-key -T root WheelUpPane copy-mode -e",
     "\\;",
     "bind-key -T root PPage copy-mode -eu",
+    "\\;",
+    -- Once in copy-mode, 2 lines per wheel event rather than tmux's default 5:
+    -- Ghostty sends 3 events per discrete notch (mouse-scroll-multiplier), so
+    -- the default made one notch ~15 lines. Both tables are bound because
+    -- which one is live depends on mode-keys, which tmux derives from
+    -- $EDITOR/$VISUAL in the server's own environment -- emacs as measured
+    -- here, but not something this wrapper controls.
+    "bind-key -T copy-mode WheelUpPane send-keys -X -N 2 scroll-up",
+    "\\;",
+    "bind-key -T copy-mode WheelDownPane send-keys -X -N 2 scroll-down",
+    "\\;",
+    "bind-key -T copy-mode-vi WheelUpPane send-keys -X -N 2 scroll-up",
+    "\\;",
+    "bind-key -T copy-mode-vi WheelDownPane send-keys -X -N 2 scroll-down",
     "\\;",
     "new-session -A -s main",
     "-e CLAUDE_CODE_SSE_PORT=$CLAUDE_CODE_SSE_PORT",

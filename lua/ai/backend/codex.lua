@@ -79,8 +79,20 @@ local function terminal_command(args)
     -- terminal-Normal-mode forwarding in lua/ai/terminal.lua, which sends
     -- PPage into the pane so a scroll that starts outside terminal input still
     -- lands in copy-mode instead of the near-empty :terminal buffer.
-    ";", "bind-key", "-T", "root", "WheelUpPane", "copy-mode", "-eu",
+    -- The wheel enters copy-mode without `-u`, which PPage keeps: `-u` scrolls
+    -- a full page on entry, so the first notch used to jump a whole screen. A
+    -- page is what PageUp means; it is not what one notch means. Once in
+    -- copy-mode, 2 lines per wheel event rather than tmux's default 5 --
+    -- Ghostty sends 3 events per discrete notch (mouse-scroll-multiplier), so
+    -- the default made one notch ~15 lines. Both copy-mode tables are bound
+    -- because which one is live depends on mode-keys, which tmux derives from
+    -- $EDITOR/$VISUAL in the server's own environment.
+    ";", "bind-key", "-T", "root", "WheelUpPane", "copy-mode", "-e",
     ";", "bind-key", "-T", "root", "PPage", "copy-mode", "-eu",
+    ";", "bind-key", "-T", "copy-mode", "WheelUpPane", "send-keys", "-X", "-N", "2", "scroll-up",
+    ";", "bind-key", "-T", "copy-mode", "WheelDownPane", "send-keys", "-X", "-N", "2", "scroll-down",
+    ";", "bind-key", "-T", "copy-mode-vi", "WheelUpPane", "send-keys", "-X", "-N", "2", "scroll-up",
+    ";", "bind-key", "-T", "copy-mode-vi", "WheelDownPane", "send-keys", "-X", "-N", "2", "scroll-down",
     ";", "new-session", "-A", "-s", "main",
     -- tmux only puts into the pane what is whitelisted here; the pane does not
     -- inherit this process's environment. $NVIM has to be spelled out from
