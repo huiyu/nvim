@@ -57,7 +57,7 @@ nvim
 ├── lua/
 │   ├── options.lua           # Vim 选项
 │   ├── mappings.lua          # 命令式核心键位（副作用）
-│   ├── whichkey_spec.lua     # which-key 分组 + spec 键位（数据）
+│   ├── whichkey_spec.lua     # which-key 分组、弹窗分区、spec 键位（数据）
 │   ├── autocmds.lua          # 自动命令
 │   ├── bootstrap.lua         # lazy.nvim 初始化
 │   ├── ai/                    # Provider 配置 + Native Claude/Codex facade
@@ -142,7 +142,7 @@ nvim
 | [neogen](https://github.com/danymat/neogen) | 自动生成注释/文档 |
 | [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema 验证 |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua 开发（类型补全） |
-| [inc-rename](https://github.com/smjonas/inc-rename.nvim) | 带实时预览的 LSP 重命名，绑在 `grn` / `,r` |
+| [inc-rename](https://github.com/smjonas/inc-rename.nvim) | 带实时预览的 LSP 重命名，绑在 `,r` |
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code 集成（仅 Claude provider） |
 | [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | 随 provider 选择的 ACP Chat，以及 HTTP Inline/命令 Prompt |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | 自动保存、按项目感知的 CodeCompanion Chat 历史 |
@@ -234,7 +234,7 @@ which-key 会列出可用键——那个列表由配置本身生成，不会和�
 | `<C-,>` | 跳到编辑器区域，再按一次跳回 |
 | `<C-/>` | 开关终端；文件中用 `3<C-/>` 打开终端 3；终端 Normal 模式下用 `\1`-`\9` 切换 |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | 上/下一个 buffer |
-| `g` · `[` / `]` · `z` | 跳转+LSP · 上/下一个某物 · 折叠与拼写 |
+| `g` · `[` / `]` · `z` | 跳转+LSP（从光标下的符号出发）· 上/下一个某物 · 折叠与拼写 |
 | `-` | 用 oil 打开当前目录（可当文本编辑） |
 | `jk` · `<C-]>` / `<C-\>` | 输入法安全退出；在 Normal 中切回其输入源 |
 

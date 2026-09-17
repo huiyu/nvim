@@ -1,5 +1,6 @@
--- Which-key spec data: group labels plus spec-registered keymaps, consumed by
--- plugin/editor/whichkey.lua via require("whichkey_spec").
+-- Which-key spec data: group labels plus spec-registered keymaps, and the
+-- same-level section layout for the popup. Consumed by
+-- plugin/editor/whichkey.lua via require("whichkey_spec").{spec,sections}.
 --
 -- Pure data. The imperative vim.keymap.set() bindings (and mapleader) live in
 -- lua/mappings.lua, which init.lua requires for its side effects.
@@ -48,7 +49,12 @@ local spec = {
   { "<leader>y",     group = "Yank",            mode = { "n", "v" } },
   { "<leader>mn",    group = "Noice" },
   { "<leader><tab>", group = "Tab" },
-  { "gr",            group = "LSP" },
+  -- Nvim 0.11's own LSP prefix, left unmodified. It is only reachable where no
+  -- client is attached, though: in an LSP buffer the buffer-local `gr`
+  -- (References) carries <nowait> so it fires without waiting out 'timeoutlen',
+  -- which also means gr* never gets a second key there. Every action has a
+  -- shorter binding anyway (gd, gr, gb, gy, ,a, ,r, ,c, ;s).
+  { "gr",            group = "LSP (Nvim default, no client attached)" },
   -- Prefixes that exist outside <leader>. Without a label which-key renders
   -- them as a bare "+11 keymaps", which says how many but not what -- and these
   -- show up in operator-pending too (the popup after `d`, `c`, `y`), where an
@@ -61,7 +67,11 @@ local spec = {
   -- and each names things its own way. These are desc-only entries: which-key
   -- shows them instead of the mapping's desc, and the mappings are untouched.
   -- See BRACKET_DESCS below.
-  { "g",             group = "Goto",            mode = { "n", "x", "o" } },
+  -- "g" is Vim's catch-all extra-command prefix (":help g" calls it exactly
+  -- that), not a goto namespace. Labelling it "Goto" mislabels two thirds of
+  -- what is under it: gu/gU/g~/gw/gq are operators, gp/gP paste, gv reselects,
+  -- gS splits. Name the three largest groups instead of the smallest one.
+  { "g",             group = "Goto/Case/Misc",  mode = { "n", "x", "o" } },
   { "z",             group = "Fold/Spell",      mode = { "n", "x" } },
   -- <localleader> is per-filetype: VimTeX compile/view, diffview's panel and
   -- conflict actions, gopls/venv/source-header, so the same letter can mean
@@ -76,6 +86,15 @@ local spec = {
   { "`",  desc = "marks: exact pos" },
   { "g'", desc = "marks: line (keep jumplist)" },
   { "g`", desc = "marks: exact pos (keep jumplist)" },
+
+  -- mini.ai's own descs read "Move to left/right \"around\"", which invites
+  -- reading these as prev/next and reaching for [ / ] instead. They are edge
+  -- motions on the *current* textobject and take one after the prefix:
+  -- `g[f` lands on this function's start, `g]f` on its end.
+  { "gO", desc = "[LSP] Document symbols (Nvim default)" },
+
+  { "g[", desc = "textobject edge: left (g[f = fn start)" },
+  { "g]", desc = "textobject edge: right (g]f = fn end)" },
 
   -- Top-level shortcuts
   { "<leader>ml", "<cmd>Lazy<cr>",       desc = "Lazy",  mode = "n" },
@@ -102,7 +121,6 @@ local spec = {
       "  ;r / ;b / ;g     Recent / Buffers / Git files",
       "  ;p               Switch project",
       "  ;i / ;?          Files / grep respecting gitignore",
-      "  ;c               LSP incoming calls (who calls this)",
       "  ;o / -           Oil float / Oil parent dir (edit dir as text)",
       "  ;h / ;H          Harpoon menu / add file",
       "  ;1 .. ;9         Jump to pinned file 1-9",
@@ -117,8 +135,16 @@ local spec = {
       "  <leader>yy / yc  Yank selection (register / clipboard)",
       "  <leader>yh / y\"  Yank history / Registers",
       "",
+      "  ── g — jump from the symbol here ────────",
+      "  gd / gr          Definition / References",
+      "  gb / gy          Implementation / Type definition",
+      "  gD / gC          Declaration / Incoming calls",
+      "  K / gK           Hover / Signature help",
+      "  gO               Document symbols (Nvim default)",
+      "",
       "  ── , — act on this code ─────────────────",
       "  ,a / ,f / ,r     Code action / Format / Rename",
+      "  ,c               Run codelens",
       "  ,j ,k / ,h ,l    Move line / Dedent, Indent",
       "  ,n / ,x          Annotations / Run this file",
       "  ,i / ,R          Inline var / Select refactor",
@@ -131,13 +157,14 @@ local spec = {
       "",
       "  ── Full reference ───────────────────────",
       "  <leader>        Main command palette",
-      "  g               Goto / LSP (gd gr gI gy gD K gK gS)",
+      "  g               Goto / case / misc (see the g section above)",
       "  f / F           Flash jump / Treesitter jump",
       "  [ / ]           Prev / Next navigation",
-      "                    b:buffer  d:diag  e:error  w:warn",
-      "                    h:hunk  q:qfix  t:todo  y:yank  B:move",
+      "                    diag: d e w    git: h x",
+      "                    lists: q l t   files: b a o",
+      "                    history: j u y (jump/undo/yank)",
       "  z               Folds / Spelling (zR zM zK)",
-      "  <C-w>           Window operations",
+      "  s               Window operations (see the s section)",
       "  r / R           Flash remote (operator mode)",
       "",
       "  ── Terminals ────────────────────────────",
@@ -156,12 +183,9 @@ local spec = {
       "  mn*              Noice history & messages",
       "",
       "  ── <leader>s — sessions ─────────────────",
-      "  ss / sl / s.     Save / load last / load cwd",
-      "  <C-]> / <C-\\>    Repeatable Escape (Insert / terminal)",
-      "  <C-h/j/k/l>      Window navigation",
-      "  <C-,>            Editor window / return (se)",
-      "  <C-S-l>          Redraw TUI (terminal mode)",
-      "  <C-Up/Down/L/R>  Window resize",
+      -- Spelled out: bare `ss` is the window split two sections below.
+      "  <leader>ss       Save the session",
+      "  <leader>sl / s.  Load last / load cwd",
       "",
       "  ── s — windows (bare key, no leader) ────",
       "  ss / sv          Split below / right",
@@ -169,8 +193,14 @@ local spec = {
       "  sd / so          Close this / close others",
       "  s= / sm          Equalize / toggle zoom",
       "  sz               Toggle zen mode (file window)",
-      "  (<C-h/j/k/l> still moves between windows)",
+      "",
+      "  ── Ctrl ─────────────────────────────────",
+      "  <C-h/j/k/l>      Window navigation",
+      "  <C-Up/Down/L/R>  Window resize",
+      "  <C-,>            Editor window / return (se)",
       "  <C-a> / <C-x>    Increment / Decrement",
+      "  <C-]> / <C-\\>    Repeatable Escape (Insert / terminal)",
+      "  <C-S-l>          Redraw TUI (terminal mode)",
       "",
       "  ── Alt / Shift ──────────────────────────",
       "  (Alt belongs to tmux -- see huiyu/nvim#12)",
@@ -187,7 +217,7 @@ local spec = {
     -- copies of it drifted every time a group moved; reading the table means the
     -- popup cannot disagree with what which-key actually registers.
     local groups = {}
-    for _, entry in ipairs(require("whichkey_spec")) do
+    for _, entry in ipairs(require("whichkey_spec").spec) do
       local lhs = type(entry[1]) == "string" and entry[1] or nil
       local suffix = lhs and lhs:match("^<leader>(.+)$")
       if entry.group and suffix then
@@ -377,4 +407,183 @@ for _, row in ipairs(TEXTOBJ_DESCS) do
   spec[#spec + 1] = { "i" .. suffix, desc = inner,  mode = XO }
 end
 
-return vim.list_extend(spec, hidden)
+--- Same-level sections for the which-key popup.
+---
+--- which-key's own `group` is a *sub-prefix*: `<leader>g` plus `l` is the
+--- three-key `<leader>gl`, one more keystroke deep. A section slices a single
+--- level instead -- the two-key mappings under `;` -- which which-key has no
+--- concept of, so plugin/editor/whichkey.lua renders them by inserting heading
+--- rows into the popup.
+---
+--- Keyed by prefix; a section's position in the list is its position in the
+--- popup. `keys` are the suffixes after that prefix, matched against the
+--- mapping itself, so renaming a `desc` can never silently reclassify a key --
+--- which is the whole reason these are keys and not description patterns.
+---
+--- A key listed in no section sorts after every section and gets no heading, so
+--- adding a mapping never *requires* touching this table. A key listed here
+--- that no longer exists is inert. Both are checked by
+--- tests/whichkey_popup_spec.lua, which fails on a suffix that maps to nothing.
+---
+--- `color` is a which-key colour name (see the list at the top of
+--- which-key/icons.lua): azure, blue, cyan, green, grey, orange, purple, red,
+--- yellow.
+local sections = {
+  -- <leader> is all groups, so these section the domains themselves rather
+  -- than individual keys. `item.keys` exists on group rows too, which is what
+  -- makes this work at all.
+  ["<leader>"] = {
+    { "dev",     icon = "󰅱 ", color = "azure",  keys = { "a", "d", "t", "x" } },
+    { "vcs",     icon = "󰘬 ", color = "orange", keys = { "g", "G" } },
+    { "editor",  icon = "󰈔 ", color = "cyan",   keys = { "b", "y", "<tab>", "u" } },
+    { "system",  icon = "󰒓 ", color = "grey",   keys = { "m", "s", "q" } },
+  },
+
+  ["<leader>g"] = {
+    { "repo",    icon = "󰘬 ", color = "orange", keys = { "s", "b" } },
+    { "hunk",    icon = "󰏫 ", color = "green",  keys = { "p", "r", "R", "S" } },
+    { "blame",   icon = "󰈈 ", color = "cyan",   keys = { "l", "L", "T" } },
+    { "diff",    icon = "󰓡 ", color = "azure",  keys = { "d", "v", "m", "M", "q" } },
+    { "history", icon = "󰓫 ", color = "purple", keys = { "c", "C", "H", "V", "f" } },
+    { "tools",   icon = "󰏌 ", color = "yellow", keys = { "g", "B" } },
+  },
+
+  ["<leader>G"] = {
+    { "browse", icon = "󰖟 ", color = "cyan",   keys = { "r", "f", "F" } },
+    { "pr",     icon = "󰘩 ", color = "green",  keys = { "c", "p", "P" } },
+    { "issues", icon = "󰀦 ", color = "orange", keys = { "i", "I" } },
+    { "activity", icon = "󰗟 ", color = "purple", keys = { "a", "s", "n" } },
+  },
+
+  ["<leader>d"] = {
+    { "run",         icon = "󰐊 ", color = "green",  keys = { "c", "a", "l", "t", "P" } },
+    { "step",        icon = "󰑙 ", color = "azure",  keys = { "i", "o", "O", "C", "g" } },
+    { "breakpoints", icon = "󰃤 ", color = "red",    keys = { "b", "B" } },
+    { "inspect",     icon = "󰈈 ", color = "purple", keys = { "r", "s", "w", "j", "k" } },
+  },
+
+  ["<leader>a"] = {
+    { "session",   icon = "󰚩 ", color = "green",  keys = { "c", "f", "r", "R", "m" } },
+    { "context",   icon = "󰈔 ", color = "cyan",   keys = { "b", "i" } },
+    { "review",    icon = "󰄹 ", color = "orange", keys = { "a", "d" } },
+    { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T" } },
+    -- `p` is the +CodeCompanion group row: it labels itself, so a heading over
+    -- a single entry would say the same thing twice.
+  },
+
+  ["<leader>m"] = {
+    { "config",   icon = "󰒓 ", color = "cyan",   keys = { "f", "F" } },
+    { "packages", icon = "󰏕 ", color = "yellow", keys = { "l", "m" } },
+    -- Runtime state and the two things you reach for when it goes wrong.
+    { "runtime",  icon = "󰗟 ", color = "azure",  keys = { "i", "r", "d" } },
+    { "help",     icon = "󰉹 ", color = "green",  keys = { "h", "k", "M", "C", "c" } },
+    -- `n` is the +Noice group row; see <leader>a above.
+  },
+
+  ["<leader>b"] = {
+    { "pin",    icon = "󰐃 ", color = "cyan", keys = { "p", "P" } },
+    { "delete", icon = "󰈆 ", color = "red",  keys = { "d", "D", "o", "l", "r" } },
+    -- `j` (Pick buffer) is the only one left; it trails with no heading.
+  },
+
+  ["<leader>x"] = {
+    { "diagnostics", icon = "󰀦 ", color = "red",   keys = { "x", "X", "d" } },
+    { "lists",       icon = "󰉹 ", color = "azure", keys = { "q", "Q", "l", "L" } },
+  },
+
+  ["<leader>t"] = {
+    { "run",  icon = "󰐊 ", color = "green", keys = { "f", "m", "d" } },
+    { "view", icon = "󰈈 ", color = "cyan",  keys = { "S", "o", "D", "h" } },
+  },
+
+  ["<leader>u"] = {
+    { "display", icon = "󰈈 ", color = "cyan",   keys = { "l", "L", "w", "c", "b", "C", "T" } },
+    -- Diagnostics, inlay hints and spelling are all editing-time hints.
+    { "hints",   icon = "󰅱 ", color = "azure",  keys = { "d", "h", "s" } },
+    { "format",  icon = "󰉢 ", color = "green",  keys = { "f", "F" } },
+    -- `n` (dismiss notifications) is the only action here rather than a toggle,
+    -- so it trails the toggles instead of heading a section of one.
+  },
+
+  ["<leader><tab>"] = {
+    { "navigate", icon = "󰓡 ", color = "cyan",  keys = { "[", "]", "f", "l", "a", "s" } },
+    { "manage",   icon = "󰎓 ", color = "green", keys = { "<tab>", "d", "o" } },
+  },
+
+  ["<leader>y"] = {
+    { "path",    icon = "󰆏 ", color = "cyan",   keys = { "a", "r" } },
+    { "history", icon = "󰓫 ", color = "purple", keys = { "h", "\"" } },
+  },
+
+  -- s is the window prefix (ss split, sd close, se editor window).
+  ["s"] = {
+    { "split",  icon = "󰯎 ", color = "green",  keys = { "s", "v" } },
+    { "focus",  icon = "󰱑 ", color = "cyan",   keys = { "w", "e" } },
+    { "layout", icon = "󰊕 ", color = "azure",  keys = { "=", "m", "z" } },
+    { "close",  icon = "󰈆 ", color = "red",    keys = { "d", "o" } },
+  },
+
+  [";"] = {
+    { "files",   icon = "󰈔 ", color = "cyan",
+      keys = { "<space>", "f", "F", "i", "r", "b", "g", "a", "o", "P", "p" } },
+    { "search",  icon = "󰍉 ", color = "green",
+      keys = { "/", "?", "w", "D", "l" } },
+    { "symbols", icon = "󰅱 ", color = "azure",  keys = { "s", "S" } },
+    { "marks",   icon = "󰃀 ", color = "purple", keys = { "j", "m" } },
+    { "harpoon", icon = "󰛢 ", color = "yellow",
+      keys = { "h", "H", "1", "2", "3", "4", "5", "6", "7", "8", "9" } },
+    { "todo",    icon = "󰄹 ", color = "orange", keys = { "t", "T" } },
+    -- `;;` (resume last picker) is a meta action, not a destination: it trails
+    -- the sections with no heading of its own.
+  },
+
+  -- g mixes our LSP jumps with Vim's own commands. Only ours are declared;
+  -- the builtins sort after them with no heading, which is the right shape --
+  -- gf/ge/gg are not a "section", they are the rest of Vim.
+  ["g"] = {
+    { "LSP",        icon = "󰅱 ", color = "azure",
+      keys = { "d", "r", "b", "y", "D", "C", "K", "O" } },
+    { "edit",       icon = "󰏫 ", color = "yellow",
+      keys = { "c", "S", "p", "P", "<C-a>", "<C-x>" } },
+    { "textobject", icon = "󰃀 ", color = "purple", keys = { "[", "]" } },
+    -- g' and g` jump to a mark without touching the jumplist.
+    { "marks",      icon = "󰃀 ", color = "blue",   keys = { "'", "`" } },
+    -- `gx` trails with Vim's own g commands rather than heading a list of one.
+  },
+
+  [","] = {
+    { "LSP",      icon = "󰅱 ", color = "azure",  keys = { "a", "r", "c" } },
+    { "refactor", icon = "󰏫 ", color = "orange", keys = { "e", "i", "R", "n" } },
+    { "format",   icon = "󰉢 ", color = "cyan",   keys = { "f", "F", "w" } },
+    { "lines",    icon = "󰓡 ", color = "green",  keys = { "j", "k", "h", "l" } },
+    { "file",     icon = "󰈔 ", color = "purple", keys = { "x", "O" } },
+  },
+}
+
+-- [ and ] are the same vocabulary in two directions, so they are declared once
+-- and mirrored rather than kept in sync by hand.
+local BRACKET_SECTIONS = {
+  { "diagnostics", icon = "󰀦 ", color = "red",
+    keys = { "d", "D", "e", "w" } },
+  { "git",         icon = "󰘬 ", color = "orange",
+    keys = { "h", "x", "X" } },
+  { "lists",       icon = "󰉹 ", color = "azure",
+    keys = { "q", "Q", "l", "L", "t", "T", "<C-q>", "<C-l>", "<C-t>" } },
+  { "files",       icon = "󰈔 ", color = "cyan",
+    keys = { "b", "B", "a", "A", "o", "O" } },
+  { "code",        icon = "󰅱 ", color = "green",
+    keys = { "[", "]", "i", "I" } },
+  -- Jumplist, undo tree and yank ring are all "step through a history", which
+  -- is a different question from "move through the code".
+  { "history",     icon = "󰓫 ", color = "purple",
+    keys = { "j", "J", "u", "U", "y" } },
+  { "edit",        icon = "󰏫 ", color = "yellow",
+    keys = { "<space>", "p" } },
+}
+sections["["] = BRACKET_SECTIONS
+sections["]"] = BRACKET_SECTIONS
+
+return {
+  spec = vim.list_extend(spec, hidden),
+  sections = sections,
+}

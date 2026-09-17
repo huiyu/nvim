@@ -75,7 +75,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 
   | Prefix | Question it answers | Examples |
   |--------|---------------------|----------|
-  | `;` | "Which file/symbol/position do I want to be at?" | `;f` find file, `;s` symbol, `;1`-`;9` harpoon |
+  | `;` | "Which file/symbol/position do I want to be at?" (fuzzy search, no starting point) | `;f` find file, `;s` symbol, `;1`-`;9` harpoon |
   | `,` | "What do I do to the code in front of me?" | `,a` code action, `,f` format, `,j` move line |
   | `s` | "What about this window?" | `ss` split, `sd` close, `se` editor window |
   | `<localleader>` (`\`) | "What does *this filetype* offer?" | `\o` organize imports, VimTeX, diffview; `\1`-`\9` only in terminal buffers |
@@ -83,6 +83,25 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 
   High frequency earns two keys, so anything reached constantly belongs on one
   of the first three rather than three keys deep under `<leader>`.
+- LSP navigation that starts from the symbol under the cursor belongs on `g`,
+  not on `;`: `gd`, `gr`, `gb` (implementation), `gy`, `gD`, `gC` (incoming
+  calls) and `gK`. The dividing line is whether the key needs a symbol to start
+  from -- `;s`/`;S` fuzzy-search a symbol list and need no cursor context, so
+  they stay on `;`. Mnemonic letters lose to builtins here: `gi`/`gI` are Vim's
+  insert commands and `gc` is Nvim's comment operator, so implementation and
+  incoming calls take free letters rather than displace them.
+- Every mapping that requires a language server carries a `[LSP]` prefix in its
+  `desc`. A which-key popup on `g` mixes LSP jumps with lexical motions like
+  `gf` and `ge`; the prefix is what tells a reader which ones stop working when
+  no server is attached.
+- The buffer-local `gr` (References) sets `nowait`. Nvim 0.11's default
+  `grr`/`gri`/`grt`/`gra`/`grn`/`grx` are longer candidates, so without it every
+  `gr` press waits out `timeoutlen` before firing. The cost is that `gr*` takes
+  no second key in an LSP buffer; that is acceptable only because each default
+  has a shorter equivalent here -- `gb`, `gy`, `,a`, `,r`, and `,c` for codelens,
+  which exists specifically to replace the unreachable `grx`. Adding a new
+  `gr`-prefixed mapping, or removing one of those replacements, breaks this
+  arrangement.
 - `;` and `,` stay unmapped as bare keys, so the builtin repeat-f/t still runs
   after `timeoutlen`. Flash owns `f`/`F` in Normal and Visual only -- never
   operator-pending, where the builtin motions must survive so `df-` and `ct)`
@@ -99,6 +118,37 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   diffview) block the global prefixes, with `nowait` and a visible disabled
   hint.
 - Do not force-delete ordinary buffers from terminal-specific mappings.
+- Popup sections are declared as data in `lua/whichkey_spec.lua` (`sections`,
+  keyed by prefix then suffix) and only read by `lua/plugin/editor/whichkey.lua`.
+  Adding a key or a whole section is a data edit; no Lua in the plugin spec
+  knows what "files" or "search" means. Match by key, never by `desc` text -- an
+  earlier version matched description patterns, where a reworded `desc` silently
+  changed a key's colour and position and every new pattern risked catching
+  someone else's entry. Every prefix worth sectioning is declared: `;`, `g`,
+  `,`, `[`/`]` (one table, mirrored), `<leader>` itself, and the `<leader>`
+  groups with more than a screenful (`g`, `G`, `d`, `a`, `m`, `b`, `x`, `t`).
+  A key in no section sorts last with no heading, so Vim's own `g` commands
+  stay out of the way without being listed. Two rules keep the table honest: a
+  section needs at least two keys (one key plus a heading is two lines to show
+  one mapping, worse than leaving it uncategorised), and a group row that
+  already labels itself -- `+Noice`, `+CodeCompanion` -- gets no heading on top
+  of that. Sectioning sorts *before* which-key's groups-first rule; the other
+  order lets an undeclared group row jump ahead of every heading.
+- Key lookup goes through `keytrans(keycode(...))`, which is which-key's own
+  normalisation (`util.lua`, `M.norm`). Do not call `keytrans` on a raw
+  `nvim_get_keymap` lhs: that value is half-converted -- control keys are
+  already the literal string `<C-A>` while a space is still a raw byte -- so
+  keytrans alone turns `g<C-A>` into `g<lt>C-A>` and the lookup misses.
+- which-key's own `group` is a sub-prefix (`<leader>g` + `l` = `<leader>gl`), so
+  it cannot slice a single level. The `;` headings therefore come from replacing
+  which-key's `View.sort` and inserting display-only rows: the popup body is a
+  table whose rows *are* the items, and its render loop reads only `key`, `sep`,
+  `icon`, `desc`, `group` and `icon_hl`. This is the only place here that
+  depends on plugin internals. It is guarded (a renamed `sort` drops headings
+  and colours, ordering still works through the supported `sort` option,
+  nothing errors) and covered by `tests/whichkey_popup_spec.lua`, which also
+  fails on a declared suffix that maps to nothing. It assumes the single-column
+  `helix` preset: a multi-column preset would split a heading from its items.
 - which-key keeps description-only spec entries in its own trie, so `maparg()`
   cannot see those. Entries with an RHS are created through `vim.keymap.set`
   after which-key's scheduled loader runs; assert those with `maparg()` after

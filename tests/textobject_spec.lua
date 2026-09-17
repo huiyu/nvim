@@ -27,7 +27,7 @@ local want = {
   ao = "block/conditional/loop",
 }
 local found = {}
-for _, entry in ipairs(require("whichkey_spec")) do
+for _, entry in ipairs(require("whichkey_spec").spec) do
   if type(entry[1]) == "string" and want[entry[1]] and entry.desc then
     local modes = type(entry.mode) == "table" and entry.mode or { entry.mode }
     found[entry[1]] = { desc = entry.desc, modes = modes }

@@ -62,7 +62,7 @@ nvim
 ├── lua/
 │   ├── options.lua           # Vim options
 │   ├── mappings.lua          # Imperative core keymaps (side effects)
-│   ├── whichkey_spec.lua     # which-key groups + spec-registered keymaps (data)
+│   ├── whichkey_spec.lua     # which-key groups, popup sections, spec keymaps (data)
 │   ├── autocmds.lua          # Autocommands
 │   ├── bootstrap.lua         # lazy.nvim setup
 │   ├── ai/                    # Provider config + native Claude/Codex facade
@@ -147,7 +147,7 @@ nvim
 | [neogen](https://github.com/danymat/neogen) | Generate annotations/docstrings |
 | [SchemaStore](https://github.com/b0o/SchemaStore.nvim) | JSON/YAML schema validation |
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua development (type completion) |
-| [inc-rename](https://github.com/smjonas/inc-rename.nvim) | LSP rename with live preview, on `grn` / `,r` |
+| [inc-rename](https://github.com/smjonas/inc-rename.nvim) | LSP rename with live preview, on `,r` |
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code integration (Claude provider only) |
 | [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | Provider-aware ACP chat plus HTTP inline/command prompts |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | Auto-saved, project-aware CodeCompanion chat history |
@@ -240,7 +240,7 @@ Unprefixed keys worth knowing:
 | `<C-,>` | Jump to the editor area, press again to return |
 | `<C-/>` | Toggle terminal; `3<C-/>` selects terminal 3 from a file; `\1`-`\9` switch from terminal-Normal |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
-| `g` · `[` / `]` · `z` | Goto+LSP · prev/next thing · folds and spelling |
+| `g` · `[` / `]` · `z` | Goto+LSP (from the symbol under the cursor) · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
 | `jk` · `<C-]>` / `<C-\>` | Input-safe Escape; in Normal, use its input source |
 

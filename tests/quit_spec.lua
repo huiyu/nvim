@@ -26,7 +26,7 @@ end
 -- its mappings until a scheduled load that never runs headless, so the keymap
 -- itself is not observable here -- but the data that produces it is.
 local function quit_entry(lhs)
-  for _, entry in ipairs(require("whichkey_spec")) do
+  for _, entry in ipairs(require("whichkey_spec").spec) do
     if entry[1] == lhs then return entry end
   end
 end

@@ -194,17 +194,16 @@ return {
     { ";r",       function() Snacks.picker.recent({ filter = { cwd = true } }) end,                 desc = "Recent files" },
     { ";b",       function() Snacks.picker.buffers() end,                                           desc = "Buffers" },
     { ";g",       function() Snacks.picker.git_files() end,                                         desc = "Git files" },
-    -- "Who calls this?" -- the question `gr` (all references) answers too
-    -- loosely, since it also returns the definition and same-named strings.
-    { ";c",       function() Snacks.picker.lsp_incoming_calls() end,                                desc = "LSP incoming calls" },
     { ";p",       function() Snacks.picker.projects() end,                                          desc = "Switch project" },
     { ";/",       function() Snacks.picker.grep() end,                                              desc = "Search project" },
     { ";?",       function() Snacks.picker.grep({ ignored = false, exclude = {} }) end,            desc = "Search project (respect gitignore)" },
     { ";w",       function() Snacks.picker.grep_word() end,                                         desc = "Search word under cursor", mode = { "n", "x" } },
     -- Symbols and in-file matches answer the same question as the file
     -- pickers above -- "where do I need to be?" -- so they share the prefix.
-    { ";s",       function() Snacks.picker.lsp_symbols() end,                                       desc = "Symbol in buffer" },
-    { ";S",       function() Snacks.picker.lsp_workspace_symbols() end,                             desc = "Symbol in workspace" },
+    -- These search without a starting point; the LSP jumps that begin from the
+    -- symbol under the cursor live on `g` instead (see plugin/lsp/lsp.lua).
+    { ";s",       function() Snacks.picker.lsp_symbols() end,                                       desc = "[LSP] Symbol in buffer" },
+    { ";S",       function() Snacks.picker.lsp_workspace_symbols() end,                             desc = "[LSP] Symbol in workspace" },
     { ";l",       function() Snacks.picker.lines() end,                                             desc = "Lines in this buffer" },
     { ";D",       function() Snacks.picker.grep({ cwd = require("util.cwd").buffer_dir() }) end,    desc = "Search current directory" },
     { ";j",       function() Snacks.picker.jumps() end,                                             desc = "Jumps" },

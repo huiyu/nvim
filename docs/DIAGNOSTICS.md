@@ -123,7 +123,7 @@ Preloading runs once per LSP client. After adding/removing projects, use
 itself, restart Neovim first so the new callback is installed. A preload failure
 is reported in `:messages`. Projects outside those workspace roots, ignored
 configs, and configs with custom names are not automatically discovered.
-`;c` queries incoming calls, which still has tsserver project-scope limitations;
+`gC` queries incoming calls, which still has tsserver project-scope limitations;
 preloading does not make it equivalent to Find References.
 
 If the log has grown large, inspect its path with

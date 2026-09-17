@@ -174,12 +174,15 @@ picks from it:
 | Drawer | Means | Examples |
 |---|---|---|
 | `[` `]` | previous / next X | `]d` diagnostic · `]e` error · `]h` git hunk · `]q` quickfix · `]m` function · `]c` class · `]x` conflict · `]y` yank history. Uppercase = first / last: `[D` `]Q` |
-| `g` | go somewhere / about the thing under the cursor | `gd` definition · `gr` references · `gI` implementation · `gy` type · `K` docs · `gx` open URL · `gS` split / join · `gv` reselect |
+| `g` | go somewhere / about the thing under the cursor | `gd` definition · `gr` references · `gb` implementation · `gy` type · `gC` callers · `K` docs · `gx` open URL · `gS` split / join · `gv` reselect |
 | `z` | folds and spelling | `zR` open all · `zM` close all · `za` toggle · `z=` suggestions · `zg` add to dictionary |
 | `Ctrl` | act now, no questions, the same in every mode | `<C-h/j/k/l>` windows · `<C-/>` terminal · `<C-o>` back the way you came · `<C-a>` `<C-x>` increment / decrement · `<C-r>` redo |
 
 **which-key:** press `[`, `]`, `g`, or `z` and wait half a second — the popup
-lists the drawer.
+lists the drawer, grouped under headings (`── diagnostics`, `── git`, …) with a
+colour per group, so a long list reads as a few blocks rather than an alphabet.
+The grouping is declared in `lua/whichkey_spec.lua`; anything not assigned to a
+group sorts to the end.
 
 `gx` opens the nearest HTTP(S) URL on the current line, or the current file
 when there is no URL. In terminal-Normal mode, it also joins links enclosed in
@@ -289,7 +292,6 @@ and floats them to the top.
 | `;D` | Search this directory |
 | `;s` | Symbols (functions, classes) in this file |
 | `;S` | Symbols across the project |
-| `;c` | **Who calls this?** — incoming calls for the symbol under the cursor |
 
 `;f` and `;/` include gitignored files but skip common build/dependency
 directories. `;i` and `;?` use `.gitignore` without those extra exclusions, so
@@ -344,11 +346,12 @@ Everything you do *to* the code in front of you.
 | `,a` | **Code action** — the fix-it menu (imports, quick fixes) |
 | `,f` | Format |
 | `,r` | Rename the symbol, everywhere, with live preview |
+| `,c` | Run a codelens (gopls offers generate, test, tidy, govulncheck) |
 | `,n` | Generate a docstring / annotation |
 | `,x` | Run this file |
 | `,O` | Outline of this file |
 
-`,a` and `,r` only exist where a language server is running — in a plain text
+`,a`, `,r` and `,c` only exist where a language server is running — in a plain text
 file they are simply not there.
 
 ### Moving lines
@@ -485,7 +488,7 @@ These live under Manage because they maintain the editor itself.
 gd  jump to the definition
 gd  again, and again — follow it down
 Ctrl-o  walk back up the way you came
-;c  who calls this?
+gC  who calls this?
 ]]  next place this symbol appears in the file
 ```
 

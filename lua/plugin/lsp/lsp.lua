@@ -71,16 +71,12 @@ return {
       }
     },
     config = function(_, opts)
-      -- Override Neovim 0.11 default global LSP mappings (grr, gra, grn, gri, grt, gO)
-      -- These are set globally in vim/_defaults.lua, not in LspAttach, so override them globally
-      vim.keymap.set("n",      "grr", function() Snacks.picker.lsp_references() end,       { desc = "References" })
-      vim.keymap.set("n",      "gri", function() Snacks.picker.lsp_implementations() end,  { desc = "Goto Implementation" })
-      vim.keymap.set("n",      "grt", function() Snacks.picker.lsp_type_definitions() end, { desc = "Goto Type Definition" })
-      vim.keymap.set("n",      "gO",  function() Snacks.picker.lsp_symbols() end,           { desc = "Document Symbols" })
-      vim.keymap.set({ "n", "x" }, "gra", function() vim.lsp.buf.code_action() end, { desc = "Code Action" })
-      -- expr + :IncRename so the rename previews live; see plugin/lsp/inc-rename.lua
-      vim.keymap.set("n",      "grn", function() return ":IncRename " .. vim.fn.expand("<cword>") end,
-        { desc = "Rename", expr = true })
+      -- Nvim 0.11's default gr* maps (grr, gri, grt, gra, grn, gO) are left
+      -- alone on purpose. Every action they provide already has a shorter
+      -- binding below -- gd, gr, gb, gy, ,a, ,r and ;s -- so overriding them only
+      -- duplicated the same six actions behind a longer prefix. Leaving the
+      -- defaults intact keeps stock-Nvim muscle memory working here and keeps
+      -- ":help lsp-defaults" an accurate description of this config.
 
       -- Buffer-local LSP mappings via LspAttach (for non-default keybindings)
       vim.api.nvim_create_autocmd("LspAttach", {
@@ -93,17 +89,39 @@ return {
           -- is already open elsewhere. Following a call chain means reading
           -- downward from where the cursor is; letting the jump throw focus to
           -- another split loses that thread.
-          map("gd",  function() Snacks.picker.lsp_definitions({ jump = { reuse_win = false } }) end, "Goto Definition")
-          map("gr",  function() Snacks.picker.lsp_references() end,       "References")
-          map("gI",  function() Snacks.picker.lsp_implementations() end,  "Goto Implementation")
-          map("gy",  function() Snacks.picker.lsp_type_definitions() end, "Goto Type Definition")
-          map("gD",  function() vim.lsp.buf.declaration() end,  "Goto Declaration")
-          map("K",   function() vim.lsp.buf.hover() end,        "Hover")
-          map("gK",  function() vim.lsp.buf.signature_help() end, "Signature Help")
-          map(",a", function() vim.lsp.buf.code_action() end, "Code action", { "n", "v" })
+          -- Every jump that starts from the symbol under the cursor lives on
+          -- `g`; the fuzzy pickers that need no starting point stay on `;`.
+          -- gb and gC take free letters because Vim owns gi/gI (insert) and
+          -- Nvim 0.10 owns gc (comment) -- the mnemonic keys were taken, not
+          -- the idea. "[LSP]" marks what needs a language server, so a
+          -- which-key popup separates these from lexical motions like gf/ge.
+          map("gd",  function() Snacks.picker.lsp_definitions({ jump = { reuse_win = false } }) end, "[LSP] Goto Definition")
+          -- nowait: without it `gr` sits through the full 'timeoutlen' on every
+          -- press, because Nvim's default grr/gri/grt/gra/grn/grx are longer
+          -- candidates and Vim has to wait to see which you meant. References
+          -- is too frequent to pay a second for. The trade is that the gr*
+          -- defaults become unreachable in an LSP buffer -- every one of them
+          -- has a shorter binding here (gb, gy, ,a, ,r) and codelens moved to
+          -- ,c, so nothing is actually lost. They still work in Visual mode
+          -- and in buffers with no client attached.
+          vim.keymap.set("n", "gr", function() Snacks.picker.lsp_references() end,
+            { buffer = buf, desc = "[LSP] References", nowait = true })
+          map("gb",  function() Snacks.picker.lsp_implementations() end,      "[LSP] Goto Implementation (body)")
+          map("gy",  function() Snacks.picker.lsp_type_definitions() end,     "[LSP] Goto Type Definition")
+          map("gD",  function() vim.lsp.buf.declaration() end,                "[LSP] Goto Declaration")
+          -- "Who calls this?" -- narrower than gr, which also returns the
+          -- declaration and same-named strings. Needs callHierarchyProvider:
+          -- clangd, gopls, vtsls and basedpyright have it; lua_ls does not.
+          map("gC",  function() Snacks.picker.lsp_incoming_calls() end,       "[LSP] Incoming calls")
+          map("K",   function() vim.lsp.buf.hover() end,                      "[LSP] Hover")
+          map("gK",  function() vim.lsp.buf.signature_help() end,             "[LSP] Signature Help")
+          map(",a", function() vim.lsp.buf.code_action() end, "[LSP] Code action", { "n", "v" })
+          -- Replaces the grx that nowait above makes unreachable. gopls defines
+          -- real lenses here (generate, test, tidy, govulncheck; see lang/go.lua).
+          map(",c", function() vim.lsp.codelens.run() end, "[LSP] Run codelens")
           vim.keymap.set("n", ",r",
             function() return ":IncRename " .. vim.fn.expand("<cword>") end,
-            { buffer = buf, desc = "Rename", expr = true })
+            { buffer = buf, desc = "[LSP] Rename", expr = true })
         end,
       })
 
