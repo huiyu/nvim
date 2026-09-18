@@ -43,6 +43,10 @@ return {
     keys = {
       { "<leader>dB", function() require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: ")) end, desc = "Breakpoint Condition",    mode = { "n", "v" } },
       { "<leader>db", function() require("dap").toggle_breakpoint() end,                                    desc = "Toggle Breakpoint",       mode = { "n", "v" } },
+      -- Breakpoints live in memory across files; without a list the only way to
+      -- find one set in a buffer you have since closed is to remember it.
+      { "<leader>dq", function() require("dap").list_breakpoints(true) end,                                 desc = "List Breakpoints (quickfix)", mode = { "n", "v" } },
+      { "<leader>dx", function() require("dap").clear_breakpoints() end,                                    desc = "Clear All Breakpoints",   mode = { "n", "v" } },
       { "<leader>dc", function() require("dap").continue() end,                                             desc = "Run/Continue",            mode = { "n", "v" } },
       { "<leader>da", function() require("dap").continue({ before = get_args }) end,                        desc = "Run with Args",           mode = { "n", "v" } },
       { "<leader>dC", function() require("dap").run_to_cursor() end,                                        desc = "Run to Cursor",           mode = { "n", "v" } },

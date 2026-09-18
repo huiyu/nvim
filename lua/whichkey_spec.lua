@@ -458,7 +458,7 @@ local sections = {
   ["<leader>d"] = {
     { "run",         icon = "󰐊 ", color = "green",  keys = { "c", "a", "l", "t", "P" } },
     { "step",        icon = "󰑙 ", color = "azure",  keys = { "i", "o", "O", "C", "g" } },
-    { "breakpoints", icon = "󰃤 ", color = "red",    keys = { "b", "B" } },
+    { "breakpoints", icon = "󰃤 ", color = "red",    keys = { "b", "B", "q", "x" } },
     { "inspect",     icon = "󰈈 ", color = "purple", keys = { "r", "s", "w", "j", "k" } },
   },
 
