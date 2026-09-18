@@ -322,24 +322,28 @@ you simply lose the extension configuration's ability to bind.
 
 Then, per session:
 
-1. Build the extension with sourcemaps (`wxt` dev mode or equivalent — a plain
-   production build emits none).
-2. Start Chrome with `--remote-debugging-port=9222` **and its own
-   `--user-data-dir`**, and load the unpacked build output once.
-3. `<leader>dc` → **chrome: debug extension (attach)**.
+1. Run the build watcher (`wxt` dev mode or equivalent). A plain production
+   build emits no sourcemaps, so breakpoints will not bind against one.
+2. `<leader>dc` → **chrome: debug extension (launch)**. The debugger starts its
+   own Chrome, installs the extension and attaches; it also reloads the
+   extension when the build output changes.
+
+**chrome: debug extension (attach)** is for a browser you started yourself —
+`--remote-debugging-port=9222` plus its own `--user-data-dir`, extension loaded
+by hand. Useful against a specific profile or an already-running session; there
+is no auto-reload on this path.
 
 Point `extensionPath` at the **build output** directory, not the source tree —
 an unpacked extension's id is a hash of that path, and the id is what every
 sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 `webRoot` only gets in the way.
 
-- **Launch mode does not work**, on any Chrome 137+: it passes `--load-extension`,
-  which Chrome removed (`--enable-unsafe-extension-debugging` does not restore
-  it). Hence the manual load in step 2.
+- Upstream's PR only supports launch via `--load-extension`, which Chrome
+  removed in 137, so the fork installs over CDP (`Extensions.loadUnpacked`)
+  instead. That is why launch works here and would not with the PR as written.
 - Nothing about Chrome or CDP prevents extension debugging — raw CDP pauses an
-  MV3 service worker fine. The walls are js-debug's. See
-  `spikes/chrome-extension-dap/` for the measurements, the upstream history, and
-  a workaround that needs no fork.
+  MV3 service worker fine. The walls were js-debug's. See
+  `spikes/chrome-extension-dap/` for the measurements and the upstream history.
 - mason-nvim-dap ships no adapter definition for js-debug, so `pwa-node` and
   `pwa-chrome` are registered in `lua/lang/typescript.lua`. Its `["js"]` handler
   only makes mason install the package.

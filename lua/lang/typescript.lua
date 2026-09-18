@@ -223,6 +223,20 @@ local function js_debug_configurations()
       port = 9222,
       extensionPath = "${workspaceFolder}/.output/chrome-mv3-dev",
     },
+    {
+      -- Nothing to set up: the debugger starts its own Chrome, installs the
+      -- extension over CDP and attaches, so a build watcher in a terminal plus
+      -- this entry is the whole loop. It also reloads the extension when the
+      -- build output changes, which a manually loaded one will not do.
+      --
+      -- The profile lives beside the build rather than in a shared cache: two
+      -- projects debugging at once through one profile corrupt its storage.
+      name = "chrome: debug extension (launch)",
+      type = "pwa-chrome",
+      request = "launch",
+      extensionPath = "${workspaceFolder}/.output/chrome-mv3-dev",
+      userDataDir = "${workspaceFolder}/.output/.debug-profile",
+    },
   }
 end
 

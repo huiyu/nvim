@@ -99,6 +99,20 @@ if extension then
   t.ok(extension.webRoot == nil, "it does not hand-set webRoot -- the fork derives paths")
 end
 
+-- Both directions are offered: launch for the one-key loop, attach for a browser
+-- that is already running (a real session, a specific profile).
+local requests = {}
+for _, config in ipairs(dap.configurations.typescript or {}) do
+  if config.name:lower():find("extension", 1, true) then requests[config.request] = config end
+end
+t.ok(requests.launch ~= nil, "extension debugging offers a launch configuration")
+t.ok(requests.attach ~= nil, "extension debugging offers an attach configuration")
+if requests.launch then
+  -- Launch starts a browser, so it must own the profile it starts it with:
+  -- sharing one across concurrent sessions corrupts browser storage.
+  t.ok(requests.launch.userDataDir ~= nil, "the launch configuration pins its own user data dir")
+end
+
 -- UC-R1: Go, Python and C register their adapters through their own plugins.
 -- Adding the js entries must not disturb them.
 for _, name in ipairs({ "delve", "python", "codelldb" }) do
