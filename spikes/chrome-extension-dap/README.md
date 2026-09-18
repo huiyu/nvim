@@ -91,6 +91,16 @@ node dap-v3.mjs <dapPort> <cdpPort> ./web/app.js 2 web ./web http://127.0.0.1:87
 # 3. the subject
 node dap-v6.mjs <dapPort> <cdpPort> <extOutDir> ~/Code/knotmark/tactify page
 node dap-v6.mjs <dapPort> <cdpPort> <extOutDir> ~/Code/knotmark/tactify worker
+
+# 4. round 2 - service worker via a PATCHED adapter copy. Patch is one line:
+#    wa=r=>e=>e.type==="page"&&…   ->   (e.type==="page"||e.type==="service_worker")&&…
+#    Run the patched copy's dapDebugServer.js, then:
+node sw-probe.mjs <dapPort> <cdpPort> <extOutDir> ~/Code/knotmark/tactify automatic
+#    webRoot must be the BUILD OUTPUT dir, and build output must sit inside the
+#    project (see the webRoot gotcha) or relative sources clamp and lose a segment.
+
+# 5. round 3 - no js-debug at all; raw CDP pauses the worker
+node cdp-direct-breakpoint.mjs <cdpPort> <extOutDir> <0-based line in background.js>
 ```
 
 Chrome needs `--remote-debugging-port` and a **separate `--user-data-dir`**; without
