@@ -280,6 +280,34 @@ rather than a broken viewer.
   (`js-debug-adapter`), C (`codelldb`), Java (`nvim-jdtls`)
 - Adapter binaries install via mason; confirm with `:Mason`
 
+### JavaScript / TypeScript
+
+`<leader>dc` offers four configurations on a js/ts/jsx/tsx buffer:
+
+| Configuration | Notes |
+|---|---|
+| `vitest: current file` | Launch the current buffer as a vitest run |
+| `node: run current file` | Launch the current buffer with Node |
+| `node: attach to process` | Pick a running Node process |
+| `chrome: attach (port 9222)` | Attach to an already-running Chrome |
+
+- **"vitest is not installed in any node_modules above …"** — the launch walks up
+  from the current file looking for `node_modules/vitest/vitest.mjs`, so a
+  workspace package gets its own vitest rather than a hoisted copy. Install
+  dependencies in that package.
+- The vitest run passes `--no-file-parallelism`. Vitest otherwise isolates test
+  files in worker threads, where an editor breakpoint never binds.
+- Chrome attach needs Chrome started with `--remote-debugging-port=9222` **and**
+  its own `--user-data-dir`; without the latter a second Chrome hands the URL to
+  the running instance and never opens the port.
+- **Chrome extensions cannot be debugged this way.** js-debug takes over a
+  `chrome-extension://` target but parses no scripts in it, so breakpoints stay
+  unbound. Use Chrome DevTools for extension pages and service workers. The
+  measurements behind this are in `spikes/chrome-extension-dap/`.
+- mason-nvim-dap ships no adapter definition for js-debug, so `pwa-node` and
+  `pwa-chrome` are registered in `lua/lang/typescript.lua`. Its `["js"]` handler
+  only makes mason install the package.
+
 ## Runtime errors & messages
 
 - **`gx` opens only the first half of a terminal table URL** — the mapping now

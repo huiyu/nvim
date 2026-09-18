@@ -123,6 +123,21 @@ return {
         handlers = table_handlers:get(),
       })
 
+      -- Adapters mason-nvim-dap cannot supply, contributed as data by the
+      -- language modules. Its `handlers` list only decides which package mason
+      -- installs; an entry with no definition under its own
+      -- `mappings/adapters/` (js-debug is the case here) downloads a binary and
+      -- registers nothing. Applied after the mason setup so a language module
+      -- stays the last word on its own adapter.
+      for name, adapter in pairs(opts.adapters or {}) do
+        dap.adapters[name] = adapter
+      end
+      -- Extend rather than assign: a language whose plugin already registered
+      -- configurations keeps them, and `<leader>dc` lists both sets.
+      for ft, configs in pairs(opts.configurations or {}) do
+        dap.configurations[ft] = vim.list_extend(dap.configurations[ft] or {}, configs)
+      end
+
       -- setup dap config by VsCode launch.json file
       local vscode = require("dap.ext.vscode")
       local json = require("plenary.json")

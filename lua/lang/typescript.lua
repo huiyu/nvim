@@ -71,6 +71,118 @@ local function preload_projects(client)
   if not ok then failed(tostring(err)) end
 end
 
+-- js-debug speaks DAP over a TCP port it is told to listen on; nvim-dap fills
+-- `${port}` in both places and starts the binary mason installed.
+local function js_debug_adapter()
+  return {
+    type = "server",
+    host = "127.0.0.1",
+    port = "${port}",
+    executable = {
+      command = vim.fn.stdpath("data") .. "/mason/bin/js-debug-adapter",
+      args = { "${port}", "127.0.0.1" },
+    },
+  }
+end
+
+--- Nearest directory at or above `from` that has vitest installed.
+--- A pnpm/npm workspace installs the binary per package, so the closest one
+--- wins over the repository root -- debugging a test in apps/extension must run
+--- that package's vitest, not a hoisted copy with different plugins.
+---@param from string directory to start from
+---@return string? program path to vitest.mjs
+---@return string? root directory that owns the install
+local function nearest_vitest(from)
+  local dir = from
+  while dir and dir ~= "" do
+    local candidate = dir .. "/node_modules/vitest/vitest.mjs"
+    if vim.uv.fs_stat(candidate) then return candidate, dir end
+    local parent = vim.fs.dirname(dir)
+    if parent == dir then return nil end
+    dir = parent
+  end
+end
+
+---Resolve vitest for the current buffer, reporting a missing install in one
+---line and aborting the session -- raising here would surface as an E5108 block
+---with a stack traceback for what is really "install your dependencies".
+---@return fun(): string
+local function vitest_program()
+  return function()
+    local from = vim.fn.expand("%:p:h")
+    local program = nearest_vitest(from)
+    if not program then
+      vim.notify("vitest is not installed in any node_modules above " .. from, vim.log.levels.WARN)
+      return require("dap").ABORT
+    end
+    return program
+  end
+end
+
+---Run from the package that owns the install, so vitest reads that package's
+---config rather than a workspace-root one. Only `program` reports and aborts;
+---this one falls back silently so a failed launch says its line once.
+---@return fun(): string
+local function vitest_cwd()
+  return function()
+    local from = vim.fn.expand("%:p:h")
+    local _, root = nearest_vitest(from)
+    return root or from
+  end
+end
+
+---Fresh list per filetype: nvim-dap owns these tables and callers may edit them.
+---@return table[]
+local function js_debug_configurations()
+  return {
+    {
+      name = "vitest: current file",
+      type = "pwa-node",
+      request = "launch",
+      program = vitest_program(),
+      cwd = vitest_cwd(),
+      -- Vitest isolates test files in worker threads by default and a
+      -- breakpoint set in the editor never binds inside one.
+      args = { "run", "--no-file-parallelism", "${file}" },
+      console = "integratedTerminal",
+      skipFiles = { "<node_internals>/**", "**/node_modules/**" },
+    },
+    {
+      name = "node: run current file",
+      type = "pwa-node",
+      request = "launch",
+      program = "${file}",
+      cwd = "${workspaceFolder}",
+      console = "integratedTerminal",
+      skipFiles = { "<node_internals>/**" },
+    },
+    {
+      name = "node: attach to process",
+      type = "pwa-node",
+      request = "attach",
+      -- Deferred: requiring dap.utils here would load nvim-dap while this spec
+      -- is still being read, defeating its lazy trigger.
+      processId = function() return require("dap.utils").pick_process() end,
+      cwd = "${workspaceFolder}",
+    },
+    {
+      -- Chrome must already run with --remote-debugging-port=9222 and its own
+      -- --user-data-dir; without the latter a second Chrome hands the URL to the
+      -- running instance and never opens the port.
+      --
+      -- Ordinary pages only. js-debug takes over a chrome-extension:// target
+      -- but parses no scripts in it, so breakpoints never bind -- debug
+      -- extensions in Chrome DevTools instead (spikes/chrome-extension-dap).
+      name = "chrome: attach (port 9222)",
+      type = "pwa-chrome",
+      request = "attach",
+      port = 9222,
+      webRoot = "${workspaceFolder}",
+      sourceMaps = true,
+    },
+  }
+end
+
 return {
   -- Keep the usual numbers/dates/toggles and add JS/TS declaration keywords.
   {
@@ -168,19 +280,34 @@ return {
 
   -- Debugging via vscode-js-debug (mason package: js-debug-adapter).
   --
-  -- A single adapter covers BOTH runtimes: `pwa-node` for Node processes and
-  -- `pwa-chrome` for the browser. The runtime is selected by the launch config,
-  -- not by the plugin, which is exactly why debugging belongs to the *language*
-  -- rather than to "web" or "node". The `js` handler makes mason install the
-  -- adapter and register the default Node launch/attach configs for JS/TS files.
+  -- A single adapter binary covers BOTH runtimes: `pwa-node` for Node processes
+  -- and `pwa-chrome` for the browser. The runtime is chosen by the launch
+  -- config, not by the plugin, which is exactly why debugging belongs to the
+  -- *language* rather than to "web" or "node".
   --
-  -- For TypeScript with source maps or a custom runtime (tsx / ts-node), add a
-  -- project-level `.vscode/launch.json`; it is picked up via `dap.ext.vscode`.
+  -- The `js` handler below only makes mason install the package: mason-nvim-dap
+  -- ships no adapter definition for js-debug (its `mappings/adapters/` has
+  -- bash, chrome, codelldb, node2, python … but no `js.lua`), so the handler
+  -- registers nothing on its own and the adapters have to be declared here.
+  --
+  -- Values that depend on the buffer being debugged are functions: this table
+  -- is built when the spec is read, long before there is a current file.
   {
     "mfussenegger/nvim-dap",
     opts = {
       handlers = {
+        -- Installs js-debug-adapter. Registers no adapter -- see `adapters`.
         ["js"] = {},
+      },
+      adapters = {
+        ["pwa-node"] = js_debug_adapter(),
+        ["pwa-chrome"] = js_debug_adapter(),
+      },
+      configurations = {
+        javascript = js_debug_configurations(),
+        javascriptreact = js_debug_configurations(),
+        typescript = js_debug_configurations(),
+        typescriptreact = js_debug_configurations(),
       },
     },
   },
