@@ -309,9 +309,9 @@ local window = require("util.window")
 
 -- Jump to the editor area, or back to where the jump started. An editor window
 -- is a non-floating window in the current tab whose buffer has an empty
--- buftype, plus the dashboard. With several open, the one the cursor last left
--- wins, otherwise the widest. Notifies instead of moving when there is no
--- target. Backs :WindowFocusEditor.
+-- buftype, plus the dashboard and an Oil listing. With several open, the one
+-- the cursor last left wins, otherwise the widest. Notifies instead of moving
+-- when there is no target. Backs :WindowFocusEditor.
 window.focus_editor()
 
 -- Record the current window as the last editor window when it qualifies.
@@ -319,9 +319,11 @@ window.focus_editor()
 -- file buffer when WinEnter fires and only becomes a terminal afterwards).
 window.track_editor_win()
 
--- Return an editor window in the current tab, creating an empty horizontal
--- split when only panels remain. Does not move focus; the caller decides when
--- to enter it. Used by location pickers and Oil's terminal entry points.
+-- Return a window a file can be opened into, creating an empty horizontal
+-- split when only panels or an Oil listing remain. Narrower than
+-- focus_editor's target: a listing is somewhere to navigate to, not somewhere
+-- to drop a picked file. Does not move focus; the caller decides when to enter
+-- it. Used by location pickers and Oil's terminal entry points.
 window.ensure_editor_win()
 
 -- Quit Nvim, including from inside a Snacks terminal window. Backs <leader>qq

@@ -124,22 +124,41 @@ end
 --- editing area, so it has to be reachable as a jump target.
 local EDITOR_FILETYPES = { 'snacks_dashboard' }
 
+--- Filetypes that hold the editor area but are not somewhere a file can be
+--- opened into. oil is the config's only directory view -- there is no tree
+--- sidebar -- so a listing sits in the middle of the layout rather than at an
+--- edge. Its buffer is `acwrite`, so without this it is invisible to every
+--- check below: <C-,> from an agent panel reported "No editor window in this
+--- tab" whenever the middle window happened to be a listing, pressing it
+--- inside oil had nothing to toggle back from, and WinLeave never recorded
+--- the listing as the place to return to.
+local NAVIGABLE_FILETYPES = { 'oil' }
+
 --- A window counts as "the editor" when it shows a normal file buffer.
 --- Sidebars, terminals, pickers, quickfix, and help all carry a non-empty
 --- buftype, which excludes them without needing a filetype denylist.
-local function is_editor_win(win)
+---
+--- The two questions this answers diverge for the directory view, so
+--- `file_target` narrows the result to windows that can receive a file:
+--- navigation reaches an oil listing, ensure_editor_win still splits past it.
+---@param win integer
+---@param file_target boolean|nil
+local function is_editor_win(win, file_target)
   if not vim.api.nvim_win_is_valid(win) then return false end
   if vim.api.nvim_win_get_config(win).relative ~= "" then return false end
   local buf = vim.api.nvim_win_get_buf(win)
   if vim.bo[buf].buftype == "" then return true end
-  return vim.list_contains(EDITOR_FILETYPES, vim.bo[buf].filetype)
+  local ft = vim.bo[buf].filetype
+  if vim.list_contains(EDITOR_FILETYPES, ft) then return true end
+  return not file_target and vim.list_contains(NAVIGABLE_FILETYPES, ft)
 end
 
 --- Pick the editor window to jump into, scoped to the current tab.
-local function pick_editor_win()
+---@param file_target boolean|nil restrict to windows a file can be opened into
+local function pick_editor_win(file_target)
   local wins = {}
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if is_editor_win(win) then wins[#wins + 1] = win end
+    if is_editor_win(win, file_target) then wins[#wins + 1] = win end
   end
   if #wins == 0 then return nil end
 
@@ -172,9 +191,11 @@ end
 --- So when the tab has no editor window at all, create an empty horizontal
 --- split and hand it back. The panel stays on screen. Starting with a blank
 --- buffer also lets Oil's close restore an editor instead of a copied terminal.
+--- An existing oil listing is therefore not a candidate either, which is what
+--- the `file_target` argument excludes.
 ---@return integer win
 function M.ensure_editor_win()
-  local win = pick_editor_win()
+  local win = pick_editor_win(true)
   if win then return win end
   -- Split from a real layout window, not whatever is current: this runs from
   -- the picker's on_show, when the current window is the picker's own float.
@@ -209,11 +230,11 @@ function M.track_editor_win()
 end
 
 --- Jump to the editor area from anywhere, and back again.
---- A layout with a side panel (oil, aerial) on one side and a terminal or
---- agent panel on the other needs up to three <C-h>/<C-l> hops to cross back
---- to the middle; this collapses that into one key. Pressing it inside the
---- editor returns to the window it came from, so the same key travels in both
---- directions.
+--- A layout with a side panel (aerial, a diff view) on one side and a
+--- terminal or agent panel on the other needs up to three <C-h>/<C-l> hops to
+--- cross back to the middle; this collapses that into one key. Pressing it
+--- inside the editor returns to the window it came from, so the same key
+--- travels in both directions.
 function M.focus_editor()
   local cur = vim.api.nvim_get_current_win()
 

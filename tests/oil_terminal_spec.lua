@@ -105,6 +105,27 @@ for _, only_panel in ipairs({ false, true }) do
   settle()
 end
 
+-- <C-,> counts an oil listing as the editor area. oil buffers are `acwrite`,
+-- so a middle window showing a directory used to be invisible to the jump:
+-- the key reported "No editor window in this tab" from the panel, and inside
+-- oil it had nothing to toggle back from.
+vim.cmd("only!")
+require("oil").open(root .. "/child")
+settle()
+t.eq(vim.bo.filetype, "oil", "the remaining window holds an oil listing")
+local oil_win = vim.api.nvim_get_current_win()
+vim.cmd("vsplit")
+vim.cmd("terminal sleep 30")
+local term_win = vim.api.nvim_get_current_win()
+settle()
+vim.cmd("stopinsert")
+t.ok(term_win ~= oil_win, "the terminal opened in its own window")
+press("<C-,>")
+t.eq(vim.api.nvim_get_current_win(), oil_win, "Ctrl-comma reaches the oil listing from a terminal")
+press("<C-,>")
+t.eq(vim.api.nvim_get_current_win(), term_win, "Ctrl-comma toggles back out of the oil listing")
+vim.cmd("only!")
+
 vim.api.nvim_set_current_tabpage(current_tab)
 vim.cmd("tabclose!")
 vim.api.nvim_set_current_tabpage(background_tab)
