@@ -1,22 +1,101 @@
-# Spike: Can nvim-dap (pwa-chrome) hit a breakpoint in WXT extension source?
+# Spike: debugging a Chrome extension from nvim-dap
 
-> **Asked:** 2026-09-18 · **Stop condition:** a DAP `stopped` event whose frame resolves to a real `.ts` path, or a demonstrated blocker
-> **Revised 2026-09-18 (round 3):** raw CDP **does** hit a breakpoint inside the
-> extension's service worker — paused in `parseSaveRequest`, call stack and
-> locals readable, resume clean (`cdp-direct-breakpoint.mjs`, ~60 lines). So
-> nothing about Chrome, CDP or extensions blocks this. Every wall in rounds 1-2
-> is a js-debug implementation gap. The question stops being "is it possible"
-> and becomes "who maintains the bridge".
+> **Asked:** 2026-09-18 · **Stop condition:** a breakpoint that pauses in
+> extension source, or a demonstrated blocker.
 >
-> **Revised 2026-09-18 (round 2):** the service-worker half was re-opened and the
-> "structural exclusion" claim below is **wrong** — see *Round 2* at the bottom.
-> One line of patch gets js-debug to own the worker, resolve its sourcemap and
-> **verify** a breakpoint; what still fails is the breakpoint actually pausing
-> execution. The conclusion "do not build it" survives, the reason does not.
+> **Scope:** the **adapter layer**, not any one project. Nothing here is specific
+> to the extension that happened to be used as the subject; it applies to any
+> Chrome/MV3 extension whatever framework builds it. Paths like
+> `apps/extension/...` below are just that subject's.
 >
-> **Verdict:** **answered — do not build it.** js-debug attaches to a `chrome-extension://` page target and then parses **zero scripts** in that session, so no breakpoint can ever bind. The same js-debug, same harness, same machine hits breakpoints on an `http://` page every time. For the service worker js-debug does not even spawn a session.
-> **NOT answered:** whether headed (non-headless) Chrome behaves differently — every run here was `--headless=new`; whether nvim-dap's own multi-session implementation passes some option this hand-written client did not (the harness was proven equivalent on the control, but not identical); what `wxt dev`'s extension reload does to a live DAP session, which was never reached.
-> **Unblocks:** scope for `~/.config/nvim` — specifically, it rules the Chrome-extension half OUT and promotes the adapter-registration bug below to the real work.
+> **Verdict: not with a stock js-debug — and upstream means it.**
+> Chrome, CDP and the extension model block nothing: ~60 lines of raw CDP pause
+> an MV3 service worker and read its stack and locals (round 3). Every wall is
+> js-debug's own, and its maintainer closed browser-extension support as
+> `*out-of-scope`, saying "I'm surprised it works at all". A community PR
+> ([#2361](https://github.com/microsoft/vscode-js-debug/pull/2361), open,
+> +708/-32) implements it properly.
+>
+> **Therefore: do not build a bridge.** Build that PR's branch and point the
+> adapter at it, or wait on it. Writing one from scratch means redoing the parts
+> js-debug already gets right in order to route around two gaps.
+>
+> **NOT answered:** why a *patched* js-debug verifies a worker breakpoint and
+> then does not honour the pause (round 2) — most likely the `ServiceWorker`
+> domain initialisation that PR #2361 handles by borrowing a page session;
+> whether the extension *page* works once `webRoot` is corrected (round 1
+> measured it with the wrong `webRoot`, so that result is suspect); whether
+> headed Chrome differs — every run here was `--headless=new`.
+>
+> **Revision history:** r1 concluded "structurally unsupported" (**wrong**);
+> r2 found the single filter line that causes it; r3 proved raw CDP works;
+> r4 found the upstream history that explains all of it. The investigation log
+> below is in that order — later rounds correct earlier ones.
+
+## Upstream status — read this first (round 4)
+
+The maintainer analysed this in 2023 (issue #945) and named **exactly the two
+obstacles this spike rediscovered by reverse-engineering the minified bundle**:
+
+> 1. We need to attach to browser-level frames and service workers, **currently
+>    we filter and only attach to `page` types. This is easy to fix.**
+> 2. Sources in extensions get some random URL prefix like
+>    `chrome-extension://gmocg…/service-worker.js`. We don't have any way to map
+>    this in the debugger, and having a definite ID is not trivial.
+>
+> I don't plan to support this in the foreseeable future, **though if anyone has
+> better solutions to #2, I'm happy to reconsider.** — connor4312
+
+And on #1794: *"We don't support debugging Chrome extensions with this debugger.
+I'm surprised it works at all."*
+
+So it is a deliberate scope decision, not an oversight — but not a rejection of
+the idea either: obstacle 1 he calls easy, obstacle 2 he is open to.
+
+### Why obstacle 2 is genuinely hard
+
+Chrome derives an unpacked extension's ID by hashing the **absolute path of its
+build directory**:
+
+```
+ID = sha256(absolute path) -> first 16 bytes -> each hex nibble mapped onto a-p
+```
+
+Verified against two IDs observed in this spike — both matched exactly. Move the
+build directory and the ID changes; so does moving machines or re-cloning.
+
+That is a chicken-and-egg problem: every file's URL is `chrome-extension://<id>/…`,
+`sourceMapPathOverrides` is static configuration fixed before launch, and the id
+is only known at runtime. Three ways out, none clean:
+
+| Way | Cost |
+|---|---|
+| Declare `key` in the manifest → ID stable everywhere | Requires changing the manifest; most projects have no `key` |
+| Hash the path | What PR #2361 falls back to, explicitly **best-effort**: Chrome hashes the path as it spells it internally (Windows: backslashes, upper-case drive) |
+| Ask Chrome at runtime (`Extensions.loadUnpacked` returns the id) | What round 2 did — but it forces the debugger to *load* the extension rather than attach to a running one |
+
+### The third obstacle, unstated but all over the PR
+
+MV3 lifecycle. From PR #2361:
+
+> MV3 extension service workers are torn down when idle, and a stopped worker has
+> **no target at all** — so there is nothing to match until something causes it
+> to start. `ServiceWorker.startWorker` starts it on demand. **The domain is not
+> available on the browser session**, so this borrows a page target's session.
+
+That one paragraph explains three separate mysteries: why #1794 reports "only the
+first attach works"; why the community workaround in #1445 manually makes the
+worker a *child of a popup*; and why round 2's patched adapter owned the worker
+yet never paused — it made the worker a top-level target, bypassing the page
+session the `ServiceWorker` domain needs.
+
+### Community workaround (no patch required)
+
+From #1445, reported working: open a second Chrome window → `chrome://extensions`
+→ wait for the worker to go **inactive** (up to 30s) → open the extension's popup
+→ DevTools opens → Application tab → click `start` on the worker → close DevTools
+but keep the popup. The debugger then attaches to the worker **as a child of the
+popup**, and breakpoints pause.
 
 ## Answers
 

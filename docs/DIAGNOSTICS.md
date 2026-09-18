@@ -300,10 +300,18 @@ rather than a broken viewer.
 - Chrome attach needs Chrome started with `--remote-debugging-port=9222` **and**
   its own `--user-data-dir`; without the latter a second Chrome hands the URL to
   the running instance and never opens the port.
-- **Chrome extensions cannot be debugged this way.** js-debug takes over a
-  `chrome-extension://` target but parses no scripts in it, so breakpoints stay
-  unbound. Use Chrome DevTools for extension pages and service workers. The
-  measurements behind this are in `spikes/chrome-extension-dap/`.
+- **Chrome extensions: use Chrome DevTools, not this.** Browser-extension
+  support is deliberately `*out-of-scope` upstream
+  ([vscode-js-debug#945](https://github.com/microsoft/vscode-js-debug/issues/945)),
+  so a stock js-debug will not pause in extension code. Two obstacles: it only
+  attaches to `page` targets, and an unpacked extension's
+  `chrome-extension://<id>/` prefix is derived from its build path, so sourcemaps
+  cannot be mapped from static config.
+  [#2361](https://github.com/microsoft/vscode-js-debug/pull/2361) is an open
+  community PR implementing both; building that branch and pointing the adapter
+  at it is the path if this ever becomes worth it. Nothing about Chrome or CDP
+  prevents it — raw CDP pauses an MV3 service worker fine. See
+  `spikes/chrome-extension-dap/` for the measurements and a no-patch workaround.
 - mason-nvim-dap ships no adapter definition for js-debug, so `pwa-node` and
   `pwa-chrome` are registered in `lua/lang/typescript.lua`. Its `["js"]` handler
   only makes mason install the package.

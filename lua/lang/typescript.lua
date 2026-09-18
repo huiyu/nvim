@@ -170,9 +170,11 @@ local function js_debug_configurations()
       -- --user-data-dir; without the latter a second Chrome hands the URL to the
       -- running instance and never opens the port.
       --
-      -- Ordinary pages only. js-debug takes over a chrome-extension:// target
-      -- but parses no scripts in it, so breakpoints never bind -- debug
-      -- extensions in Chrome DevTools instead (spikes/chrome-extension-dap).
+      -- Ordinary pages only. Browser-extension debugging is *out-of-scope*
+      -- upstream ("I'm surprised it works at all" -- vscode-js-debug#1794), so
+      -- extensions belong in Chrome DevTools. vscode-js-debug#2361 is an open
+      -- community PR that implements it; spikes/chrome-extension-dap has the
+      -- measurements and what it would take.
       name = "chrome: attach (port 9222)",
       type = "pwa-chrome",
       request = "attach",
