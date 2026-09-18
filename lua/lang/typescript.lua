@@ -154,6 +154,48 @@ local function vitest_cwd()
   end
 end
 
+--- Nearest extension build output at or above `from`.
+--- `${workspaceFolder}` is the editor's cwd -- the repository root in a monorepo
+--- -- while the extension lives in a workspace package, so the build output has
+--- to be found the same way vitest is: by walking up from the file being
+--- debugged.
+---@param from string directory to start from
+---@return string? path to the unpacked build output
+local function nearest_extension_output(from)
+  local dir = from
+  while dir and dir ~= "" do
+    -- WXT's layout. A different bundler would need its own name here.
+    local candidate = dir .. "/.output/chrome-mv3-dev"
+    if vim.uv.fs_stat(candidate) then return candidate end
+    local parent = vim.fs.dirname(dir)
+    if parent == dir then return nil end
+    dir = parent
+  end
+end
+
+---Resolve the extension to debug, reporting a missing build in one line rather
+---than letting the browser start and attach to nothing.
+---@param want "extension"|"profile"
+---@return fun(): string
+local function extension_output(want)
+  return function()
+    local from = vim.fn.expand("%:p:h")
+    local output = nearest_extension_output(from)
+    if not output then
+      if want == "extension" then
+        vim.notify(
+          "No extension build (.output/chrome-mv3-dev) above " .. from .. " -- run the dev build first",
+          vim.log.levels.WARN
+        )
+      end
+      return require("dap").ABORT
+    end
+    -- The profile sits beside the build it belongs to: two projects debugging
+    -- at once through one profile corrupt its storage.
+    return want == "extension" and output or (vim.fs.dirname(output) .. "/.debug-profile")
+  end
+end
+
 ---Fresh list per filetype: nvim-dap owns these tables and callers may edit them.
 ---@return table[]
 local function js_debug_configurations()
@@ -221,7 +263,7 @@ local function js_debug_configurations()
       type = "pwa-chrome",
       request = "attach",
       port = 9222,
-      extensionPath = "${workspaceFolder}/.output/chrome-mv3-dev",
+      extensionPath = extension_output("extension"),
     },
     {
       -- Nothing to set up: the debugger starts its own Chrome, installs the
@@ -234,8 +276,8 @@ local function js_debug_configurations()
       name = "chrome: debug extension (launch)",
       type = "pwa-chrome",
       request = "launch",
-      extensionPath = "${workspaceFolder}/.output/chrome-mv3-dev",
-      userDataDir = "${workspaceFolder}/.output/.debug-profile",
+      extensionPath = extension_output("extension"),
+      userDataDir = extension_output("profile"),
     },
   }
 end

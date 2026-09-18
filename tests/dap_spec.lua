@@ -95,7 +95,10 @@ end
 t.ok(extension ~= nil, "typescript offers a Chrome extension configuration")
 if extension then
   t.eq(extension.type, "pwa-chrome", "extension debugging runs on the browser runtime")
-  t.ok(extension.extensionPath ~= nil, "the extension configuration carries extensionPath")
+  -- A function, not a literal: ${workspaceFolder} is the editor's cwd, which in
+  -- a monorepo is the repository root, not the package holding the extension.
+  t.eq(type(extension.extensionPath), "function",
+    "extensionPath is resolved from the buffer, not relative to the cwd")
   t.ok(extension.webRoot == nil, "it does not hand-set webRoot -- the fork derives paths")
 end
 
