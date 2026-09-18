@@ -1,0 +1,10 @@
+# A spike's product is knowledge, not an asset: keep the README that carries the
+# verdict and the scripts it cites for reproduction, ignore everything a run
+# leaves behind (browser profiles, rebuilt output, fixtures, logs). Whitelisted
+# rather than blacklisted so the next spike's leftovers are ignored by default.
+*
+!*/
+!.gitignore
+!*/README.md
+!*/*.mjs
+!*/*.sh
