@@ -1,6 +1,13 @@
 # Spike: Can nvim-dap (pwa-chrome) hit a breakpoint in WXT extension source?
 
 > **Asked:** 2026-09-18 · **Stop condition:** a DAP `stopped` event whose frame resolves to a real `.ts` path, or a demonstrated blocker
+> **Revised 2026-09-18 (round 3):** raw CDP **does** hit a breakpoint inside the
+> extension's service worker — paused in `parseSaveRequest`, call stack and
+> locals readable, resume clean (`cdp-direct-breakpoint.mjs`, ~60 lines). So
+> nothing about Chrome, CDP or extensions blocks this. Every wall in rounds 1-2
+> is a js-debug implementation gap. The question stops being "is it possible"
+> and becomes "who maintains the bridge".
+>
 > **Revised 2026-09-18 (round 2):** the service-worker half was re-opened and the
 > "structural exclusion" claim below is **wrong** — see *Round 2* at the bottom.
 > One line of patch gets js-debug to own the worker, resolve its sourcemap and
@@ -175,3 +182,42 @@ project's own tree.
 Why a verified breakpoint in the worker does not pause. Whether the extension
 *page* works once `webRoot` points at the build output. Whether headed Chrome
 differs — still every run was `--headless=new`.
+
+
+---
+
+# Round 3: raw CDP, no js-debug
+
+Bypassing js-debug entirely and speaking CDP to the worker the way DevTools does:
+
+```
+Debugger.enable                                  → ok
+Debugger.setBreakpointByUrl {lineNumber: 6883,   → {"breakpointId":"2:6883:0:background\\.js$",
+                             urlRegex: "background\\.js$"}    "locations":[{"scriptId":"3","lineNumber":6883}]}
+… send retry_save …
+Debugger.paused                                  → parseSaveRequest @ 6884
+Runtime.getProperties (local scope)              → value="Object", request=undefined, validId=undefined
+Debugger.resume                                  → ok
+```
+
+**Chrome pauses an extension service worker for any CDP client.** The wall in
+rounds 1-2 is js-debug's, not Chrome's, not CDP's, not the extension model's.
+
+That also settles round 2's open question: js-debug verified a breakpoint on the
+worker and then failed to pause on it. Since CDP honours the same pause from a
+60-line client, that is an implementation gap in js-debug's worker path.
+
+## What this does and does not buy
+
+CDP hands over raw events and commands. What a debugger still needs on top:
+
+- sourcemap translation both ways (`.ts` line ↔ generated line) — the generated
+  position above is 6884, not `save-request.ts:11`
+- breakpoint bookkeeping across worker restarts, which MV3 does constantly
+- a UI for stack, scopes and stepping
+
+That last one is exactly what nvim-dap already provides, which is why the sane
+shape is still a DAP↔CDP bridge — either a fixed js-debug or a small purpose-built
+one — rather than reimplementing DevTools in Lua.
+
+**Feasibility is no longer the open question.** Cost and maintenance are.
