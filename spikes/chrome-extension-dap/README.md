@@ -8,7 +8,15 @@
 > Chrome/MV3 extension whatever framework builds it. Paths like
 > `apps/extension/...` below are just that subject's.
 >
-> **Verdict: not with a stock js-debug — and upstream means it.**
+> **Verdict (round 5, decisive): PR #2361 works — service worker breakpoints
+> pause, with `extensionPath` as the only configuration.** Built the branch and
+> attached: stopped in `parseSaveRequest`, frame resolved to the real
+> `save-request.ts:11`, call stack through `background.ts:28`, and the extension
+> page target owned too. No hand-tuned `webRoot`, no `sourceMapPathOverrides`.
+> Everything below this line was measured against a *stock* js-debug and is
+> history; the practical answer is "build that branch and point the adapter at it".
+>
+> **Superseded verdict: not with a stock js-debug — and upstream means it.**
 > Chrome, CDP and the extension model block nothing: ~60 lines of raw CDP pause
 > an MV3 service worker and read its stack and locals (round 3). Every wall is
 > js-debug's own, and its maintainer closed browser-extension support as
@@ -310,3 +318,56 @@ shape is still a DAP↔CDP bridge — either a fixed js-debug or a small purpose
 one — rather than reimplementing DevTools in Lua.
 
 **Feasibility is no longer the open question.** Cost and maintenance are.
+
+
+---
+
+# Round 5: PR #2361, built and measured — it works
+
+Built the PR branch (`gulp dapDebugServer`, 911KB, carries `extensionPath` and
+`wakeExtensionServiceWorker`) and attached with **only** `extensionPath` set:
+
+```
+[cdp] extension installed: foepkabbfgmfkepmdcblpenddoeehlbf
+[dap] attach success: true
+  [child1] owns: ["Service Worker chrome-extension://foepkabb…/background.js"]
+  [child1] BREAKPOINT VERIFIED
+  [child2] owns: ["chrome-extension://foepkabb…/tabs.html"]
+
+*** STOPPED in child1 ***
+   ServiceWorkerGlobalScope.parseSaveRequest @ …/src/features/save-all/save-request.ts:11
+   <anonymous>                               @ …/entrypoints/background.ts:11
+
+[result] worker owned: YES | STOPPED: YES
+[result] config passed was ONLY: {"extensionPath": "…/.output-spike/chrome-mv3-dev"}
+```
+
+This closes every open question this spike carried:
+
+| Was open | Now |
+|---|---|
+| Why does a patched js-debug verify a worker breakpoint and not pause? | PR handles it — `wakeExtensionServiceWorker` borrows a page session to init the `ServiceWorker` domain, which the round-2 patch bypassed |
+| Does the extension *page* work once `webRoot` is right? | Its target is owned (child2). Pausing *in page code* was not separately asserted |
+| Must `webRoot` be hand-set to the build output? | **No.** The PR resolves paths from `extensionPath` |
+
+## What it takes to use it
+
+1. Build the branch: `git fetch origin refs/pull/2361/head && gulp dapDebugServer`
+   → `dist/src/dapDebugServer.js`
+2. Point the nvim-dap adapter's `command` at that file instead of mason's
+3. One configuration carrying `extensionPath` = the **build output** directory
+
+**Launch mode is the part that does not work on current Chrome**: the PR passes
+`--load-extension`, removed in Chrome 137+ (retested here with
+`--enable-unsafe-extension-debugging` — still zero targets). Attach mode is
+unaffected, and the extension can be installed over CDP with
+`Extensions.loadUnpacked`, which this spike used throughout and which the PR
+already uses for hot reload. Routing initial load through it would revive launch
+mode — worth reporting upstream.
+
+## Still not answered
+
+Pausing inside extension *page* code (only the worker was asserted). Headed
+Chrome — every run here was `--headless=new`. Whether the PR's auto-reload
+(`fs.watch` on the extension dir + `Extensions.loadUnpacked`, 400ms debounce)
+works in attach mode; its own comment says it is for launched browsers.
