@@ -63,6 +63,42 @@ if vitest and type(vitest.program) == "function" then
     "the report is one line, not a traceback")
 end
 
+-- Chrome extension debugging needs vscode-js-debug#2361, which upstream closed
+-- as out-of-scope, so mason's build cannot do it. A locally installed fork build
+-- takes precedence when present; either way the adapter must point at a file
+-- that exists, or sessions fail with an opaque spawn error.
+local chrome = dap.adapters["pwa-chrome"]
+t.ok(type(chrome) == "table" and type(chrome.executable) == "table",
+  "pwa-chrome adapter declares an executable")
+if chrome and chrome.executable then
+  -- Either an absolute path (mason's binary) or a PATH lookup (`node` running
+  -- the fork's bundle). Both must be startable, or a session dies on spawn with
+  -- nothing useful to read.
+  local command = chrome.executable.command
+  t.ok(command ~= nil and (vim.fn.executable(command) == 1 or vim.uv.fs_stat(command) ~= nil),
+    "the adapter command is startable: " .. tostring(command))
+  -- Whatever runs it, the bundle it is pointed at has to be on disk.
+  for _, arg in ipairs(chrome.executable.args or {}) do
+    if arg:match("%.js$") then
+      t.ok(vim.uv.fs_stat(arg) ~= nil, "the adapter bundle exists: " .. arg)
+    end
+  end
+end
+
+-- The extension configuration carries extensionPath and nothing else about
+-- paths: the fork derives the extension id, target filter and sourcemap mapping
+-- from it, so a hand-set webRoot here would be noise at best.
+local extension
+for _, config in ipairs(dap.configurations.typescript or {}) do
+  if config.name:lower():find("extension", 1, true) then extension = config end
+end
+t.ok(extension ~= nil, "typescript offers a Chrome extension configuration")
+if extension then
+  t.eq(extension.type, "pwa-chrome", "extension debugging runs on the browser runtime")
+  t.ok(extension.extensionPath ~= nil, "the extension configuration carries extensionPath")
+  t.ok(extension.webRoot == nil, "it does not hand-set webRoot -- the fork derives paths")
+end
+
 -- UC-R1: Go, Python and C register their adapters through their own plugins.
 -- Adding the js entries must not disturb them.
 for _, name in ipairs({ "delve", "python", "codelldb" }) do

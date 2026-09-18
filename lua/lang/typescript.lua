@@ -71,16 +71,39 @@ local function preload_projects(client)
   if not ok then failed(tostring(err)) end
 end
 
+---Entry point for js-debug, preferring a build that can debug browser extensions.
+---
+---Upstream closed browser-extension support as out-of-scope
+---(microsoft/vscode-js-debug#945: "I'm surprised it works at all"), so mason's
+---build attaches to `page` targets only and never pauses in extension code.
+---huiyu/vscode-js-debug carries the community PR #2361 on top of upstream and is
+---published in the same layout, so it drops in where mason's copy would go:
+---
+---    mkdir -p ~/.local/share/nvim/js-debug-webext
+---    curl -L https://github.com/huiyu/vscode-js-debug/releases/latest/download/js-debug-dap-webext.tar.gz \
+---      | tar -xz -C ~/.local/share/nvim/js-debug-webext
+---
+---It is a superset -- ordinary page and Node debugging are unaffected -- so a
+---machine that has not installed it simply loses extension support rather than
+---breaking. See docs/DIAGNOSTICS.md and spikes/chrome-extension-dap.
+---@return string[] command and its leading arguments
+local function js_debug_command()
+  local webext = vim.fn.stdpath("data") .. "/js-debug-webext/src/dapDebugServer.js"
+  if vim.uv.fs_stat(webext) then return { "node", webext } end
+  return { vim.fn.stdpath("data") .. "/mason/bin/js-debug-adapter" }
+end
+
 -- js-debug speaks DAP over a TCP port it is told to listen on; nvim-dap fills
--- `${port}` in both places and starts the binary mason installed.
+-- `${port}` in both places and starts the resolved binary.
 local function js_debug_adapter()
+  local command = js_debug_command()
   return {
     type = "server",
     host = "127.0.0.1",
     port = "${port}",
     executable = {
-      command = vim.fn.stdpath("data") .. "/mason/bin/js-debug-adapter",
-      args = { "${port}", "127.0.0.1" },
+      command = command[1],
+      args = vim.list_extend(vim.list_slice(command, 2), { "${port}", "127.0.0.1" }),
     },
   }
 end
@@ -181,6 +204,24 @@ local function js_debug_configurations()
       port = 9222,
       webRoot = "${workspaceFolder}",
       sourceMaps = true,
+    },
+    {
+      -- Needs the js-debug-webext build (see js_debug_command) -- mason's cannot
+      -- pause in extension code at all.
+      --
+      -- `extensionPath` is the only path this needs: the extension id, which
+      -- target to own, and every sourcemap mapping are all derived from it. An
+      -- unpacked extension's id is a hash of this directory, so it must be the
+      -- BUILD OUTPUT, not the source tree.
+      --
+      -- Attach, not launch: launch passes --load-extension, which Chrome removed
+      -- in 137+. Start Chrome with --remote-debugging-port=9222 and its own
+      -- --user-data-dir, load the unpacked extension once, then attach here.
+      name = "chrome: debug extension (attach)",
+      type = "pwa-chrome",
+      request = "attach",
+      port = 9222,
+      extensionPath = "${workspaceFolder}/.output/chrome-mv3-dev",
     },
   }
 end

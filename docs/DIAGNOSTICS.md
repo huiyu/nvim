@@ -300,18 +300,46 @@ rather than a broken viewer.
 - Chrome attach needs Chrome started with `--remote-debugging-port=9222` **and**
   its own `--user-data-dir`; without the latter a second Chrome hands the URL to
   the running instance and never opens the port.
-- **Chrome extensions: use Chrome DevTools, not this.** Browser-extension
-  support is deliberately `*out-of-scope` upstream
-  ([vscode-js-debug#945](https://github.com/microsoft/vscode-js-debug/issues/945)),
-  so a stock js-debug will not pause in extension code. Two obstacles: it only
-  attaches to `page` targets, and an unpacked extension's
-  `chrome-extension://<id>/` prefix is derived from its build path, so sourcemaps
-  cannot be mapped from static config.
-  [#2361](https://github.com/microsoft/vscode-js-debug/pull/2361) is an open
-  community PR implementing both; building that branch and pointing the adapter
-  at it is the path if this ever becomes worth it. Nothing about Chrome or CDP
-  prevents it — raw CDP pauses an MV3 service worker fine. See
-  `spikes/chrome-extension-dap/` for the measurements and a no-patch workaround.
+### Chrome extensions
+
+Not supported by mason's js-debug: upstream closed browser-extension debugging as
+`*out-of-scope`
+([vscode-js-debug#945](https://github.com/microsoft/vscode-js-debug/issues/945)),
+so that build attaches to `page` targets only and never pauses in extension code.
+
+`huiyu/vscode-js-debug` carries the community PR
+[#2361](https://github.com/microsoft/vscode-js-debug/pull/2361) on top of
+upstream. Install it and `lang/typescript.lua` picks it up automatically:
+
+```sh
+mkdir -p ~/.local/share/nvim/js-debug-webext
+curl -L https://github.com/huiyu/vscode-js-debug/releases/latest/download/js-debug-dap-webext.tar.gz \
+  | tar -xz -C ~/.local/share/nvim/js-debug-webext
+```
+
+It is a superset, so ordinary page and Node debugging are unchanged; without it
+you simply lose the extension configuration's ability to bind.
+
+Then, per session:
+
+1. Build the extension with sourcemaps (`wxt` dev mode or equivalent — a plain
+   production build emits none).
+2. Start Chrome with `--remote-debugging-port=9222` **and its own
+   `--user-data-dir`**, and load the unpacked build output once.
+3. `<leader>dc` → **chrome: debug extension (attach)**.
+
+Point `extensionPath` at the **build output** directory, not the source tree —
+an unpacked extension's id is a hash of that path, and the id is what every
+sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
+`webRoot` only gets in the way.
+
+- **Launch mode does not work**, on any Chrome 137+: it passes `--load-extension`,
+  which Chrome removed (`--enable-unsafe-extension-debugging` does not restore
+  it). Hence the manual load in step 2.
+- Nothing about Chrome or CDP prevents extension debugging — raw CDP pauses an
+  MV3 service worker fine. The walls are js-debug's. See
+  `spikes/chrome-extension-dap/` for the measurements, the upstream history, and
+  a workaround that needs no fork.
 - mason-nvim-dap ships no adapter definition for js-debug, so `pwa-node` and
   `pwa-chrome` are registered in `lua/lang/typescript.lua`. Its `["js"]` handler
   only makes mason install the package.
