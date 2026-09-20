@@ -142,8 +142,16 @@ local function debug_test(ctx, file)
   if not file then
     -- Vitest's file:line selection (v3+) handles nested/parameterized tests
     -- without guessing their generated names or regex-escaping descriptions.
-    local metadata = vim.json.decode(table.concat(vim.fn.readfile(vim.fs.dirname(program) .. "/package.json"), "\n"))
-    if (tonumber(metadata.version:match("^(%d+)")) or 0) < 3 then
+    -- nearest_vitest only proves vitest.mjs is there. A dangling pnpm store
+    -- link, a bare shim, or a manifest without a version all raise here, and an
+    -- E5108 block is precisely what vitest_program() below refuses to produce --
+    -- so any failure degrades to the same one-line warning.
+    local ok, metadata = pcall(function()
+      return vim.json.decode(table.concat(vim.fn.readfile(vim.fs.dirname(program) .. "/package.json"), "\n"))
+    end)
+    local major = ok and type(metadata) == "table" and type(metadata.version) == "string"
+      and tonumber(metadata.version:match("^(%d+)")) or 0
+    if major < 3 then
       vim.notify("Nearest-test debugging needs Vitest 3+; use <leader>tF for this file", vim.log.levels.WARN)
       return
     end

@@ -76,6 +76,14 @@ return {
     },
     config = function()
       local function start()
+        -- Runs twice for the first Java buffer otherwise: lazy.nvim re-fires
+        -- FileType after loading an `ft=`-lazy plugin, and its event handler
+        -- deliberately does not exclude the augroup registered below. Dropping
+        -- the direct start() instead would leave an already-open buffer
+        -- unattached, so guard the work rather than the caller.
+        if vim.b.java_jdtls_started then return end
+        vim.b.java_jdtls_started = true
+
         local jdtls = require("jdtls")
         local mason_registry = require("mason-registry")
 

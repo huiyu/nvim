@@ -17,7 +17,11 @@ local function before_remote_disconnect(session, done)
   local function advance(err)
     if session.closed then return end
     if err then
-      vim.notify("Delve disconnect cancelled: " .. tostring(err), vim.log.levels.ERROR)
+      -- Only adapter-sent errors carry nvim-dap's `err_mt`; a timeout from
+      -- request_with_timeout is a bare { message = ... }, so tostring() would
+      -- render its address and leave the user with no reason at all.
+      local reason = type(err) == "table" and (err.message or vim.inspect(err)) or tostring(err)
+      vim.notify("Delve disconnect cancelled: " .. reason, vim.log.levels.ERROR)
       return
     end
     local request = table.remove(requests, 1)
