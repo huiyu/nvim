@@ -87,14 +87,37 @@ return {
       vim.api.nvim_create_user_command("DapAttach", function() require("util.dap").attach() end,
         { desc = "Choose an attach configuration for this filetype or project" })
       local dapui = require("dapui")
-      dapui.setup()
+      dapui.setup({
+        -- Placement belongs to edgy (lua/plugin/editor/edgy.lua), which claims
+        -- these filetypes like every other panel here. dapui still decides when
+        -- the elements exist; its own `layouts` only says where the windows
+        -- start before edgy re-homes them, so it stays at the upstream default.
+        --
+        -- select_window is not optional under that arrangement. dapui's
+        -- fallback asks the user to pick a target window whenever the tab holds
+        -- more than one file window (dapui/util.lua, select_win), which is the
+        -- normal shape here. ensure_editor_win answers the question every
+        -- picker in this config already asks, and creates a window when the tab
+        -- has only panels left.
+        select_window = require("util.window").ensure_editor_win,
+      })
 
-      dap.listeners.after.event_initialized["dapui_config"] = function()
+      dap.listeners.after.event_initialized["dapui_config"] = function(session)
+        -- An adapter that owns several targets initializes one child session
+        -- per target, and every one of them fires this. dapui.open is not a
+        -- no-op once the panels are up: it re-runs update_sizes, open and
+        -- resize for every layout, so opening per target re-applied the whole
+        -- layout mid-session while edgy was re-applying its own sizes on the
+        -- same events. The root opens them; children inherit.
+        if session and session.parent then return end
         dapui.open({})
       end
       local function close_when_done()
-        -- Electron and js-debug can own multiple sessions. Let dap finish its
-        -- teardown before deciding whether there are any sessions left.
+        -- dap.sessions() holds root sessions only -- set_session registers a
+        -- session solely when it has no parent. That is the right unit: a child
+        -- belongs to its root and goes down with it (`<leader>dt` terminates
+        -- the tree), and a root disappearing is what ends a debug session.
+        -- Scheduled because several roots can finish in the same tick.
         vim.schedule(function()
           if next(dap.sessions()) == nil then dapui.close({}) end
         end)

@@ -123,6 +123,35 @@ vim.fn.maparg("<Space>du", "n", false, true).callback()
 t.ok(#vim.api.nvim_tabpage_list_wins(0) > windows, "panels can be reopened manually")
 vim.fn.maparg("<Space>du", "n", false, true).callback()
 t.eq(#vim.api.nvim_tabpage_list_wins(0), windows, "panel toggle closes the panels again")
+
+-- Every child session of a multi-target adapter fires event_initialized, and
+-- dapui.open re-applies every layout rather than returning early. Only the
+-- root opens the panels.
+dap.listeners.after.event_initialized.dapui_config({ parent = {}, children = {} })
+t.eq(#vim.api.nvim_tabpage_list_wins(0), windows, "a child session does not open the panels")
+dap.listeners.after.event_initialized.dapui_config({ children = {} })
+t.ok(#vim.api.nvim_tabpage_list_wins(0) > windows, "the root session opens the panels")
+
+-- edgy places the panels, so its slots have to name the filetypes dapui
+-- actually sets; `dapui` on its own is not one of them.
+-- Config.layout holds the resolved edgebars; Config.options only carries each
+-- edge's geometry.
+local docked = {}
+for edge, edgebar in pairs(require("edgy.config").layout) do
+  for _, view in ipairs(edgebar.views or {}) do docked[view.ft] = edge end
+end
+for ft, edge in pairs({
+  dapui_scopes = "left", dapui_breakpoints = "left", dapui_stacks = "left",
+  dapui_watches = "left", ["dap-repl"] = "bottom", dapui_console = "bottom",
+}) do
+  t.eq(docked[ft], edge, "edgy docks " .. ft .. " on the " .. edge)
+end
+
+-- dapui's fallback prompts for a target window whenever the tab holds more
+-- than one file window, which is this layout's normal shape.
+t.eq(require("dapui.config").select_window, require("util.window").ensure_editor_win,
+  "stack frames open through the shared editor-window helper")
+
 dapui.open()
 local sessions = dap.sessions
 dap.sessions = function() return { [1] = {} } end

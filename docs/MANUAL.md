@@ -577,6 +577,12 @@ Open a source file, set a breakpoint with `<Space>db`, then use `<Space>dc` to
 choose a launch or attach configuration. The panels open when a session starts.
 Step into with `di`, over with `dO`, and out with `do` (all after `<Space>`).
 
+Scopes, breakpoints, stacks and watches dock on the left; the REPL and the
+program console join the terminal and quickfix along the bottom. edgy places
+them, the same as every other panel here, so `so` and the window keys treat
+them like the agent panel rather than as a layout of their own. An adapter
+that drives several targets opens them once, not once per target.
+
 | Key | Action |
 |---|---|
 | `<Space>dB` | Conditional breakpoint |

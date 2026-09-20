@@ -32,6 +32,19 @@ return {
         -- three AI panels cannot drift apart.
         right  = { size = ai.panel.width },
         bottom = { size = 15 },
+        -- Matches nvim-dap-ui's own default width, so the panels do not jump
+        -- between dapui opening them and edgy claiming them.
+        left   = { size = 40 },
+      },
+      -- Debug panels. dapui still decides when these exist; edgy decides where
+      -- they sit, the same as every other panel here. The left edge is
+      -- otherwise unused: aerial sits inside the editor area on the right
+      -- (lua/plugin/editor/aerial.lua) and the AI panels own the right edge.
+      left = {
+        { title = "DAP Scopes",      ft = "dapui_scopes",      size = { height = 0.25 } },
+        { title = "DAP Breakpoints", ft = "dapui_breakpoints", size = { height = 0.25 } },
+        { title = "DAP Stacks",      ft = "dapui_stacks",      size = { height = 0.25 } },
+        { title = "DAP Watches",     ft = "dapui_watches",     size = { height = 0.25 } },
       },
       right = {
         {
@@ -58,6 +71,20 @@ return {
         {
           title = "QuickFix",
           ft = "qf",
+          size = { height = 0.25 },
+        },
+        {
+          title = "DAP REPL",
+          ft = "dap-repl",
+          size = { height = 0.25 },
+        },
+        {
+          title = "DAP Console",
+          ft = "dapui_console",
+          -- dapui can show an element in a float (`dapui.float_element`). A
+          -- float has no place in the layout, and claiming one drags it into
+          -- the edgebar -- the same reason the terminal slot filters floats.
+          filter = function(_, win) return vim.api.nvim_win_get_config(win).relative == "" end,
           size = { height = 0.25 },
         },
       },

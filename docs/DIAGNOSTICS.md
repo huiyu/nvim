@@ -275,7 +275,18 @@ rather than a broken viewer.
 
 ## Debugging (DAP)
 
-- nvim-dap-ui opens automatically on session start (`<leader>dc`); `<leader>du` reopens it. Panels close when the last session ends.
+- nvim-dap-ui opens automatically on session start (`<leader>dc`); `<leader>du`
+  reopens it. Panels close when the last root session ends.
+- edgy places the debug panels (`lua/plugin/editor/edgy.lua`): scopes,
+  breakpoints, stacks and watches on the left, `dap-repl` and `dapui_console`
+  along the bottom with the terminal and quickfix. dapui still opens and
+  closes them; only placement moved. A panel appearing in the wrong place
+  means its filetype is not declared there -- dapui names every element
+  separately and there is no `dapui` filetype.
+- **A stack frame opens over a panel, or dapui asks which window to use** --
+  `select_window` is wired to `util.window.ensure_editor_win` in
+  `lua/plugin/lsp/dap.lua`. Without it dapui prompts whenever the tab holds
+  more than one file window.
 - Per-language adapters: Go (`nvim-dap-go`), Python (`nvim-dap-python`), JS/TS
   (`js-debug-adapter`), C/Rust (`codelldb`), Java (`nvim-jdtls`), Dart/Flutter (SDK DAP)
 - Mason supplies the adapters except Dart/Flutter, which use the installed SDK.

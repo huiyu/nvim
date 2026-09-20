@@ -16,7 +16,9 @@ local SPECIAL_FILETYPES = {
   'dashboard', 'startify', 'alpha',                          -- Start pages
   'lspinfo', 'mason', 'lazy', 'packer',                      -- Plugin/LSP management
   'terminal', 'toggleterm',                                  -- Terminals
-  'dap-repl', 'dapui',                                       -- Debugging
+  -- dapui names each element separately; there is no `dapui` filetype.
+  'dap-repl', 'dapui_scopes', 'dapui_breakpoints',           -- Debugging
+  'dapui_stacks', 'dapui_watches', 'dapui_console',
 }
 
 --- Nil once the window is gone: the list `close_others` walks is a snapshot,
