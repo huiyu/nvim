@@ -1,37 +1,30 @@
----Processes debug adapter configuration arguments
----Handles both function and table argument types, with special handling for Java.
----Prompts user for input and processes arguments appropriately for different language types.
+---Wrap a configuration so `<leader>da` prompts for its arguments.
 ---@param config table Debug adapter configuration containing args and type
----@return table Modified configuration with interactive argument processing
----@example
----local modified_config = get_args({
----  type = "python",
----  args = {"--verbose", "--debug"}
----})
+---@return table Copy of the configuration whose `args` prompts before launch
 local function get_args(config)
-  -- Extract existing args (function, table, or default to empty)
-  local args = type(config.args) == "function" and (config.args() or {}) or config.args or
-      {} --[[@as string[] | string ]]
-  
-  -- Convert args to string for display in input prompt
+  -- Existing args seed the prompt: a function, a list, or a plain string.
+  local args = type(config.args) == "function" and (config.args() or {}) or config.args or {}
   local args_str = type(args) == "table" and table.concat(args, " ") or args --[[@as string]]
 
-  -- Create a deep copy to avoid modifying original config
+  -- Copy so the prompt never rewrites the registered configuration.
   config = vim.deepcopy(config)
-  ---@cast args string[]
-  
-  -- Replace args with interactive function
+
   config.args = function()
-    local new_args = vim.fn.expand(vim.fn.input("Run with args: ", args_str)) --[[@as string]]
-    
-    -- Java requires string args, other languages need split args
-    if config.type and config.type == "java" then
-      ---@diagnostic disable-next-line: return-type-mismatch
-      return new_args
+    local input = vim.fn.input("Run with args: ", args_str)
+
+    -- java-debug takes one string; every other adapter takes a list. Splitting
+    -- and rejoining would drop the quoting the user typed, so the string is
+    -- passed through untouched.
+    if config.type == "java" then
+      return input
     end
-    
-    -- Split string into array for other languages
-    return require("dap.utils").splitstr(new_args)
+
+    -- expand() resolves one file name, not an args string: it returns the
+    -- first result and discards the rest, so "% --port 3000" collapsed to the
+    -- buffer's name and a bare "#" became "". Split first, expand each token,
+    -- which is also what makes `~/...` work in any position rather than only
+    -- as the whole input.
+    return vim.tbl_map(vim.fn.expand, require("dap.utils").splitstr(input))
   end
   return config
 end
@@ -54,7 +47,7 @@ return {
       { "<leader>dx", function() require("dap").clear_breakpoints() end,                                    desc = "Clear All Breakpoints",   mode = { "n", "v" } },
       { "<leader>dL", function() require("util.dap").logpoint() end, desc = "Logpoint" },
       { "<leader>de", function() require("util.dap").exceptions() end, desc = "Exception Breakpoints" },
-      { "<leader>dR", function() require("dap").restart() end, desc = "Restart Session" },
+      { "<leader>dR", function() require("util.dap").restart() end, desc = "Restart Session" },
       { "<leader>dD", function() require("util.dap").disconnect() end, desc = "Disconnect (Keep Target Running)" },
       { "<leader>du", function() require("dapui").toggle() end, desc = "Toggle Debug Panels" },
       { "<leader>dW", function() require("util.dap").watch() end, desc = "Add Watch Expression", mode = { "n", "x" } },
@@ -71,7 +64,13 @@ return {
       { "<leader>dP", function() require("dap").pause() end,                                                desc = "Pause",                   mode = { "n", "v" } },
       { "<leader>dr", function() require("dap").repl.toggle() end,                                          desc = "Toggle REPL",             mode = { "n", "v" } },
       { "<leader>ds", function() local w = require("dap.ui.widgets"); w.centered_float(w.sessions) end, desc = "Debug Sessions" },
-      { "<leader>dt", function() require("dap").terminate() end,                                            desc = "Terminate",               mode = { "n", "v" } },
+      -- js-debug and Electron own a session tree: a root plus one child per
+      -- target. Bare terminate() defaults to hierarchy=false and kills only
+      -- dap.session(), which is usually a child -- the root stays attached and
+      -- the panels stay open, so the key reads as dead. `hierarchy` walks up to
+      -- the root and terminates the whole tree. Not `all`: a second, unrelated
+      -- session (a backend alongside a browser) is not this key's business.
+      { "<leader>dt", function() require("dap").terminate({ hierarchy = true }) end,                       desc = "Terminate",               mode = { "n", "v" } },
       { "<leader>dw", function() require("util.dap").evaluate() end, desc = "Evaluate Expression / Selection", mode = { "n", "x" } },
     },
     dependencies = {

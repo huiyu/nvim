@@ -289,7 +289,16 @@ rather than a broken viewer.
 - `<leader>dw` evaluates a cursor expression or character/line/block selection;
   `<leader>dW` adds an editable watch expression.
 - `<leader>dR` restarts; `<leader>dD` disconnects with `terminateDebuggee=false`.
-  Use `<leader>ds` to select a session when debugging multiple processes.
+  Both resolve the root of the current session tree first. Use `<leader>ds` to
+  select a session when debugging multiple, independent processes.
+- **`<leader>dt`, `<leader>dR` or `<leader>dD` appears to do nothing** — an
+  adapter that owns several targets (js-debug with a browser, Electron) builds a
+  session tree, and nvim-dap's `terminate()`, `restart()` and `disconnect()` all
+  default to the current session alone, which is usually a child. All three
+  mappings resolve the root first: `dt` passes `hierarchy = true`, `dR` selects
+  the root before restarting, and `dD` walks the tree depth first. If panels still linger, sessions
+  survive outside that tree: `:lua print(vim.tbl_count(require('dap').sessions()))`,
+  then `<leader>ds` to select one, or `:lua require('dap').terminate({ all = true, hierarchy = true })`.
 
 Complete terminal commands and per-language `launch.json` examples are in the
 [English guide](MANUAL.md#launch-attach-and-project-configuration) and

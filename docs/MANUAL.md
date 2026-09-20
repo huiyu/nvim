@@ -583,9 +583,9 @@ Step into with `di`, over with `dO`, and out with `do` (all after `<Space>`).
 | `<Space>dA` / `:DapAttach` | Choose an attach configuration for an existing process |
 | `<Space>dL` | Logpoint: print a message such as `value={value}` without stopping |
 | `<Space>de` | Choose exception breakpoints from the active adapter's filters |
-| `<Space>dR` | Restart the current session |
-| `<Space>dD` | Disconnect, requesting that the target keep running |
-| `<Space>dt` | Terminate the target |
+| `<Space>dR` | Restart the session, from the root of its tree |
+| `<Space>dD` | Disconnect the session and its children, requesting that the target keep running |
+| `<Space>dt` | Terminate the target, and the whole session tree it belongs to |
 | `<Space>du` | Close or reopen debug panels |
 | `<Space>dw` | Evaluate `<cexpr>` or the live Visual selection |
 | `<Space>dW` | Add an editable expression to Watches |
@@ -598,8 +598,15 @@ the Watches panel to remove one. Cancelling the watch or logpoint prompt changes
 nothing. Exception choices are None, All, or an individual filter; their names
 and support depend on the adapter. Set them after starting a session.
 Disconnect sends `terminateDebuggee=false`; adapter support still determines
-whether a particular target can continue independently. Restart applies to the
-selected session; `dl` instead reruns the last configuration.
+whether a particular target can continue independently. `dl` instead reruns the
+last configuration.
+
+Restart, disconnect and terminate all resolve the root of the current session
+tree first. An adapter that owns several targets (js-debug driving a browser,
+Electron) answers `startDebugging` with child sessions, and the current session
+follows whichever child last stopped — acting on that child alone restarts or
+releases one target and leaves the rest attached. A second session started on
+its own is a separate tree and is left running; select it with `ds`.
 
 ### Current file and tests
 
@@ -1031,7 +1038,8 @@ for startup breakpoints. For custom endpoints, create separate project entries:
 }
 ```
 
-`dD` acts on the selected session; disconnect both if finished with the whole
+`dD` acts on the selected session and any children it spawned. Main and
+renderer are separate trees here, so disconnect both if finished with the whole
 app. The main endpoint is Node Inspector and the renderer endpoint is Chromium
 CDP, so their ports cannot be interchanged. See
 [Electron main-process debugging](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process).

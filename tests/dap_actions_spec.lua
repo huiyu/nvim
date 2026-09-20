@@ -67,25 +67,47 @@ delayed()
 t.eq(filters, { "raised", "uncaught" }, "stale exception picker does not change another session")
 vim.ui.select, dap.session, dap.set_exception_breakpoints = select, session, set
 
-local disconnect, restart = dap.disconnect, dap.restart
-local args, restarted
-dap.disconnect = function(value) args = value end
-dap.restart = function() restarted = true end
+-- dR and dD act on the root of the session tree. An adapter that owns several
+-- targets answers startDebugging with children, and dap.session() follows
+-- whichever child last stopped; acting on that child releases one target and
+-- leaves the rest attached.
+local original_session = dap.session
+local restart, set_session = dap.restart, dap.set_session
+local root_released, child_released
+local tree_root = { children = {}, adapter = {},
+  disconnect = function(_, value) root_released = value end }
+tree_root.children.child = { children = {}, adapter = {}, parent = tree_root,
+  disconnect = function(_, value) child_released = value end }
+dap.session = function() return tree_root.children.child end
 vim.fn.maparg("<Space>dD", "n", false, true).callback()
+t.eq(root_released, { terminateDebuggee = false }, "disconnect reaches the root from a child")
+t.eq(child_released, { terminateDebuggee = false }, "disconnect reaches every child in the tree")
+
+local selected, restarted
+dap.set_session = function(value) selected = value end
+dap.restart = function() restarted = true end
 vim.fn.maparg("<Space>dR", "n", false, true).callback()
-t.eq(args, { terminateDebuggee = false }, "disconnect explicitly preserves target")
-t.ok(restarted, "restart mapping restarts the current session")
-dap.disconnect, dap.restart = disconnect, restart
+t.eq(selected, tree_root, "restart selects the root before restarting")
+t.ok(restarted, "restart mapping restarts the session")
+
+dap.session = function() return nil end
+selected, restarted = nil, nil
+vim.fn.maparg("<Space>dR", "n", false, true).callback()
+t.eq(restarted, nil, "restart without a session does not reach dap")
+dap.restart, dap.set_session = restart, set_session
 
 -- A remote preparation callback may finish after the user switches sessions.
-local original_session, ready, disconnected, other_disconnected = dap.session
+local ready, disconnected, other_disconnected
 local first = {
+  children = {},
   adapter = { options = { before_disconnect = function(_, done) ready = done end } },
   disconnect = function(_, value) disconnected = value end,
 }
 dap.session = function() return first end
 ui.disconnect()
-dap.session = function() return { disconnect = function() other_disconnected = true end } end
+dap.session = function()
+  return { children = {}, adapter = {}, disconnect = function() other_disconnected = true end }
+end
 ready()
 t.eq(disconnected, { terminateDebuggee = false }, "delayed disconnect keeps the originally selected session")
 t.eq(other_disconnected, nil, "delayed disconnect does not affect the newly selected session")

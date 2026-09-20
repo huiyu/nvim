@@ -22,6 +22,18 @@ function M.port(default)
   return port
 end
 
+---The root of the session tree the current session belongs to.
+---An adapter that owns several targets (js-debug driving a browser, Electron)
+---answers `startDebugging` with child sessions, and `dap.session()` follows
+---whichever child last stopped. Whole-session actions belong to the root:
+---`Session:close()` does not cascade, and a child's config is an
+---adapter-internal object rather than a launchable configuration.
+local function root_session()
+  local session = require("dap").session()
+  while session and session.parent do session = session.parent end
+  return session
+end
+
 ---Attach configs from this filetype and the current project's launch.json.
 function M.attach()
   local dap = require("dap")
@@ -123,16 +135,45 @@ function M.logpoint()
 end
 
 function M.disconnect()
-  local dap = require("dap")
-  local session = dap.session()
-  local before = session and (session.adapter.options or {}).before_disconnect
-  if before then
-    before(session, function()
-      if not session.closed then session:disconnect({ terminateDebuggee = false }) end
-    end)
-  else
-    dap.disconnect({ terminateDebuggee = false })
+  local root = root_session()
+  if not root then
+    vim.notify("No active debug session", vim.log.levels.INFO)
+    return
   end
+  -- Disconnect every session in the tree, deepest first. Session:disconnect
+  -- asks one session to let go, so disconnecting whichever session happens to
+  -- be current leaves the rest of the tree attached to the target. The child
+  -- list is snapshotted: a closing session removes itself from its parent.
+  -- `before_disconnect` is an adapter option (go_remote sets one), so it is
+  -- read per session rather than once for the tree.
+  local function disconnect(session)
+    for _, child in ipairs(vim.tbl_values(session.children)) do disconnect(child) end
+    if session.closed then return end
+    local before = (session.adapter.options or {}).before_disconnect
+    if before then
+      before(session, function()
+        if not session.closed then session:disconnect({ terminateDebuggee = false }) end
+      end)
+    else
+      session:disconnect({ terminateDebuggee = false })
+    end
+  end
+  disconnect(root)
+end
+
+function M.restart()
+  local dap = require("dap")
+  local root = root_session()
+  if not root then
+    vim.notify("No active debug session", vim.log.levels.INFO)
+    return
+  end
+  -- dap.restart() acts on dap.session(). Left on a child it restarts that one
+  -- target, or -- with no restart request -- terminates the child and replays
+  -- the child's config, which cannot be launched on its own. Select the root
+  -- first; this is the same call the session picker behind `<leader>ds` makes.
+  dap.set_session(root)
+  dap.restart()
 end
 
 function M.exceptions()

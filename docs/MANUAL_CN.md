@@ -533,9 +533,9 @@ Ctrl-/       切换终端
 | `<Space>dA` / `:DapAttach` | 选择 attach 配置，附加已有进程 |
 | `<Space>dL` | 日志断点，例如 `value={value}`，输出日志但不停下 |
 | `<Space>de` | 从当前适配器提供的选项中选择异常断点 |
-| `<Space>dR` | 重启当前会话 |
-| `<Space>dD` | 断开连接，并请求保留目标进程运行 |
-| `<Space>dt` | 终止目标 |
+| `<Space>dR` | 从会话树的根重启会话 |
+| `<Space>dD` | 断开会话及其子会话，并请求保留目标进程运行 |
+| `<Space>dt` | 终止目标，连同它所属的整棵会话树 |
 | `<Space>du` | 关闭或重新打开调试面板 |
 | `<Space>dw` | 对光标处表达式或当前 Visual 选区求值 |
 | `<Space>dW` | 输入或编辑表达式后添加到 Watches |
@@ -546,7 +546,10 @@ Ctrl-/       切换终端
 进程中，在 Watches 面板用 `d` 删除。取消 Watch 或日志断点输入不会改变已有内容。
 异常断点提供 None、All 和单个过滤器，具体名称与能力取决于适配器，要先启动会话。
 断开明确发送 `terminateDebuggee=false`，目标能否继续独立运行仍取决于适配器支持。
-`dR` 重启选中的会话，`dl` 则重新运行上一次配置。
+`dR`、`dD`、`dt` 都先解析出当前会话树的根再动作：一个适配器管多个目标时
+（js-debug 驱动浏览器、Electron）会通过 `startDebugging` 派生子会话，当前会话
+跟着最后停下的那个子会话走，只对它动作等于只重启或只释放一个目标。另外单独
+起的会话属于另一棵树，不受影响，用 `ds` 选择。`dl` 则重新运行上一次配置。
 
 ### 当前文件与测试
 
@@ -601,6 +604,8 @@ Java 使用 jdtls 的类级测试接口，`tF` 运行第一个发现的测试类
    按 `<Space>dc` 继续，直到源码断点。
 6. `dw`/`dW` 求值或添加 Watch，`di`/`dO`/`do` 单步，`ds` 选择会话；
    `dD` 请求断开并保留进程运行，`dt` 请求终止目标，实际行为取决于适配器支持。
+   `dt` 会向上找到当前会话树的根再逐级终止，一个适配器管多个目标时（js-debug、
+   Electron）需要如此；另外单独起的无关会话不受影响。
    这些缩写均需先按 `<Space>`。
 
 `DapAttach` 只列出当前文件类型的内置 attach 配置，以及项目 launch.json 中的
@@ -946,7 +951,8 @@ flavor，例如项目已定义该 flavor 时使用 `["-d", "macos", "--flavor", 
 }
 ```
 
-`dD` 只作用于选中的会话，整个应用调试结束时分别断开两个会话。
+`dD` 作用于选中的会话及其派生的子会话。主进程和渲染进程是两棵独立的树，
+整个应用调试结束时需要分别断开。
 主进程使用 Node Inspector，渲染进程使用 Chromium CDP，端口不能互换。
 更多说明见 [Electron 主进程调试文档](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process)。
 
