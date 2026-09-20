@@ -65,6 +65,8 @@ nvim
 │   │   └── health.lua        # `:checkhealth config` 提供者
 │   ├── lang/                 # 语言专属配置
 │   │   ├── bash.lua
+│   │   ├── dart.lua
+│   │   ├── rust.lua
 │   │   ├── c.lua             # C / C++
 │   │   ├── frontend.lua      # HTML / CSS / Tailwind
 │   │   ├── go.lua
@@ -162,13 +164,30 @@ nvim
 | Go | gopls | gopls 整理 imports + gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
 | Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
-| TypeScript/JS | vtsls | prettier | eslint | - | js-debug-adapter |
+| Rust | - | - | - | Cargo test (DAP) | codelldb + Cargo |
+| Dart / Flutter | - | - | - | SDK test (DAP) | SDK DAP |
+| TypeScript/JS | vtsls | prettier | eslint | Vitest (DAP) | js-debug-adapter |
 | HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
 | JSON | jsonls + SchemaStore | prettier | - | - | - |
 | YAML | yamlls + SchemaStore | prettier | - | - | - |
 | Bash | bashls | shfmt | - | - | - |
 | LaTeX | texlab (+ VimTeX) | latexindent | chktex | - | - |
 | Lua | lua_ls | - | - | - | - |
+
+#### 调试
+
+`<leader>df` 调试当前文件，`<leader>td` 调试当前测试用例，`<leader>tF`
+调试当前测试文件。各语言使用统一快捷键，目标选择逻辑由各语言模块分别实现
+（JS/TS 测试使用 Vitest）。
+
+`<leader>dA` / `:DapAttach` 附加已有进程，提供 Go、Python、Java、C/C++、Rust、
+Node/Chrome、Dart/Flutter 和 Electron 的预设。
+
+`<leader>d` 提供断点、单步和会话操作：`de` 异常断点、`dL` 日志断点、
+`dR` 重启、`dD` 断开并保留目标、`du` 面板开关、`dw` 表达式/选区求值、
+`dW` 添加 Watch。各语言的依赖、launch/attach 命令、测试操作及项目
+`launch.json` 示例见[调试工作流](docs/MANUAL_CN.md#调试)。
+Dart/Flutter SDK 需单独安装。
 
 #### LaTeX 工作流
 

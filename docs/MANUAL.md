@@ -556,3 +556,472 @@ it when pressed again. `<C-/>` opens/closes the current or last-used terminal.
 
 The menus are generated from the configuration itself, so they cannot drift out
 of date the way a document can.
+
+## Debugging
+
+Open a source file, set a breakpoint with `<Space>db`, then use `<Space>dc` to
+choose a launch or attach configuration. The panels open when a session starts.
+Step into with `di`, over with `dO`, and out with `do` (all after `<Space>`).
+
+| Key | Action |
+|---|---|
+| `<Space>dB` | Conditional breakpoint |
+| `<Space>dA` / `:DapAttach` | Choose an attach configuration for an existing process |
+| `<Space>dL` | Logpoint: print a message such as `value={value}` without stopping |
+| `<Space>de` | Choose exception breakpoints from the active adapter's filters |
+| `<Space>dR` | Restart the current session |
+| `<Space>dD` | Disconnect, requesting that the target keep running |
+| `<Space>dt` | Terminate the target |
+| `<Space>du` | Close or reopen debug panels |
+| `<Space>dw` | Evaluate `<cexpr>` or the live Visual selection |
+| `<Space>dW` | Add an editable expression to Watches |
+| `<Space>ds` | List sessions; select a main/renderer/child session |
+| `<Space>dq` / `<Space>dx` | List / clear all breakpoints |
+
+Character, line and block selections work for evaluation and watches without
+yanking. Watch expressions persist in the current editor process; use `d` in
+the Watches panel to remove one. Cancelling the watch or logpoint prompt changes
+nothing. Exception choices are None, All, or an individual filter; their names
+and support depend on the adapter. Set them after starting a session.
+Disconnect sends `terminateDebuggee=false`; adapter support still determines
+whether a particular target can continue independently. Restart applies to the
+selected session; `dl` instead reruns the last configuration.
+
+### Current file and tests
+
+| Key | Scope |
+|---|---|
+| `<Space>df` | Debug the current source file / its executable target |
+| `<Space>td` | Debug the test at the cursor (Go/Python/Java also find the nearest preceding test) |
+| `<Space>tF` | Debug tests in the current file |
+| `<Space>tm` / `<Space>tf` | Run nearest test / test file without debugging (neotest: Go/Python) |
+
+Set a breakpoint with `<Space>db`, put the cursor inside a test, then press
+`<Space>td`. These direct entries save the current buffer first; an unsaved
+unnamed buffer or failed write aborts. They use the same keys in every supported
+language, with target logic in `lua/lang/*.lua`.
+
+| Language | `df` | `td` / `tF` |
+|---|---|---|
+| Go | Current `.go` file | neotest-golang + Delve; nearest test / tests declared in this file |
+| Python | Current script, using dap-python's environment | neotest-python + debugpy; pytest or unittest |
+| Java | Main class matching the current filename, including nested main classes | jdtls nearest method / first test class discovered in the file |
+| JS/TS | Current Node script | Project-local Vitest; nearest test requires Vitest 3+ |
+| Rust | Cargo binary (choose when ambiguous) | Standard libtest harness, filtered to a function / functions in this source file |
+| Dart/Flutter | Current file as entrypoint | SDK test adapter; `test` / `testWidgets` declaration or entire file |
+
+JS/TS and Dart nearest-test selection uses Treesitter plus the framework's native
+line filter. Keep the cursor in the test call; a suite/group alone does not select
+a test. Parameterized declarations may run multiple generated cases. Custom test
+wrappers need an explicit configuration. Node must be able to execute the chosen
+JS/TS file; JSX/TSX, browser code and projects needing loaders/builds should use
+their application configuration via `<Space>dc`.
+
+Rust uses Cargo's executable list and `--list`/`--exact`, including inline modules
+and conventional `foo.rs` / `foo/mod.rs` modules. Custom `#[path]` layouts,
+macro-generated tests and non-libtest harnesses need a configuration via `dc`.
+A Rust module is not an independent executable: `df` builds a Cargo binary.
+Similarly, use Go's **Debug Package** via `dc` when a file needs sibling sources.
+Dart picks Flutter when `pubspec.yaml` declares `sdk: flutter`; otherwise it uses
+Dart. Run `pub get` first.
+Java uses jdtls' class-level API: `tF` runs the first discovered test class,
+including its methods; keep separate top-level test classes in separate files.
+
+These entries do not invoke arbitrary business functions without arguments or
+setup. Debug a function through a test or application caller. `<Space>dC` means
+continue an existing session to the cursor, not call that function.
+
+### Launch, attach, and project configuration
+
+**Launch** starts a new program or test under the debugger. **Attach** connects
+to a process you started elsewhere. All supported languages now have attach
+entries; the direct file/test keys above remain launch actions.
+
+1. Open the matching source file. For Java, wait for jdtls to attach.
+2. Check `:pwd`; use `:cd /path/to/project` if needed. `${workspaceFolder}` and
+   the automatic `.vscode/launch.json` lookup use Neovim's working directory.
+3. Set a breakpoint with `<Space>db` on an executable line.
+4. For launch, use a direct file/test key or choose a configuration with
+   `<Space>dc`. For attach, run the terminal command from the language section
+   below, then press **`<Space>dA`** or run **`:DapAttach`**.
+5. Select the named attach configuration and supply its PID, port or service
+   URI. A startup pause may need `<Space>dc` before the source breakpoint fires.
+6. Inspect with `dw`/`dW`, step with `di`/`dO`/`do`, and select a session with
+   `ds`. Use `dD` to disconnect while requesting that the process continue;
+   `dt` terminates the target where the adapter supports it.
+
+`DapAttach` lists only attach entries from the current filetype and the project's
+launch.json. It starts a new session even if another session is active; it never
+continues that other session. Cancelling makes no connection. If the source
+buffer or working directory changes while the picker is open, reopen it.
+Attach does not save, compile or replace the externally running program.
+
+Create `.vscode/launch.json` for project-specific programs, arguments, environment
+variables, ports and source maps. The file is read on demand, supports comments,
+and needs no manual `load_launchjs()` call. Wrap the individual objects shown
+below in this structure:
+
+```jsonc
+{
+  "version": "0.2.0",
+  "configurations": [
+    // Paste a language's launch/attach object here.
+  ]
+}
+```
+
+Use the adapter names in this guide (`pwa-node`, `codelldb`, etc.), not arbitrary
+VS Code extension names. `${file}`, `${workspaceFolder}` and
+`${command:pickProcess}` are supported. VS Code `tasks.json`, `preLaunchTask`
+and `compounds` are not executed by this setup: run builds/dev servers yourself;
+start additional attach sessions with `dA`.
+
+The examples bind debugger ports to loopback. To reach another host, keep its
+listener on loopback and forward the relevant port, for example
+`ssh -N -L 5005:127.0.0.1:5005 user@server`, then attach to `127.0.0.1:5005`.
+Source paths still need the language's mapping option when the machines differ.
+Mason adds tools to Neovim's PATH, not your existing shell. If a terminal cannot
+find `dlv`, install it on PATH or add the directory shown by
+`:echo stdpath('data') . '/mason/bin'` to the shell's PATH.
+
+### Go
+
+Install Go and Mason's `delve`. Launch the current file with `df`; if it depends
+on sibling files, choose **Debug Package** in `dc`. `td`/`tF` use neotest-golang
+and Delve for a single test or the tests declared in the current file.
+
+For a local process, build with symbols, start it in a terminal, then choose
+**Attach** in `dA` and select its PID:
+
+```sh
+go build -gcflags='all=-N -l' -o ./build/app .
+./build/app
+```
+
+For a Delve server, start this from the target project's directory:
+
+```sh
+dlv debug . --headless --listen=127.0.0.1:38697 --api-version=2 --accept-multiclient
+```
+
+Choose **go: attach to remote Delve**, host `127.0.0.1`, port `38697`.
+For an already-built binary replace `dlv debug .` with `dlv exec ./build/app`.
+This is Delve's headless multi-client server, not a bare `dlv dap` invocation.
+A project attach entry can preserve connection and path mapping details:
+
+```jsonc
+{
+  "name": "Go server", "type": "go_remote", "request": "attach", "mode": "remote",
+  "host": "127.0.0.1", "port": 38697,
+  "substitutePath": [{ "from": "${workspaceFolder}", "to": "/srv/app" }]
+}
+```
+
+The remote adapter accepts these `host`/`port` values; without them it prompts.
+`dD` clears this editor's source breakpoints from remote Delve, resumes the
+process, then disconnects; local breakpoints remain for reattachment. If that
+preparation fails, the connection stays open and reports the error.
+
+### Python
+
+Install Python and Mason's `debugpy`; select your project environment with
+`\v` when needed. `df` launches the script; `td`/`tF` use neotest-python.
+The selected environment needs pytest for pytest tests; unittest uses the
+standard library. An attach target needs debugpy in **its own** environment,
+independently of Mason's adapter environment:
+
+```sh
+python -m pip install debugpy
+python -m debugpy --listen 127.0.0.1:5678 --wait-for-client app.py
+# Alternatively, debug a module or test process:
+python -m debugpy --listen 127.0.0.1:5678 --wait-for-client -m pytest tests/test_app.py
+```
+
+Choose **python: attach to debugpy**, host `127.0.0.1`, port `5678`. Run only one
+of the above target commands at a time. `--wait-for-client` prevents startup
+code from executing before attachment. Project example:
+
+```jsonc
+{
+  "name": "Python service", "type": "python", "request": "attach",
+  "connect": { "host": "127.0.0.1", "port": 5678 },
+  "justMyCode": false,
+  "pathMappings": [{ "localRoot": "${workspaceFolder}", "remoteRoot": "/srv/app" }]
+}
+```
+
+Omit `pathMappings` for a local process using the same paths. For launch-specific
+arguments use `type: "python"`, `request: "launch"`, `program`, `args` and `cwd`;
+for module launch replace `program` with `module`. See the
+[debugpy CLI reference](https://github.com/microsoft/debugpy/wiki/Command-Line-Reference).
+
+### Java
+
+Install JDK 21+ and Mason's `jdtls`, `java-debug-adapter`, and `java-test`.
+Open the project and wait for jdtls to finish importing. `dc` discovers main
+classes; `df` selects the main class corresponding to the current file.
+An empty static main-class list before discovery is normal. Each project uses
+its own jdtls workspace. `td`/`tF` debug the nearest test / first discovered test
+class. The Java-local aliases `\dt`/`\dT` remain available after attachment.
+
+Start the target JVM with JDWP (adjust source path and fully qualified class):
+
+```sh
+javac -g -d out src/example/Main.java
+java -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=127.0.0.1:5005 -cp out example.Main
+```
+
+For a packaged application, use the same `-agentlib:jdwp=...` option followed by
+`-jar build/app.jar`. Choose **java: attach to JDWP**, host `127.0.0.1`, port
+`5005`. `suspend=y` waits before main runs; use `suspend=n` for a running service.
+The Java file open in Neovim need not contain a main method for attachment.
+
+```jsonc
+{
+  "name": "Java service", "type": "java", "request": "attach",
+  "hostName": "127.0.0.1", "port": 5005, "cwd": "${workspaceFolder}"
+}
+```
+
+For a custom launch use `request: "launch"`, `mainClass: "example.Main"`,
+`cwd`, and optionally `projectName`, `args` and `vmArgs`. Keep the target sources
+available to jdtls; specify `projectName` when a multi-project workspace is
+ambiguous. Saving edits allows supported hot code replacement. After installing
+missing bundles run `:JdtRestart`. See the
+[Java debugger configuration](https://github.com/microsoft/vscode-java-debug/blob/main/Configuration.md).
+
+### Rust
+
+Install Cargo/rustc and Mason's `codelldb`. `dc` offers **rust: cargo build**
+and **rust: cargo test**. Cargo builds asynchronously from the nearest manifest,
+resolves actual executables including custom target directories, and prompts
+when multiple targets exist. Failed builds abort. `df` launches a Cargo binary;
+`td`/`tF` filter standard libtest tests as described above.
+
+For attach, build and start the binary in a separate terminal. Replace `myapp`
+with your Cargo binary target name and adjust the output path for custom targets:
+
+```sh
+cargo build --bin myapp
+./target/debug/myapp
+```
+
+Choose **rust: attach to process** and its PID. Use a debug build with debug
+symbols; optimized release builds can hide or rearrange variables and lines.
+Attachment itself does not invoke Cargo or restart the binary.
+
+```jsonc
+{
+  "name": "Rust running process", "type": "codelldb", "request": "attach",
+  "pid": "${command:pickProcess}", "sourceLanguages": ["rust"]
+}
+```
+
+For custom launch/build flags, run `cargo build --features ...` yourself and
+set `request: "launch"`, `program` to its executable, `cwd` and `args`.
+For moved build paths, add `sourceMap`, e.g. `{ "/build/project": "${workspaceFolder}" }`.
+
+### C and C++
+
+Install a C/C++ compiler and Mason's `codelldb`. Build with symbols first;
+`dc` provides **LLDB: Launch** and **LLDB: Launch (args)**, which ask for the
+executable. The direct `df`/`td`/`tF` entries are not registered for C/C++:
+this config does not choose a project build system or test framework for them.
+
+```sh
+mkdir -p build
+cc -g -O0 main.c -o build/app
+# For C++, use this build command instead:
+c++ -g -O0 main.cpp -o build/app
+./build/app
+```
+
+While the program remains running, choose **c: attach to process** or
+**cpp: attach to process** in `dA`, then select its PID. For projects, use the
+project's debug build (for example CMake's Debug configuration).
+
+```jsonc
+{
+  "name": "Native running process", "type": "codelldb", "request": "attach",
+  "pid": "${command:pickProcess}"
+}
+```
+
+For launch use `request: "launch"`, `program: "${workspaceFolder}/build/app"`,
+`cwd` and `args`. Native PID attachment is local to the machine running CodeLLDB;
+an SSH port tunnel alone does not turn a remote PID into a local one. Remote
+native debugging requires an LLDB remote target configuration. Both native
+languages and Rust use the
+[CodeLLDB attach options](https://github.com/vadimcn/codelldb/blob/master/MANUAL.md#attaching-to-a-running-process).
+
+### JavaScript and TypeScript (Node / Vitest)
+
+Install Node and Mason's `js-debug-adapter`. `df` launches the current Node
+script. For TypeScript requiring compilation, compile with source maps and run
+the emitted JavaScript; JSX/TSX or a project-specific loader needs its own launch
+configuration. `td`/`tF` use the nearest installed Vitest; nearest test needs v3+.
+
+Start an inspector target, then choose **node: attach by host/port**:
+
+```sh
+node --inspect-brk=127.0.0.1:9229 app.js
+# For compiled TypeScript, run the emitted entrypoint instead:
+node --inspect-brk=127.0.0.1:9229 dist/app.js
+# For a Vitest process started outside Neovim:
+npx vitest run --inspect-brk=127.0.0.1:9229 --no-file-parallelism tests/app.test.ts
+```
+
+Run one target command at a time; use host `127.0.0.1`, port `9229`.
+`--inspect-brk` pauses startup; `--inspect` lets the application start immediately.
+**node: attach to process** is the local PID alternative.
+
+```jsonc
+{
+  "name": "Node service", "type": "pwa-node", "request": "attach",
+  "address": "127.0.0.1", "port": 9229,
+  "cwd": "${workspaceFolder}", "sourceMaps": true,
+  "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+}
+```
+
+Remove `outFiles` for plain JS; for remote sources add `localRoot`/`remoteRoot`.
+A launch entry instead uses `request: "launch"`, `program`, `args`, `cwd`, and
+possibly `runtimeExecutable`/`runtimeArgs` for a project loader. Vitest's direct
+entries disable file parallelism so source breakpoints bind in test workers.
+
+### Browser JavaScript and Chrome extensions
+
+Run your frontend dev server separately. Start a dedicated Chrome debugging
+instance (macOS command; use your Chrome executable path on other systems):
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-port=9222 --user-data-dir="$HOME/.cache/nvim-chrome-debug" \
+  http://localhost:5173
+```
+
+Choose **chrome: attach (port 9222)** in a JS/TS source buffer. A non-default
+profile is required by
+[current Chrome remote-debugging behavior](https://developer.chrome.com/blog/remote-debugging-port).
+Use a project entry to change the port or constrain the page:
+
+```jsonc
+{
+  "name": "Frontend page", "type": "pwa-chrome", "request": "attach",
+  "port": 9222, "webRoot": "${workspaceFolder}",
+  "urlFilter": "http://localhost:5173/*", "sourceMaps": true
+}
+```
+
+For extensions, **chrome: debug extension (launch)** and
+**chrome: debug extension (attach)** require the separately installed
+`js-debug-webext` build; Mason's upstream adapter is insufficient. Keep the
+extension build watcher running. Attach uses the dedicated Chrome instance above;
+load the unpacked extension first, then select the attach preset from a source
+buffer inside its package. Both presets find `.output/chrome-mv3-dev` above that
+buffer automatically (WXT layout). For another layout, use a project config with
+an explicit `extensionPath` pointing to the build output. Launch creates its own
+profile and installs the extension via CDP. See [extension setup and diagnosis](DIAGNOSTICS.md) and
+[the extension spike](../spikes/chrome-extension-dap/README.md).
+
+### Dart CLI
+
+Install the Dart SDK, or use the Dart SDK bundled with Flutter. Adapters prefer
+the nearest `.fvm/flutter_sdk/bin`, then PATH. Run `dart pub get` in the package.
+The SDK supplies `dart debug_adapter`; no Mason adapter is needed. `df` launches
+the current entrypoint; `td`/`tF` run its tests through the SDK test adapter.
+
+```sh
+dart run --enable-vm-service=8181 --pause-isolates-on-start bin/main.dart
+```
+
+Choose **dart: attach to VM service** and paste the full printed VM service URI,
+such as `http://127.0.0.1:8181/<token>/`. Keep its token and trailing path; a port
+number or the DevTools web page URL is not the service URI. This attaches to an
+existing VM rather than starting the current file.
+
+```jsonc
+{
+  "name": "Dart VM", "type": "dart", "request": "attach",
+  "cwd": "${workspaceFolder}", "vmServiceUri": "http://127.0.0.1:8181/REPLACE_TOKEN/"
+}
+```
+
+The token changes across runs; the interactive preset avoids editing JSON each
+time. For launch use `request: "launch"`, `program: "${workspaceFolder}/bin/main.dart"`,
+`cwd` and `args`. Use `\dr` for supported hot reload; `dR` restarts a launched
+CLI session. The SDK's [debugging tools](https://dart.dev/tools/dart-devtools)
+explain VM service startup.
+
+### Flutter
+
+Install Flutter externally or use FVM. Run `flutter pub get`, then start a
+simulator/device (`flutter devices`). `dc` provides **flutter: launch app**
+(default `lib/main.dart`), **flutter: attach to running app**, and current-file
+tests. `df` uses the current file as the entrypoint; `td`/`tF` use the Flutter
+test adapter when the pubspec declares `sdk: flutter`.
+
+```sh
+flutter devices
+flutter run --debug --start-paused -d macos
+```
+
+Replace `macos` with the intended device ID. Choose **flutter: attach to running
+app**; enter the same device ID and optionally the printed VM service URI.
+A blank URI requests device discovery; a blank device delegates selection to
+Flutter. Use a debug-mode app, not a release build.
+
+```jsonc
+{
+  "name": "Flutter existing app", "type": "flutter", "request": "attach",
+  "cwd": "${workspaceFolder}", "toolArgs": ["-d", "macos"],
+  "vmServiceUri": "http://127.0.0.1:PORT/REPLACE_TOKEN/"
+}
+```
+
+Omit `vmServiceUri` for device discovery. For launch use `request: "launch"`,
+`program: "${workspaceFolder}/lib/main.dart"` and `toolArgs` for device/flavor,
+for example `["-d", "macos", "--flavor", "dev"]` when the project defines that
+flavor. Save edits, then use `\dr` for hot reload and `\dR` for Flutter hot
+restart. `dD` disconnects the editor; the terminal that started `flutter run`
+continues to own its process.
+
+### Electron
+
+Install Electron in the project and build main/renderer code if required.
+**electron: main + renderer** in `dc` launches `electron .` and then attaches a
+renderer session. To attach to an externally started app, enable both endpoints:
+
+```sh
+./node_modules/.bin/electron --inspect=127.0.0.1:9230 --remote-debugging-port=9222 .
+```
+
+Choose **electron: attach main**, host `127.0.0.1`, port `9230`. Once a window
+exists, use `dA` again and choose **electron: attach renderer (port 9222)**.
+Both sessions remain available under `ds`. If a main-process breakpoint blocks
+renderer initialization or evaluation, resume main with `dc` first. This command
+allows startup to run before attachment; use the combined launch configuration
+for startup breakpoints. For custom endpoints, create separate project entries:
+
+```jsonc
+{
+  "name": "Electron main", "type": "pwa-node", "request": "attach",
+  "address": "127.0.0.1", "port": 9230, "cwd": "${workspaceFolder}"
+}
+```
+
+```jsonc
+{
+  "name": "Electron renderer", "type": "pwa-chrome", "request": "attach",
+  "port": 9222, "webRoot": "${workspaceFolder}"
+}
+```
+
+`dD` acts on the selected session; disconnect both if finished with the whole
+app. The main endpoint is Node Inspector and the renderer endpoint is Chromium
+CDP, so their ports cannot be interchanged. See
+[Electron main-process debugging](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process).
+
+React Native is still a separate [feasibility spike](../spikes/react-native-dap/README.md),
+not a supported Hermes DAP workflow. For connection failures, unbound breakpoints,
+SDK paths and platform permissions, see [DIAGNOSTICS.md](DIAGNOSTICS.md).

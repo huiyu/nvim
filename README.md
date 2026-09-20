@@ -70,6 +70,8 @@ nvim
 │   │   └── health.lua        # `:checkhealth config` provider
 │   ├── lang/                 # Language-specific configs
 │   │   ├── bash.lua
+│   │   ├── dart.lua
+│   │   ├── rust.lua
 │   │   ├── c.lua             # C / C++
 │   │   ├── frontend.lua      # HTML / CSS / Tailwind
 │   │   ├── go.lua
@@ -167,13 +169,31 @@ nvim
 | Go | gopls | gopls organize imports + gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
 | Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
-| TypeScript/JS | vtsls | prettier | eslint | - | js-debug-adapter |
+| Rust | - | - | - | Cargo test (DAP) | codelldb + Cargo |
+| Dart / Flutter | - | - | - | SDK test (DAP) | SDK DAP |
+| TypeScript/JS | vtsls | prettier | eslint | Vitest (DAP) | js-debug-adapter |
 | HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
 | JSON | jsonls + SchemaStore | prettier | - | - | - |
 | YAML | yamlls + SchemaStore | prettier | - | - | - |
 | Bash | bashls | shfmt | - | - | - |
 | LaTeX | texlab (+ VimTeX) | latexindent | chktex | - | - |
 | Lua | lua_ls | - | - | - | - |
+
+#### Debugging
+
+`<leader>df` debugs the current file, `<leader>td` the nearest test, and
+`<leader>tF` the current test file. These entries share keys across languages;
+each language owns its target selection (JS/TS tests use Vitest).
+
+`<leader>dA` / `:DapAttach` attaches to an existing process, with presets for
+Go, Python, Java, C/C++, Rust, Node/Chrome, Dart/Flutter and Electron.
+
+`<leader>d` covers breakpoints, stepping and sessions: `de` exception breakpoints,
+`dL` logpoints, `dR` restart, `dD` disconnect while keeping the target running,
+`du` panels, `dw` evaluate expression/selection, and `dW` add a watch.
+See the [debugging workflow](docs/MANUAL.md#debugging) for each language's
+dependencies, launch/attach commands, tests and project `launch.json` examples.
+Install the Dart/Flutter SDK separately.
 
 #### LaTeX Workflow
 

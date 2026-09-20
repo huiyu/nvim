@@ -511,3 +511,435 @@ Ctrl-/       切换终端
 4. **`;;`** —— 搜索结果列表丢了，用它原样找回来。
 
 那些菜单是**从配置本身生成的**，不会像文档一样过期。
+
+## 调试
+
+打开源码，用 `<Space>db` 设置断点，再按 `<Space>dc` 选择启动或附加配置。
+会话开始时自动打开面板。`<Space>di` 进入函数、`dO` 单步跳过、`do` 跳出函数。
+
+| 键 | 作用 |
+|---|---|
+| `<Space>dB` | 条件断点 |
+| `<Space>dA` / `:DapAttach` | 选择 attach 配置，附加已有进程 |
+| `<Space>dL` | 日志断点，例如 `value={value}`，输出日志但不停下 |
+| `<Space>de` | 从当前适配器提供的选项中选择异常断点 |
+| `<Space>dR` | 重启当前会话 |
+| `<Space>dD` | 断开连接，并请求保留目标进程运行 |
+| `<Space>dt` | 终止目标 |
+| `<Space>du` | 关闭或重新打开调试面板 |
+| `<Space>dw` | 对光标处表达式或当前 Visual 选区求值 |
+| `<Space>dW` | 输入或编辑表达式后添加到 Watches |
+| `<Space>ds` | 列出会话，选择主进程、渲染进程或子会话 |
+| `<Space>dq` / `<Space>dx` | 列出 / 清除所有断点 |
+
+求值和 Watch 支持字符、整行、矩形选区，不影响寄存器。Watch 保留在当前编辑器
+进程中，在 Watches 面板用 `d` 删除。取消 Watch 或日志断点输入不会改变已有内容。
+异常断点提供 None、All 和单个过滤器，具体名称与能力取决于适配器，要先启动会话。
+断开明确发送 `terminateDebuggee=false`，目标能否继续独立运行仍取决于适配器支持。
+`dR` 重启选中的会话，`dl` 则重新运行上一次配置。
+
+### 当前文件与测试
+
+| 键 | 范围 |
+|---|---|
+| `<Space>df` | 调试当前源码文件 / 它所属的可执行目标 |
+| `<Space>td` | 调试光标所在用例（Go/Python/Java 也会寻找前面的最近用例） |
+| `<Space>tF` | 调试当前文件里的测试 |
+| `<Space>tm` / `<Space>tf` | 普通运行最近用例 / 测试文件（neotest：Go/Python） |
+
+先用 `<Space>db` 打断点，把光标放进测试用例，再按 `<Space>td`。
+这些直接入口会先保存当前文件；未命名 buffer 或保存失败时中止。
+各语言使用同一套键位，目标选择逻辑分别放在 `lua/lang/*.lua`。
+
+| 语言 | `df` | `td` / `tF` |
+|---|---|---|
+| Go | 当前 `.go` 文件 | neotest-golang + Delve：最近用例 / 此文件声明的测试 |
+| Python | 当前脚本，使用 dap-python 的环境 | neotest-python + debugpy：pytest 或 unittest |
+| Java | 与当前文件名对应的主类，包含嵌套主类 | jdtls：最近方法 / 当前文件发现的第一个测试类 |
+| JS/TS | 当前 Node 脚本 | 项目本地的 Vitest；单用例入口要求 Vitest 3+ |
+| Rust | Cargo 二进制，有歧义时选择目标 | 标准 libtest：按函数 / 当前源码文件内的函数精确筛选 |
+| Dart/Flutter | 将当前文件作为入口 | SDK 测试适配器：`test` / `testWidgets` 声明或整个文件 |
+
+JS/TS 与 Dart 用 Treesitter 定位，再使用框架原生的行号过滤。
+光标应放在测试调用内，单独位于 suite/group 上不选择用例；参数化声明可能生成多个用例。
+自定义测试包装函数需要显式配置。Node 必须能直接执行所选 JS/TS 文件；JSX/TSX、
+浏览器代码或需要 loader/构建的项目，通过 `<Space>dc` 使用应用配置。
+
+Rust 从 Cargo 产物和 `--list` 得到测试名，用 `--exact` 筛选，支持内联模块和常规
+`foo.rs` / `foo/mod.rs` 布局。自定义 `#[path]`、宏生成测试和非 libtest 测试程序
+通过 `dc` 使用专门配置。Rust 模块不能独立执行，`df` 会构建 Cargo 二进制。
+Go 文件若依赖同包其他源码，也通过 `dc` 选择 **Debug Package**。
+Dart 根据 `pubspec.yaml` 的 `sdk: flutter` 选择 Flutter，否则使用 Dart；先运行 `pub get`。
+Java 使用 jdtls 的类级测试接口，`tF` 运行第一个发现的测试类及其方法；
+多个顶层测试类应分别放在各自的文件中。
+
+任意业务函数仍需参数和初始化环境，应通过测试或应用中的调用方进入调试。
+`<Space>dC` 表示让已有会话运行到光标，不是直接调用该函数。
+
+### Launch、attach 与项目配置
+
+**Launch** 由调试器启动应用或测试，**attach** 连接你已在其他终端启动的进程。
+所有已支持的调试语言都有 attach 入口；前面的当前文件、当前测试快捷键仍是 launch。
+
+1. 打开对应语言的源码；Java 需要等待 jdtls 完成项目导入。
+2. 用 `:pwd` 检查工作目录，必要时 `:cd /path/to/project`。
+   `${workspaceFolder}` 和自动读取的 `.vscode/launch.json` 都以这个目录为准。
+3. 在可执行源码行按 `<Space>db` 设置断点。
+4. Launch 用当前文件/测试快捷键，或 `<Space>dc` 选择配置。Attach 先执行下方
+   对应语言的终端命令，再按 **`<Space>dA`** 或执行 **`:DapAttach`**。
+5. 选择对应 attach 配置，输入 PID、端口或服务 URI。如果程序先停在启动位置，
+   按 `<Space>dc` 继续，直到源码断点。
+6. `dw`/`dW` 求值或添加 Watch，`di`/`dO`/`do` 单步，`ds` 选择会话；
+   `dD` 请求断开并保留进程运行，`dt` 请求终止目标，实际行为取决于适配器支持。
+   这些缩写均需先按 `<Space>`。
+
+`DapAttach` 只列出当前文件类型的内置 attach 配置，以及项目 launch.json 中的
+attach 配置。即使已有会话，也会新建附加会话；取消选择不会连接。如果选择期间
+切换了源码 buffer 或工作目录，需要重新打开选择器。Attach 不会保存、编译或
+替换已经运行的程序。
+
+将项目专用的入口、参数、环境变量、端口和源码映射放在 `.vscode/launch.json`。
+该文件按需读取，支持注释，无需手动调用 `load_launchjs()`。下方各语言给出的
+单个配置对象放进这个结构的 `configurations` 数组：
+
+```jsonc
+{
+  "version": "0.2.0",
+  "configurations": [
+    // 放入下面对应语言的 launch / attach 配置对象。
+  ]
+}
+```
+
+`type` 使用本指南中的适配器名，例如 `pwa-node`、`codelldb`。
+支持 `${file}`、`${workspaceFolder}`、`${command:pickProcess}`。
+本配置不执行 VS Code 的 `tasks.json`、`preLaunchTask` 或 `compounds`；
+先在终端运行构建和开发服务器，再用 `dA` 添加其他附加会话。
+
+示例中的调试端口监听本机地址。连接另一台主机时，可让远端继续监听本机地址，
+通过 `ssh -N -L 5005:127.0.0.1:5005 user@server` 转发，再附加到
+`127.0.0.1:5005`。两端源码路径不同还需配置对应语言的路径映射。
+Mason 只为 Neovim 的 PATH 添加工具目录，不修改已有终端的环境；如果终端找不到
+`dlv`，可自行安装到 PATH，或把 `:echo stdpath('data') . '/mason/bin'`
+显示的目录加入终端 PATH。
+
+### Go
+
+安装 Go 和 Mason 的 `delve`。`df` 启动当前文件；如果它依赖同包其他文件，
+在 `dc` 中选择 **Debug Package**。`td`/`tF` 通过 neotest-golang 和 Delve
+调试单个测试或当前文件中声明的测试。
+
+附加本地进程，先在终端编译并启动，再用 `dA` 选择 **Attach** 和对应 PID：
+
+```sh
+go build -gcflags='all=-N -l' -o ./build/app .
+./build/app
+```
+
+连接 Delve 服务，在目标项目目录执行：
+
+```sh
+dlv debug . --headless --listen=127.0.0.1:38697 --api-version=2 --accept-multiclient
+```
+
+选择 **go: attach to remote Delve**，输入 `127.0.0.1`、`38697`。
+已有二进制可把 `dlv debug .` 换成 `dlv exec ./build/app`。
+这里使用 Delve 的 headless 多客户端服务，不能直接换成 `dlv dap`。
+项目配置可保存连接地址与源码映射：
+
+```jsonc
+{
+  "name": "Go server", "type": "go_remote", "request": "attach", "mode": "remote",
+  "host": "127.0.0.1", "port": 38697,
+  "substitutePath": [{ "from": "${workspaceFolder}", "to": "/srv/app" }]
+}
+```
+
+适配器使用这里的 `host`/`port`，未设置时才询问。远程会话的 `dD` 会先从
+Delve 移除当前编辑器的源码断点并恢复执行，然后断开；本地断点保留供再次附加。
+准备步骤失败时会报告错误并保留连接。
+
+### Python
+
+安装 Python 和 Mason 的 `debugpy`，按需用 `\v` 选择项目环境。
+`df` 调试脚本，`td`/`tF` 使用 neotest-python。pytest 测试需要在选中的环境安装
+pytest；unittest 使用标准库。Attach 目标还需在**它自己的 Python 环境**安装
+debugpy，这与 Mason 中运行适配器的环境分开：
+
+```sh
+python -m pip install debugpy
+python -m debugpy --listen 127.0.0.1:5678 --wait-for-client app.py
+# 或者调试模块、测试进程：
+python -m debugpy --listen 127.0.0.1:5678 --wait-for-client -m pytest tests/test_app.py
+```
+
+以上目标命令每次运行一个。选择 **python: attach to debugpy**，输入
+`127.0.0.1`、`5678`。`--wait-for-client` 让启动代码等到调试器连接后才执行。
+项目配置示例：
+
+```jsonc
+{
+  "name": "Python service", "type": "python", "request": "attach",
+  "connect": { "host": "127.0.0.1", "port": 5678 },
+  "justMyCode": false,
+  "pathMappings": [{ "localRoot": "${workspaceFolder}", "remoteRoot": "/srv/app" }]
+}
+```
+
+本地同路径进程可省略 `pathMappings`。自定义 launch 使用 `type: "python"`、
+`request: "launch"`、`program`、`args`、`cwd`；按模块启动则用 `module`
+替代 `program`。更多参数见 [debugpy 命令行文档](https://github.com/microsoft/debugpy/wiki/Command-Line-Reference)。
+
+### Java
+
+安装 JDK 21+，并在 Mason 中安装 `jdtls`、`java-debug-adapter`、`java-test`。
+打开项目，等待 jdtls 导入完成。`dc` 动态发现主类，`df` 选择当前文件对应的
+主类；发现前没有静态主类列表是正常的。每个项目使用独立的 jdtls workspace。
+`td`/`tF` 调试最近的方法或第一个发现的测试类；jdtls 附加后也可用 `\dt`/`\dT`。
+
+在终端带 JDWP 启动 JVM，按项目修改源码路径和完整类名：
+
+```sh
+javac -g -d out src/example/Main.java
+java -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=127.0.0.1:5005 -cp out example.Main
+```
+
+打包应用使用同样的 `-agentlib:jdwp=...`，随后改为 `-jar build/app.jar`。
+选择 **java: attach to JDWP**，输入 `127.0.0.1`、`5005`。
+`suspend=y` 在 main 执行前等待连接；常驻服务可用 `suspend=n` 立即启动。
+Neovim 中打开的 Java 文件不必包含 main 方法。
+
+```jsonc
+{
+  "name": "Java service", "type": "java", "request": "attach",
+  "hostName": "127.0.0.1", "port": 5005, "cwd": "${workspaceFolder}"
+}
+```
+
+自定义 launch 使用 `request: "launch"`、`mainClass: "example.Main"`、`cwd`，
+可添加 `projectName`、`args`、`vmArgs`。确保 jdtls 能找到目标源码；多项目存在
+歧义时设置 `projectName`。保存修改后可执行适配器支持的热替换；补装扩展后
+运行 `:JdtRestart`。详见 [Java 调试器配置](https://github.com/microsoft/vscode-java-debug/blob/main/Configuration.md)。
+
+### Rust
+
+安装 Cargo/rustc 和 Mason 的 `codelldb`。`dc` 提供 **rust: cargo build**
+与 **rust: cargo test**，从最近的 manifest 异步构建，解析实际产物（包括自定义
+输出目录），有多个目标时询问；构建失败会取消启动。`df` 启动 Cargo 二进制，
+`td`/`tF` 按前述规则筛选标准 libtest 测试。
+
+Attach 先在其他终端编译并运行。把 `myapp` 换成 Cargo 二进制目标名，
+自定义 target 目录还需调整产物路径：
+
+```sh
+cargo build --bin myapp
+./target/debug/myapp
+```
+
+选择 **rust: attach to process** 和对应 PID。建议使用带调试符号的 debug
+构建，优化后的 release 可能隐藏变量或改变源码行对应关系。附加操作本身不会
+调用 Cargo，也不会重启二进制。
+
+```jsonc
+{
+  "name": "Rust running process", "type": "codelldb", "request": "attach",
+  "pid": "${command:pickProcess}", "sourceLanguages": ["rust"]
+}
+```
+
+自定义构建参数时先执行 `cargo build --features ...`，再配置
+`request: "launch"`、产物路径 `program`、`cwd` 和 `args`。
+构建路径变化可加 `sourceMap`，例如 `{ "/build/project": "${workspaceFolder}" }`。
+
+### C 和 C++
+
+安装编译器和 Mason 的 `codelldb`，先生成带调试符号的程序。`dc` 提供
+**LLDB: Launch**、**LLDB: Launch (args)**，按提示选择可执行文件。
+C/C++ 尚未注册 `df`/`td`/`tF`，因为本配置不替项目选择构建系统和测试框架。
+
+```sh
+mkdir -p build
+cc -g -O0 main.c -o build/app
+# C++ 则改用这条编译命令：
+c++ -g -O0 main.cpp -o build/app
+./build/app
+```
+
+程序运行期间，在 `dA` 中选择 **c: attach to process** 或
+**cpp: attach to process**，再选择 PID。实际项目使用对应构建系统的调试产物，
+例如 CMake 的 Debug 构建。
+
+```jsonc
+{
+  "name": "Native running process", "type": "codelldb", "request": "attach",
+  "pid": "${command:pickProcess}"
+}
+```
+
+Launch 则使用 `request: "launch"`、`program: "${workspaceFolder}/build/app"`、
+`cwd`、`args`。PID 附加针对运行 CodeLLDB 的本机进程，单纯转发 SSH 端口
+无法使用远端 PID；远程原生调试需另配 LLDB remote target。
+C/C++ 和 Rust 的更多选项见 [CodeLLDB 附加配置](https://github.com/vadimcn/codelldb/blob/master/MANUAL.md#attaching-to-a-running-process)。
+
+### JavaScript 和 TypeScript（Node / Vitest）
+
+安装 Node 和 Mason 的 `js-debug-adapter`。`df` 启动当前 Node 脚本。
+TypeScript 如果需要编译，生成 sourcemap 后运行输出的 JS；JSX/TSX 或专用
+loader 需要项目 launch 配置。`td`/`tF` 使用最近安装的 Vitest，最近测试需 v3+。
+
+在终端开启 Inspector，然后选择 **node: attach by host/port**：
+
+```sh
+node --inspect-brk=127.0.0.1:9229 app.js
+# 编译后的 TypeScript 改用输出入口：
+node --inspect-brk=127.0.0.1:9229 dist/app.js
+# 从 Neovim 外启动 Vitest：
+npx vitest run --inspect-brk=127.0.0.1:9229 --no-file-parallelism tests/app.test.ts
+```
+
+每次运行其中一个目标命令，附加到 `127.0.0.1`、`9229`。
+`--inspect-brk` 会暂停启动，`--inspect` 则立即运行应用。
+也可用 **node: attach to process** 按本地 PID 选择。
+
+```jsonc
+{
+  "name": "Node service", "type": "pwa-node", "request": "attach",
+  "address": "127.0.0.1", "port": 9229,
+  "cwd": "${workspaceFolder}", "sourceMaps": true,
+  "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+}
+```
+
+普通 JS 可去掉 `outFiles`，远程源码可添加 `localRoot`/`remoteRoot`。
+Launch 配置改用 `request: "launch"`、`program`、`args`、`cwd`，项目 loader
+可加 `runtimeExecutable`/`runtimeArgs`。Vitest 直接调试入口关闭文件并行，
+让测试 worker 中的断点能够绑定。
+
+### 浏览器 JavaScript 与 Chrome 扩展
+
+先单独启动前端开发服务器，再启动专用 Chrome 调试实例。以下为 macOS 命令，
+其他系统换成对应 Chrome 路径：
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-port=9222 --user-data-dir="$HOME/.cache/nvim-chrome-debug" \
+  http://localhost:5173
+```
+
+打开 JS/TS 源码，在 `dA` 中选择 **chrome: attach (port 9222)**。
+[当前 Chrome 的远程调试行为](https://developer.chrome.com/blog/remote-debugging-port)
+要求使用非默认用户目录。自定义端口或限定页面可以写入项目配置：
+
+```jsonc
+{
+  "name": "Frontend page", "type": "pwa-chrome", "request": "attach",
+  "port": 9222, "webRoot": "${workspaceFolder}",
+  "urlFilter": "http://localhost:5173/*", "sourceMaps": true
+}
+```
+
+Chrome 扩展的 **chrome: debug extension (launch)** 和
+**chrome: debug extension (attach)** 需要另装 `js-debug-webext`，Mason 上游版
+不足以调试扩展。保持扩展构建 watcher 运行；attach 使用上述专用浏览器，
+先手动加载未打包扩展，再打开该包中的源码并选择 attach 预设。
+两个预设都自动向上查找 `.output/chrome-mv3-dev`（WXT 布局）；其他布局
+在项目配置中显式设置 `extensionPath`，指向构建输出目录。
+Launch 会创建自己的 profile 并通过 CDP 安装扩展。
+安装和排错见 [DIAGNOSTICS.md](DIAGNOSTICS.md) 与[扩展验证记录](../spikes/chrome-extension-dap/README.md)。
+
+### Dart CLI
+
+安装 Dart SDK，或使用 Flutter 自带的 Dart。适配器优先使用最近的
+`.fvm/flutter_sdk/bin`，其次查找 PATH。先运行 `dart pub get`；直接调用
+SDK 的 `dart debug_adapter`，不需 Mason 适配器。`df` 启动当前入口，
+`td`/`tF` 通过 SDK 测试适配器调试用例。
+
+```sh
+dart run --enable-vm-service=8181 --pause-isolates-on-start bin/main.dart
+```
+
+选择 **dart: attach to VM service**，粘贴终端输出的完整 VM service URI，
+例如 `http://127.0.0.1:8181/<token>/`。保留 token 和路径；单独端口号或
+DevTools 网页地址都不是服务 URI。这个入口连接已有 VM。
+
+```jsonc
+{
+  "name": "Dart VM", "type": "dart", "request": "attach",
+  "cwd": "${workspaceFolder}", "vmServiceUri": "http://127.0.0.1:8181/REPLACE_TOKEN/"
+}
+```
+
+Token 每次运行可能变化，交互入口更方便。Launch 使用 `request: "launch"`、
+`program: "${workspaceFolder}/bin/main.dart"`、`cwd`、`args`。
+`\dr` 请求支持的热重载，`<Space>dR` 重启通过 launch 启动的 CLI 会话。
+VM 服务启动方式见 [Dart 调试工具文档](https://dart.dev/tools/dart-devtools)。
+
+### Flutter
+
+安装 Flutter 或使用 FVM，执行 `flutter pub get`，启动模拟器或连接设备，
+用 `flutter devices` 查看。`dc` 提供 **flutter: launch app**（默认
+`lib/main.dart`）、**flutter: attach to running app** 和当前测试文件。
+`df` 使用当前文件作为入口；pubspec 声明 `sdk: flutter` 时，`td`/`tF`
+使用 Flutter 测试适配器。
+
+```sh
+flutter devices
+flutter run --debug --start-paused -d macos
+```
+
+把 `macos` 换成目标设备 ID。选择 **flutter: attach to running app**，输入
+相同设备 ID，以及可选的 VM service URI。URI 留空则尝试设备发现，设备 ID
+留空则由 Flutter 选择。目标应用须以 debug 模式运行。
+
+```jsonc
+{
+  "name": "Flutter existing app", "type": "flutter", "request": "attach",
+  "cwd": "${workspaceFolder}", "toolArgs": ["-d", "macos"],
+  "vmServiceUri": "http://127.0.0.1:PORT/REPLACE_TOKEN/"
+}
+```
+
+设备发现模式省略 `vmServiceUri`。Launch 配置使用 `request: "launch"`、
+`program: "${workspaceFolder}/lib/main.dart"`，通过 `toolArgs` 选择设备和
+flavor，例如项目已定义该 flavor 时使用 `["-d", "macos", "--flavor", "dev"]`。
+保存后 `\dr` 热重载，`\dR` 执行 Flutter 热重启。
+`dD` 断开编辑器，原来执行 `flutter run` 的终端继续管理应用进程。
+
+### Electron
+
+在项目中安装 Electron，按需构建主进程和渲染进程。
+`dc` 中 **electron: main + renderer** 启动 `electron .` 后附加渲染进程。
+连接外部启动的应用时，分别启用主进程和渲染进程端口：
+
+```sh
+./node_modules/.bin/electron --inspect=127.0.0.1:9230 --remote-debugging-port=9222 .
+```
+
+先选择 **electron: attach main**，输入 `127.0.0.1`、`9230`。
+窗口创建后，再按 `dA` 选择
+**electron: attach renderer (port 9222)**。两个会话都可以在 `ds` 中选择。
+主进程断点阻塞渲染进程初始化或求值时，先用 `dc` 恢复主进程。
+这条命令允许应用在附加前完成启动；需要捕获启动代码的断点时使用组合 launch 配置。
+自定义端口使用两个独立项目配置：
+
+```jsonc
+{
+  "name": "Electron main", "type": "pwa-node", "request": "attach",
+  "address": "127.0.0.1", "port": 9230, "cwd": "${workspaceFolder}"
+}
+```
+
+```jsonc
+{
+  "name": "Electron renderer", "type": "pwa-chrome", "request": "attach",
+  "port": 9222, "webRoot": "${workspaceFolder}"
+}
+```
+
+`dD` 只作用于选中的会话，整个应用调试结束时分别断开两个会话。
+主进程使用 Node Inspector，渲染进程使用 Chromium CDP，端口不能互换。
+更多说明见 [Electron 主进程调试文档](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process)。
+
+React Native 仍处于[独立可行性验证](../spikes/react-native-dap/README.md)，
+尚未支持可用的 Hermes DAP 工作流。连接失败、断点未绑定、SDK 路径和系统权限
+问题见 [DIAGNOSTICS.md](DIAGNOSTICS.md)。

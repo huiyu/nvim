@@ -275,26 +275,176 @@ rather than a broken viewer.
 
 ## Debugging (DAP)
 
-- nvim-dap-ui opens automatically on session start (`<leader>dc`)
+- nvim-dap-ui opens automatically on session start (`<leader>dc`); `<leader>du` reopens it. Panels close when the last session ends.
 - Per-language adapters: Go (`nvim-dap-go`), Python (`nvim-dap-python`), JS/TS
-  (`js-debug-adapter`), C (`codelldb`), Java (`nvim-jdtls`)
-- Adapter binaries install via mason; confirm with `:Mason`
+  (`js-debug-adapter`), C/Rust (`codelldb`), Java (`nvim-jdtls`), Dart/Flutter (SDK DAP)
+- Mason supplies the adapters except Dart/Flutter, which use the installed SDK.
+- `<leader>dA` / `:DapAttach` selects only attach configurations, including
+  project `.vscode/launch.json` entries. Check `:pwd` if project entries are
+  missing; use `:cd` to choose the project. The command starts a new session,
+  so it also works when another session is paused. Use a source buffer of the
+  matching language; wait for jdtls in Java.
+- `<leader>de` chooses exception filters advertised by the active adapter;
+  `<leader>dL` creates a logpoint with `{expression}` interpolation.
+- `<leader>dw` evaluates a cursor expression or character/line/block selection;
+  `<leader>dW` adds an editable watch expression.
+- `<leader>dR` restarts; `<leader>dD` disconnects with `terminateDebuggee=false`.
+  Use `<leader>ds` to select a session when debugging multiple processes.
+
+Complete terminal commands and per-language `launch.json` examples are in the
+[English guide](MANUAL.md#launch-attach-and-project-configuration) and
+[中文指南](MANUAL_CN.md#launchattach-与项目配置). For a connection failure, enable
+`:lua require('dap').set_log_level('DEBUG')`, retry, and inspect `:DapShowLog`;
+restore `INFO` afterward. Check the target is still running and the transport
+matches the preset: JDWP, Node Inspector, Chrome CDP, debugpy, Delve and Dart VM
+service endpoints are not interchangeable. A connected session with an unbound
+breakpoint usually needs the matching source path, debug symbols or source maps.
+
+### Python and native processes
+
+Python attach requires debugpy in the **target's** interpreter environment, even
+if Mason already supplies the editor's adapter. Start with `python -m debugpy
+--listen 127.0.0.1:5678 --wait-for-client app.py`, then select
+**python: attach to debugpy**. A normal Python process without a debugpy
+listener cannot use this host/port preset. Use `pathMappings` when target and
+editor paths differ.
+
+C/C++ and Rust attach use CodeLLDB's PID picker. Compile with debug symbols and
+keep the program running until attachment. `sourceMap` maps compiled paths to
+local sources. If the OS refuses attachment, check its process-debugging
+permission; native PID attach operates on the CodeLLDB host, not a remote PID
+behind an SSH tunnel. The native integration spec checks C, C++ and Rust
+breakpoints, variable evaluation and continued output after disconnect.
+
+### Java
+
+JDK 21+ runs jdtls; Mason installs `jdtls`, `java-debug-adapter`, and `java-test`.
+`<leader>dc` discovers main classes after jdtls attaches. Inspect the live
+`dap.adapters.java` and `dap.providers.configs.jdtls` then. The static Java list
+contains **java: attach to JDWP**; launch main classes are discovered dynamically.
+The server loads all Java test dependency bundles except the standalone test
+runner and JaCoCo agent. Each project uses a hashed workspace under the Nvim
+cache directory, and subsequent Java buffers attach to the existing client.
+
+`\dt` / `\dT` debug the nearest test / class. A missing debug bundle or setup
+failure is reported instead of swallowed. After installing bundles, use
+`:JdtRestart`. For project-import failures inspect `:checkhealth vim.lsp` and
+`:JdtShowLogs`. JDWP targets must start with `-agentlib:jdwp=...`; the default
+attach endpoint is `127.0.0.1:5005`. Attach bypasses launch-only main-class/path
+enrichment, so the source buffer need not have a main method. The real Java
+integration spec checks launch plus an external JDWP process, source
+breakpoints, local variables and continued execution after disconnect.
+
+### Rust / Go
+
+Rust's Cargo configurations build from the nearest manifest, parse Cargo's JSON
+artifact messages and offer a target picker. Install Cargo and Mason's codelldb.
+Custom target directories and hashed test binaries are resolved automatically;
+compilation failures abort rather than launch stale artifacts. Complex Cargo
+feature/workspace selections can use a project launch.json and explicit binary.
+
+The direct entries are `<leader>df` (file), `<leader>td` (nearest test), and
+`<leader>tF` (test file). Rust target discovery needs the `rust` Treesitter parser
+(`:TSInstall rust`) and standard libtest executables. It matches source functions
+to `--list` names and uses `--exact`; `#[path]`, generated tests and custom
+harnesses should use `dc` with explicit arguments. Go/Python reuse neotest;
+Python's selected environment needs pytest for pytest functions (otherwise
+neotest-python can use unittest). A "No test found" message does not fall back
+to a full-file run.
+
+On macOS, native debugging can wait for a system authentication prompt for
+`system.privilege.taskport.debug`. Complete that prompt locally before retrying
+CodeLLDB/Delve. An adapter process that exists but never answers initialize is
+not by itself evidence of a bad DAP configuration. The Rust and Go integration
+specs require this OS permission as well as their toolchains.
+
+Go remote attach uses a separate `go_remote` adapter with no executable: it
+connects to `host`/`port` in the configuration, prompting for missing values,
+leaving local `nvim-dap-go` behavior intact.
+Start Delve headless with `--accept-multiclient`; forward the port for remote
+hosts. Configure `substitutePath` in launch.json if source paths differ.
+Delve's multi-client server preserves both the paused state and breakpoints
+on disconnect. The `go_remote` adapter's `<leader>dD` clears this editor's source
+breakpoints on the server, resumes the target, then disconnects. Local
+breakpoints survive for reattachment. A failed preparation keeps the session
+connected and reports the error. This is covered by the real heartbeat test.
+See [Delve's disconnect behavior](https://github.com/go-delve/delve/blob/master/Documentation/api/dap/README.md#multi-client-mode).
+
+### Dart / Flutter
+
+Install the SDK externally. Adapters prefer the nearest `.fvm/flutter_sdk/bin`
+then `dart` / `flutter` on PATH, and run `debug_adapter` (plus `--test` for tests).
+No `dart-debug-adapter` Mason package is required. `:checkhealth config` checks
+PATH tools; a warning can be ignored when the project uses FVM instead.
+
+Run `pub get` first; select a running device from `flutter devices` for app
+launch/attach. Default app entrypoint is `lib/main.dart`, rooted at the nearest
+`pubspec.yaml`. Use project launch.json for flavors, tool arguments or VM service
+URIs. **flutter: attach to running app** prompts for an optional VM service URI;
+an empty answer uses device discovery. **dart: attach to VM service** requires
+the full HTTP(S)/WS(S) service URI printed by a Dart process started with
+`--enable-vm-service`; keep its token/path, not the DevTools webpage URL. If the
+VM starts paused without a source frame, use `dc` to continue to your breakpoint.
+`\dr` hot-reloads, `\dR` hot-restarts Flutter; save changes first.
+CLI/test program paths match Neovim's canonical buffer names so symlink aliases
+such as macOS `/tmp` versus `/private/tmp` do not prevent breakpoints binding.
+
+The direct keys choose Flutter for a pubspec containing `sdk: flutter`, otherwise
+Dart. Nearest-test discovery needs `:TSInstall dart` and a `test`/`testWidgets`
+call at the cursor. It passes the declaration line as a
+[package:test path query](https://github.com/dart-lang/test/blob/master/pkgs/test/README.md#test-path-queries),
+so nested and generated test descriptions need no name escaping. Update the
+project's test dependencies if the runner rejects `?line=`. The direct `df`
+uses the current file; the application configuration in `dc` uses `lib/main.dart`.
+
+### Electron
+
+The combined configuration launches the project's Electron executable and
+attaches `pwa-chrome` after a successful main-process launch. Port 9222 must be
+free. Build TypeScript/bundles first; custom build tasks and source-map mappings
+belong to launch.json. Separate main and renderer sessions appear in `<leader>ds`.
+If the main process stops before the first BrowserWindow is ready, continue it
+to let renderer initialization finish. When the main process is paused, Chromium
+may also defer renderer CDP requests; resume main before inspecting the renderer.
+
+For an existing app, start Electron with `--inspect=127.0.0.1:9230` and
+`--remote-debugging-port=9222`. Use `dA` → **electron: attach main**, continue
+until a window exists, then `dA` → **electron: attach renderer (port 9222)**.
+The first endpoint is Node Inspector, the second Chrome CDP. Disconnect each
+session separately; custom endpoints belong in separate launch.json entries.
+Both sessions were verified against an external Electron process, including
+source breakpoints, values and disconnect without terminating the app. With
+Electron 44.4.2 and the installed js-debug build, `--inspect-brk` stalled attach
+initialization without exposing a paused frame; the guide therefore uses
+`--inspect`. Use the combined launch configuration for startup breakpoints.
+
+React Native findings and the runnable inspector transport probe are in
+[`spikes/react-native-dap`](../spikes/react-native-dap/README.md). The probe does
+not claim Hermes breakpoint/source-map support.
 
 ### JavaScript / TypeScript
 
-`<leader>dc` offers four configurations on a js/ts/jsx/tsx buffer:
+`<leader>dc` offers these general configurations on a js/ts/jsx/tsx buffer,
+plus the Electron entries above and Chrome extension entries below:
 
 | Configuration | Notes |
 |---|---|
 | `vitest: current file` | Launch the current buffer as a vitest run |
 | `node: run current file` | Launch the current buffer with Node |
 | `node: attach to process` | Pick a running Node process |
+| `node: attach by host/port` | Inspector endpoint; defaults to `127.0.0.1:9229` |
 | `chrome: attach (port 9222)` | Attach to an already-running Chrome |
 
 - **"vitest is not installed in any node_modules above …"** — the launch walks up
   from the current file looking for `node_modules/vitest/vitest.mjs`, so a
   workspace package gets its own vitest rather than a hoisted copy. Install
   dependencies in that package.
+- `<leader>td` selects a `test`/`it` declaration using Treesitter and Vitest's
+  [file:line filter](https://vitest.dev/guide/filtering.html#line-numbers).
+  This needs Vitest 3+ and the matching JS/TS parser. `<leader>tF` runs the
+  current test file on older Vitest too. Both resolve the nearest installed
+  `node_modules/vitest/vitest.mjs`; suite/group positions and custom wrappers
+  are not treated as individual test cases.
 - The vitest run passes `--no-file-parallelism`. Vitest otherwise isolates test
   files in worker threads, where an editor breakpoint never binds.
 - Chrome attach needs Chrome started with `--remote-debugging-port=9222` **and**

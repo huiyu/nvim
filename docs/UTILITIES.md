@@ -8,6 +8,55 @@ The utility modules provide focused helpers for logging, debug inspection, LSP, 
 
 ## Core Utilities
 
+### Debugger actions (`util.dap`)
+
+`attach()` powers `<leader>dA` and `:DapAttach`. It reads the current filetype's
+static DAP configurations and the working directory's `.vscode/launch.json`
+through `dap.ext.vscode.getconfigs`, then offers only `request = "attach"`
+entries. JSONC is supported; a read/parse error is reported while built-in
+entries remain usable. Cancelling or changing the source buffer/working
+directory before selection makes no connection. A selection calls
+`dap.run(config, { new = true, filetype = ft })`, leaving existing sessions
+available and avoiding save/build side effects.
+
+`input(prompt, default)` returns trimmed nonempty text or `dap.ABORT` on empty
+input/cancellation. `port(default)` additionally validates an integer in
+1–65535 and returns a number. Language modules own prompt defaults and transport
+fields; Dart/Flutter separately handle required/optional VM service URIs.
+
+Language specs contribute `opts.targets[filetype]` to nvim-dap, with optional
+`file`, `test`, and `test_file` callbacks. DAP setup assigns that table to
+`util.dap.targets`; `run_target(kind)` dispatches the matching callback after
+`:update`. Unsupported, unnamed or special buffers and failed saves abort.
+Callbacks receive `{ bufnr, path, filetype, line, col }`: the absolute buffer
+path, a one-based line and zero-based column captured after save hooks. Resolve
+project roots from this context before asynchronous work, rather than reading
+the subsequently focused buffer. Language behavior stays in `lua/lang/*.lua`.
+
+`syntax(ctx)` returns the parsed Treesitter root and language, or reports a
+missing parser. The language module supplies the query and target semantics.
+Go/Python call the neotest `debug_target(ctx, file)` consumer, which uses an
+explicit path/row and refuses to widen a missing nearest test to a whole file.
+
+`expression()` reads the live character, line or block Visual selection using
+`getregion()`, respects exclusive selection, leaves Visual mode, and preserves
+registers. In Normal mode it returns `<cexpr>`. `evaluate()` sends that expression
+to the DAP hover; `watch()` opens an editable prompt and adds a nonempty result
+to dapui watches. `logpoint()` prompts at the current source location; cancelling
+or entering an empty message preserves the existing breakpoint.
+
+`exceptions()` offers None, All, or an individual exception filter advertised by
+the current adapter. It does not assume language-specific names. Cancellation
+and a session change while the picker is open leave breakpoints unchanged.
+The module loads with DAP on first use, not during startup.
+
+`disconnect()` requests `terminateDebuggee=false`. A language module may supply
+the config-owned `adapter.options.before_disconnect(session, done)` hook to
+prepare that session before disconnecting. Call `done()` only on success; the
+helper keeps the original session even if the user selects a different one.
+Go remote uses this to clear server-side source breakpoints and resume, while
+preserving local breakpoints for the next attachment.
+
 ### URLs (`util.url`)
 
 `open()` implements Normal-mode `gx`: open the nearest HTTP(S) URL on the
