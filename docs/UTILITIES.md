@@ -382,9 +382,10 @@ window.track_editor_win()
 -- split when only panels or an Oil listing remain. Narrower than
 -- focus_editor's target: a listing is somewhere to navigate to, not somewhere
 -- to drop a picked file. Does not move focus; the caller decides when to enter
--- it. Used by location pickers, Oil's terminal entry points, and nvim-dap-ui's
--- `select_window`, which otherwise asks the user to pick a target window
--- whenever the tab holds more than one file window.
+-- it. Used by location pickers, Oil's terminal entry points, and both debug
+-- frame paths: nvim-dap's `switchbuf` (via `util.dap.jump`) and nvim-dap-ui's
+-- `select_window`. Being scoped to the current tabpage is what keeps a stopped
+-- frame in the tabpage the user is actually in.
 window.ensure_editor_win()
 
 -- Quit Nvim, including from inside a Snacks terminal window. Backs <leader>qq

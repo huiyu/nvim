@@ -49,7 +49,7 @@ return {
       { "<leader>de", function() require("util.dap").exceptions() end, desc = "Exception Breakpoints" },
       { "<leader>dR", function() require("util.dap").restart() end, desc = "Restart Session" },
       { "<leader>dD", function() require("util.dap").disconnect() end, desc = "Disconnect (Keep Target Running)" },
-      { "<leader>du", function() require("dapui").toggle() end, desc = "Toggle Debug Panels" },
+      { "<leader>du", function() require("util.dap").toggle_panels() end, desc = "Toggle Debug View" },
       { "<leader>dW", function() require("util.dap").watch() end, desc = "Add Watch Expression", mode = { "n", "x" } },
       { "<leader>dc", function() require("dap").continue() end,                                             desc = "Run/Continue",            mode = { "n", "v" } },
       { "<leader>da", function() require("dap").continue({ before = get_args }) end,                        desc = "Run with Args",           mode = { "n", "v" } },
@@ -86,31 +86,33 @@ return {
       require("util.dap").targets = opts.targets or {}
       vim.api.nvim_create_user_command("DapAttach", function() require("util.dap").attach() end,
         { desc = "Choose an attach configuration for this filetype or project" })
-      local dapui = require("dapui")
-      dapui.setup({
+      require("dapui").setup({
         -- Placement belongs to edgy (lua/plugin/editor/edgy.lua), which claims
         -- these filetypes like every other panel here. dapui still decides when
         -- the elements exist; its own `layouts` only says where the windows
         -- start before edgy re-homes them, so it stays at the upstream default.
         --
-        -- select_window is not optional under that arrangement. dapui's
-        -- fallback asks the user to pick a target window whenever the tab holds
-        -- more than one file window (dapui/util.lua, select_win), which is the
-        -- normal shape here. ensure_editor_win answers the question every
-        -- picker in this config already asks, and creates a window when the tab
-        -- has only panels left.
+        -- Where opening a stack frame from the Stacks panel puts the file.
+        -- dapui's fallback asks the user to pick a target window whenever the
+        -- tabpage holds more than one file window (dapui/util.lua, select_win).
+        -- ensure_editor_win answers it the way every picker here does, and is
+        -- scoped to the current tabpage, so a frame opened from the debug tab
+        -- stays in the debug tab.
         select_window = require("util.window").ensure_editor_win,
       })
 
+      -- nvim-dap's own `uselast` would drop a stopped frame into whichever
+      -- window was previous, which in the debug tabpage is usually a panel.
+      dap.defaults.fallback.switchbuf = require("util.dap").jump
+
       dap.listeners.after.event_initialized["dapui_config"] = function(session)
         -- An adapter that owns several targets initializes one child session
-        -- per target, and every one of them fires this. dapui.open is not a
-        -- no-op once the panels are up: it re-runs update_sizes, open and
-        -- resize for every layout, so opening per target re-applied the whole
-        -- layout mid-session while edgy was re-applying its own sizes on the
-        -- same events. The root opens them; children inherit.
+        -- per target, and every one of them fires this. Opening per target
+        -- re-ran update_sizes, open and resize for every layout -- and now
+        -- would also fight over the tabpage. The root opens it; children
+        -- inherit.
         if session and session.parent then return end
-        dapui.open({})
+        require("util.dap").open_panels()
       end
       local function close_when_done()
         -- dap.sessions() holds root sessions only -- set_session registers a
@@ -119,7 +121,7 @@ return {
         -- the tree), and a root disappearing is what ends a debug session.
         -- Scheduled because several roots can finish in the same tick.
         vim.schedule(function()
-          if next(dap.sessions()) == nil then dapui.close({}) end
+          if next(dap.sessions()) == nil then require("util.dap").close_panels() end
         end)
       end
       dap.listeners.after.event_terminated["dapui_config"] = close_when_done

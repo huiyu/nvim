@@ -577,11 +577,19 @@ Open a source file, set a breakpoint with `<Space>db`, then use `<Space>dc` to
 choose a launch or attach configuration. The panels open when a session starts.
 Step into with `di`, over with `dO`, and out with `do` (all after `<Space>`).
 
-Scopes, breakpoints, stacks and watches dock on the left; the REPL and the
-program console join the terminal and quickfix along the bottom. edgy places
-them, the same as every other panel here, so `so` and the window keys treat
-them like the agent panel rather than as a layout of their own. An adapter
-that drives several targets opens them once, not once per target.
+The debug view opens in a tabpage of its own, the way a diff does, so a
+session never rearranges the windows you were editing in and ending one hands
+that layout back untouched. Inside it, scopes, breakpoints, stacks and watches
+dock on the left while the REPL and the program console join the terminal and
+quickfix along the bottom. edgy places them, the same as every other panel
+here, so `so` and the window keys treat them like the agent panel rather than
+as a layout of their own. An adapter that drives several targets opens the view
+once, not once per target.
+
+Stepping stays in the tabpage you are in. Go back to the editor tab mid-session
+and the debug keys keep working there, jumping in that tab while the panels
+update out of sight; `<Space>du` brings the view back. The debug view is never
+the thing that moves you between tabs.
 
 | Key | Action |
 |---|---|
@@ -592,7 +600,7 @@ that drives several targets opens them once, not once per target.
 | `<Space>dR` | Restart the session, from the root of its tree |
 | `<Space>dD` | Disconnect the session and its children, requesting that the target keep running |
 | `<Space>dt` | Terminate the target, and the whole session tree it belongs to |
-| `<Space>du` | Close or reopen debug panels |
+| `<Space>du` | Close or reopen the debug view |
 | `<Space>dw` | Evaluate `<cexpr>` or the live Visual selection |
 | `<Space>dW` | Add an editable expression to Watches |
 | `<Space>ds` | List sessions; select a main/renderer/child session |

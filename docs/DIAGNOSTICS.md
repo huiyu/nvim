@@ -277,6 +277,10 @@ rather than a broken viewer.
 
 - nvim-dap-ui opens automatically on session start (`<leader>dc`); `<leader>du`
   reopens it. Panels close when the last root session ends.
+- The debug view owns its own tabpage, opened by `util.dap.open_panels` and
+  closed with the last root session. `<leader>du` hides and restores it. A
+  tabpage left behind means `close_panels` could not close it -- it refuses on
+  the last remaining tabpage, since `tabclose` would fail there.
 - edgy places the debug panels (`lua/plugin/editor/edgy.lua`): scopes,
   breakpoints, stacks and watches on the left, `dap-repl` and `dapui_console`
   along the bottom with the terminal and quickfix. dapui still opens and
@@ -284,9 +288,13 @@ rather than a broken viewer.
   means its filetype is not declared there -- dapui names every element
   separately and there is no `dapui` filetype.
 - **A stack frame opens over a panel, or dapui asks which window to use** --
-  `select_window` is wired to `util.window.ensure_editor_win` in
-  `lua/plugin/lsp/dap.lua`. Without it dapui prompts whenever the tab holds
-  more than one file window.
+  two different paths place a frame, and both go through
+  `util.window.ensure_editor_win`. Stopping at a breakpoint uses
+  `dap.defaults.fallback.switchbuf`, set to `util.dap.jump`; opening a frame
+  from the Stacks panel uses dapui's `select_window`. Both are scoped to the
+  current tabpage, which is what keeps stepping from the editor tab in the
+  editor tab. nvim-dap's own `uselast` default would use the previously
+  focused window, usually a panel in this layout.
 - Per-language adapters: Go (`nvim-dap-go`), Python (`nvim-dap-python`), JS/TS
   (`js-debug-adapter`), C/Rust (`codelldb`), Java (`nvim-jdtls`), Dart/Flutter (SDK DAP)
 - Mason supplies the adapters except Dart/Flutter, which use the installed SDK.

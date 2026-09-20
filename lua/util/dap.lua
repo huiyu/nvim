@@ -22,6 +22,84 @@ function M.port(default)
   return port
 end
 
+-- The debug view owns a tabpage of its own, the way diffview does: starting a
+-- session should not rearrange the windows you were editing in, and ending one
+-- should hand that layout back untouched.
+--
+-- Stepping stays in whichever tabpage you are in. Both halves of that are
+-- deliberate: `M.jump` below never leaves the current tabpage, so going back to
+-- the editor tab mid-session keeps working and the panels update out of sight
+-- until you return. Following you across tabs would make the debug view able to
+-- steal focus from an editor tab, which is more intrusive than the split layout
+-- it replaced.
+local debug_tab = nil
+
+local function debug_tab_valid()
+  return debug_tab ~= nil and vim.api.nvim_tabpage_is_valid(debug_tab)
+end
+
+---Open the debug view, creating its tabpage on first use, and focus it.
+function M.open_panels()
+  if debug_tab_valid() then
+    vim.api.nvim_set_current_tabpage(debug_tab)
+  else
+    -- `tab split` rather than `tabnew`: the tab starts on the file the session
+    -- was launched from, which is where the first breakpoint lands. Launching
+    -- from a panel duplicates that panel instead, which `M.jump` heals on the
+    -- first stop by opening a file window in this tab.
+    vim.cmd("tab split")
+    debug_tab = vim.api.nvim_get_current_tabpage()
+  end
+  require("dapui").open({})
+end
+
+---Close the debug view and the tabpage it owns.
+function M.close_panels()
+  require("dapui").close({})
+  if debug_tab_valid() and #vim.api.nvim_list_tabpages() > 1 then
+    -- Closing the last tabpage fails, which would leave the view half torn
+    -- down; the panels are already gone, so stopping here is the right end.
+    vim.cmd(vim.api.nvim_tabpage_get_number(debug_tab) .. "tabclose")
+  end
+  debug_tab = nil
+end
+
+function M.toggle_panels()
+  if debug_tab_valid() then M.close_panels() else M.open_panels() end
+end
+
+---Place a stopped frame, for `dap.defaults.fallback.switchbuf`.
+---
+---nvim-dap's `uselast` sets the frame in the current window, or in the previous
+---one when the current window holds no source. In a tabpage carrying six debug
+---panels around one file window, "the previous window" is usually a panel, and
+---the frame lands inside Scopes or the REPL. `ensure_editor_win` asks the
+---question this actually needs -- a window a file can go into -- and creates one
+---when the tabpage has none.
+---
+---Like `uselast`, and unlike `usetab`, it stays inside the current tabpage.
+---That is what keeps stepping from the editor tab in the editor tab.
+---@param bufnr integer
+---@param line integer
+---@param column integer
+function M.jump(bufnr, line, column)
+  local win = require("util.window").ensure_editor_win()
+  vim.api.nvim_win_set_buf(win, bufnr)
+  local ok = pcall(vim.api.nvim_win_set_cursor, win, { line, math.max((column or 1) - 1, 0) })
+  if not ok then
+    vim.notify(
+      ("Adapter reported a frame at %d:%d, outside the buffer"):format(line, column or 1),
+      vim.log.levels.WARN)
+    return
+  end
+  -- Matches nvim-dap's own jump: focus follows the frame unless you are typing
+  -- in the REPL, and folds open so the line is actually on screen.
+  if vim.bo[vim.api.nvim_get_current_buf()].filetype ~= "dap-repl" then
+    vim.api.nvim_set_current_win(win)
+  end
+  vim.api.nvim_win_call(win, function() vim.cmd("normal! zv") end)
+end
+
 ---The root of the session tree the current session belongs to.
 ---An adapter that owns several targets (js-debug driving a browser, Electron)
 ---answers `startDebugging` with child sessions, and `dap.session()` follows

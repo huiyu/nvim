@@ -117,6 +117,16 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   panel's list operations. Only layout-fragile multi-window views (currently
   diffview) block the global prefixes, with `nowait` and a visible disabled
   hint.
+- The debug view is the other multi-window view with a tabpage of its own, and
+  it is deliberately the opposite case: its keys stay global. Debugging has an
+  event stream, so `<leader>d` has to work from the editor tabpage too -- you
+  set a breakpoint and step from the source you are editing, not only from
+  inside the view. Nothing there blocks a global prefix.
+- Both paths that place a stopped frame -- nvim-dap's `switchbuf`
+  (`util.dap.jump`) and nvim-dap-ui's `select_window` -- must stay scoped to the
+  current tabpage. `usetab`, or anything else that hunts across tabpages, turns
+  the debug view into something that steals focus from an editor tabpage on
+  every step, which is more intrusive than the split layout it replaced.
 - Do not force-delete ordinary buffers from terminal-specific mappings.
 - Popup sections are declared as data in `lua/whichkey_spec.lua` (`sections`,
   keyed by prefix then suffix) and only read by `lua/plugin/editor/whichkey.lua`.
