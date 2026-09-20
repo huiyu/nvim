@@ -32,6 +32,34 @@ function M.eq(got, want, what)
   end
 end
 
+-- Snapshot before closing a native debugger: it can leave debugserver in its
+-- own process group. Only descendants of this spec's Nvim are eligible.
+function M.process_cleanup()
+  if vim.fn.has("unix") == 0 then return function() end end
+  local result = vim.system({ "ps", "-axo", "pid=,ppid=" }, { text = true }):wait()
+  local children = {}
+  for pid, parent in (result.stdout or ""):gmatch("(%d+)%s+(%d+)") do
+    parent, pid = tonumber(parent), tonumber(pid)
+    children[parent] = children[parent] or {}
+    table.insert(children[parent], pid)
+  end
+  local owned = {}
+  local function collect(parent)
+    for _, pid in ipairs(children[parent] or {}) do collect(pid); table.insert(owned, pid) end
+  end
+  collect(vim.fn.getpid())
+  return function()
+    for _, pid in ipairs(owned) do vim.uv.kill(pid, "sigterm") end
+    vim.wait(1000, function()
+      for _, pid in ipairs(owned) do if vim.uv.kill(pid, 0) == 0 then return false end end
+      return true
+    end, 50)
+    for _, pid in ipairs(owned) do
+      if vim.uv.kill(pid, 0) == 0 then vim.uv.kill(pid, "sigkill") end
+    end
+  end
+end
+
 -- Always exit through `cquit`, never by falling through to `-c qa`.
 --
 -- Two reasons. `cquit` is the only exit that carries a status out of a headless

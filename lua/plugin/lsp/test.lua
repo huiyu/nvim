@@ -9,14 +9,35 @@ return {
     },
     keys = {
       { "<leader>tm", function() require("neotest").run.run() end,                     desc = "Test current method",  mode = { "n", "v" } },
-      { "<leader>td", function() require("neotest").run.run({ strategy = "dap" }) end, desc = "Debug current method", mode = { "n", "v" } },
       { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end,   desc = "Test current file",    mode = { "n", "v" } },
       { "<leader>tS", function() require("neotest").summary.toggle() end,              desc = "Toggle test summary",  mode = { "n", "v" } },
       { "<leader>to", function() require("neotest").output.open() end,                 desc = "Toggle test output",   mode = { "n", "v" } },
       { "<leader>tD", function() require("neotest").diagnostic.show() end,             desc = "Show test diagnostic", mode = { "n", "v" } },
       { "<leader>th", function() require("neotest").diagnostic.hide() end,             desc = "Hide test diagnostic", mode = { "n", "v" } },
     },
-    opts = {},
+    opts = {
+      consumers = {
+        -- Explicit path/row prevents a buffer switch during discovery from
+        -- changing the target. Never let "nearest" fall back to a whole file.
+        debug_target = function(client)
+          return function(ctx, file)
+            require("nio").run(function()
+              local tree, adapter
+              if file then
+                tree, adapter = client:get_position(ctx.path)
+              else
+                tree, adapter = client:get_nearest(ctx.path, ctx.line - 1)
+              end
+              if not tree or (not file and tree:data().type ~= "test") then
+                vim.notify("No test found at this position", vim.log.levels.WARN)
+                return
+              end
+              client:run_tree(tree, { strategy = "dap", adapter = adapter })
+            end)
+          end
+        end,
+      },
+    },
     config = function(_, opts)
       -- neotest expects `adapters` to be a LIST of built adapter instances and
       -- iterates it with ipairs. The lang/ files contribute a name-keyed map

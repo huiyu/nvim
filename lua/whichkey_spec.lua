@@ -456,10 +456,10 @@ local sections = {
   },
 
   ["<leader>d"] = {
-    { "run",         icon = "󰐊 ", color = "green",  keys = { "c", "a", "l", "t", "P" } },
+    { "run",         icon = "󰐊 ", color = "green",  keys = { "c", "f", "a", "A", "l", "R", "D", "t", "P" } },
     { "step",        icon = "󰑙 ", color = "azure",  keys = { "i", "o", "O", "C", "g" } },
-    { "breakpoints", icon = "󰃤 ", color = "red",    keys = { "b", "B", "q", "x" } },
-    { "inspect",     icon = "󰈈 ", color = "purple", keys = { "r", "s", "w", "j", "k" } },
+    { "breakpoints", icon = "󰃤 ", color = "red",    keys = { "b", "B", "L", "e", "q", "x" } },
+    { "inspect",     icon = "󰈈 ", color = "purple", keys = { "r", "s", "w", "W", "u", "j", "k" } },
   },
 
   ["<leader>a"] = {
@@ -492,7 +492,7 @@ local sections = {
   },
 
   ["<leader>t"] = {
-    { "run",  icon = "󰐊 ", color = "green", keys = { "f", "m", "d" } },
+    { "run",  icon = "󰐊 ", color = "green", keys = { "f", "m", "d", "F" } },
     { "view", icon = "󰈈 ", color = "cyan",  keys = { "S", "o", "D", "h" } },
   },
 

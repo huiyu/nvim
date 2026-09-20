@@ -40,13 +40,24 @@ return {
   {
     "mfussenegger/nvim-dap",
     lazy = true,
+    cmd = { "DapAttach" },
     keys = {
+      { "<leader>dA", function() require("util.dap").attach() end, desc = "Attach to Running Target" },
+      { "<leader>df", function() require("util.dap").run_target("file") end, desc = "Debug Current File" },
+      { "<leader>td", function() require("util.dap").run_target("test") end, desc = "Debug Nearest Test", mode = { "n", "v" } },
+      { "<leader>tF", function() require("util.dap").run_target("test_file") end, desc = "Debug Current Test File", mode = { "n", "v" } },
       { "<leader>dB", function() require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: ")) end, desc = "Breakpoint Condition",    mode = { "n", "v" } },
       { "<leader>db", function() require("dap").toggle_breakpoint() end,                                    desc = "Toggle Breakpoint",       mode = { "n", "v" } },
       -- Breakpoints live in memory across files; without a list the only way to
       -- find one set in a buffer you have since closed is to remember it.
       { "<leader>dq", function() require("dap").list_breakpoints(true) end,                                 desc = "List Breakpoints (quickfix)", mode = { "n", "v" } },
       { "<leader>dx", function() require("dap").clear_breakpoints() end,                                    desc = "Clear All Breakpoints",   mode = { "n", "v" } },
+      { "<leader>dL", function() require("util.dap").logpoint() end, desc = "Logpoint" },
+      { "<leader>de", function() require("util.dap").exceptions() end, desc = "Exception Breakpoints" },
+      { "<leader>dR", function() require("dap").restart() end, desc = "Restart Session" },
+      { "<leader>dD", function() require("util.dap").disconnect() end, desc = "Disconnect (Keep Target Running)" },
+      { "<leader>du", function() require("dapui").toggle() end, desc = "Toggle Debug Panels" },
+      { "<leader>dW", function() require("util.dap").watch() end, desc = "Add Watch Expression", mode = { "n", "x" } },
       { "<leader>dc", function() require("dap").continue() end,                                             desc = "Run/Continue",            mode = { "n", "v" } },
       { "<leader>da", function() require("dap").continue({ before = get_args }) end,                        desc = "Run with Args",           mode = { "n", "v" } },
       { "<leader>dC", function() require("dap").run_to_cursor() end,                                        desc = "Run to Cursor",           mode = { "n", "v" } },
@@ -59,9 +70,9 @@ return {
       { "<leader>dO", function() require("dap").step_over() end,                                            desc = "Step Over",               mode = { "n", "v" } },
       { "<leader>dP", function() require("dap").pause() end,                                                desc = "Pause",                   mode = { "n", "v" } },
       { "<leader>dr", function() require("dap").repl.toggle() end,                                          desc = "Toggle REPL",             mode = { "n", "v" } },
-      { "<leader>ds", function() require("dap").session() end,                                              desc = "Session",                 mode = { "n", "v" } },
+      { "<leader>ds", function() local w = require("dap.ui.widgets"); w.centered_float(w.sessions) end, desc = "Debug Sessions" },
       { "<leader>dt", function() require("dap").terminate() end,                                            desc = "Terminate",               mode = { "n", "v" } },
-      { "<leader>dw", function() require("dap.ui.widgets").hover() end,                                     desc = "Widgets",                 mode = { "n", "v" } },
+      { "<leader>dw", function() require("util.dap").evaluate() end, desc = "Evaluate Expression / Selection", mode = { "n", "x" } },
     },
     dependencies = {
       { "rcarriga/nvim-dap-ui",            dependencies = { "nvim-neotest/nvim-nio" }, config = function() end },
@@ -73,18 +84,24 @@ return {
     config = function(_, opts)
       -- Config dap & dap UI
       local dap = require("dap")
+      require("util.dap").targets = opts.targets or {}
+      vim.api.nvim_create_user_command("DapAttach", function() require("util.dap").attach() end,
+        { desc = "Choose an attach configuration for this filetype or project" })
       local dapui = require("dapui")
       dapui.setup()
 
       dap.listeners.after.event_initialized["dapui_config"] = function()
         dapui.open({})
       end
-      dap.listeners.before.event_terminated["dapui_config"] = function()
-        dapui.close({})
+      local function close_when_done()
+        -- Electron and js-debug can own multiple sessions. Let dap finish its
+        -- teardown before deciding whether there are any sessions left.
+        vim.schedule(function()
+          if next(dap.sessions()) == nil then dapui.close({}) end
+        end)
       end
-      dap.listeners.before.event_exited["dapui_config"] = function()
-        dapui.close({})
-      end
+      dap.listeners.after.event_terminated["dapui_config"] = close_when_done
+      dap.listeners.after.disconnect["dapui_config"] = close_when_done
 
       -- Define signs for different debugging states:
       vim.fn.sign_define(
