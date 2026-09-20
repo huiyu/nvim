@@ -122,6 +122,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   event stream, so `<leader>d` has to work from the editor tabpage too -- you
   set a breakpoint and step from the source you are editing, not only from
   inside the view. Nothing there blocks a global prefix.
+- The first tabpage stays a page the global prefixes work in
+  (`util.window.protect_first_tab`, driven by `TabClosed` and
+  `SessionLoadPost`). Views open after it on their own -- `tab split`
+  inserts after the current tabpage -- so the guard only repairs the state
+  where the pages in front of a view are gone. It keys on the view, not on
+  window contents: diffview's diff windows hold ordinary file buffers, so
+  every window-level check calls its tabpage editable while `;f` is mapped
+  to a disabled hint throughout it. A new prefix-blocking view has to be
+  added to `PREFIX_BLOCKING_FILETYPES`.
 - Both paths that place a stopped frame -- nvim-dap's `switchbuf`
   (`util.dap.jump`) and nvim-dap-ui's `select_window` -- must stay scoped to the
   current tabpage. `usetab`, or anything else that hunts across tabpages, turns

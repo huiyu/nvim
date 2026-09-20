@@ -388,6 +388,14 @@ window.track_editor_win()
 -- frame in the tabpage the user is actually in.
 window.ensure_editor_win()
 
+-- Keep the first tabpage one the global prefixes still work in. diffview
+-- disables `;`, `,` and the rest inside its own tabpage, so a layout where
+-- its page is the first one leaves `;f` with nowhere to run. Inserts a fresh
+-- page in front when that happens, without moving the cursor. Driven by
+-- TabClosed and SessionLoadPost; views never open as the first tabpage on
+-- their own, since `tab split` inserts after the current one.
+window.protect_first_tab()
+
 -- Quit Nvim, including from inside a Snacks terminal window. Backs <leader>qq
 -- and, with force, <leader>qQ.
 window.quit_all(force)

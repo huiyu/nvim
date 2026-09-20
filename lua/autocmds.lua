@@ -44,6 +44,22 @@ autocmd("WinLeave", {
   end,
 })
 
+--- The first tabpage stays a page you can edit in.
+---
+--- Scheduled: TabClosed fires while the layout is still being torn down, and
+--- SessionLoadPost restores a whole tab layout at once, so the check has to run
+--- after either has settled. Both are the only ways the first page stops being
+--- an editing page -- nothing *opens* as tabpage 1, since `tab split` inserts
+--- after the current one.
+autocmd({ "TabClosed", "SessionLoadPost" }, {
+  group = augroup("protect_first_tab", { clear = true }),
+  callback = function()
+    vim.schedule(function()
+      require("util.window").protect_first_tab()
+    end)
+  end,
+})
+
 -- Optimize terminal buffer settings for TUI apps (for example coding agents)
 -- Disables line numbers and scrolloff to prevent rendering glitches
 autocmd("TermOpen", {
