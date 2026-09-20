@@ -420,7 +420,7 @@ end
 --- mapping itself, so renaming a `desc` can never silently reclassify a key --
 --- which is the whole reason these are keys and not description patterns.
 ---
---- A key listed in no section sorts after every section and gets no heading, so
+--- A key listed in no section sorts last under the shared fallback section, so
 --- adding a mapping never *requires* touching this table. A key listed here
 --- that no longer exists is inert. Both are checked by
 --- tests/whichkey_popup_spec.lua, which fails on a suffix that maps to nothing.
@@ -467,8 +467,7 @@ local sections = {
     { "context",   icon = "󰈔 ", color = "cyan",   keys = { "b", "i" } },
     { "review",    icon = "󰄹 ", color = "orange", keys = { "a", "d" } },
     { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T" } },
-    -- `p` is the +CodeCompanion group row: it labels itself, so a heading over
-    -- a single entry would say the same thing twice.
+    -- `p` (+CodeCompanion) goes under others, without a dedicated section.
   },
 
   ["<leader>m"] = {
@@ -477,13 +476,13 @@ local sections = {
     -- Runtime state and the two things you reach for when it goes wrong.
     { "runtime",  icon = "󰗟 ", color = "azure",  keys = { "i", "r", "d" } },
     { "help",     icon = "󰉹 ", color = "green",  keys = { "h", "k", "M", "C", "c" } },
-    -- `n` is the +Noice group row; see <leader>a above.
+    -- `n` (+Noice) goes under others; see <leader>a above.
   },
 
   ["<leader>b"] = {
     { "pin",    icon = "󰐃 ", color = "cyan", keys = { "p", "P" } },
     { "delete", icon = "󰈆 ", color = "red",  keys = { "d", "D", "o", "l", "r" } },
-    -- `j` (Pick buffer) is the only one left; it trails with no heading.
+    -- `j` (Pick buffer) is the only one left; it goes under others.
   },
 
   ["<leader>x"] = {
@@ -502,7 +501,7 @@ local sections = {
     { "hints",   icon = "󰅱 ", color = "azure",  keys = { "d", "h", "s" } },
     { "format",  icon = "󰉢 ", color = "green",  keys = { "f", "F" } },
     -- `n` (dismiss notifications) is the only action here rather than a toggle,
-    -- so it trails the toggles instead of heading a section of one.
+    -- so it goes under others instead of a dedicated section of one.
   },
 
   ["<leader><tab>"] = {
@@ -534,12 +533,11 @@ local sections = {
       keys = { "h", "H", "1", "2", "3", "4", "5", "6", "7", "8", "9" } },
     { "todo",    icon = "󰄹 ", color = "orange", keys = { "t", "T" } },
     -- `;;` (resume last picker) is a meta action, not a destination: it trails
-    -- the sections with no heading of its own.
+    -- the sections under others.
   },
 
-  -- g mixes our LSP jumps with Vim's own commands. Only ours are declared;
-  -- the builtins sort after them with no heading, which is the right shape --
-  -- gf/ge/gg are not a "section", they are the rest of Vim.
+  -- g mixes our LSP jumps with Vim's own commands. The remaining builtins,
+  -- including gf/ge/gg, sort last under others.
   ["g"] = {
     { "LSP",        icon = "󰅱 ", color = "azure",
       keys = { "d", "r", "b", "y", "D", "C", "K", "O" } },
@@ -586,4 +584,5 @@ sections["]"] = BRACKET_SECTIONS
 return {
   spec = vim.list_extend(spec, hidden),
   sections = sections,
+  fallback_section = { "others", icon = "󰒔 ", color = "grey" },
 }

@@ -136,6 +136,105 @@ check(5, 2, "https://example.com/路径?q=你好", "a wrapped URL still joins be
 local file = vim.fn.tempname() .. ".txt"
 local buf = fixture({ "no URL here" }, false)
 a.nvim_buf_set_name(buf, file)
+vim.bo[buf].buftype = ""
 check(1, 0, file, "without a URL gx still opens the current file")
+
+local root = vim.fn.tempname()
+vim.fn.mkdir(root, "p")
+root = vim.uv.fs_realpath(root)
+local report = root .. "/report.md"
+local spaced = root .. "/中文 report (draft).md"
+vim.fn.writefile({ "# Report" }, report)
+vim.fn.writefile({ "# Draft" }, spaced)
+vim.fn.writefile({ "read me" }, root .. "/README")
+
+local function check_file(row, col, want, label)
+  opened = {}
+  a.nvim_win_set_cursor(0, { row, col })
+  vim.cmd("normal gx")
+  t.eq(a.nvim_buf_get_name(0), want, label)
+  t.eq(opened, {}, "referenced files open in Nvim, without a system application")
+end
+
+-- The screenshot's /tmp/ prefix is a real directory. Only the joined file
+-- should open; never open the directory when the cursor is on the first row.
+local term = fixture({ "  完整报告 (" .. root .. "/", "  report.md)" }, true)
+local term_win = a.nvim_get_current_win()
+for _, pos in ipairs({ { 1, 2 }, { 2, 5 } }) do
+  a.nvim_set_current_win(term_win)
+  check_file(pos[1], pos[2], report, "either row of a wrapped terminal path opens the full file")
+  t.eq(a.nvim_win_get_buf(term_win), term, "the terminal stays visible in its original window")
+end
+
+fixture({ '"' .. spaced .. '"' }, false)
+check_file(1, 4, spaced, "quoted file paths preserve spaces, Unicode and parentheses")
+for _, name in ipairs({ "report#draft.md", "report%done.md", "report$GX_FILE_TEST.md", "report  draft.md", "report|draft.md" }) do
+  local path = root .. "/" .. name
+  vim.fn.writefile({ "# Literal filename" }, path)
+  fixture({ '"' .. path .. '"' }, false)
+  check_file(1, 4, path, "quoted filenames stay literal: " .. name)
+end
+fixture({ "[report](" .. report .. ")" }, false)
+check_file(1, 0, report, "a Markdown file link opens from its label")
+
+local relative = fixture({ "./report.md" }, false)
+a.nvim_buf_set_name(relative, root .. "/notes.txt")
+vim.bo[relative].buftype = ""
+check_file(1, 4, report, "relative references resolve beside an ordinary source file")
+fixture({ "report.md" }, true)
+vim.b.snacks_terminal = { cwd = root }
+check_file(1, 3, report, "relative terminal references use the terminal's recorded cwd")
+fixture({ "README" }, true)
+vim.b.snacks_terminal = { cwd = root }
+check_file(1, 2, root .. "/README", "existing extensionless files are recognized")
+fixture({ "~/report.md" }, true)
+local homedir = vim.uv.os_homedir
+vim.uv.os_homedir = function() return root end
+check_file(1, 3, report, "tilde paths expand without changing the working directory")
+vim.uv.os_homedir = homedir
+
+local mixed = report .. " https://example.com/report.md"
+fixture({ mixed }, false)
+check(1, #report + 5, "https://example.com/report.md", "a URL stays external when a file is on the same row")
+check_file(1, 3, report, "the nearest file wins over a URL on the same row")
+
+for _, lines in ipairs({
+  { "  (" .. root .. "/", "  missing.md)" },
+  { "  (" .. root .. "/", "                        report.md)" },
+  { "  (" .. root .. "/", "  ─────────────────", "  report.md)" },
+  { "no link or file here" },
+}) do
+  local missing = fixture(lines, true)
+  check(1, 3, nil, "an unresolved terminal path never opens a directory or term URI")
+  t.eq(a.nvim_get_current_buf(), missing, "an unresolved target leaves terminal focus unchanged")
+end
+
+fixture({ "  (" .. root .. "/", "  report.md)" }, false)
+check(1, 3, nil, "ordinary source newlines are not joined into file paths")
+
+-- Exercise the protected Snacks window used by both native providers, not
+-- just a synthetic terminal, and ensure another tab's editor is not reused.
+vim.cmd("enew")
+local background_tab, background_win, background_buf =
+  a.nvim_get_current_tabpage(), a.nvim_get_current_win(), a.nvim_get_current_buf()
+vim.cmd("tabnew")
+local editor_win = a.nvim_get_current_win()
+local panel = Snacks.terminal.open({ "cat" }, { cwd = root, win = { position = "right" } })
+vim.wait(100, function() return false end)
+a.nvim_set_current_win(panel.win)
+vim.cmd("stopinsert")
+a.nvim_chan_send(vim.bo[panel.buf].channel, "report.md\n")
+t.ok(vim.wait(1000, function() return a.nvim_buf_get_lines(panel.buf, 0, 1, false)[1] == "report.md" end),
+  "a real terminal prints the local path")
+check_file(1, 3, report, "gx opens a file from a protected Snacks terminal")
+t.eq(a.nvim_get_current_win(), editor_win, "gx reuses the editor in this tab")
+t.eq(a.nvim_win_get_buf(panel.win), panel.buf, "the protected terminal keeps its buffer")
+t.eq(vim.fn.jobwait({ vim.bo[panel.buf].channel }, 0)[1], -1, "the terminal process remains running")
+t.eq(a.nvim_win_get_buf(background_win), background_buf, "the other tab's editor is untouched")
+a.nvim_chan_send(vim.bo[panel.buf].channel, "\4")
+vim.wait(100, function() return false end)
+vim.cmd("tabclose!")
+a.nvim_set_current_tabpage(background_tab)
+vim.fn.delete(root, "rf")
 
 t.done()

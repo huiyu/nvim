@@ -75,12 +75,8 @@ local function section_order(item)
   return entry and entry.order or 99
 end
 
---- Minimum number of distinct sections before headings are drawn.
----
---- At 2, only the `;` popup qualifies -- the one with 24 visible entries and no
---- shape of its own. `g` and `,` declare a single section ([LSP]) plus a tail of
---- builtins, where a lone heading would be noise. Lower this to 1 to get a
---- heading over the LSP block there too.
+--- Minimum number of visible sections, including the fallback section.
+--- A popup with no declared entries keeps which-key's default layout.
 local MIN_SECTIONS = 2
 
 --- Insert heading rows between sections, and paint each key its section colour.
@@ -113,14 +109,18 @@ local function install_section_headings()
   View.sort = function(items, fields)
     base_sort(items, fields)
 
-    local seen, count = {}, 0
+    local seen, count, has_others = {}, 0, false
     for _, item in ipairs(items) do
       local entry = entry_for(item)
       if entry and not seen[entry.section] then
         seen[entry.section] = true
         count = count + 1
+      elseif not entry then
+        has_others = true
       end
     end
+    if count == 0 then return end
+    if has_others then count = count + 1 end
     if count < MIN_SECTIONS then
       return
     end
@@ -128,27 +128,23 @@ local function install_section_headings()
     local result, previous = {}, nil
     for _, item in ipairs(items) do
       local entry = entry_for(item)
-      if entry then
-        local section = entry.section
-        -- Paint the key itself, so the heading and its rows read as one block.
-        item.icon = section.icon or item.icon
-        item.icon_hl = "WhichKeyIcon"
-          .. section.color:sub(1, 1):upper() .. section.color:sub(2)
-        -- Undeclared keys get no heading of their own; they simply trail the
-        -- last section, which keeps a popup from ending in a bare "misc".
-        if section ~= previous then
-          result[#result + 1] = {
-            key = "",
-            raw_key = "",  -- View.sort's final tie-break compares this
-            sep = " ",     -- suppress the arrow the separator column defaults to
-            icon = section.icon,
-            icon_hl = item.icon_hl,
-            desc = "── " .. section[1],
-            group = true,  -- render loop picks WhichKeyGroup for a group's desc
-          }
-        end
-        previous = section
+      local section = entry and entry.section or Spec.fallback_section
+      -- Paint the key itself, so the heading and its rows read as one block.
+      item.icon = section.icon or item.icon
+      item.icon_hl = "WhichKeyIcon"
+        .. section.color:sub(1, 1):upper() .. section.color:sub(2)
+      if section ~= previous then
+        result[#result + 1] = {
+          key = "",
+          raw_key = "",  -- View.sort's final tie-break compares this
+          sep = " ",     -- suppress the arrow the separator column defaults to
+          icon = section.icon,
+          icon_hl = item.icon_hl,
+          desc = "── " .. section[1],
+          group = true,  -- render loop picks WhichKeyGroup for a group's desc
+        }
       end
+      previous = section
       result[#result + 1] = item
     end
 

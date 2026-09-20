@@ -118,6 +118,7 @@ local expected = {}
 for _, section in ipairs(Spec.sections[";"]) do
   expected[#expected + 1] = section[1]
 end
+expected[#expected + 1] = Spec.fallback_section[1]
 local seen_order = {}
 for _, title in ipairs(semi_headings) do
   seen_order[#seen_order + 1] = title
@@ -180,5 +181,63 @@ t.ok(leader[1] and (leader[1].desc or ""):find("^── "),
 
 -- A prefix with nothing declared is left exactly as which-key ships it.
 t.eq(#headings(popup("z")), 0, "z popup stays unheaded (nothing declared)")
+
+-- Unclassified keys must never look like members of the preceding section.
+local function item(keys, group)
+  return { keys = keys, key = keys:sub(-1), raw_key = keys, desc = keys, group = group }
+end
+local mixed = { item("ge"), item("gS"), item("g'"), item("gz", true), item("gf") }
+View.sort(mixed)
+t.eq(headings(mixed), { "edit", "marks", "others" }, "unclassified keys get one trailing others heading")
+local owner, owners, others_keys = nil, {}, {}
+for _, row in ipairs(mixed) do
+  if row.key == "" then owner = row.desc:sub(#"── " + 1)
+  else
+    owners[row.keys] = owner
+    if owner == "others" then others_keys[#others_keys + 1] = row.keys end
+  end
+end
+t.eq(owners, { gS = "edit", ["g'"] = "marks", ge = "others", gf = "others", gz = "others" },
+  "every item, including unknown group rows, belongs to the correct section")
+t.eq(others_keys, { "gz", "ge", "gf" }, "unknown groups and keys retain their order inside others")
+
+local single_tail = { item("gO"), item("gf") }
+View.sort(single_tail)
+t.eq(headings(single_tail), { "LSP", "others" }, "one declared section and one leftover still have separate headings")
+t.eq(single_tail[3].keymap, nil, "others heading is display-only")
+t.eq(single_tail[3].key, "", "others heading introduces no shortcut")
+local no_tail = { item("gO"), item("gS") }
+View.sort(no_tail)
+t.eq(headings(no_tail), { "LSP", "edit" }, "fully classified popups have no empty others section")
+
+-- Use which-key's real trie so the screenshot's builtins (ge/gf/gg/...) and
+-- description-only group rows participate, not just nvim_get_keymap entries.
+local Config = require("which-key.config")
+vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })
+t.ok(vim.wait(1000, function() return Config.loaded end), "which-key finishes its scheduled setup")
+local mode = require("which-key.buf").get({ mode = "n", update = true })
+local node = mode.tree:find("g")
+local real = {}
+for _, child in ipairs(node:children()) do real[#real + 1] = View.item(child, { parent = node }) end
+View.sort(real)
+local real_headings = headings(real)
+t.eq(real_headings[#real_headings], "others", "real g popup ends with the others section")
+owner, owners = nil, {}
+for _, row in ipairs(real) do
+  if row.key == "" then owner = row.desc:sub(#"── " + 1)
+  else owners[row.keys] = owner end
+end
+t.eq({ owners.ge, owners.gf, owners.gg, owners.gx }, { "others", "others", "others", "others" },
+  "real g builtins and gx do not fall under marks")
+
+vim.o.lines, vim.o.columns = 100, 120
+local State = require("which-key.state")
+State.state = { mode = mode, node = node, filter = {}, show = true, started = vim.uv.hrtime() }
+View.show()
+local rendered = table.concat(vim.api.nvim_buf_get_lines(View.view.buf, 0, -1, false), "\n")
+local others_at = rendered:find("── others", 1, true)
+local file_at = rendered:find("Go to file under cursor", 1, true)
+t.ok(others_at and file_at and others_at < file_at, "rendered g popup puts others before the unclassified builtins")
+State.stop()
 
 t.done()

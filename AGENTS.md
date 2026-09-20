@@ -127,12 +127,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   someone else's entry. Every prefix worth sectioning is declared: `;`, `g`,
   `,`, `[`/`]` (one table, mirrored), `<leader>` itself, and the `<leader>`
   groups with more than a screenful (`g`, `G`, `d`, `a`, `m`, `b`, `x`, `t`).
-  A key in no section sorts last with no heading, so Vim's own `g` commands
-  stay out of the way without being listed. Two rules keep the table honest: a
-  section needs at least two keys (one key plus a heading is two lines to show
-  one mapping, worse than leaving it uncategorised), and a group row that
-  already labels itself -- `+Noice`, `+CodeCompanion` -- gets no heading on top
-  of that. Sectioning sorts *before* which-key's groups-first rule; the other
+  In a sectioned popup, undeclared keys sort last under `others`, styled by
+  `fallback_section` in the same data file. Even one remaining key gets this
+  heading, so it never appears to belong to the preceding section. Explicit
+  sections need at least two keys; do not invent a separate section for a
+  group row such as `+Noice` or `+CodeCompanion` -- it can fall under `others`.
+  Popups with no declared entries keep which-key's default layout.
+  Sectioning sorts *before* which-key's groups-first rule; the other
   order lets an undeclared group row jump ahead of every heading.
 - Key lookup goes through `keytrans(keycode(...))`, which is which-key's own
   normalisation (`util.lua`, `M.norm`). Do not call `keytrans` on a raw

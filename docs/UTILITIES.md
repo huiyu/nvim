@@ -57,22 +57,32 @@ helper keeps the original session even if the user selects a different one.
 Go remote uses this to clear server-side source breakpoints and resume, while
 preserving local breakpoints for the next attachment.
 
-### URLs (`util.url`)
+### URLs and local files (`util.url`)
 
-`open()` implements Normal-mode `gx`: open the nearest HTTP(S) URL on the
-current row through `vim.ui.open`, falling back to the current file. It handles
-Markdown wrappers without discarding balanced parentheses in URL paths, and
-preserves Unicode hostnames, paths and query values. CJK and fullwidth
+`open()` implements Normal-mode `gx`: open the nearest HTTP(S) URL or existing
+local file on the current row. URLs use `vim.ui.open`; file references use
+`:edit`, focusing `util.window.ensure_editor_win()` first in special buffers so
+terminal panels remain intact. File candidates must exist and be regular files.
+Absolute and `~/` paths work; relative paths resolve beside an ordinary source
+file, against a Snacks terminal's recorded `cwd`, or via `util.cwd.buffer_dir()`
+otherwise. Quotes and backticks support paths containing spaces, including
+consecutive spaces on one row. Filenames are passed literally to `:edit`, with
+filename expansion and command separators disabled. If no target is found,
+ordinary file buffers fall back to opening themselves through `vim.ui.open`;
+special buffers do nothing. It handles Markdown wrappers without discarding
+balanced parentheses in URL paths, and preserves Unicode hostnames, paths and
+query values. CJK and fullwidth
 punctuation (`，。、（）「」“”…`) ends the URL text, so prose that runs straight
 into a link without a space never leaks into it.
 
-In terminal buffers, URLs enclosed in parentheses or angle brackets can span
+In terminal buffers, targets enclosed in parentheses or angle brackets can span
 up to 16 consecutive rows in the same table column. Alignment uses display
 width, including CJK text; padding and vertical rules separate columns. The
-full URL must reach its closing delimiter before continuation is accepted.
-Either part of a wrapped URL resolves to the same target. Blank rows, table
-separators and new URLs stop the lookup. Ordinary source lines are never joined.
-The module loads on the first `gx` and does not modify the buffer or cursor.
+full target must reach its closing delimiter before continuation is accepted.
+Quoted local paths can also span rows. Either part of a wrapped target resolves
+to the same destination. Blank rows, table separators and new URLs stop the
+lookup. Ordinary source lines are never joined.
+The module loads on the first `gx`; URL opening does not modify the buffer or cursor.
 
 ### Working directories (`util.cwd`)
 

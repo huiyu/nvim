@@ -145,10 +145,31 @@ return {
       return out
     end
 
+    -- Native wheel scrolling ignores scrollbind in an unfocused window.
+    -- Run the original wheel action in the hovered diff window's context;
+    -- win_call restores focus, and Nvim still handles diff filler/folds and
+    -- mousescroll. Panel scrolling keeps its native, independent behavior.
+    local wheel = {}
+    for _, direction in ipairs({ "Up", "Down" }) do
+      local key = "<ScrollWheel" .. direction .. ">"
+      wheel[#wheel + 1] = { { "n", "x" }, key, function()
+        local function scroll() vim.cmd.normal({ args = { vim.keycode(key) }, bang = true }) end
+        local target = vim.fn.getmousepos().winid
+        local view = require("diffview.lib").get_current_view()
+        for _, win in ipairs(view and view.cur_layout and view.cur_layout.windows or {}) do
+          if win.id == target and vim.api.nvim_win_is_valid(target) and vim.wo[target].diff then
+            vim.api.nvim_win_call(target, scroll)
+            return
+          end
+        end
+        scroll()
+      end, { desc = "Scroll " .. direction:lower() .. " (sync diff panes)" } }
+    end
+
     opts.keymaps = {
-      view = join(layout_blocks, dropped, panel, conflict_hunk, conflict_file),
-      file_panel = join(file_blocks, dropped, panel, conflict_file),
-      file_history_panel = join(layout_blocks, dropped, panel),
+      view = join(layout_blocks, dropped, panel, conflict_hunk, conflict_file, wheel),
+      file_panel = join(file_blocks, dropped, panel, conflict_file, wheel),
+      file_history_panel = join(layout_blocks, dropped, panel, wheel),
     }
 
     require("diffview").setup(opts)

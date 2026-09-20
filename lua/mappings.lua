@@ -6,10 +6,10 @@ vim.g.maplocalleader = "\\"
 -- No <C-s> save mapping: C-s is the tmux prefix on this setup, so tmux consumes
 -- it and the mapping never fired. `:w` is the working path.
 
--- Open URL under cursor or on current line, including wrapped terminal links.
+-- Open URLs externally and referenced files in Nvim, including wrapped terminal links.
 vim.keymap.set("n", "gx", function()
   require("util.url").open()
-end, { desc = "Open URL or file with system app" })
+end, { desc = "Open URL / local file" })
 
 -- Run the current file (dispatched by filetype; runners registered in lang/*.lua)
 vim.keymap.set("n", ",x", function() require("util.run").run_current() end, { desc = "Run current file" })

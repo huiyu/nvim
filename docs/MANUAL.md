@@ -174,20 +174,31 @@ picks from it:
 | Drawer | Means | Examples |
 |---|---|---|
 | `[` `]` | previous / next X | `]d` diagnostic · `]e` error · `]h` git hunk · `]q` quickfix · `]m` function · `]c` class · `]x` conflict · `]y` yank history. Uppercase = first / last: `[D` `]Q` |
-| `g` | go somewhere / about the thing under the cursor | `gd` definition · `gr` references · `gb` implementation · `gy` type · `gC` callers · `K` docs · `gx` open URL · `gS` split / join · `gv` reselect |
+| `g` | go somewhere / about the thing under the cursor | `gd` definition · `gr` references · `gb` implementation · `gy` type · `gC` callers · `K` docs · `gx` open URL / file · `gS` split / join · `gv` reselect |
 | `z` | folds and spelling | `zR` open all · `zM` close all · `za` toggle · `z=` suggestions · `zg` add to dictionary |
 | `Ctrl` | act now, no questions, the same in every mode | `<C-h/j/k/l>` windows · `<C-/>` terminal · `<C-o>` back the way you came · `<C-a>` `<C-x>` increment / decrement · `<C-r>` redo |
 
 **which-key:** press `[`, `]`, `g`, or `z` and wait half a second — the popup
 lists the drawer, grouped under headings (`── diagnostics`, `── git`, …) with a
 colour per group, so a long list reads as a few blocks rather than an alphabet.
-The grouping is declared in `lua/whichkey_spec.lua`; anything not assigned to a
-group sorts to the end.
+The grouping is declared in `lua/whichkey_spec.lua`. In sectioned popups,
+anything not explicitly assigned to a group sorts last under `── others`,
+including new plugin keys and builtins. An empty `others` section is hidden;
+popups without declared sections, such as `z`, keep the default layout.
 
-`gx` opens the nearest HTTP(S) URL on the current line, or the current file
-when there is no URL. In terminal-Normal mode, it also joins links enclosed in
-`(...)` or `<...>` that wrap within a table column; the cursor can be on either
-part. Leave terminal input with `Ctrl-\` or `jk` first.
+`gx` opens the nearest HTTP(S) URL or existing local file on the current line:
+URLs use the system browser; referenced files open in Nvim. From a terminal,
+the file opens in an editor window in the current tab and the terminal stays
+visible. Absolute paths, `~/…`, and relative paths work; relative paths use the
+source file's directory, or the Snacks terminal's recorded working directory.
+Put paths containing spaces inside quotes or backticks. If there is no target,
+an ordinary file buffer retains the fallback of opening itself with the system
+application; terminals do nothing.
+
+In terminal-Normal mode, `gx` also joins targets enclosed in `(...)` or `<...>`
+that wrap within a table column, including a report printed as `(/tmp/` then
+`report.md)` on the next row. Quoted file paths can wrap too. The cursor can be
+on either part. Leave terminal input with `Ctrl-\` or `jk` first.
 
 ### 7. Everything repeats, and everything backs out
 
@@ -527,6 +538,9 @@ that referenced it get rewritten instead of silently breaking.
 `<Space>gg` opens lazygit — staging, committing and history in one place.
 `<Space>gv` opens diffview for reviewing a branch. Inside diffview, `\` holds
 its own actions and `<Space>gq` closes it.
+Scrolling the mouse wheel over either diff pane keeps the panes vertically
+aligned, including added/deleted-line filler and folded regions, while retaining
+keyboard focus. The file/history panel scrolls independently.
 
 ### Terminals and AI
 
