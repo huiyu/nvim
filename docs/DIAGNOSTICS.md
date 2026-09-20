@@ -452,10 +452,23 @@ plus the Electron entries above and Chrome extension entries below:
   the running instance and never opens the port.
 ### Chrome extensions
 
-Not supported by mason's js-debug: upstream closed browser-extension debugging as
-`*out-of-scope`
-([vscode-js-debug#945](https://github.com/microsoft/vscode-js-debug/issues/945)),
-so that build attaches to `page` targets only and never pauses in extension code.
+Ordinary Chrome debugging works everywhere, mason's build included — the
+`chrome: attach` entry is unaffected by any of this. What no stock js-debug
+does is pause inside a browser **extension**: it attaches to `page` targets
+only, so an extension's service worker is invisible to it.
+
+That is a position, not a technical limit. Upstream closed browser-extension
+support as `*out-of-scope`
+([vscode-js-debug#945](https://github.com/microsoft/vscode-js-debug/issues/945))
+while calling the fix itself trivial:
+
+> We need to attach to browser-level frames and service workers, currently we
+> filter and only attach to `page` types. **This is easy to fix.** […] I don't
+> plan to support this in the foreseeable future.
+
+So do not wait on it. #2361 has been open since May with no maintainer comment,
+and VS Code ships the upstream build, which is why a shared `launch.json` can
+carry every other configuration but not this one.
 
 `huiyu/vscode-js-debug` carries the community PR
 [#2361](https://github.com/microsoft/vscode-js-debug/pull/2361) on top of
@@ -488,9 +501,12 @@ an unpacked extension's id is a hash of that path, and the id is what every
 sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 `webRoot` only gets in the way.
 
-- Upstream's PR only supports launch via `--load-extension`, which Chrome
-  removed in 137, so the fork installs over CDP (`Extensions.loadUnpacked`)
-  instead. That is why launch works here and would not with the PR as written.
+- PR #2361 as written launches via `--load-extension`, which Chrome removed in
+  137, so its launch mode installs nothing on a current browser. The fork
+  installs over CDP (`Extensions.loadUnpacked`) instead — the same call the PR
+  already uses for hot reload, just applied to the initial load. That fix is
+  offered back as [noorez/vscode-js-debug#1](https://github.com/noorez/vscode-js-debug/pull/1);
+  until it lands, launch mode works here and nowhere else.
 - Nothing about Chrome or CDP prevents extension debugging — raw CDP pauses an
   MV3 service worker fine. The walls were js-debug's. See
   `spikes/chrome-extension-dap/` for the measurements and the upstream history.
@@ -500,6 +516,11 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 
 ## Runtime errors & messages
 
+- **`gx` cannot open a local report path in agent output** — existing file
+  references now open in Nvim, reusing an editor window in the current tab and
+  preserving the terminal. Parenthesized paths can wrap across terminal rows;
+  press `Ctrl-\` or `jk`, then `gx` on either part. Paths must exist on this
+  machine; an incomplete path or a directory prefix alone is not opened.
 - **`gx` opens only the first half of a terminal table URL** — the mapping now
   reconstructs parenthesized or angle-bracket links across up to 16 rows in the
   same column. Leave terminal input with `Ctrl-\` or `jk`, then press `gx` on
@@ -542,6 +563,14 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   terminal/special buffers alone. Returning to a regular split exits zen mode;
   file edits remain in the original buffer. `scrolloff` is eight for editing
   and zero for terminals; keep `splitkeep=screen` for Edgy's layout handling.
+- **Only one Diffview pane follows the mouse wheel** — native Nvim ignores
+  `scrollbind` when scrolling an unfocused window (see
+  [scrollbind-quickadj](https://neovim.io/doc/user/scroll/#scrollbind-quickadj)).
+  Diffview's buffer-local wheel mappings execute vertical scrolling in the
+  hovered diff window's context and restore focus, keeping diff filler and
+  folds aligned. File/history panels still scroll independently. Reopen
+  Diffview after reloading its configuration, or restart Nvim after updating.
+  Check `:setlocal diff? scrollbind?` in the content panes if they still drift.
 - **"Working directory … no longer exists; started in … instead"** — the shell's
   directory was deleted under it (a pruned worktree, a removed temp dir). Nvim
   moved to the nearest surviving ancestor, or `~`. Without this, Snacks'

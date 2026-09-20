@@ -362,9 +362,11 @@ local function js_debug_configurations()
       -- unpacked extension's id is a hash of this directory, so it must be the
       -- BUILD OUTPUT, not the source tree.
       --
-      -- Attach, not launch: launch passes --load-extension, which Chrome removed
-      -- in 137+. Start Chrome with --remote-debugging-port=9222 and its own
-      -- --user-data-dir, load the unpacked extension once, then attach here.
+      -- For a browser you started yourself: --remote-debugging-port=9222 plus
+      -- its own --user-data-dir (without the latter a second Chrome hands the
+      -- URL to the running instance and never opens the port), extension loaded
+      -- by hand. Worth it for a specific profile or a session already running;
+      -- the launch entry below is less work otherwise, and reloads on rebuild.
       name = "chrome: debug extension (attach)",
       type = "pwa-chrome",
       request = "attach",
