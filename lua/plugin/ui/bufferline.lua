@@ -4,30 +4,6 @@ local function shown_in_bufferline(buf)
   return not vim.api.nvim_buf_get_name(buf):match("diffview://")
 end
 
-local function shown_buffer_count()
-  local count = 0
-  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.bo[buf].buflisted and shown_in_bufferline(buf) then count = count + 1 end
-  end
-  return count
-end
-
--- bufferline hides the whole tabline when it has at most one buffer to show,
--- and its own count never looks at tabpages: `toggle_bufferline` reads
--- `get_buf_count()` outside "tabs" mode (bufferline.lua). Opening a diff with
--- no files loaded therefore hid the far-right `1`/`2` tabpage indicators along
--- with the buffer list -- at the one moment they matter most, since diffview
--- disables the global prefixes inside its own tabpage and knowing another
--- tabpage exists is the way out.
---
--- Taking the toggle over rather than forcing the bufferline always on: an empty
--- dashboard should still start without one. Leaving bufferline's own toggle
--- enabled would not work anyway -- it re-runs from the tabline's own redraw, so
--- it would undo any override on the next draw.
-local function sync_tabline()
-  vim.o.showtabline = (shown_buffer_count() > 1 or #vim.api.nvim_list_tabpages() > 1) and 2 or 0
-end
-
 return {
   "akinsho/bufferline.nvim",
   event = "VeryLazy",
@@ -130,26 +106,22 @@ return {
       },
       options = {
         diagnostics = "nvim_lsp",
-        always_show_bufferline = false,
-        -- `sync_tabline` owns showtabline; see the note above it.
-        auto_toggle_bufferline = false,
+        -- The tabline is permanent. Left to itself bufferline hides it whenever
+        -- it has at most one buffer to show, counting buffers only --
+        -- `toggle_bufferline` reads `get_buf_count()` outside "tabs" mode, so
+        -- tabpages never enter the decision. Opening a diff with no files
+        -- loaded then hid the far-right `1`/`2` tabpage indicators along with
+        -- the buffer list, at the one moment they matter most: diffview
+        -- disables the global prefixes inside its tabpage, and knowing another
+        -- tabpage exists is the way out.
+        --
+        -- Keeping it on costs a blank strip above an empty dashboard and buys a
+        -- layout that never shifts a row as buffers and tabpages come and go.
+        always_show_bufferline = true,
         separator_style = "slant",
         show_tab_indicators = true,
         custom_filter = shown_in_bufferline,
       },
     }
-  end,
-
-  config = function(_, opts)
-    require("bufferline").setup(opts)
-    -- Scheduled: BufDelete and TabClosed both fire while the thing they report
-    -- is still present, so the count has to be taken after they settle.
-    vim.api.nvim_create_autocmd(
-      { "BufAdd", "BufDelete", "BufFilePost", "TabNew", "TabClosed", "TabEnter" },
-      {
-        group = vim.api.nvim_create_augroup("bufferline_tabline", { clear = true }),
-        callback = function() vim.schedule(sync_tabline) end,
-      })
-    sync_tabline()
   end,
 }

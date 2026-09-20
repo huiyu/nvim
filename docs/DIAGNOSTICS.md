@@ -278,11 +278,11 @@ rather than a broken viewer.
 - nvim-dap-ui opens automatically on session start (`<leader>dc`); `<leader>du`
   reopens it. Panels close when the last root session ends.
 - **Open tabpages are invisible / the `1`/`2` indicators are missing** -- the
-  tabline is shown when more than one buffer is listed *or* more than one
-  tabpage exists (`sync_tabline` in `lua/plugin/ui/bufferline.lua`, which
-  owns `showtabline`; bufferline's own `auto_toggle_bufferline` is off).
-  bufferline counts only buffers, so a diff opened with no files loaded used
-  to hide the tabpage indicators along with the buffer list.
+  tabline is permanent (`always_show_bufferline` in
+  `lua/plugin/ui/bufferline.lua`). bufferline hides it on its own whenever
+  it has at most one buffer to list, counting buffers only, so a diff opened
+  with no files loaded used to take the tabpage indicators down with the
+  buffer list.
 - The debug view owns its own tabpage, opened by `util.dap.open_panels` and
   closed with the last root session. `<leader>du` hides and restores it. A
   tabpage left behind means `close_panels` could not close it -- it refuses on
