@@ -128,7 +128,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   it -- while diffview, the view most likely to be in that second tabpage,
   disables the global prefixes. Re-enabling the toggle and overriding
   `showtabline` afterwards does not work: it re-runs from the tabline's own
-  redraw and undoes the override on the next draw.
+  redraw and undoes the override on the next draw. Because it is permanent,
+  an empty one must be invisible: bufferline's `fill` asks for a transparent
+  background, but an unset background there inherits `TabLineFill`, which the
+  colorscheme leaves opaque even under `transparent`. Both are cleared --
+  `fill` in the bufferline spec, `TabLineFill` in `lua/plugin/ui/solarized.lua`
+  -- and clearing only one puts the theme's teal band back across the top.
 - The first tabpage stays a page the global prefixes work in
   (`util.window.protect_first_tab`, driven by `TabClosed` and
   `SessionLoadPost`). Views open after it on their own -- `tab split`

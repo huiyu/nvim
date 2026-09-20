@@ -58,4 +58,13 @@ vim.cmd("badd diffview://null/a.lua")
 settle()
 t.ok(rendered():match("diffview") == nil, "diffview's internal buffers stay out of the list")
 
+-- The permanent tabline must not draw a band across the top when it is empty.
+-- The colorscheme runs with `transparent`, which clears Normal but leaves
+-- TabLineFill opaque, and bufferline's unset `fill` background inherits that
+-- group rather than reaching the terminal -- so both have to be clear.
+for _, group in ipairs({ "BufferLineFill", "TabLineFill" }) do
+  t.eq(vim.api.nvim_get_hl(0, { name = group, link = false }).bg, nil,
+    group .. " has no background, so an empty tabline stays invisible")
+end
+
 t.done()

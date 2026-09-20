@@ -53,7 +53,11 @@ return {
         -- entries, bg is the entry's own fill. Use the theme's darkest teal for
         -- that gap: a bright foreground turns both slants into white wedges.
         -- Transparent, not c.bg: Ghostty runs at background-opacity 0.85 with
-        -- blur, and an opaque strip across the top would cut a hole in it.
+        -- blur, and an opaque strip across the top would cut a hole in it. An
+        -- unset background inherits the tabline's default rather than reaching
+        -- the terminal, so `TabLineFill` is cleared alongside this in
+        -- lua/plugin/ui/solarized.lua; without that this line drew the theme's
+        -- teal instead of nothing.
         fill                   = { bg = "NONE" },
         background             = { fg = c.base01, bg = c.bg_highlight },
         buffer_visible         = { fg = c.base0, bg = c.bg_highlight },
