@@ -1,5 +1,35 @@
 local lsp = require("util.lsp")
 
+-- Multi-client Delve preserves the target's paused state and breakpoints on
+-- disconnect. Remove this editor's source breakpoints from the server (keep
+-- the local signs for reattachment), then resume before dropping the client.
+local function before_remote_disconnect(session, done)
+  local requests = {}
+  for bufnr in pairs(require("dap.breakpoints").get()) do
+    local path = vim.api.nvim_buf_get_name(bufnr)
+    if path ~= "" then
+      table.insert(requests, { "setBreakpoints", { source = { path = path }, breakpoints = {} } })
+    end
+  end
+  if session.stopped_thread_id then
+    table.insert(requests, { "continue", { threadId = session.stopped_thread_id } })
+  end
+  local function advance(err)
+    if session.closed then return end
+    if err then
+      vim.notify("Delve disconnect cancelled: " .. tostring(err), vim.log.levels.ERROR)
+      return
+    end
+    local request = table.remove(requests, 1)
+    if request then
+      session:request_with_timeout(request[1], request[2], 5000, advance)
+    else
+      done()
+    end
+  end
+  advance()
+end
+
 ---Clear gopls cache and restart LSP to force a full re-index.
 ---Useful after large refactors, branch switches, or rebases.
 local function rebuild_gopls()
@@ -66,6 +96,17 @@ require("util.run").register("go", function(path)
 end)
 
 return {
+  {
+    "mfussenegger/nvim-dap",
+    opts = { targets = { go = {
+      file = function(ctx)
+        require("dap").run({ name = "go: current file", type = "go", request = "launch",
+          program = ctx.path, cwd = vim.fs.root(ctx.path, "go.mod") or vim.fs.dirname(ctx.path) })
+      end,
+      test = function(ctx) require("neotest").debug_target(ctx, false) end,
+      test_file = function(ctx) require("neotest").debug_target(ctx, true) end,
+    } } },
+  },
   {
     "neovim/nvim-lspconfig",
     opts = {
@@ -162,14 +203,45 @@ return {
     }
   },
   {
-    -- Go debugging is owned by nvim-dap-go (also used by neotest-golang via
-    -- dap_go_enabled). It loads on Go files so the adapter/configs are ready
+    -- Go debugging is owned by nvim-dap-go (also used by neotest-golang).
+    -- It loads on Go files so the adapter/configs are ready
     -- for a standalone `<leader>dc`. delve is installed through the `tools`
     -- list above; the mason-nvim-dap `delve` handler is intentionally dropped
     -- to avoid registering the Go adapter/configs twice.
     "leoluz/nvim-dap-go",
     ft = "go",
-    config = true,
+    config = function()
+      require("dap-go").setup()
+      local dap = require("dap")
+      table.insert(dap.configurations.go, {
+        type = "go_remote",
+        name = "go: attach to remote Delve",
+        request = "attach",
+        mode = "remote",
+      })
+      -- The plugin's `go` adapter always spawns dlv, even with a host/port.
+      -- A separate server adapter connects to an already running dlv instead.
+      dap.adapters.go_remote = function(callback, config)
+        config = config or {}
+        local function with_host(host)
+          if not host or vim.trim(host) == "" then return end
+          local function with_port(port)
+            if port == nil then return end
+            local number = tonumber(port)
+            if not number or number % 1 ~= 0 or number < 1 or number > 65535 then
+              vim.notify("Delve port must be an integer from 1 to 65535", vim.log.levels.WARN)
+              return
+            end
+            callback({ type = "server", host = vim.trim(host), port = number,
+              options = { before_disconnect = before_remote_disconnect } })
+          end
+          if config.port ~= nil then with_port(config.port)
+          else vim.ui.input({ prompt = "Delve port: ", default = "38697" }, with_port) end
+        end
+        if type(config.host) == "string" then with_host(config.host)
+        else vim.ui.input({ prompt = "Delve host: ", default = "127.0.0.1" }, with_host) end
+      end
+    end,
     dependencies = {
       "mfussenegger/nvim-dap",
     },

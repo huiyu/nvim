@@ -90,6 +90,12 @@ return {
       handlers = {
         codelldb = {},
       },
+      configurations = {
+        c = { { name = "c: attach to process", type = "codelldb", request = "attach",
+          pid = function() return require("dap.utils").pick_process() end } },
+        cpp = { { name = "cpp: attach to process", type = "codelldb", request = "attach",
+          pid = function() return require("dap.utils").pick_process() end } },
+      },
     },
   },
 }

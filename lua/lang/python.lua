@@ -19,6 +19,18 @@ end)
 
 return {
   {
+    "mfussenegger/nvim-dap",
+    opts = { targets = { python = {
+      file = function(ctx)
+        require("dap").run({ name = "python: current file", type = "python", request = "launch",
+          program = ctx.path, cwd = vim.fs.root(ctx.path, { "pyproject.toml", "setup.py", ".git" }) or vim.fs.dirname(ctx.path),
+          console = "integratedTerminal" })
+      end,
+      test = function(ctx) require("neotest").debug_target(ctx, false) end,
+      test_file = function(ctx) require("neotest").debug_target(ctx, true) end,
+    } } },
+  },
+  {
     "nvim-treesitter/nvim-treesitter",
     opts = { ensure_installed = { "python", "ninja", "rst" } }
   },
@@ -131,6 +143,19 @@ return {
     config = function()
       local debugpy = vim.fn.stdpath("data") .. "/mason/packages/debugpy/venv/bin/python"
       require("dap-python").setup(debugpy)
+      for _, config in ipairs(require("dap").configurations.python) do
+        if config.name == "attach" and config.request == "attach" then
+          config.name = "python: attach to debugpy"
+          config.connect = function()
+            local ui = require("util.dap")
+            local host = ui.input("debugpy host: ", "127.0.0.1")
+            if host == require("dap").ABORT then return host end
+            local port = ui.port(5678)
+            if port == require("dap").ABORT then return port end
+            return { host = host, port = port }
+          end
+        end
+      end
     end,
     dependencies = {
       "mfussenegger/nvim-dap",

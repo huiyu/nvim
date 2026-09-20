@@ -126,6 +126,53 @@ local function nearest_vitest(from)
   end
 end
 
+local function debug_file(ctx)
+  require("dap").run({ name = "node: current file", type = "pwa-node", request = "launch",
+    program = ctx.path, cwd = vim.fs.root(ctx.path, "package.json") or vim.fs.dirname(ctx.path),
+    console = "integratedTerminal", skipFiles = { "<node_internals>/**" } })
+end
+
+local function debug_test(ctx, file)
+  local program, cwd = nearest_vitest(vim.fs.dirname(ctx.path))
+  if not program then
+    vim.notify("Test debugging needs a project-local Vitest installation", vim.log.levels.WARN)
+    return
+  end
+  local target = ctx.path
+  if not file then
+    -- Vitest's file:line selection (v3+) handles nested/parameterized tests
+    -- without guessing their generated names or regex-escaping descriptions.
+    local metadata = vim.json.decode(table.concat(vim.fn.readfile(vim.fs.dirname(program) .. "/package.json"), "\n"))
+    if (tonumber(metadata.version:match("^(%d+)")) or 0) < 3 then
+      vim.notify("Nearest-test debugging needs Vitest 3+; use <leader>tF for this file", vim.log.levels.WARN)
+      return
+    end
+    local tree, lang = require("util.dap").syntax(ctx)
+    if not tree then return end
+    local query = vim.treesitter.query.parse(lang, "(call_expression function: (_) @fn) @call")
+    local selected
+    for _, match in query:iter_matches(tree, ctx.bufnr, 0, -1) do
+      local fn, call = match[1][1], match[2][1]
+      local first, _, last = call:range()
+      local name = vim.treesitter.get_node_text(fn, ctx.bufnr)
+      if first < ctx.line and last >= ctx.line - 1
+        and (name:match("^it[%s%.%(]") or name:match("^test[%s%.%(]") or name == "it" or name == "test")
+        and call:field("arguments")[1]:named_child_count() >= 2 then
+        selected = math.max(selected or 0, first + 1)
+      end
+    end
+    if not selected then
+      vim.notify("Place the cursor inside a Vitest test/it call", vim.log.levels.WARN)
+      return
+    end
+    target = target .. ":" .. selected
+  end
+  require("dap").run({ name = file and "vitest: current file" or "vitest: nearest test",
+    type = "pwa-node", request = "launch", program = program, cwd = cwd,
+    args = { "run", "--no-file-parallelism", target }, console = "integratedTerminal",
+    skipFiles = { "<node_internals>/**", "**/node_modules/**" } })
+end
+
 ---Resolve vitest for the current buffer, reporting a missing install in one
 ---line and aborting the session -- raising here would surface as an E5108 block
 ---with a stack traceback for what is really "install your dependencies".
@@ -196,10 +243,54 @@ local function extension_output(want)
   end
 end
 
+local function electron_root()
+  return vim.fs.root(0, "package.json") or vim.fn.getcwd()
+end
+
+local function electron_binary()
+  local dir = electron_root()
+  while dir do
+    local path = dir .. "/node_modules/.bin/electron"
+    if vim.fn.executable(path) == 1 then return path end
+    local parent = vim.fs.dirname(dir)
+    if parent == dir then break end
+    dir = parent
+  end
+  vim.notify("Electron debugging needs electron installed in the project", vim.log.levels.WARN)
+  return require("dap").ABORT
+end
+
 ---Fresh list per filetype: nvim-dap owns these tables and callers may edit them.
 ---@return table[]
 local function js_debug_configurations()
   return {
+    {
+      name = "electron: main + renderer",
+      type = "pwa-node",
+      request = "launch",
+      cwd = electron_root,
+      runtimeExecutable = electron_binary,
+      runtimeArgs = { "--remote-debugging-port=9222" },
+      args = { "." },
+      env = { ELECTRON_RUN_AS_NODE = vim.NIL },
+      outputCapture = "std",
+      __electron_renderer = true,
+    },
+    {
+      name = "electron: attach renderer (port 9222)",
+      type = "pwa-chrome",
+      request = "attach",
+      port = 9222,
+      webRoot = electron_root,
+      timeout = 30000,
+    },
+    {
+      name = "electron: attach main",
+      type = "pwa-node", request = "attach", cwd = electron_root,
+      address = function() return require("util.dap").input("Electron host: ", "127.0.0.1") end,
+      port = function() return require("util.dap").port(9230) end,
+      sourceMaps = true,
+    },
     {
       name = "vitest: current file",
       type = "pwa-node",
@@ -229,6 +320,13 @@ local function js_debug_configurations()
       -- is still being read, defeating its lazy trigger.
       processId = function() return require("dap.utils").pick_process() end,
       cwd = "${workspaceFolder}",
+    },
+    {
+      name = "node: attach by host/port",
+      type = "pwa-node", request = "attach", cwd = "${workspaceFolder}",
+      address = function() return require("util.dap").input("Node inspector host: ", "127.0.0.1") end,
+      port = function() return require("util.dap").port(9229) end,
+      sourceMaps = true,
     },
     {
       -- Chrome must already run with --remote-debugging-port=9222 and its own
@@ -393,21 +491,34 @@ return {
   -- is built when the spec is read, long before there is a current file.
   {
     "mfussenegger/nvim-dap",
-    opts = {
-      handlers = {
-        -- Installs js-debug-adapter. Registers no adapter -- see `adapters`.
-        ["js"] = {},
-      },
-      adapters = {
+    opts = function(_, opts)
+      opts.handlers = vim.tbl_extend("force", opts.handlers or {}, { js = {} })
+      opts.adapters = vim.tbl_extend("force", opts.adapters or {}, {
         ["pwa-node"] = js_debug_adapter(),
         ["pwa-chrome"] = js_debug_adapter(),
-      },
-      configurations = {
-        javascript = js_debug_configurations(),
-        javascriptreact = js_debug_configurations(),
-        typescript = js_debug_configurations(),
-        typescriptreact = js_debug_configurations(),
-      },
-    },
+      })
+      opts.configurations = opts.configurations or {}
+      opts.targets = opts.targets or {}
+      for _, ft in ipairs({ "javascript", "javascriptreact", "typescript", "typescriptreact" }) do
+        opts.configurations[ft] = vim.list_extend(opts.configurations[ft] or {}, js_debug_configurations())
+        opts.targets[ft] = { file = debug_file,
+          test = function(ctx) debug_test(ctx, false) end,
+          test_file = function(ctx) debug_test(ctx, true) end }
+      end
+      local dap = require("dap")
+      -- Start the renderer after Electron's launch succeeds. js-debug retries
+      -- its CDP connection while the main process creates its first window.
+      dap.listeners.after.launch["electron_renderer"] = function(session, err)
+        if err or not session.config.__electron_renderer or session.parent then return end
+        dap.run({
+          name = "electron: renderer",
+          type = "pwa-chrome",
+          request = "attach",
+          port = 9222,
+          webRoot = session.config.cwd,
+          timeout = 30000,
+        }, { new = true })
+      end
+    end,
   },
 }

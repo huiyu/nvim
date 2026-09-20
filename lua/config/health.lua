@@ -16,6 +16,10 @@ local executables = {
   { "node",    "AI ACP adapters, claudecode, markdown-preview, JS run", false },
   { "tmux",    "native AI TUI frame wrapper",                          false },
   { "go",      "go toolchain, ,x runner for Go",                       false },
+  { "java",    "JDK 21+ for jdtls and Java debugging",                 false },
+  { "cargo",   "Rust binary and test debugging",                        false },
+  { "dart",    "Dart debugging (or use a project FVM SDK)",             false },
+  { "flutter", "Flutter debugging (or use a project FVM SDK)",          false },
   { "python3", "debugpy venv, ,x runner for Python",                    false },
   { "cc",      ",x compile & run for C",                                false },
   { "lazygit", "<leader>gg git UI",                                    false },
@@ -30,7 +34,8 @@ if vim.fn.has("macunix") == 1 then
 end
 
 -- Mason packages worth surfacing (Mason installs lazily, so absence is info).
-local mason_packages = { "lua-language-server", "vtsls", "gopls", "prettier" }
+local mason_packages = { "lua-language-server", "vtsls", "gopls", "prettier",
+  "jdtls", "java-debug-adapter", "java-test", "codelldb", "delve", "js-debug-adapter" }
 
 local function installed_mason_names()
   local ok, mr = pcall(require, "mason-registry")
