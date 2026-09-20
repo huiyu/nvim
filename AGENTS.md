@@ -122,6 +122,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   event stream, so `<leader>d` has to work from the editor tabpage too -- you
   set a breakpoint and step from the source you are editing, not only from
   inside the view. Nothing there blocks a global prefix.
+- `showtabline` belongs to `sync_tabline` in `lua/plugin/ui/bufferline.lua`,
+  not to bufferline: its `auto_toggle_bufferline` counts buffers only, so
+  more than one tabpage with at most one listed buffer hid the tabline and
+  the `1`/`2` tabpage indicators with it. Leaving bufferline's toggle on and
+  overriding afterwards does not work -- it re-runs from the tabline's own
+  redraw and undoes the override on the next draw.
 - The first tabpage stays a page the global prefixes work in
   (`util.window.protect_first_tab`, driven by `TabClosed` and
   `SessionLoadPost`). Views open after it on their own -- `tab split`
