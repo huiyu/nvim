@@ -127,6 +127,27 @@ return {
       dap.listeners.after.event_terminated["dapui_config"] = close_when_done
       dap.listeners.after.disconnect["dapui_config"] = close_when_done
 
+      -- The stopped line needs a band of its own. `DapStoppedLine` below is
+      -- named by `linehl` and `numhl` but nothing ever defined it, so the line
+      -- execution is paused on carried no highlight at all -- the gutter arrow
+      -- was the only marker, and in a dense file that is easy to lose.
+      --
+      -- Blended from the theme's warning yellow rather than hardcoded: it has
+      -- to stay dark enough to read syntax colours through, warm enough to be
+      -- distinct from CursorLine's teal underneath it, and follow the theme if
+      -- that ever changes.
+      local function blend(fg, bg, alpha)
+        local function channel(shift)
+          local f, b = math.floor(fg / shift) % 256, math.floor(bg / shift) % 256
+          return math.floor(f * alpha + b * (1 - alpha) + 0.5)
+        end
+        return string.format("#%02x%02x%02x", channel(65536), channel(256), channel(1))
+      end
+      local palette = require("solarized-osaka.colors").setup()
+      vim.api.nvim_set_hl(0, "DapStoppedLine", {
+        bg = blend(tonumber(palette.yellow:sub(2), 16), tonumber(palette.bg:sub(2), 16), 0.25),
+      })
+
       -- Define signs for different debugging states:
       vim.fn.sign_define(
         "DapStopped",

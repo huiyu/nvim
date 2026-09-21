@@ -293,6 +293,12 @@ rather than a broken viewer.
   closes them; only placement moved. A panel appearing in the wrong place
   means its filetype is not declared there -- dapui names every element
   separately and there is no `dapui` filetype.
+- **The stopped line is not highlighted** -- `DapStoppedLine` is defined in
+  `lua/plugin/lsp/dap.lua` beside the `sign_define` calls that name it. A
+  sign naming a highlight group nothing creates fails silently: the sign
+  places, the `linehl` does nothing, and only the gutter arrow marks the
+  pause. `tests/dap_actions_spec.lua` asserts every dap sign's `texthl`,
+  `linehl` and `numhl` resolve.
 - **A stack frame opens over a panel, or dapui asks which window to use** --
   two different paths place a frame, and both go through
   `util.window.ensure_editor_win`. Stopping at a breakpoint uses

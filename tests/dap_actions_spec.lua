@@ -195,4 +195,22 @@ dap.listeners.after.disconnect.dapui_config()
 settle()
 t.eq(#vim.api.nvim_list_tabpages(), tabs, "last disconnect closes the debug tabpage")
 dap.sessions = sessions
+-- A sign whose texthl/linehl/numhl names a group nothing defines fails
+-- silently: the sign still places, the highlight simply does nothing. That is
+-- how the stopped line went unmarked -- `DapStoppedLine` was named twice and
+-- never created, leaving the gutter arrow as the only sign execution had
+-- paused there.
+for _, name in ipairs({ "DapStopped", "DapBreakpoint", "DapBreakpointCondition",
+                        "DapBreakpointRejected", "DapLogPoint" }) do
+  local sign = vim.fn.sign_getdefined(name)[1]
+  t.ok(sign ~= nil, name .. " is defined")
+  for _, attr in ipairs({ "texthl", "linehl", "numhl" }) do
+    local group = sign and sign[attr]
+    if group then
+      t.ok(next(vim.api.nvim_get_hl(0, { name = group, link = false })) ~= nil,
+        ("%s %s -> %s is a real highlight"):format(name, attr, group))
+    end
+  end
+end
+
 t.done()
