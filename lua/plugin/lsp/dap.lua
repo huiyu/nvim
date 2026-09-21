@@ -153,10 +153,20 @@ return {
         "DapStopped",
         { text = "󰁕", texthl = "DiagnosticWarn", linehl = "DapStoppedLine", numhl = "DapStoppedLine" }
       )
-      vim.fn.sign_define("DapBreakpoint", { text = "", texthl = "DiagnosticInfo" })
-      vim.fn.sign_define("DapBreakpointCondition", { text = "", texthl = "DiagnosticInfo" })
-      vim.fn.sign_define("DapBreakpointRejected", { text = "", texthl = "DiagnosticError" })
-      vim.fn.sign_define("DapLogPoint", { text = ".>", texthl = "DiagnosticInfo" })
+      -- Plain geometric shapes rather than Nerd Font glyphs: the font's
+      -- `dot_circle_o` drew a thin ring around a dot, which at gutter size read
+      -- as a smudge. These are solid, need no patched font, and measure one
+      -- cell -- the sign segment in lua/plugin/ui/statuscol.lua caps Dap signs
+      -- at `maxwidth = 1`, which silently truncated the old two-cell `.>`
+      -- logpoint to a bare dot.
+      --
+      -- Shape carries the meaning, not colour alone: filled is an ordinary
+      -- breakpoint, ringed adds a condition, hollow is one the adapter has not
+      -- verified, and the diamond is a logpoint that prints without stopping.
+      vim.fn.sign_define("DapBreakpoint", { text = "●", texthl = "DiagnosticInfo" })
+      vim.fn.sign_define("DapBreakpointCondition", { text = "◉", texthl = "DiagnosticInfo" })
+      vim.fn.sign_define("DapBreakpointRejected", { text = "○", texthl = "DiagnosticError" })
+      vim.fn.sign_define("DapLogPoint", { text = "◆", texthl = "DiagnosticInfo" })
 
       -- Config nvim mason
       local tbl = require("util.common").table

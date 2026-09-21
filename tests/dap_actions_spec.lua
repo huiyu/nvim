@@ -204,6 +204,13 @@ for _, name in ipairs({ "DapStopped", "DapBreakpoint", "DapBreakpointCondition",
                         "DapBreakpointRejected", "DapLogPoint" }) do
   local sign = vim.fn.sign_getdefined(name)[1]
   t.ok(sign ~= nil, name .. " is defined")
+  -- The Dap sign segment in lua/plugin/ui/statuscol.lua sets `maxwidth = 1`,
+  -- which truncates a wider glyph without saying so -- that is how the
+  -- two-cell `.>` logpoint had been rendering as a bare dot.
+  local text = sign and vim.trim(sign.text or "")
+  if text then
+    t.eq(vim.fn.strwidth(text), 1, ("%s renders in the one cell the gutter gives it"):format(name))
+  end
   for _, attr in ipairs({ "texthl", "linehl", "numhl" }) do
     local group = sign and sign[attr]
     if group then

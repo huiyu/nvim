@@ -606,6 +606,16 @@ the thing that moves you between tabs.
 | `<Space>ds` | List sessions; select a main/renderer/child session |
 | `<Space>dq` / `<Space>dx` | List / clear all breakpoints |
 
+The gutter and the panel controls take the mouse. Clicking a line number
+toggles a breakpoint, and ctrl-clicking one prompts for a condition; the eight
+icons above the console are buttons for continue/pause, the three steps, step
+back, run last, terminate and disconnect. `mouse` is `nv`, so leave Insert or
+Terminal mode first.
+
+Gutter shapes read without colour: `●` breakpoint, `◉` conditional, `◆`
+logpoint, `○` one the adapter has not verified, `󰁕` the line execution is
+stopped on, which is also highlighted.
+
 Character, line and block selections work for evaluation and watches without
 yanking. Watch expressions persist in the current editor process; use `d` in
 the Watches panel to remove one. Cancelling the watch or logpoint prompt changes
