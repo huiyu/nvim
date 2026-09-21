@@ -175,6 +175,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   Popups with no declared entries keep which-key's default layout.
   Sectioning sorts *before* which-key's groups-first rule; the other
   order lets an undeclared group row jump ahead of every heading.
+- `s` is declared as a manual which-key trigger. Automatic triggers refuse
+  every bare lowercase letter but `g` and `z` (`which-key/buf.lua`,
+  `is_safe`), because a trigger on a letter makes that letter wait out
+  'timeoutlen' before its builtin runs -- so the window prefix was the one
+  prefix with no popup. Declaring it manually skips that check, and the
+  builtin it defers is `s` = `cl`, already given up when windows took the
+  key. Normal mode only: Visual `s` changes the selection.
 - Key lookup goes through `keytrans(keycode(...))`, which is which-key's own
   normalisation (`util.lua`, `M.norm`). Do not call `keytrans` on a raw
   `nvim_get_keymap` lhs: that value is half-converted -- control keys are

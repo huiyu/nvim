@@ -240,4 +240,18 @@ local file_at = rendered:find("Go to file under cursor", 1, true)
 t.ok(others_at and file_at and others_at < file_at, "rendered g popup puts others before the unclassified builtins")
 State.stop()
 
+-- which-key's automatic triggers skip every bare lowercase letter but `g` and
+-- `z` (`which-key/buf.lua`, `is_safe`), so the window prefix had no popup while
+-- every other prefix did. Asserted against the resolved config rather than
+-- `maparg`: triggers attach per buffer, so whether one is installed right now
+-- depends on state this spec has just stopped.
+local triggers = require("which-key.config").triggers
+local declared = {}
+for _, mapping in ipairs(triggers.mappings or {}) do
+  declared[mapping.lhs .. ":" .. mapping.mode] = true
+end
+t.ok(declared["s:n"], "the window prefix is declared as a trigger, so `s` opens a popup")
+t.ok(not declared["s:x"], "Visual s is left alone, where it changes the selection")
+t.ok(triggers.modes and triggers.modes.n, "automatic triggers are still on for every other prefix")
+
 t.done()

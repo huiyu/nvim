@@ -177,6 +177,22 @@ return {
     -- The presets *plugin* below is unrelated: it documents built-in keys and
     -- creates no mappings of its own.
     preset = "helix",
+    -- which-key's automatic triggers refuse every bare lowercase letter except
+    -- `g` and `z` (`which-key/buf.lua`, `is_safe`): putting one on a letter
+    -- makes that letter wait out 'timeoutlen' before its builtin can run. `s`
+    -- is the window prefix here and has nothing bound to it on its own, so it
+    -- had no popup at all while `<leader>`, `;` and `g` did.
+    --
+    -- Declaring it manually skips that check -- `is_safe` is called without
+    -- `no_single` for manual triggers. The builtin this defers is `s`, which is
+    -- `cl`: delete the character under the cursor and insert. `r` replaces a
+    -- character without leaving Normal mode and `cw` changes a word, so the one
+    -- it displaces is the one already spent on this prefix. Normal mode only --
+    -- Visual `s` changes the selection and is worth keeping immediate.
+    triggers = {
+      { "<auto>", mode = "nxso" },
+      { "s", mode = "n" },
+    },
     presets = {
       operators = true,    -- adds help for operators like d, y, ... and registers them for motion / text object completion
       motions = true,      -- adds help for motions
