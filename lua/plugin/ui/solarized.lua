@@ -21,6 +21,17 @@ return {
 		-- lands once this is cleared too.
 		vim.api.nvim_set_hl(0, "TabLineFill", { bg = "NONE" })
 
+		-- Match the fold column to the line numbers beside it. The theme gives
+		-- FoldColumn the ordinary foreground (#9eabac), so the `-` and `|` fold
+		-- markers were the brightest thing in the gutter while the line numbers
+		-- they sit next to are deliberately dimmed -- decoration reading louder
+		-- than the numbers it decorates. CursorLineFold too, or the cursor row
+		-- keeps the one remaining bright marker; CursorLineNr already carries
+		-- the accent that marks that row.
+		local gutter = vim.api.nvim_get_hl(0, { name = "LineNr", link = false }).fg
+		vim.api.nvim_set_hl(0, "FoldColumn", { fg = gutter })
+		vim.api.nvim_set_hl(0, "CursorLineFold", { fg = gutter })
+
 		-- Fix built-in terminal colors so tools like Claude Code have distinguishable highlighting
 		vim.g.terminal_color_0 = "#073642" -- black (base02, standard Solarized)
 		vim.g.terminal_color_8 = "#657b83" -- bright black (base00)
