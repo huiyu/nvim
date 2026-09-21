@@ -190,7 +190,10 @@ Go, Python, Java, C/C++, Rust, Node/Chrome, Dart/Flutter and Electron.
 
 `<leader>d` covers breakpoints, stepping and sessions: `de` exception breakpoints,
 `dL` logpoints, `dR` restart, `dD` disconnect while keeping the target running,
-`du` panels, `dw` evaluate expression/selection, and `dW` add a watch.
+`du` the debug view, `dw` evaluate expression/selection, and `dW` add a watch.
+The debug view opens in a tabpage of its own, so a session never rearranges
+the windows you were editing in; stepping stays in whichever tabpage you are
+in.
 See the [debugging workflow](docs/MANUAL.md#debugging) for each language's
 dependencies, launch/attach commands, tests and project `launch.json` examples.
 Install the Dart/Flutter SDK separately.

@@ -184,8 +184,9 @@ nvim
 Node/Chrome、Dart/Flutter 和 Electron 的预设。
 
 `<leader>d` 提供断点、单步和会话操作：`de` 异常断点、`dL` 日志断点、
-`dR` 重启、`dD` 断开并保留目标、`du` 面板开关、`dw` 表达式/选区求值、
-`dW` 添加 Watch。各语言的依赖、launch/attach 命令、测试操作及项目
+`dR` 重启、`dD` 断开并保留目标、`du` 调试视图开关、`dw` 表达式/选区求值、
+`dW` 添加 Watch。调试视图开在独立的 tabpage 里，会话不会打乱你正在编辑的
+窗口；步进停留在你所在的 tabpage。各语言的依赖、launch/attach 命令、测试操作及项目
 `launch.json` 示例见[调试工作流](docs/MANUAL_CN.md#调试)。
 Dart/Flutter SDK 需单独安装。
 
