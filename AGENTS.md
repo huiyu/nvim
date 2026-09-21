@@ -134,6 +134,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   colorscheme leaves opaque even under `transparent`. Both are cleared --
   `fill` in the bufferline spec, `TabLineFill` in `lua/plugin/ui/solarized.lua`
   -- and clearing only one puts the theme's teal band back across the top.
+- Window sizing goes through `util.window.resize` and `toggle_zoom`, not
+  `:resize` or `wincmd _` directly. edgy re-applies its panels' geometry on
+  `WinResized` and every panel is winfix, so beside one a bare `:resize` is
+  a no-op and `wincmd _` is undone a tick later. An edgy window's thickness
+  (a left/right bar's width, a bottom bar's height) is the edgebar's own
+  `size` and can only be grown through `Window:resize`, so shrinking goes
+  through the edgebar. Never collapse panels with edgy's `hide` or
+  `edgebar:close()` to make room: both drop a non-pinned window for good,
+  and `open()` restores only pinned views, of which this config has none.
 - The first tabpage stays a page the global prefixes work in
   (`util.window.protect_first_tab`, driven by `TabClosed` and
   `SessionLoadPost`). Views open after it on their own -- `tab split`

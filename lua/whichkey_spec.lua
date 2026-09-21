@@ -287,17 +287,7 @@ local spec = {
   { "sd", "<cmd>WindowCloseCurrent<cr>", desc = "Delete window",       mode = "n" },
   { "so", "<cmd>WindowCloseOthers<cr>",  desc = "Close other windows", mode = "n" },
   { "s=", function() require("util.window").equalize_respecting_fixed() end, desc = "Equalize windows", mode = "n" },
-  { "sm", function()
-    local win = vim.api.nvim_get_current_win()
-    local is_zoomed = vim.w[win].zoomed
-    if is_zoomed then
-      require("util.window").equalize_respecting_fixed()
-      vim.w[win].zoomed = false
-    else
-      vim.cmd("wincmd _ | wincmd |")
-      vim.w[win].zoomed = true
-    end
-  end, desc = "Toggle zoom", mode = "n" },
+  { "sm", function() require("util.window").toggle_zoom() end, desc = "Toggle zoom", mode = "n" },
 
   -- Tab management
   { "<leader><tab><tab>", "<cmd>tabnew<cr>",     desc = "New tab" },

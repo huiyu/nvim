@@ -129,11 +129,19 @@ vim.keymap.set("n", "<C-,>", "<cmd>WindowFocusEditor<cr>",
 vim.keymap.set("t", "<C-,>", "<C-\\><C-n><cmd>WindowFocusEditor<cr>",
   { desc = "Go to editor window", silent = true })
 
--- Window resize (Ctrl+arrows)
-vim.keymap.set("n", "<C-Up>", "<cmd>resize +2<cr>", { desc = "Increase window height" })
-vim.keymap.set("n", "<C-Down>", "<cmd>resize -2<cr>", { desc = "Decrease window height" })
-vim.keymap.set("n", "<C-Left>", "<cmd>vertical resize -2<cr>", { desc = "Decrease window width" })
-vim.keymap.set("n", "<C-Right>", "<cmd>vertical resize +2<cr>", { desc = "Increase window width" })
+-- Window resize (Ctrl+arrows). Routed through util.window rather than straight
+-- to `:resize`: once edgy owns a panel in the tabpage, a bare `:resize` is a
+-- no-op on an editor window and is reverted on a panel. See `window.resize`.
+for _, spec in ipairs({
+  { key = "<C-Up>",    dim = "height", delta = 2,  desc = "Increase window height" },
+  { key = "<C-Down>",  dim = "height", delta = -2, desc = "Decrease window height" },
+  { key = "<C-Left>",  dim = "width",  delta = -2, desc = "Decrease window width" },
+  { key = "<C-Right>", dim = "width",  delta = 2,  desc = "Increase window width" },
+}) do
+  vim.keymap.set("n", spec.key, function()
+    require("util.window").resize(spec.dim, spec.delta)
+  end, { desc = spec.desc })
+end
 
 -- Buffer navigation ([b / ]b) lives in plugin/ui/bufferline.lua next to
 -- <S-h>/<S-l>, so both pairs follow the visual bufferline order (pins/sorting)

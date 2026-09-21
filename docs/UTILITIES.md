@@ -388,6 +388,19 @@ window.track_editor_win()
 -- frame in the tabpage the user is actually in.
 window.ensure_editor_win()
 
+-- Resize the current window through whichever system owns it: edgy's own
+-- per-window override or bar size when edgy manages the window, `:resize`
+-- otherwise. A bare `:resize` stops working once edgy has a panel in the
+-- tabpage -- every panel is winfix, so there is nothing to take space from.
+window.resize(dim, delta)
+
+-- Give the current window the whole tabpage, and put the layout back.
+-- Collapses edgy's bars first (their size and their views' thickness, both
+-- remembered) because `wincmd _` alone is reverted when edgy re-applies its
+-- geometry. Shrinks rather than hides: edgy's `hide` drops a non-pinned
+-- window from its edgebar outright and only pinned views can be reopened.
+window.toggle_zoom()
+
 -- Keep the first tabpage one the global prefixes still work in. diffview
 -- disables `;`, `,` and the rest inside its own tabpage, so a layout where
 -- its page is the first one leaves `;f` with nowhere to run. Inserts a fresh

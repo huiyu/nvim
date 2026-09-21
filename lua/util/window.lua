@@ -106,6 +106,135 @@ local function get_fixed_panels()
   return panels
 end
 
+--- The edgy windows in the current tabpage, and edgy's handle for one window.
+---
+--- Gated on edgy already being loaded rather than requiring it: edgy is a
+--- `VeryLazy` spec, and pulling it in from a window command would load it ahead
+--- of its trigger. Before it loads there are no edgy windows to find anyway.
+local function edgy_editor()
+  return package.loaded["edgy"] and require("edgy.editor") or nil
+end
+
+local function edgy_win(win)
+  local editor = edgy_editor()
+  return editor and editor.get_win(win) or nil
+end
+
+--- edgy's resolved edgebars, or nil before it has loaded.
+local function edgy_layout()
+  return edgy_editor() and require("edgy.config").layout or nil
+end
+
+--- edgy distinguishes two directions, and only one of them is per-window.
+--- An edgebar's *thickness* -- a left/right bar's width, a bottom bar's height
+--- -- is the bar's own `size`; the other axis is divided between its windows.
+--- `Window:resize` reaches only the second: on the thickness it can never
+--- shrink the bar, because that is a max over `options.<pos>.size` and the
+--- views' own sizes (`edgy/edgebar.lua`, `bounds[short]`).
+local function edgy_thickness(edgebar)
+  return edgebar.vertical and "width" or "height"
+end
+
+--- Resize the current window, through whichever system owns it.
+---
+--- `:resize` alone stops working once edgy has a panel in the tabpage. On a
+--- panel, edgy re-applies its own geometry on WinResized and the change is gone
+--- a tick later; on an editor window beside one there is nothing to take the
+--- space from, since every edgy panel is winfixwidth/winfixheight -- measured
+--- as a plain no-op, not even a flicker. So hand edgy's windows to edgy: the
+--- bar's own size for the thickness, its per-window override for the rest.
+---@param dim "width"|"height"
+---@param delta integer
+function M.resize(dim, delta)
+  local win = edgy_win(vim.api.nvim_get_current_win())
+  if not win then
+    vim.cmd((dim == "width" and "vertical resize " or "resize ")
+      .. (delta > 0 and "+" or "") .. delta)
+    return
+  end
+  local edgebar = win.view.edgebar
+  if dim == edgy_thickness(edgebar) then
+    local current = dim == "width" and vim.api.nvim_win_get_width(win.win)
+      or vim.api.nvim_win_get_height(win.win)
+    edgebar.size = math.max(1, current + delta)
+    require("edgy.layout").update()
+  else
+    win:resize(dim, delta)
+  end
+end
+
+--- Shrink every edgebar except the one owning `keep_win`, remembering enough to
+--- put them back. Shrinking rather than hiding: edgy's `hide` drops a
+--- non-pinned window from its edgebar outright -- measured, the window is gone
+--- on the next tick -- and `open()` restores only pinned views, of which this
+--- config has none, so the agent panel would not come back.
+---
+--- Both the bar's size and its views' own thickness have to go: the bar is as
+--- thick as the larger of the two, so leaving the views at `height = 0.25`
+--- would hold the bottom bar open at a quarter of the screen.
+local function collapse_edgebars(keep_win)
+  local layout = edgy_layout()
+  if not layout then return end
+  local bars, views = {}, {}
+  for pos, edgebar in pairs(layout) do
+    local owns_current = false
+    for _, win in ipairs(edgebar.wins or {}) do
+      if win.win == keep_win then owns_current = true end
+    end
+    if not owns_current and #(edgebar.wins or {}) > 0 then
+      local thickness = edgy_thickness(edgebar)
+      bars[pos] = edgebar.size
+      edgebar.size = 1
+      for i, view in ipairs(edgebar.views or {}) do
+        if view.size and view.size[thickness] then
+          views[pos .. "\0" .. i] = view.size[thickness]
+          view.size[thickness] = nil
+        end
+      end
+    end
+  end
+  vim.t.edgy_zoom = { bars = bars, views = views }
+  require("edgy.layout").update()
+end
+
+local function restore_edgebars()
+  local saved, layout = vim.t.edgy_zoom, edgy_layout()
+  vim.t.edgy_zoom = nil
+  if not saved or not layout then return end
+  for pos, size in pairs(saved.bars or {}) do
+    if layout[pos] then layout[pos].size = size end
+  end
+  for key, size in pairs(saved.views or {}) do
+    local pos, i = key:match("^(.-)%z(%d+)$")
+    local edgebar = pos and layout[pos]
+    local view = edgebar and (edgebar.views or {})[tonumber(i)]
+    if view then
+      view.size = view.size or {}
+      view.size[edgy_thickness(edgebar)] = size
+    end
+  end
+  require("edgy.layout").update()
+end
+
+--- Give the current window the whole tabpage, and put the layout back.
+---
+--- `wincmd _` on its own was undone a tick later, for the same reason `:resize`
+--- is: edgy's panels are winfix and it re-applies their geometry. Collapsing
+--- the bars first is what leaves any space to take.
+function M.toggle_zoom()
+  local win = vim.api.nvim_get_current_win()
+  if vim.w[win].zoomed then
+    restore_edgebars()
+    M.equalize_respecting_fixed()
+    vim.w[win].zoomed = false
+    return
+  end
+  collapse_edgebars(win)
+  vim.cmd.wincmd("_")
+  vim.cmd.wincmd("|")
+  vim.w[win].zoomed = true
+end
+
 --- Restore fixed panels to their target sizes (no equalization).
 --- Use after window open/close to enforce sidebar widths.
 function M.restore_fixed_panels()
