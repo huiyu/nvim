@@ -26,7 +26,7 @@ local one = vim.api.nvim_get_current_buf()
 term.toggle(1) -- hide
 term.toggle(2)
 local two = vim.api.nvim_get_current_buf()
-t.ok(one ~= two, "\\1 and \\2 are different terminals")
+t.ok(one ~= two, ",1 and ,2 are different terminals")
 t.eq(vim.bo[one].buftype, "terminal", "terminal 1 is a real terminal")
 term.toggle(2) -- hide
 
@@ -93,7 +93,7 @@ term.toggle(2)
 t.eq(current_id(), 2, "an explicit count overrides the remembered terminal")
 term.toggle()
 
--- `\1`..`\9` pick which terminal you are looking at; they never close one.
+-- `,1`..`,9` pick which terminal you are looking at; they never close one.
 -- Pressing the number of the terminal you are already in used to dismiss it,
 -- which made the numbers a second, competing close key.
 term.focus(1)

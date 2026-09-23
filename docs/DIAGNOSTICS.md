@@ -105,7 +105,7 @@ above instead. Buffer-local server commands such as
 Empty reference results can mean a stale project graph or a consumer project
 that has not been loaded. `checktime` refreshes buffers, not language-server
 state. After files move across packages, workspace symlinks change, or project
-configs are added, try `<leader>mr`. In Go buffers prefer `\G`, which also
+configs are added, try `<leader>mr`. In Go buffers prefer `,G`, which also
 clears the gopls cache before restarting.
 
 For TypeScript/JavaScript workspaces, `lang/typescript.lua` preloads projects
@@ -366,7 +366,7 @@ The server loads all Java test dependency bundles except the standalone test
 runner and JaCoCo agent. Each project uses a hashed workspace under the Nvim
 cache directory, and subsequent Java buffers attach to the existing client.
 
-`\dt` / `\dT` debug the nearest test / class. A missing debug bundle or setup
+`,dt` / `,dT` debug the nearest test / class. A missing debug bundle or setup
 failure is reported instead of swallowed. After installing bundles, use
 `:JdtRestart`. For project-import failures inspect `:checkhealth vim.lsp` and
 `:JdtShowLogs`. JDWP targets must start with `-agentlib:jdwp=...`; the default
@@ -425,7 +425,7 @@ an empty answer uses device discovery. **dart: attach to VM service** requires
 the full HTTP(S)/WS(S) service URI printed by a Dart process started with
 `--enable-vm-service`; keep its token/path, not the DevTools webpage URL. If the
 VM starts paused without a source frame, use `dc` to continue to your breakpoint.
-`\dr` hot-reloads, `\dR` hot-restarts Flutter; save changes first.
+`,dr` hot-reloads, `,dR` hot-restarts Flutter; save changes first.
 CLI/test program paths match Neovim's canonical buffer names so symlink aliases
 such as macOS `/tmp` versus `/private/tmp` do not prevent breakpoints binding.
 
@@ -622,6 +622,24 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 - `:verbose map <lhs>` / `:verbose nmap <lhs>` — where a mapping was set
 - `:verbose set <option>?` — where an option was last set
 - which-key popup (press a prefix and wait); `<leader>?` is the trigger cheatsheet
+- **Old backslash shortcuts stopped working** — `<localleader>` is now comma.
+  Restart Nvim to remove old live mappings, then press `,` in the relevant file
+  or view. Headings separate general editing from filetype and view actions.
+  Conflict-free replacements include C/C++ `,H`, Markdown `,m`, LaTeX `,K`/`,E`
+  and `,L…`, Diffview `,P`/`,B`/`,g…`, and search-panel actions under `,S…`.
+  `[LSP]` entries still require a server;
+  use `:checkhealth vim.lsp` if those actions are unavailable.
+  The [manual](MANUAL.md#filetype-and-view-actions) lists every migrated action.
+- **A filetype or view section is missing from `,`** — check
+  `:setlocal filetype? buftype?`, then `:verbose nmap ,v` (replace `,v` with the expected key).
+  Headings classify existing mappings; they do not create actions. Python and
+  LaTeX share `,v` with different meanings, and terminal digits require a terminal
+  buffer in Normal mode. Java's `,dt`/`,dT` also need jdtls/debug initialization.
+  Diffview adds `,P`/`,B`/`,g…` beside the language section and removes those
+  actions on close. Section metadata lives in `lua/whichkey_spec.lua`; the
+  rendering code in `lua/plugin/editor/whichkey.lua` reads it generically.
+  grug-far's `,S` subgroup appears only inside its search-and-replace panel;
+  open it with `,F`, then use `g?` to inspect its action mappings.
 - **Which-key hints stop appearing while mappings still work** — check for the
   red `● REC @…` statusline indicator, or run `:echo reg_recording()`. Which-key
   pauses its triggers during macro recording; if a register is shown, press
@@ -637,10 +655,10 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   control byte means the terminal never encoded it. tmux only relays
   modifyOtherKeys, and Ghostty's legacy table pre-empts that for Ctrl+digit
   (Ctrl+1 is a bare `1`, Ctrl+3 is Esc, Ctrl+7 is `<C-_>`), which is why the
-  terminal numbers use buffer-local `\1`-`\9` in terminal-Normal mode.
-  From a file, use `3<C-/>` to select terminal 3. The `\` digit mappings do
+  terminal numbers use buffer-local `,1`-`,9` in terminal-Normal mode.
+  From a file, use `3<C-/>` to select terminal 3. The comma digit mappings do
   not exist in ordinary files, even when a terminal is visible; restart Nvim
-  after updating to remove the old global mappings from a running session.
+  after updating to remove the old mappings from a running session.
 - **Shift+Enter submits instead of inserting a newline in an agent panel** —
   the wrapper tmux has to keep the modifier. Inside the pane, `$TMUX` already
   points at the wrapper, so:

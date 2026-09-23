@@ -1,9 +1,9 @@
 -- Popup sections: order, heading and colour for the keys under a prefix.
 --
 -- The layout itself is declared in lua/whichkey_spec.lua next to the mappings,
--- keyed by prefix and suffix. This file only reads it: nothing here knows what
--- "files" or "search" means, so adding a key or a whole section is a data edit
--- in one place, never a code change here.
+-- keyed by prefix/suffix with optional filetype/buftype filters and subgroup
+-- labels. This file only reads it: nothing here knows what "files" or "search"
+-- means, and context headings never register mappings or load a language plugin.
 --
 -- Matching is by mapping, not by description text. An earlier version matched
 -- lowercased `desc` against Lua patterns, which meant a reworded description
@@ -25,13 +25,15 @@ local function norm(keys)
 end
 
 --- Lookup from full key sequence to its declared section.
----@return table<string, {order: number, section: table}>
+---@return table<string, {order: number, section: table, label?: string}[]>
 local function build_lookup()
   local by_keys = {}
   for prefix, list in pairs(Spec.sections or {}) do
     for order, section in ipairs(list) do
       for _, key in ipairs(section.keys or {}) do
-        by_keys[norm(prefix .. key)] = { order = order, section = section }
+        local lhs = norm(prefix .. key)
+        by_keys[lhs] = by_keys[lhs] or {}
+        table.insert(by_keys[lhs], { order = order, section = section, label = section.labels and section.labels[key] })
       end
     end
   end
@@ -47,7 +49,7 @@ local LOOKUP = build_lookup()
 --- groups be sectioned. The keymap fallback covers any row that carries a real
 --- mapping without a node behind it.
 ---@param item table which-key item (keys, key, desc, keymap, group)
----@return {order: number, section: table}?
+---@return {order: number, section: table, label?: string}?
 local function entry_for(item)
   local keys = item.keys
   if not keys and item.keymap and item.keymap.lhs then
@@ -57,7 +59,15 @@ local function entry_for(item)
     -- through keycode first so both shapes land on which-key's form.
     keys = norm(item.keymap.lhs)
   end
-  return keys and LOOKUP[keys] or nil
+  -- The popup does not take focus: current buffer is the source buffer.
+  -- A key may belong to different sections in different filetypes (,v).
+  for _, entry in ipairs(keys and LOOKUP[keys] or {}) do
+    local section = entry.section
+    if (not section.filetype or vim.tbl_contains(section.filetype, vim.bo.filetype))
+      and (not section.buftype or section.buftype == vim.bo.buftype) then
+      return entry
+    end
+  end
 end
 
 --- Sort key: the section's position, or 99 for an undeclared key.
@@ -129,6 +139,9 @@ local function install_section_headings()
     for _, item in ipairs(items) do
       local entry = entry_for(item)
       local section = entry and entry.section or Spec.fallback_section
+      if entry and entry.label and item.group then
+        item.desc = entry.label
+      end
       -- Paint the key itself, so the heading and its rows read as one block.
       item.icon = section.icon or item.icon
       item.icon_hl = "WhichKeyIcon"

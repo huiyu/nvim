@@ -22,13 +22,13 @@ local spec = {
   -- commands, Noice history, Lazy, Mason, and LSP status/restart.
   { "<leader>m",     group = "Manage",          mode = { "n", "v" } },
   -- `,` is the twin of `;`: where `;` answers "which file do I want to be in?",
-  -- `,` answers "what do I do to the code in front of me?" -- LSP actions,
-  -- format, refactor, replace, move lines. Both are two keys because both are
-  -- high-frequency; <leader> keeps the rest.
+  -- `,` answers "what can I do in this file or view?" -- general editing,
+  -- language tools and view actions share a menu with contextual headings.
+  -- Both keep frequent actions short; <leader> keeps global domains.
   --
-  -- ,a and ,r exist only where an LSP is attached (lua/plugin/lsp/lsp.lua sets
-  -- them on LspAttach); the rest are global.
-  { ",",             group = "Code",            mode = { "n", "x" } },
+  -- ,a/,r/,c attach with LSP; filetype/view keys stay buffer-local.
+  -- <localleader> is also comma; it contributes to this same menu.
+  { ",",             group = "Buffer actions",  mode = { "n", "x" } },
   { ",e",            group = "Extract",         mode = { "n", "x" } },
   -- Just sessions now; the tooling half moved to <leader>m.
   { "<leader>s",     group = "Session",         mode = "n" },
@@ -73,11 +73,6 @@ local spec = {
   -- gS splits. Name the three largest groups instead of the smallest one.
   { "g",             group = "Goto/Case/Misc",  mode = { "n", "x", "o" } },
   { "z",             group = "Fold/Spell",      mode = { "n", "x" } },
-  -- <localleader> is per-filetype: VimTeX compile/view, diffview's panel and
-  -- conflict actions, gopls/venv/source-header, so the same letter can mean
-  -- different things in a .tex and a .go buffer. Terminal buffers add their
-  -- own digit row, `\1`..`\9`, on TermOpen (lua/autocmds.lua).
-  { "<localleader>", group = "This filetype",   mode = "n" },
 
   -- The marks plugin labels all four jump-to-mark prefixes identically as
   -- "marks". Disambiguate line-vs-exact and the jumplist-preserving g-variants.
@@ -105,7 +100,8 @@ local spec = {
       "",
       "  ── Which prefix? (intent → key) ─────────",
       "  go somewhere               ;",
-      "  act on this code           ,",
+      "  act on this file / view    ,",
+      "  arrange windows            s",
       "  run a command / manage     <leader>",
       "  next / prev thing          ] / [",
       "  goto this symbol           g",
@@ -142,7 +138,7 @@ local spec = {
       "  K / gK           Hover / Signature help",
       "  gO               Document symbols (Nvim default)",
       "",
-      "  ── , — act on this code ─────────────────",
+      "  ── , — current file / view actions ──────",
       "  ,a / ,f / ,r     Code action / Format / Rename",
       "  ,c               Run codelens",
       "  ,j ,k / ,h ,l    Move line / Dedent, Indent",
@@ -151,6 +147,24 @@ local spec = {
       "  ,e{f,F,b,B,x}    Extract fn / block / variable",
       "  ,w / ,F          Replace word / Search & replace",
       "  ,O               Code outline",
+      "  Context sections (only in matching buffers):",
+      "  Go: ,o imports / ,G rebuild index",
+      "  Python: ,o imports / ,v virtualenv",
+      "  C/C++: ,H source/header",
+      "  Markdown: ,p preview / ,m render",
+      "  Chat: ,m render (CodeCompanion)",
+      "  Search panel: ,S* actions / g? help",
+      "  Java: ,dt test method / ,dT test class",
+      "  Dart/Flutter: ,dr reload / ,dR restart",
+      "  LaTeX: ,b build / ,s stop / ,K clean",
+      "         ,E errors / ,v PDF / ,t TOC",
+      "         ,L* full VimTeX commands",
+      "  Diffview: ,P focus panel / ,B toggle panel",
+      "            ,g{o,t,b,a} choose conflict side",
+      "            ,g{O,T,B,A} choose for whole file",
+      "  View and language sections can coexist.",
+      "  [LSP] actions need a language server.",
+      "  , is also <localleader>; old \\ keys are gone.",
       "",
       "  ── <leader> groups ──────────────────────",
       -- filled in below from the spec itself
@@ -170,7 +184,7 @@ local spec = {
       "  ── Terminals ────────────────────────────",
       "  <C-/>            Open/close terminal (the one you are in)",
       "  3<C-/>           Open terminal 3 from a file",
-      "  \\1 .. \\9         Switch terminal (terminal buffers only;",
+      "  ,1 .. ,9         Switch terminal (terminal buffers only;",
       "                   from terminal input: jk first)",
       "  <leader>md       Fix terminal TUI drift",
       "",
@@ -409,11 +423,16 @@ end
 --- popup. `keys` are the suffixes after that prefix, matched against the
 --- mapping itself, so renaming a `desc` can never silently reclassify a key --
 --- which is the whole reason these are keys and not description patterns.
+--- Optional `filetype` (list) and `buftype` filters select a contextual section
+--- in the source buffer. The first matching section owns a key; e.g. ,v has
+--- separate Python and LaTeX entries. `labels` names implicit subgroup rows
+--- without creating placeholder mappings. Only actual mappings appear.
 ---
 --- A key listed in no section sorts last under the shared fallback section, so
 --- adding a mapping never *requires* touching this table. A key listed here
---- that no longer exists is inert. Both are checked by
---- tests/whichkey_popup_spec.lua, which fails on a suffix that maps to nothing.
+--- that no longer exists is inert. tests/whichkey_popup_spec.lua covers the
+--- headings and global declarations; tests/context_actions_spec.lua exercises
+--- real filetype menus, shared suffixes, and preserved general editing keys.
 ---
 --- `color` is a which-key colour name (see the list at the top of
 --- which-key/icons.lua): azure, blue, cyan, green, grey, orange, purple, red,
@@ -542,9 +561,34 @@ local sections = {
   [","] = {
     { "LSP",      icon = "󰅱 ", color = "azure",  keys = { "a", "r", "c" } },
     { "refactor", icon = "󰏫 ", color = "orange", keys = { "e", "i", "R", "n" } },
-    { "format",   icon = "󰉢 ", color = "cyan",   keys = { "f", "F", "w" } },
+    { "format",   icon = "󰉢 ", color = "cyan",   keys = { "f", "F", "w", "S" },
+      labels = { S = "Search panel" } },
     { "lines",    icon = "󰓡 ", color = "green",  keys = { "j", "k", "h", "l" } },
     { "file",     icon = "󰈔 ", color = "purple", keys = { "x", "O" } },
+    -- Context selects the heading, while actual buffer mappings select the
+    -- visible actions. View keys are distinct so a source buffer in Diffview
+    -- can show both its language section and its view section.
+    { "C/C++ · files", icon = "󰈔 ", color = "purple", filetype = { "c", "cpp" }, keys = { "H" } },
+    { "Python · imports / environment", icon = "󰌠 ", color = "yellow", filetype = { "python" }, keys = { "o", "v" } },
+    { "Go · imports / server", icon = "󰟓 ", color = "cyan", filetype = { "go" }, keys = { "o", "G" } },
+    { "Java · test debug", icon = "󰙨 ", color = "orange", filetype = { "java" }, keys = { "d" },
+      labels = { d = "Test debug" } },
+    { "Dart/Flutter · runtime", icon = "󰐊 ", color = "cyan", filetype = { "dart" }, keys = { "d" },
+      labels = { d = "Reload / restart" } },
+    { "LaTeX · build", icon = "󰐊 ", color = "green", filetype = { "tex", "plaintex" }, keys = { "b", "s", "K", "E" } },
+    { "LaTeX · preview / tools", icon = "󰈈 ", color = "purple", filetype = { "tex", "plaintex", "bib" }, keys = { "v", "t", "L" },
+      labels = { L = "VimTeX" } },
+    { "Markdown · preview", icon = "󰍔 ", color = "cyan", filetype = { "markdown" }, keys = { "p", "m" } },
+    { "Chat · rendering", icon = "󰍔 ", color = "cyan", filetype = { "codecompanion" }, keys = { "m" } },
+    { "Diffview · panels / conflicts", icon = "󰓡 ", color = "orange", keys = { "P", "B", "g" } },
+    { "Terminal · sessions", icon = "󰆍 ", color = "yellow", buftype = "terminal",
+      keys = { "1", "2", "3", "4", "5", "6", "7", "8", "9" } },
+  },
+  [",S"] = {
+    { "replace / sync", icon = "󰏫 ", color = "orange", keys = { "r", "s", "l", "v", "j", "k", "n", "p" } },
+    { "results", icon = "󰈔 ", color = "purple", keys = { "o", "i", "q" } },
+    { "history", icon = "󰋚 ", color = "yellow", keys = { "t", "a" } },
+    { "search / panel", icon = "󰍉 ", color = "cyan", keys = { "f", "b", "e", "x", "w", "c" } },
   },
 }
 

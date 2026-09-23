@@ -71,7 +71,7 @@ autocmd("TermOpen", {
     vim.opt_local.sidescrolloff = 0
     vim.opt_local.signcolumn = "no"
 
-    -- Terminal-only actions belong on <localleader>. Plain keys also survive
+    -- Terminal-only actions join the comma menu. Plain keys also survive
     -- outer tmux sessions where Ctrl-digit encodings are lost. Leave terminal
     -- input untouched: use jk / Ctrl-] before choosing a numbered terminal.
     for n = 1, 9 do

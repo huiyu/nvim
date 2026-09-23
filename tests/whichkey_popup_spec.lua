@@ -4,8 +4,8 @@ local t = dofile("tests/helper.lua")
 --
 -- The section layout is declared in lua/whichkey_spec.lua and read by
 -- lua/plugin/editor/whichkey.lua. A suffix listed there that maps to nothing is
--- dead weight nobody would notice, so every declared key is resolved against a
--- real mapping.
+-- dead weight nobody would notice, so the global file-search declarations are
+-- resolved against real mappings. context_actions_spec.lua covers filetype menus.
 --
 -- The headings themselves are drawn by replacing which-key's `View.sort`. That
 -- is the only place this config depends on plugin internals, and it fails
@@ -23,10 +23,9 @@ end
 
 local Spec = require("whichkey_spec")
 
--- A declared suffix counts as live if any of these holds. Spec entries that
--- carry an RHS (";a" -> "<C-^>") stay inside which-key's own trie rather than
--- becoming a mapping maparg can see, and the g/, sections are LSP keys that
--- only exist once a client attaches -- neither is a dead key.
+-- Description-only spec entries live in which-key's trie. Entries with an RHS
+-- become real mappings after scheduled setup; that has not run yet here.
+-- Buffer-local LSP and filetype actions are exercised by their integration specs.
 local spec_lhs = {}
 for _, entry in ipairs(Spec.spec) do
   if type(entry[1]) == "string" then

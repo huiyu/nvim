@@ -1,7 +1,8 @@
 --- Keybindings
 --- see https://neovim.io/doc/user/intro.html#vim-modes-intro
 vim.g.mapleader = " "
-vim.g.maplocalleader = "\\"
+-- Filetype/view actions share the comma menu with general editing actions.
+vim.g.maplocalleader = ","
 
 -- No <C-s> save mapping: C-s is the tmux prefix on this setup, so tmux consumes
 -- it and the mapping never fired. `:w` is the working path.
@@ -36,7 +37,7 @@ vim.keymap.set({ "n", "x" }, "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, de
 vim.keymap.set({ "n", "x" }, "k", "v:count == 0 ? 'gk' : 'k'", { expr = true, desc = "Up" })
 
 -- Move lines. Alt belongs to tmux here (see lua/util/move.lua), so this lives
--- under `,` -- the prefix for acting on the code in front of you -- and then
+-- under `,` -- the current file/view action prefix -- and then
 -- repeats on bare j/k. See huiyu/nvim#12.
 vim.keymap.set({ "n", "x" }, ",j", function() require("util.move").run("down") end,
   { desc = "Move line(s) down" })

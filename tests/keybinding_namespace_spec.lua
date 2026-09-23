@@ -27,7 +27,7 @@ t.ok(mapping("]t").desc == "Next todo", "]t keeps next-Todo navigation")
 -- as legacy bytes under modifyOtherKeys), so they stay gone rather than linger
 -- as a second, environment-dependent route.
 for n = 1, 9 do
-  t.eq(mapping("<localleader>" .. n), {}, "\\" .. n .. " is absent from ordinary buffers")
+  t.eq(mapping("<localleader>" .. n), {}, "," .. n .. " is absent from ordinary buffers")
   t.eq(mapping("<C-" .. n .. ">"), {}, "<C-" .. n .. "> is no longer a terminal key")
   t.eq(mapping("<C-" .. n .. ">", "t"), {}, "<C-" .. n .. "> is gone from terminal mode too")
 end
@@ -57,15 +57,15 @@ for n = 1, 9 do
   t.eq(mapping(key, "t"), {}, key .. " does not intercept shell input")
 end
 
-local prefix = vim.g.maplocalleader or "\\"
+local prefix = vim.g.maplocalleader
 press(prefix .. "2")
 local two = vim.api.nvim_get_current_buf()
-t.eq(terminal_id(), 2, "terminal-local \\2 opens terminal 2")
+t.eq(terminal_id(), 2, "terminal-local ,2 opens terminal 2")
 t.ok(two ~= three, "numbered terminals have distinct buffers")
 press(prefix .. "2")
-t.eq(vim.api.nvim_get_current_buf(), two, "repeating \\2 keeps the selected terminal open")
+t.eq(vim.api.nvim_get_current_buf(), two, "repeating ,2 keeps the selected terminal open")
 press(prefix .. "3")
-t.eq(vim.api.nvim_get_current_buf(), three, "\\3 reuses the original terminal 3")
+t.eq(vim.api.nvim_get_current_buf(), three, ",3 reuses the original terminal 3")
 
 vim.api.nvim_set_current_win(editor_win)
 t.eq(vim.api.nvim_get_current_buf(), editor_buf, "switching terminals preserved the editor buffer")

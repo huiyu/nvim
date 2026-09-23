@@ -52,9 +52,9 @@ dap.session = function() return {
   config = { type = "flutter" },
   request = function(_, method, _, callback) request = method; callback(nil) end,
 } end
-vim.fn.maparg("\\dr", "n", false, true).callback()
+vim.fn.maparg(",dr", "n", false, true).callback()
 t.eq(request, "hotReload", "Dart buffer's reload mapping calls the SDK request")
-vim.fn.maparg("\\dR", "n", false, true).callback()
+vim.fn.maparg(",dR", "n", false, true).callback()
 t.eq(request, "hotRestart", "Dart buffer's restart mapping calls the SDK request")
 dap.session = session
 

@@ -111,7 +111,7 @@ nvim
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME highlights |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL and CSS variable previews; Tailwind colors in frontend files |
-| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering (`\r`) |
+| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering (`,m`) |
 
 #### Editor
 
@@ -217,42 +217,49 @@ brew install --cask skim            # PDF viewer with SyncTeX
 
 **Daily use** — open any `.tex` file, then:
 
-- `<localleader>ll` (`\ll`) — start continuous compilation (recompiles on save)
-- `<localleader>lv` (`\lv`) — forward search: open/jump Skim to the cursor's line
-- `<localleader>lt` (`\lt`) — table of contents; `\lk` clean, `\le` errors
+- `,Ll` — toggle continuous compilation (recompiles on save while running)
+- `,Lv` — forward search: open/jump Skim to the cursor's line
+- `,Lt` — table of contents; `,Lc` clean, `,Le` errors
 - Save the file to auto-format with `latexindent` (toggle with `<leader>uf`)
 
-The everyday actions are also on `<localleader>` directly, one key shorter, and show up in the `\` which-key popup:
+The everyday actions are also one key shorter, in the LaTeX sections of the `,` which-key popup:
 
 | Key | Action |
 |-----|--------|
-| `\b` | Compile (toggle continuous) |
-| `\v` | View PDF in Skim |
-| `\s` | Stop compilation |
-| `\k` | Clean aux files |
-| `\t` | Toggle table of contents |
-| `\e` | Show error list |
+| `,b` | Compile (toggle continuous) |
+| `,v` | View PDF in Skim |
+| `,s` | Stop compilation |
+| `,K` | Clean aux files |
+| `,t` | Toggle table of contents |
+| `,E` | Show error list |
 | `,x` | One-shot `latexmk` build to PDF (the generic "run this file" key) |
 
 TeX buffers also enable soft `wrap` and `spell` by default (toggle with `<leader>uw` / `<leader>us`).
 
 ### Keybindings
 
-**Leader**: `Space` · **Local leader**: `\` · **Cheat sheet**: `<leader>?`
+**Leader**: `Space` · **Actions / local leader**: `,` · **Cheat sheet**: `<leader>?`
 
 Every key answers one question, and the prefix says which:
 
 | Prefix | Question | Examples |
 |--------|----------|----------|
 | `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;1`-`;9` pinned files |
-| `,` | What do I do to this code? | `,a` code action, `,f` format, `,r` rename, `,j`/`,k` move line, `,e*` extract |
+| `,` | What can I do in this file / view? | `,a` code action, `,f` format, `,r` rename, `,o` organize imports (Go/Python); terminal-local `,1`-`,9` |
 | `s` | What about this window? | `ss`/`sv` split, `sd` close, `se` editor window, `s=` equalize |
-| `\` | What does *this filetype* offer? | `\o` organize imports (Go/Python), VimTeX, diffview; `\1`-`\9` inside terminal buffers |
 | `<leader>` | Everything else, by domain | `g` git, `G` GitHub, `d` debug, `t` test, `a` AI, `x` diagnostics, `m` manage, `s` session, `y` yank, `u` toggles, `b` buffer, `q` quit |
 
-Frequency decides depth: what you reach for constantly is two keys, the rest
-lives under `<leader>`. Press any prefix and wait — which-key lists what is
-there, generated from the config itself.
+Frequent actions use short keys. Related commands can share a subgroup, such
+as `,e…` for extraction and `,L…` for VimTeX; `<leader>` groups global domains.
+Press any prefix and wait — which-key lists the current mappings.
+
+The `,` menu separates general editing from the current language's operations
+(imports/environment, compilation/preview, test debugging) and view actions.
+Diffview adds its own section alongside the source file's language section.
+The search-and-replace panel keeps its actions under `,S…`.
+See the [filetype and view actions](docs/MANUAL.md#filetype-and-view-actions) for the full key list.
+The local leader shares the comma menu; it is not a fifth prefix. Restart Nvim
+after updating to remove the old backslash bindings from existing buffers.
 
 Unprefixed keys worth knowing:
 
@@ -261,7 +268,7 @@ Unprefixed keys worth knowing:
 | `f` / `F` | Flash jump / Treesitter jump (Normal + Visual; `df-`, `ct)` stay native) |
 | `<C-h/j/k/l>` | Move between windows — works from terminal input too |
 | `<C-,>` | Jump to the editor area, press again to return |
-| `<C-/>` | Toggle terminal; `3<C-/>` selects terminal 3 from a file; `\1`-`\9` switch from terminal-Normal |
+| `<C-/>` | Toggle terminal; `3<C-/>` selects terminal 3 from a file; `,1`-`,9` switch from terminal-Normal |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
 | `g` · `[` / `]` · `z` | Goto+LSP (from the symbol under the cursor) · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
@@ -309,13 +316,13 @@ extended-key protocol negotiated by Ghostty and Nvim to remain distinct from a
 plain comma; an outer tmux must have `extended-keys` enabled. Where that
 protocol is unavailable — a bare Terminal.app, an ssh session, an older tmux —
 `se` does the same jump with plain keys. Terminal numbers avoid the protocol
-altogether: terminal-local `\1`-`\9` are plain keys because Ghostty encodes Ctrl+digit as
+altogether: terminal-local `,1`-`,9` are plain keys because Ghostty encodes Ctrl+digit as
 legacy bytes under an outer tmux, so the old `<C-1>`-`<C-9>` chords never
 arrived there.
 
 The number mappings exist only in terminal buffers, in Normal mode (`jk` or
-`<C-]>` first from terminal input). Ordinary files keep `\` for their filetype
-actions. From a file, use `<C-/>` to reopen the last terminal, or `3<C-/>` to
+`<C-]>` first from terminal input). Ordinary files show their language actions
+in the same comma menu. From a file, use `<C-/>` to reopen the last terminal, or `3<C-/>` to
 select terminal 3 directly.
 
 Inside an agent panel, `<Esc>` belongs to the agent, not to Nvim. Both CLIs read

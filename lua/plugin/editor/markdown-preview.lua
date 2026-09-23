@@ -24,9 +24,8 @@ return {
     { "<localleader>p", "<cmd>MarkdownPreviewToggle<cr>", desc = "Toggle Markdown Preview", ft = "markdown" },
     -- Entry point from anywhere. mkdp's server exposes no directory index, so
     -- browsing happens on the Neovim side: pick any markdown under cwd, open
-    -- it, hand that buffer to mkdp. Not ft-gated, and so on `;` rather than
-    -- <localleader>: this is how you *reach* a markdown file, which is what
-    -- the `;` prefix is for. <localleader>p toggles the preview once there.
+    -- it, hand that buffer to mkdp. `;` finds the destination; the buffer-local
+    -- ,p (<localleader>p) toggles preview once that file is current.
     {
       ";P",
       function()

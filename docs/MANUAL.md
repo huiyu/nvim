@@ -2,7 +2,7 @@
 
 A guide to actually using this configuration. If you are new to Vim, start at
 [The idea](#the-idea) and read straight through. If you already know Vim and
-just want the keys, jump to [The five prefixes](#the-five-prefixes).
+just want the keys, jump to [The four prefixes](#the-four-prefixes).
 
 The [README](../README.md) covers installing and what plugins are included.
 This document covers *using* it.
@@ -13,11 +13,11 @@ This document covers *using* it.
 
 - [The idea](#the-idea)
 - [The grammar of the keyboard](#the-grammar-of-the-keyboard)
-- [The five prefixes](#the-five-prefixes)
+- [The four prefixes](#the-four-prefixes)
 - [Getting around: `;`](#getting-around-)
-- [Changing code: `,`](#changing-code-)
+- [Current file and view actions](#current-file-and-view-actions)
+- [Filetype and view actions](#filetype-and-view-actions)
 - [Windows: `s`](#windows-s)
-- [This filetype: `\`](#this-filetype-)
 - [Everything else: `<leader>`](#everything-else-leader)
 - [Workflows](#workflows)
 - [When you forget a key](#when-you-forget-a-key)
@@ -35,9 +35,8 @@ answering one question:
 | You want to… | Press | Because it means |
 |---|---|---|
 | be somewhere else | `;` | "which file / symbol / position?" |
-| change the code here | `,` | "what do I do to this?" |
+| act on this file or view | `,` | "what can I do here?" |
 | rearrange the screen | `s` | "what about this window?" |
-| use something language-specific | `\` | "what does *this filetype* offer?" |
 | anything else | `<Space>` | git, tests, debugging, AI… |
 
 Nothing is filed by which plugin provides it. `;f` finds a file whether that
@@ -48,8 +47,10 @@ Two consequences worth knowing up front:
 
 - **The things you do constantly are two keys.** Find a file, format, jump to a
   definition. Rare things are allowed to be longer.
-- **A key means one thing.** If `,` is "change this code", then finding a file
-  is never under `,`, no matter how tempting.
+- **Each prefix has a stable purpose.** `,` acts on the current file or view;
+  `;` searches for a destination. General actions keep their meaning across
+  filetypes. Buffer-local additions may share a key: `,v` selects a Python
+  environment or previews a LaTeX PDF, under the corresponding menu heading.
 
 ---
 
@@ -233,7 +234,7 @@ with `n.` instead.
 
 ### 8. A prefix = a question
 
-Every remaining key hangs under one of five prefixes, each answering one
+Every remaining key hangs under one of four prefixes, each answering one
 question — that is [The idea](#the-idea), and the next section walks through
 them one by one.
 
@@ -249,12 +250,11 @@ half a second, and the menu tells you.
 
 ---
 
-## The five prefixes
+## The four prefixes
 
 ```
-;  go somewhere            ,  change this code
-s  windows                 \  this filetype
-<Space>  everything else
+;  go somewhere            ,  current file / view actions
+s  windows                 <Space>  everything else
 ```
 
 Press any of them and **wait half a second** — a menu appears showing what is
@@ -348,9 +348,10 @@ without looking. Re-pin when you move to another task.
 
 ---
 
-## Changing code: `,`
+## Current file and view actions
 
-Everything you do *to* the code in front of you.
+Press `,` for actions on the current file or view. General editing and language-specific
+operations share this menu; headings show which context provides each action.
 
 | Key | Does |
 |---|---|
@@ -382,15 +383,108 @@ cycle `let` / `const`; this keyword rule does not apply to other filetypes.
 
 | Key | Does |
 |---|---|
-| `,ef` | Extract selection into a function |
+| `,ef` / `,eF` | Extract selection into a function / into a separate file |
 | `,ex` | Extract into a variable |
-| `,eb` | Extract a block |
+| `,eb` / `,eB` | Extract a block / into a separate file |
 | `,i` | Inline a variable |
 | `,R` | Menu of all refactorings |
 | `,w` | Find-and-replace the word under the cursor |
 | `,F` | Full search-and-replace panel |
 
-The `,e*` extractions work on a Visual selection.
+`,ef`/`,eF`/`,ex` act on a Visual selection. `,eb`/`,eB` extract a block from Normal mode.
+
+
+### Filetype and view actions
+
+`<localleader>` is also comma. Filetype keys are buffer-local: the comma menu
+shows Python's imports/environment in Python, LaTeX's build/preview sections in
+TeX, and neither in plain text. These headings add no keystrokes. `[LSP]` marks
+operations that need a language server; Java test-debug keys appear after jdtls
+and its debug adapter initialize. Dart reload/restart needs an active compatible
+DAP session. Menu entries describe actions, not a guarantee that dependencies
+or a running session are available.
+
+| Context | Operation type | Keys |
+|---|---|---|
+| Go | Imports / language service | `,o` organize imports · `,G` rebuild gopls index |
+| Python | Imports / environment | `,o` organize imports · `,v` select virtualenv |
+| C/C++ | Related files | `,H` switch source/header |
+| Java | Test debugging | `,dt` debug nearest method · `,dT` debug class |
+| Dart / Flutter | Runtime control | `,dr` hot reload · `,dR` Flutter hot restart |
+| Markdown | Preview | `,p` browser preview · `,m` in-editor rendering |
+| CodeCompanion | Chat rendering | `,m` toggle Markdown rendering |
+| Search-and-replace panel | Replace / sync / results / history | `,S…` panel actions; `g?` help |
+| LaTeX | Compilation | `,b` continuous build toggle · `,s` stop · `,K` clean aux files · `,E` errors |
+| LaTeX | Preview / tools | `,v` view PDF · `,t` toggle TOC · `,L…` VimTeX's full command set |
+| Diffview | File panel | `,P` focus · `,B` toggle |
+| Diffview | Conflicts | `,go` ours · `,gt` theirs · `,gb` base · `,ga` all; uppercase final letters (`,gO`, `,gT`, `,gB`, `,gA`) apply to the whole file |
+| Terminal | Sessions | `,1`–`,9` choose terminal 1–9 in Normal mode (`jk` first) |
+
+Diffview is a view layered on a filetype: a Markdown diff keeps `,p`/`,m` and
+adds `,P`/`,B`/`,g…`. Panel actions work in its file/history panels too; whole-file
+conflict actions work in the file panel, and current-conflict choices live in
+the diff panes. Closing the view removes its mappings and preserves language
+keys. Terminal digits never appear in ordinary files or intercept shell input.
+
+General editing keeps its keys: `,h`/`,l` dedent/indent, `,k` moves up, `,r` renames,
+`,c` runs codelens, and `,e…` extracts. The uppercase filetype keys, `,L…` and `,S…`
+keep those short keys free of new prefix waits. Former backslash bindings are
+removed; press `,` and wait for the current operation sections.
+
+### Search-and-replace panel: `,S`
+
+Open grug-far with `,F`, or `,w` to prefill the word under the cursor. Enter the
+search and replacement text; `Tab` / `Shift-Tab` move between input fields.
+Review the results before applying changes. In Normal mode, `,S` shows the
+panel's actions by operation type; `g?` opens its full help. These keys exist
+only in the search panel, preserving general comma editing keys in its editable
+results. Its former backslash shortcuts now use `,S` plus the same final letter.
+
+| Keys | Operation |
+|---|---|
+| `,Sr` | Apply replacement, including multiline replacements |
+| `,Ss` / `,Sl` / `,Sv` | Write edited result text back to all files / current line / current file |
+| `,Sj` / `,Sk` | Apply current change, remove its result, and open next / previous change |
+| `,Sn` / `,Sp` | Sync current change and move to next / previous match |
+| `,So` / `,Si` | Open / preview result location |
+| `,Sq` | Send results to quickfix |
+| `,St` / `,Sa` | Open search history / add current search to history |
+| `,Sf` / `,Sb` | Refresh search / abort the active operation |
+| `,Se` / `,Sx` | Switch search engine / replacement interpreter |
+| `,Sw` | Toggle the search command display |
+| `,Sc` | Close the panel |
+
+### VimTeX commands under `,L`
+
+In a `.tex` buffer, `,L` opens the full VimTeX command group. These 22 key
+sequences supplement the direct LaTeX actions above. All work in Normal mode;
+`,LL` also works in Visual mode. VimTeX exposes a subset in BibTeX buffers.
+
+| Keys | Operation |
+|---|---|
+| `,Ll` | Toggle continuous compilation |
+| `,LS` | Compile once |
+| `,LL` | Compile selected lines; in Normal mode, follow with a motion/text object |
+| `,Lk` / `,LK` | Stop compilation for this project / all open projects |
+| `,Lo` | Open compiler output |
+| `,Le` | Show errors and warnings |
+| `,Lg` / `,LG` | Compilation status for this project / all open projects |
+| `,Lc` / `,LC` | Clean auxiliary files / also remove output files |
+| `,Lv` | View PDF and forward-search to the source position |
+| `,Lt` / `,LT` | Open / toggle the table of contents |
+| `,Li` / `,LI` | VimTeX information for this project / all open projects |
+| `,Lq` | VimTeX message log |
+| `,Lm` | List VimTeX's Insert-mode shortcuts |
+| `,Lx` / `,LX` | Reload VimTeX scripts / current buffer state |
+| `,Ls` | Toggle between the main project and the current subfile |
+| `,La` | Context menu for the item under the cursor |
+
+### Color previews
+
+Color previews show hex, `rgb()`, `hsl()` and CSS `var(--name)` references.
+CSS variable definitions are resolved within the buffer. Frontend files also
+preview Tailwind classes, using the Tailwind LSP for project-specific colors
+when it is attached. `:ColorizerToggle` toggles previews in the current buffer.
 
 ---
 
@@ -433,31 +527,6 @@ is open beside your code.
 
 ---
 
-## This filetype: `\`
-
-`\` holds actions that only mean something in the buffer you are in. The same
-key does different things in different filetypes, which is the point. Terminal
-buffers add `\1`-`\9` in Normal mode to choose a numbered terminal; those keys
-do not appear in ordinary files, even while a terminal is open beside them.
-
-| Filetype | Keys |
-|---|---|
-| Go | `\o` organize imports · `\G` rebuild the gopls index |
-| Python | `\o` organize imports · `\v` select virtualenv |
-| C/C++ | `\h` switch between source and header |
-| Markdown | `\p` toggle preview · `\r` toggle in-editor rendering |
-| LaTeX | `\b` build · `\v` view PDF · `\t` table of contents · `\e` errors · `\k` clean |
-| Diffview | `\e` focus file panel · `\co` / `\ct` resolve conflict (ours/theirs) |
-| Terminal | `\1`-`\9` choose terminal 1-9 (Normal mode) |
-
-Color previews show hex, `rgb()`, `hsl()` and CSS `var(--name)` references.
-CSS variable definitions are resolved within the buffer. Frontend files also
-preview Tailwind classes, using the Tailwind LSP for project-specific colors
-when it is attached. `:ColorizerToggle` toggles previews in the current buffer.
-
-Press `\` and wait to see what the current file offers.
-
----
 
 ## Everything else: `<leader>`
 
@@ -536,8 +605,8 @@ that referenced it get rewritten instead of silently breaking.
 ### Git
 
 `<Space>gg` opens lazygit — staging, committing and history in one place.
-`<Space>gv` opens diffview for reviewing a branch. Inside diffview, `\` holds
-its own actions and `<Space>gq` closes it.
+`<Space>gv` opens diffview for reviewing a branch. Inside diffview, the `,` menu includes
+its view actions and `<Space>gq` closes it.
 Scrolling the mouse wheel over either diff pane keeps the panes vertically
 aligned, including added/deleted-line filler and folded regions, while retaining
 keyboard focus. The file/history panel scrolls independently.
@@ -547,7 +616,7 @@ keyboard focus. The file/history panel scrolls independently.
 ```
 Ctrl-/       toggle a terminal
 3<Ctrl-/>    select terminal 3 from a file (Normal mode)
-\1 … \9      choose terminal 1-9 from a terminal buffer (jk first)
+,1 … ,9      choose terminal 1-9 from a terminal buffer (jk first)
 <Space>ac    open the AI panel
 <Space>ai    write a prompt in a real Neovim buffer
 ```
@@ -555,14 +624,14 @@ Ctrl-/       toggle a terminal
 `Ctrl-]` leaves terminal input without disturbing the program running in it —
 useful because `Esc` belongs to the AI CLIs themselves.
 
-The numbered `\` keys focus or create the selected terminal and never close
+The numbered `,` keys focus or create the selected terminal and never close
 it when pressed again. `<C-/>` opens/closes the current or last-used terminal.
 
 ---
 
 ## When you forget a key
 
-1. **Press the prefix and wait.** `;`, `,`, `s`, `\` or `<Space>` all show a
+1. **Press the prefix and wait.** `;`, `,`, `s` or `<Space>` all show a
    menu after a moment. This is the fastest answer.
 2. **`<Space>?`** — one page listing every prefix and the common keys.
 3. **`<Space>mk`** — search all keymaps by description.
@@ -770,7 +839,7 @@ preparation fails, the connection stays open and reports the error.
 ### Python
 
 Install Python and Mason's `debugpy`; select your project environment with
-`\v` when needed. `df` launches the script; `td`/`tF` use neotest-python.
+`,v` when needed. `df` launches the script; `td`/`tF` use neotest-python.
 The selected environment needs pytest for pytest tests; unittest uses the
 standard library. An attach target needs debugpy in **its own** environment,
 independently of Mason's adapter environment:
@@ -807,7 +876,7 @@ Open the project and wait for jdtls to finish importing. `dc` discovers main
 classes; `df` selects the main class corresponding to the current file.
 An empty static main-class list before discovery is normal. Each project uses
 its own jdtls workspace. `td`/`tF` debug the nearest test / first discovered test
-class. The Java-local aliases `\dt`/`\dT` remain available after attachment.
+class. The Java-local aliases `,dt`/`,dT` remain available after attachment.
 
 Start the target JVM with JDWP (adjust source path and fully qualified class):
 
@@ -994,7 +1063,7 @@ existing VM rather than starting the current file.
 
 The token changes across runs; the interactive preset avoids editing JSON each
 time. For launch use `request: "launch"`, `program: "${workspaceFolder}/bin/main.dart"`,
-`cwd` and `args`. Use `\dr` for supported hot reload; `dR` restarts a launched
+`cwd` and `args`. Use `,dr` for supported hot reload; `dR` restarts a launched
 CLI session. The SDK's [debugging tools](https://dart.dev/tools/dart-devtools)
 explain VM service startup.
 
@@ -1027,7 +1096,7 @@ Flutter. Use a debug-mode app, not a release build.
 Omit `vmServiceUri` for device discovery. For launch use `request: "launch"`,
 `program: "${workspaceFolder}/lib/main.dart"` and `toolArgs` for device/flavor,
 for example `["-d", "macos", "--flavor", "dev"]` when the project defines that
-flavor. Save edits, then use `\dr` for hot reload and `\dR` for Flutter hot
+flavor. Save edits, then use `,dr` for hot reload and `,dR` for Flutter hot
 restart. `dD` disconnects the editor; the terminal that started `flutter run`
 continues to own its process.
 

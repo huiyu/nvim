@@ -84,13 +84,10 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "go",
   callback = function(ev)
-    -- <localleader>, not `,`: rebuilding the gopls index means nothing outside a
-    -- Go buffer, and <localleader> is where this config keeps per-filetype
-    -- actions (VimTeX, diffview). `,` stays reserved for code operations that
-    -- work in any language.
-    vim.keymap.set("n", "<localleader>G", rebuild_gopls, { buffer = ev.buf, desc = "Rebuild gopls index" })
+    -- Buffer-local contributions to the shared comma action menu.
+    vim.keymap.set("n", "<localleader>G", rebuild_gopls, { buffer = ev.buf, desc = "[LSP] Rebuild gopls index" })
     vim.keymap.set("n", "<localleader>o", lsp.action["source.organizeImports"],
-      { buffer = ev.buf, desc = "Organize Imports" })
+      { buffer = ev.buf, desc = "[LSP] Organize Imports" })
   end,
 })
 

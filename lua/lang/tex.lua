@@ -14,20 +14,14 @@
 -- ,x runner (dispatched centrally by util.run; keymap in mappings.lua).
 -- "Running" a .tex file means producing a PDF: a one-shot latexmk build. `-cd`
 -- makes latexmk chdir into the file's directory so relative \input/\includegraphics
--- resolve. For interactive/continuous compilation prefer VimTeX's <localleader>ll.
+-- resolve. For interactive/continuous compilation prefer ,b or VimTeX's ,Ll.
 require("util.run").register({ "tex", "plaintex" }, function(path)
   return "latexmk -cd -pdf -interaction=nonstopmode -synctex=1 " .. vim.fn.shellescape(path)
 end)
 
--- Buffer-local setup for TeX buffers: the compile/view highlights on
--- <localleader>, plus prose-friendly editing.
---
--- <localleader>, not <leader>c: these only mean anything in a TeX buffer, and
--- AGENTS.md reserves <localleader> for exactly that ("real file-editing
--- contexts use <localleader> (VimTeX)"). They used to sit on <leader>cb/cv/cs/
--- ck/ct/ce, which spent six letters of the global Code namespace on one
--- filetype -- and collided with the refactor actions that now live there.
--- VimTeX's own full map set is still under <localleader>l (\ll, \lv, \lt).
+-- Buffer-local compile/view actions share the comma menu with editing.
+-- Uppercase K/E preserve ,k (move up) and ,e... (extract); VimTeX's full
+-- command set lives under ,L so ,l (indent) has no longer candidates.
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "tex", "plaintex" },
   group = vim.api.nvim_create_augroup("tex_setup", { clear = true }),
@@ -38,9 +32,9 @@ vim.api.nvim_create_autocmd("FileType", {
     map("<localleader>b", "<cmd>VimtexCompile<cr>",   "Compile (toggle continuous)")
     map("<localleader>v", "<cmd>VimtexView<cr>",      "View PDF (Skim)")
     map("<localleader>s", "<cmd>VimtexStop<cr>",      "Stop compile")
-    map("<localleader>k", "<cmd>VimtexClean<cr>",     "Clean aux files")
+    map("<localleader>K", "<cmd>VimtexClean<cr>",     "Clean aux files")
     map("<localleader>t", "<cmd>VimtexTocToggle<cr>", "Toggle TOC")
-    map("<localleader>e", "<cmd>VimtexErrors<cr>",    "Show errors")
+    map("<localleader>E", "<cmd>VimtexErrors<cr>",    "Show errors")
 
     -- LaTeX is prose: soft-wrap at word boundaries and spell-check by default.
     -- Toggle per buffer with <leader>uw (wrap) and <leader>us (spell).
@@ -62,6 +56,7 @@ return {
     -- The startup cost is small (heavy autoload stays deferred until a tex buffer).
     lazy = false,
     init = function()
+      vim.g.vimtex_mappings_prefix = "<localleader>L"
       -- Forward search (Neovim -> Skim) and inverse search (Skim -> Neovim).
       -- Requires Skim.app. For inverse search, set in Skim > Preferences > Sync:
       --   Preset:    Custom

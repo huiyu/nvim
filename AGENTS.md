@@ -70,19 +70,28 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   requires the plugin early. Add a command, key, event, or filetype trigger that
   matches the feature's first use.
 - Keep mappings discoverable with a `desc`, and place them by *what the user is
-  doing*, not by which plugin provides the feature. Five prefixes, each with a
+  doing*, not by which plugin provides the feature. Four prefixes, each with a
   one-sentence meaning; a key belongs to exactly one of them:
 
   | Prefix | Question it answers | Examples |
   |--------|---------------------|----------|
   | `;` | "Which file/symbol/position do I want to be at?" (fuzzy search, no starting point) | `;f` find file, `;s` symbol, `;1`-`;9` harpoon |
-  | `,` | "What do I do to the code in front of me?" | `,a` code action, `,f` format, `,j` move line |
+  | `,` | "What can I do in this file or view?" | `,a` code action, `,f` format, `,o` organize imports; `,1`-`,9` only in terminal buffers |
   | `s` | "What about this window?" | `ss` split, `sd` close, `se` editor window |
-  | `<localleader>` (`\`) | "What does *this filetype* offer?" | `\o` organize imports, VimTeX, diffview; `\1`-`\9` only in terminal buffers |
   | `<leader>` | Everything else, grouped by domain | `<leader>g` git, `<leader>d` debug |
 
   High frequency earns two keys, so anything reached constantly belongs on one
   of the first three rather than three keys deep under `<leader>`.
+- `<localleader>` is `,`, sharing the action menu with general editing keys.
+  Filetype and view contributions stay buffer-local and must preserve general
+  editing keys, including `,h`/`,l` dedent/indent, `,k` move up, `,r` rename,
+  `,c` codelens and `,e...` extraction. VimTeX uses `,L...` to keep `,l`
+  immediate. Diffview uses `,P`/`,B` for its panel and `,g...` for conflicts,
+  so language actions still work in its source buffers. Terminal digits only
+  map Normal mode. grug-far's editable search panel uses `,S...`; its plugin
+  defaults also use localleader and must not overwrite general comma actions.
+  Filetype scope and view scope can coexist; a shared suffix
+  may differ between filetypes, but a view must not steal language/general keys.
 - LSP navigation that starts from the symbol under the cursor belongs on `g`,
   not on `;`: `gd`, `gr`, `gb` (implementation), `gy`, `gD`, `gC` (incoming
   calls) and `gK`. The dividing line is whether the key needs a symbol to start
@@ -109,14 +118,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - `<leader>` carries global semantics only, so which-key popups stay truthful
   everywhere. A buffer-local map may add a key inside an existing group, but
   never repurpose one that already means something else. Anything meaningful in
-  only one filetype belongs on `<localleader>`, not in a global group.
+  only one filetype belongs in the buffer-local comma menu, not in a global group.
 - Standalone panels put view-local actions on single letters (quickfix, aerial,
   neotest). A multi-window view keeps one vocabulary across every buffer it
-  owns, so diffview's own actions live on `<localleader>` in the diff windows
+  owns, so diffview's own actions live on `,` in the diff windows
   and its file panel alike, and single letters there stay reserved for that
   panel's list operations. Only layout-fragile multi-window views (currently
-  diffview) block the global prefixes, with `nowait` and a visible disabled
-  hint.
+  diffview) block layout-sensitive prefixes (`;` everywhere, `s` in its content
+  and history windows), with `nowait` and a visible disabled hint. Its file
+  panel keeps single-letter `s` for staging; the comma action menu stays active.
 - The debug view is the other multi-window view with a tabpage of its own, and
   it is deliberately the opposite case: its keys stay global. Debugging has an
   event stream, so `<leader>d` has to work from the editor tabpage too -- you
@@ -172,6 +182,14 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   heading, so it never appears to belong to the preceding section. Explicit
   sections need at least two keys; do not invent a separate section for a
   group row such as `+Noice` or `+CodeCompanion` -- it can fall under `others`.
+  Context sections are the exception: even one filetype action needs its own
+  heading. Optional `filetype` (list) and `buftype` filters select the section;
+  `labels` names implicit subgroups without creating global placeholder keys.
+  A shared key such as `,v` can have one section per filetype. Actual mappings
+  determine which rows exist; headings never create keys or load plugins.
+  See `docs/UTILITIES.md` for the section-data contract. Context/menu changes
+  are exercised by `tests/context_actions_spec.lua`; combined language and
+  view mappings, including cleanup, are exercised by `tests/diffview_spec.lua`.
   Popups with no declared entries keep which-key's default layout.
   Sectioning sorts *before* which-key's groups-first rule; the other
   order lets an undeclared group row jump ahead of every heading.
@@ -194,9 +212,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `icon`, `desc`, `group` and `icon_hl`. This is the only place here that
   depends on plugin internals. It is guarded (a renamed `sort` drops headings
   and colours, ordering still works through the supported `sort` option,
-  nothing errors) and covered by `tests/whichkey_popup_spec.lua`, which also
-  fails on a declared suffix that maps to nothing. It assumes the single-column
-  `helix` preset: a multi-column preset would split a heading from its items.
+  nothing errors) and covered by `tests/whichkey_popup_spec.lua`, with real
+  contextual menus covered by `tests/context_actions_spec.lua`. It assumes
+  the single-column `helix` preset: a multi-column preset would split a heading
+  from its items.
 - which-key keeps description-only spec entries in its own trie, so `maparg()`
   cannot see those. Entries with an RHS are created through `vim.keymap.set`
   after which-key's scheduled loader runs; assert those with `maparg()` after

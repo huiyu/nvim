@@ -106,7 +106,7 @@ nvim
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME 高亮 |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮 |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL、CSS 变量颜色预览；前端文件支持 Tailwind 颜色 |
-| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染（`\r`） |
+| [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染（`,m`） |
 
 #### 编辑器
 
@@ -209,41 +209,47 @@ brew install --cask skim            # 支持 SyncTeX 的 PDF 阅读器
 
 **日常使用** — 打开任意 `.tex` 文件,然后:
 
-- `<localleader>ll`(`\ll`)— 连续编译(保存即重编)
-- `<localleader>lv`(`\lv`)— 正向跳转:打开/定位 Skim 到光标所在行
-- `<localleader>lt`(`\lt`)— 目录;`\lk` 清理、`\le` 错误列表
+- `,Ll` — 连续编译开关（运行期间保存即重编）
+- `,Lv` — 正向跳转：打开/定位 Skim 到光标所在行
+- `,Lt` — 目录；`,Lc` 清理、`,Le` 错误列表
 - 保存文件即用 `latexindent` 自动格式化(可用 `<leader>uf` 开关)
 
-日常操作也直接放在 `<localleader>` 上，少按一个键，并会出现在 `\` 的 which-key 弹窗里：
+日常操作也提供少按一个键的入口，显示在 `,` 的 which-key 弹窗的 LaTeX 分区里：
 
 | 键位 | 操作 |
 |------|------|
-| `\b` | 编译(连续模式开关) |
-| `\v` | 用 Skim 看 PDF |
-| `\s` | 停止编译 |
-| `\k` | 清理辅助文件 |
-| `\t` | 目录开关 |
-| `\e` | 错误列表 |
+| `,b` | 编译(连续模式开关) |
+| `,v` | 用 Skim 看 PDF |
+| `,s` | 停止编译 |
+| `,K` | 清理辅助文件 |
+| `,t` | 目录开关 |
+| `,E` | 错误列表 |
 | `,x` | 一次性 `latexmk` 出 PDF（通用的"运行当前文件"键） |
 
 TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leader>us` 开关)。
 
 ### 键位
 
-**Leader**：`Space` · **Local leader**：`\` · **速查表**：`<leader>?`
+**Leader**：`Space` · **操作 / Local leader**：`,` · **速查表**：`<leader>?`
 
 每个键都在回答一个问题，前缀决定是哪一个：
 
 | 前缀 | 问题 | 例子 |
 |------|------|------|
 | `;` | 我要去哪个文件 / 符号 / 位置？ | `;<space>` 智能查找、`;f` 找文件、`;/` 全局搜索、`;s` 符号、`;1`-`;9` 钉住的文件 |
-| `,` | 对眼前这段代码做什么？ | `,a` code action、`,f` 格式化、`,r` 重命名、`,j`/`,k` 移动行、`,e*` 提取 |
+| `,` | 当前文件 / 视图能做什么？ | `,a` code action、`,f` 格式化、`,r` 重命名、`,o` 整理导入（Go/Python）；终端内的 `,1`-`,9` |
 | `s` | 这个窗口怎么办？ | `ss`/`sv` 分屏、`sd` 关闭、`se` 跳编辑器、`s=` 均分 |
-| `\` | **当前文件类型**有什么？ | `\o` 整理 import（Go/Python）、VimTeX、diffview；终端 buffer 内的 `\1`-`\9` |
 | `<leader>` | 其余，按领域分组 | `g` git、`G` GitHub、`d` 调试、`t` 测试、`a` AI、`x` 诊断、`m` 管理、`s` 会话、`y` 复制、`u` 开关、`b` buffer、`q` 退出 |
 
-频率决定深度：天天用的是两键，其余归到 `<leader>`。按下任一前缀等半秒，
-which-key 会列出可用键——那个列表由配置本身生成，不会和文档脱节。
+常用操作使用短键，相关命令可放进子组，例如 `,e…` 提取重构、`,L…` VimTeX；
+`<leader>` 按全局领域分组。按下任一前缀等一下，which-key 会列出当前映射。
+
+`,` 菜单分别显示通用编辑、当前语言的操作类别（导入/环境、编译/预览、测试调试）
+和视图操作。Diffview 中会同时显示源文件的语言分区和 Diffview 分区。
+搜索替换面板的专用操作放在 `,S…` 子组。
+完整键表见[文件类型与视图操作](docs/MANUAL_CN.md#文件类型与视图操作)。
+Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 Nvim，
+以清除已打开 buffer 中的旧反斜杠映射。
 
 值得记住的无前缀键：
 
@@ -252,7 +258,7 @@ which-key 会列出可用键——那个列表由配置本身生成，不会和�
 | `f` / `F` | Flash 跳转 / Treesitter 跳转（Normal + Visual；`df-`、`ct)` 仍走原生） |
 | `<C-h/j/k/l>` | 窗口移动——在终端输入状态下同样可用 |
 | `<C-,>` | 跳到编辑器区域，再按一次跳回 |
-| `<C-/>` | 开关终端；文件中用 `3<C-/>` 打开终端 3；终端 Normal 模式下用 `\1`-`\9` 切换 |
+| `<C-/>` | 开关终端；文件中用 `3<C-/>` 打开终端 3；终端 Normal 模式下用 `,1`-`,9` 切换 |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | 上/下一个 buffer |
 | `g` · `[` / `]` · `z` | 跳转+LSP（从光标下的符号出发）· 上/下一个某物 · 折叠与拼写 |
 | `-` | 用 oil 打开当前目录（可当文本编辑） |
@@ -291,11 +297,11 @@ TUI。处在布局边缘时该键不做任何事、保持终端输入；浮动�
 回到来源窗口。它依赖 Ghostty 与 Nvim 协商的扩展键盘协议，以便和普通逗号区分；
 如果 Nvim 外面还有一层 tmux，需要为其启用 `extended-keys`。在拿不到该协议的
 环境里(原生 Terminal.app、ssh 会话、较老的 tmux),用 `se` 完成同样的
-跳转。终端编号则完全不依赖该协议：终端内的 `\1`-`\9` 是普通按键，因为在外层 tmux 下
+跳转。终端编号则完全不依赖该协议：终端内的 `,1`-`,9` 是普通按键，因为在外层 tmux 下
 Ghostty 会把 Ctrl+数字编码成旧式字节，原来的 `<C-1>`-`<C-9>` 根本传不到 Nvim。
 
 编号映射只存在于终端 buffer 的 Normal 模式下（在终端输入中先按 `jk` 或
-`<C-]>`）。普通文件的 `\` 保留给文件类型操作；从文件用 `<C-/>` 重开上次的终端，
+`<C-]>`）。普通文件在同一个逗号菜单里显示语言操作；从文件用 `<C-/>` 重开上次的终端，
 或用 `3<C-/>` 直接打开终端 3。
 
 在 agent 面板里，`<Esc>` 属于 agent 而不是 Nvim。两个 CLI 都把快速双击 Esc 读作

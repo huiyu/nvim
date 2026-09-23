@@ -107,10 +107,9 @@ return {
     local file_blocks = block_prefixes({ ";" })
     local layout_blocks = block_prefixes({ ";", "s" })
 
-    -- <leader> keeps its global meaning everywhere (Buffer/Git/AI, as
-    -- the which-key popup advertises); diffview's view-local actions live on
-    -- <localleader> instead, per Vim convention. Drop the plugin's <leader>
-    -- defaults and re-add the same actions under <localleader>.
+    -- View actions join the comma menu. Uppercase P/B preserve filetype
+    -- preview/build keys in real source buffers; ,g... leaves ,c (codelens)
+    -- immediate. Remove the plugin's global <leader> defaults.
     local dropped = {}
     for _, lhs in ipairs({
       "<leader>e", "<leader>b",
@@ -121,20 +120,20 @@ return {
     end
 
     local panel = {
-      { "n", "<localleader>e", actions.focus_files,  { desc = "Focus the file panel" } },
-      { "n", "<localleader>b", actions.toggle_files, { desc = "Toggle the file panel" } },
+      { "n", "<localleader>P", actions.focus_files,  { desc = "Focus the file panel" } },
+      { "n", "<localleader>B", actions.toggle_files, { desc = "Toggle the file panel" } },
     }
     local conflict_hunk = {
-      { "n", "<localleader>co", actions.conflict_choose("ours"),   { desc = "Conflict: choose OURS" } },
-      { "n", "<localleader>ct", actions.conflict_choose("theirs"), { desc = "Conflict: choose THEIRS" } },
-      { "n", "<localleader>cb", actions.conflict_choose("base"),   { desc = "Conflict: choose BASE" } },
-      { "n", "<localleader>ca", actions.conflict_choose("all"),    { desc = "Conflict: choose all" } },
+      { "n", "<localleader>go", actions.conflict_choose("ours"),   { desc = "Conflict: choose OURS" } },
+      { "n", "<localleader>gt", actions.conflict_choose("theirs"), { desc = "Conflict: choose THEIRS" } },
+      { "n", "<localleader>gb", actions.conflict_choose("base"),   { desc = "Conflict: choose BASE" } },
+      { "n", "<localleader>ga", actions.conflict_choose("all"),    { desc = "Conflict: choose all" } },
     }
     local conflict_file = {
-      { "n", "<localleader>cO", actions.conflict_choose_all("ours"),   { desc = "Conflict (whole file): choose OURS" } },
-      { "n", "<localleader>cT", actions.conflict_choose_all("theirs"), { desc = "Conflict (whole file): choose THEIRS" } },
-      { "n", "<localleader>cB", actions.conflict_choose_all("base"),   { desc = "Conflict (whole file): choose BASE" } },
-      { "n", "<localleader>cA", actions.conflict_choose_all("all"),    { desc = "Conflict (whole file): choose all" } },
+      { "n", "<localleader>gO", actions.conflict_choose_all("ours"),   { desc = "Conflict (whole file): choose OURS" } },
+      { "n", "<localleader>gT", actions.conflict_choose_all("theirs"), { desc = "Conflict (whole file): choose THEIRS" } },
+      { "n", "<localleader>gB", actions.conflict_choose_all("base"),   { desc = "Conflict (whole file): choose BASE" } },
+      { "n", "<localleader>gA", actions.conflict_choose_all("all"),    { desc = "Conflict (whole file): choose all" } },
     }
 
     local function join(...)
@@ -174,10 +173,9 @@ return {
 
     require("diffview").setup(opts)
 
-    -- Give the <localleader>c prefix a "Conflict" which-key group label where
+    -- Give the <localleader>g prefix a "Conflict" which-key group label where
     -- conflict maps actually exist (it would otherwise show as an unnamed
-    -- prefix). Buffer-local, so VimTeX's <localleader> maps in tex buffers
-    -- stay untouched; the keymap check keeps a mislabeled buffer impossible
+    -- prefix). Buffer-local; the keymap check keeps a mislabeled buffer impossible
     -- even if the event fires with an unexpected buffer current. pcall:
     -- cosmetic only, must not break the view if which-key is absent.
     -- Scheduled: both events can fire before diffview has applied its
@@ -189,10 +187,10 @@ return {
       -- Nvim's own default applies when the variable is unset.
       local ll = vim.g.maplocalleader or "\\"
       for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
-        if m.lhs == ll .. "co" or m.lhs == ll .. "cO" then
+        if m.lhs == ll .. "go" or m.lhs == ll .. "gO" then
           pcall(function()
             require("which-key").add({
-              { "<localleader>c", group = "Conflict", mode = "n", buffer = buf },
+              { "<localleader>g", group = "Conflict", mode = "n", buffer = buf },
             })
           end)
           return

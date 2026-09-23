@@ -1,4 +1,7 @@
 local t = dofile("tests/helper.lua")
+require("lazy").load({ plugins = { "which-key.nvim" } })
+vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })
+t.ok(vim.wait(1000, function() return require("which-key.config").loaded end), "which-key setup finishes")
 
 vim.cmd("Lazy! load diffview.nvim")
 local keymaps = require("diffview.config").get_config().keymaps.file_panel
@@ -31,18 +34,18 @@ end
 git("init", "-q")
 local lines = {}
 for i = 1, 200 do lines[i] = ("row %03d "):format(i) .. string.rep("x", 160) end
-vim.fn.writefile(lines, root .. "/sample.txt")
+vim.fn.writefile(lines, root .. "/sample.md")
 -- Enough real files to scroll the file panel independently.
 for i = 1, 50 do vim.fn.writefile({ "before" }, root .. ("/z%02d.txt"):format(i)) end
 git("add", ".")
 git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "baseline")
 for i = 40, 61 do table.insert(lines, i, "inserted " .. i) end
-vim.fn.writefile(lines, root .. "/sample.txt")
+vim.fn.writefile(lines, root .. "/sample.md")
 for i = 1, 50 do vim.fn.writefile({ "after" }, root .. ("/z%02d.txt"):format(i)) end
 
 vim.o.lines, vim.o.columns = 45, 180
 vim.cmd.cd(vim.fn.fnameescape(root))
-vim.cmd.edit(vim.fn.fnameescape(root .. "/sample.txt"))
+vim.cmd.edit(vim.fn.fnameescape(root .. "/sample.md"))
 local ordinary = vim.api.nvim_get_current_win()
 local function state(win) return vim.api.nvim_win_call(win, vim.fn.winsaveview) end
 local ordinary_state = state(ordinary)
@@ -56,6 +59,32 @@ end, 20), "Diffview fixture did not open")
 local left, right, panel_win = view.cur_layout.a.id, view.cur_layout.b.id, view.panel.winid
 for _, win in ipairs({ left, right }) do vim.wo[win].foldenable = false end
 vim.api.nvim_set_current_win(right)
+local function mapping(lhs) return vim.fn.maparg(lhs, "n", false, true) end
+t.eq(mapping(",p").desc, "Toggle Markdown Preview", "Markdown preview survives inside Diffview")
+t.eq(mapping(",m").desc, "Toggle Markdown render", "Markdown rendering survives inside Diffview")
+t.eq(mapping(",P").desc, "Focus the file panel", "Diffview has a separate panel focus key")
+t.ok(mapping(",go").callback ~= nil, "Diffview conflicts use ,g without extending codelens")
+t.eq(mapping(",co"), {}, "Diffview adds no longer ,c candidate")
+vim.api.nvim_feedkeys(",P", "xt", false)
+t.eq(vim.api.nvim_get_current_win(), panel_win, ",P focuses the real file panel")
+vim.api.nvim_feedkeys(",B", "xt", false)
+t.ok(not view.panel:is_open(), ",B closes the file panel")
+vim.api.nvim_set_current_win(right)
+vim.api.nvim_feedkeys(",B", "xt", false)
+t.ok(view.panel:is_open(), ",B reopens the file panel")
+panel_win = view.panel.winid
+vim.api.nvim_set_current_win(right)
+local mode = require("which-key.buf").get({ mode = "n", update = true })
+local node = mode.tree:find(",")
+local View, rows = require("which-key.view"), {}
+for _, child in ipairs(node:children()) do rows[#rows + 1] = View.item(child, { parent = node }) end
+View.sort(rows)
+local title, owners = nil, {}
+for _, row in ipairs(rows) do
+  if row.key == "" then title = row.desc:sub(#"── " + 1) else owners[row.keys] = title end
+end
+t.eq(owners[",p"], "Markdown · preview", "Diffview source keeps its language section")
+t.eq(owners[",P"], "Diffview · panels / conflicts", "Diffview source also shows its view section")
 vim.cmd("normal! gg")
 vim.cmd.syncbind()
 
@@ -117,6 +146,10 @@ aligned("folded diff panes also remain aligned")
 t.eq(state(ordinary), ordinary_state, "scrolling Diffview does not change another tab's viewport")
 vim.cmd.DiffviewClose()
 vim.wait(100, function() return false end, 10)
+t.eq(mapping(",P"), {}, "Diffview removes panel mappings when it closes")
+t.eq(mapping(",p").desc, "Toggle Markdown Preview", "closing Diffview preserves the filetype mapping")
+mode = require("which-key.buf").get({ mode = "n", update = true })
+t.eq(mode.tree:find(",g"), nil, "closing Diffview leaves no empty conflict group in the menu")
 t.eq(vim.fn.maparg("<ScrollWheelDown>", "n", false, true), {}, "Diffview removes wheel overrides when it closes")
 vim.cmd.cd(vim.fn.fnameescape(cwd))
 vim.fn.delete(root, "rf")

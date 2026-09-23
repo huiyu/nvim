@@ -8,6 +8,44 @@ The utility modules provide focused helpers for logging, debug inspection, LSP, 
 
 ## Core Utilities
 
+### Keymap section data (`whichkey_spec`)
+
+`lua/whichkey_spec.lua` exports `spec`, `sections`, and `fallback_section`.
+`spec` contains which-key mapping/group metadata. `sections[prefix]` is an
+ordered list of display sections, read by `lua/plugin/editor/whichkey.lua`.
+Filetype mappings remain in `lua/lang/`; view mappings remain with their plugins.
+
+| Section field | Meaning |
+|---|---|
+| `[1]` | Heading text |
+| `keys` | Suffixes after the prefix; exact keys, never description patterns |
+| `icon`, `color` | Heading and row styling; `color` is a which-key color name |
+| `filetype` | Optional list of source-buffer filetypes where the section applies |
+| `buftype` | Optional source-buffer type, such as `"terminal"` |
+| `labels` | Optional suffix-to-label table for existing implicit subgroups |
+
+For example, the comma menu declares Python's `o`/`v` under imports/environment,
+and LaTeX's `v`/`t`/`L` under preview/tools. The first matching section owns the
+row; filetype and buftype filters both apply when both are present. `labels.L`
+names the existing VimTeX group without registering an empty placeholder key.
+Headings add no keystrokes, register no mappings, and load no plugins. Only keys
+already present in the source buffer appear. Unclassified rows use
+`fallback_section` in a sectioned popup.
+
+View sections can appear alongside language sections. Diffview's `P`/`B`/`g`
+are distinct from Markdown's `p`/`m` and LaTeX's `b`/`v`, so the same source
+buffer can show both. Terminal `1`–`9` mappings are installed by `TermOpen`
+in Normal mode; they never intercept terminal input. `<localleader>` is `,`
+and uses this same action menu.
+grug-far overrides its localleader defaults with `,S…` to preserve general
+editing keys; `sections[",S"]` groups replace/sync, results, history and panel
+controls. Its implicit `S` group is labeled alongside `,F`/`,w` in the comma menu.
+
+`tests/whichkey_popup_spec.lua` checks section ordering and rendering;
+`tests/context_actions_spec.lua` checks real contextual menus and unchanged
+general keys; `tests/diffview_spec.lua` checks combined language/view actions
+and cleanup. Keep labels and categories in the data file when extending the menu.
+
 ### Debugger actions (`util.dap`)
 
 `attach()` powers `<leader>dA` and `:DapAttach`. It reads the current filetype's
@@ -468,7 +506,7 @@ terminal.is_agent_buf(buf)
 -- were last in. Bound to <C-/>.
 terminal.toggle(count)
 
--- Show a terminal and put the cursor in it; never closes. Bound to `\1`-`\9`
+-- Show a terminal and put the cursor in it; never closes. Bound to `,1`-`,9`
 -- only in terminal buffers' Normal mode (installed on TermOpen).
 terminal.focus(count)
 ```
