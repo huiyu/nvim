@@ -1,7 +1,10 @@
--- Keep diffview's internal buffers (incl. phantom diffview://null) out of the
--- bufferline, so BufferLinePick / buffer cycling can't land on them.
+-- Panels are reached through their own focus keys. A listed terminal (often
+-- named `env` by the agent wrapper) would replace the editor buffer on cycling
+-- or picking, then edgy would move that editor window into the terminal edge.
+-- Keep diffview's internal buffers (incl. phantom diffview://null) out too.
 local function shown_in_bufferline(buf)
-  return not vim.api.nvim_buf_get_name(buf):match("diffview://")
+  return vim.bo[buf].buftype ~= "terminal"
+    and not vim.api.nvim_buf_get_name(buf):match("diffview://")
 end
 
 return {
@@ -26,6 +29,7 @@ return {
     { "<leader>bj", "<cmd>BufferLinePick<cr>",                 desc = "Pick buffer" },
     { "<leader>bp", "<cmd>BufferLineTogglePin<cr>",            desc = "Pin buffer" },
     { "<leader>bP", "<cmd>BufferLineGroupClose ungrouped<cr>", desc = "Close unpinned buffers" },
+    { "<leader>bx", function() require("util.buffer").delete_missing() end, desc = "Delete buffers of missing files" },
   },
   opts = function()
     -- Pull accent colors from the active theme so the tabpage indicators

@@ -417,10 +417,10 @@ window.focus_editor()
 window.track_editor_win()
 
 -- Return a window a file can be opened into, creating an empty horizontal
--- split when only panels or an Oil listing remain. Narrower than
--- focus_editor's target: a listing is somewhere to navigate to, not somewhere
--- to drop a picked file. Does not move focus; the caller decides when to enter
--- it. Used by location pickers, Oil's terminal entry points, and both debug
+-- split when only panels or modified Oil listings remain. An unmodified Oil
+-- listing can receive the file in place; pending directory edits stay visible
+-- and untouched. Does not move focus; the caller decides when to enter it.
+-- Used by location pickers, Oil's terminal entry points, and both debug
 -- frame paths: nvim-dap's `switchbuf` (via `util.dap.jump`) and nvim-dap-ui's
 -- `select_window`. Being scoped to the current tabpage is what keeps a stopped
 -- frame in the tabpage the user is actually in.
@@ -515,6 +515,27 @@ Native coding-agent terminals do not run `fix_drift()` on `TermEnter`, avoiding
 a one-row flash whenever focus moves into the terminal. Opening a numbered
 bottom terminal still repairs the visible agent after the resulting layout
 change. Use `<leader>md` for a manual repair.
+
+## Buffers (`util.buffer`)
+
+Housekeeping for listed buffers that bufferline and Snacks do not cover.
+
+#### API Reference
+
+```lua
+local buffer = require("util.buffer")
+
+-- True for a listed, plain file buffer whose file no longer exists on disk.
+-- Terminals, URI-scheme buffers (oil://, diffview://) and unnamed scratch
+-- buffers have no file to be missing and always return false.
+buffer.is_missing_file(buf)
+
+-- Delete every such buffer through Snacks.bufdelete, so the window layout
+-- survives and a modified buffer still gets the save/discard/cancel prompt
+-- (saving recreates the file, which is sometimes what you want after an
+-- agent deleted it). Notifies how many were removed. Bound to <leader>bx.
+buffer.delete_missing()
+```
 
 ## Move (`util.move`)
 

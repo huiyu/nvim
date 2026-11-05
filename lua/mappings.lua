@@ -84,6 +84,14 @@ end, { noremap = true, silent = true })
 vim.keymap.set("t", "<C-S-l>", function()
   vim.fn.chansend(vim.b.terminal_job_id, "\x0c")
 end, { desc = "Redraw terminal TUI", noremap = true, silent = true })
+-- <C-l> is window navigation here, so Nvim's own clear-and-repaint needs a
+-- home. It clears every cell of the host terminal, which wipes text the host
+-- drew where Nvim's grid did not expect it: Ghostty renders Devanagari wider
+-- than Nvim's one-cell-per-cluster model, so an agent panel showing it can
+-- overflow the right edge and wrap onto the window at the left.
+-- `:mode`, not `:redraw!`: the latter only invalidates and re-sends cells
+-- that changed, so cells Nvim believes are unchanged are never rewritten.
+vim.keymap.set("n", "<leader>ur", "<cmd>mode<cr>", { desc = "Redraw screen" })
 
 -- Visual & Select mode
 vim.keymap.set("v", "<", "<gv", { desc = "Indent left", noremap = true, silent = true })

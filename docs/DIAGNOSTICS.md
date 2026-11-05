@@ -156,6 +156,8 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   `OPENAI_API_KEY` only disables HTTP Inline/command prompts.
 - Native Claude and Codex TUIs use provider-specific tmux wrappers when tmux is
   installed. Set `CLAUDE_WRAP_TMUX=0` or `CODEX_WRAP_TMUX=0` for an A/B test.
+- Both wrappers keep tmux mouse support enabled for scrolling, but disable its
+  pane menu on right-click and Alt-right-click.
 - Quitting Nvim or closing the panel tears the wrapper server down through
   `scripts/agent-teardown`, which also ends the processes the agent spawned into
   their own groups (Codex `exec_command` sessions, background Bash jobs). If a
@@ -172,6 +174,18 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   terminal-Normal mode are forwarded to tmux automatically. With
   `CODEX_WRAP_TMUX=0`, leave terminal input first and use Nvim's normal scroll
   commands.
+- **Text from an agent panel is left painted over the window to its left** —
+  typically after scrolling the panel's history over Devanagari (Hindi i18n
+  strings). Nvim gives every Devanagari grapheme cluster one cell, while
+  Ghostty widens any cluster containing a spacing vowel sign (gc=Mc) or a
+  virama conjunct to two cells (`grapheme-width-method = legacy` is no
+  closer). The TUI does not reposition the cursor within a row, so the row
+  drifts right, overflows the screen edge and wraps onto column 0 of the next
+  row, where Nvim never redraws it. Return the panel to live output (`q` in
+  copy-mode), then press `<leader>ur` (`:mode`); while the Devanagari rows are
+  still on screen the repaint spills them again. `:redraw!` does not help:
+  it re-sends only cells Nvim thinks changed. `<C-S-l>` and `<leader>md`
+  repair the panel's own content, not these cells.
 - Reinstall ACP bridges with
   `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`.
 
@@ -556,6 +570,20 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 
 ## Runtime errors & messages
 
+- **`;f` leaves a blank split below Oil** — the file-target guard used to
+  exclude every Oil listing and create a split as soon as the picker opened,
+  even if it was cancelled. It now reuses an unmodified Oil window: confirming
+  replaces the listing with the file, cancelling keeps the layout. A listing
+  with pending directory edits stays visible and gets a separate file target.
+- **Selecting `env` in the buffer list makes the editor disappear** — `env`
+  can be the agent's `term://.../env` buffer, not a file. Opening it in the
+  editor duplicates the terminal there; edgy then treats both windows as AI
+  panels and moves them to the right edge. The file buffer is still loaded.
+  The tabline and buffer pickers now exclude terminals, including listed ones
+  and the buffer picker's hidden entries. Restart Nvim to load the fix; focus
+  the AI panel with `<leader>af`. To recover an affected layout first, leave
+  terminal input with `jk` or `Ctrl-\`, then use `;f` to reopen your file in an
+  editor window.
 - **`gx` cannot open a local report path in agent output** — existing file
   references now open in Nvim, reusing an editor window in the current tab and
   preserving the terminal. Parenthesized paths can wrap across terminal rows;

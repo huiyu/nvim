@@ -158,6 +158,10 @@ every level:
 | `]m` next function start | `]M` next function end |
 | `<S-h>` `<S-l>` | previous / next buffer |
 
+The tabline, buffer cycling (`<S-h>`/`<S-l>` and `[b`/`]b`), and buffer pickers
+skip terminal buffers. Use `<Space>af` to focus the AI panel and `<C-/>` for
+shell terminals, so file navigation keeps the editor window in place.
+
 A few single keys are just abbreviations: `x` = `dl`, `D` = `d$`, `C` = `c$`.
 `s` used to be `cl`; here it is the window prefix, so change one character
 with `cl`.
@@ -325,6 +329,10 @@ From a terminal (including Claude/Codex), leave terminal input with `Ctrl-\`
 or `jk`, then press `-` or `;o`. Oil opens with focus in the current tab's editor
 area, creating an empty editor split if needed. `q` closes Oil and returns to
 the editor; the terminal stays open.
+
+From an unmodified Oil listing, `;f` opens the selected file in the same window;
+cancelling keeps the listing and layout. Pending directory edits stay visible,
+so the file picker uses another editor window or creates one when needed.
 
 Inside Oil, `h/j/k/l` keep their normal cursor motions so filenames are easy to
 edit. Use `-` to go to the parent directory, Enter to open the selected file or
@@ -626,6 +634,11 @@ useful because `Esc` belongs to the AI CLIs themselves.
 
 The numbered `,` keys focus or create the selected terminal and never close
 it when pressed again. `<C-/>` opens/closes the current or last-used terminal.
+
+If text from a panel is left painted over the window beside it (typically
+after scrolling through Devanagari such as Hindi strings), press `q` to return
+the panel to live output, then `<Space>ur` to make Nvim clear and repaint the
+screen.
 
 ---
 

@@ -323,8 +323,8 @@ return {
       -- returns it when nothing qualifies. A tab holding only an oil listing
       -- and an agent panel therefore gets the file dropped on top of one of
       -- them, and no window variable prevents it -- the fallback is
-      -- unconditional. util.window.ensure_editor_win() splits instead, and is
-      -- a no-op whenever a real editor window already exists (the normal case).
+      -- unconditional. util.window.ensure_editor_win() reuses the editor area
+      -- (including unmodified Oil) and only splits when no safe target exists.
       on_show = function(picker)
         if editor_picker_sources[picker.opts.source] then
           picker.main = require("util.window").ensure_editor_win()
@@ -351,6 +351,12 @@ return {
         },
         buffers = {
           format = "file",
+          -- Even with hidden buffers shown, selecting an agent terminal here
+          -- must not replace the editor and let edgy absorb it into the edge.
+          -- This filter also applies to the buffers source in smart find.
+          filter = {
+            filter = function(item) return item.buftype ~= "terminal" end,
+          },
         },
       },
     },

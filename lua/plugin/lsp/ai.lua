@@ -106,6 +106,11 @@ local function build_terminal_cmd()
     -- already had this; the two wrappers now agree.
     "set-option -g mouse on",
     "\\;",
+    -- Keep mouse scrolling, but suppress tmux's pane menu on right-click.
+    "unbind-key -T root MouseDown3Pane",
+    "\\;",
+    "unbind-key -T root M-MouseDown3Pane",
+    "\\;",
     -- Keep modified Enter chords intact on their way into the pane, as the
     -- Codex wrapper does: tmux's default `extended-keys off` turns the CSI u
     -- ESC[13;2u that lua/mappings.lua sends for <S-CR> into a bare CR, which

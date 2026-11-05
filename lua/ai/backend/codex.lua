@@ -65,6 +65,9 @@ local function terminal_command(args)
     "set-option", "-g", "default-terminal", term,
     ";", "set-option", "-g", "history-limit", "50000",
     ";", "set-option", "-g", "mouse", "on",
+    -- Keep mouse scrolling, but suppress tmux's pane menu on right-click.
+    ";", "unbind-key", "-T", "root", "MouseDown3Pane",
+    ";", "unbind-key", "-T", "root", "M-MouseDown3Pane",
     -- <S-CR> reaches this pane as CSI u (ESC[13;2u) from lua/mappings.lua.
     -- Under tmux's default `extended-keys off` that collapses to a bare CR,
     -- which submits the message instead of inserting a newline (measured on

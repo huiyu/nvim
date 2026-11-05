@@ -490,7 +490,7 @@ local sections = {
 
   ["<leader>b"] = {
     { "pin",    icon = "󰐃 ", color = "cyan", keys = { "p", "P" } },
-    { "delete", icon = "󰈆 ", color = "red",  keys = { "d", "D", "o", "l", "r" } },
+    { "delete", icon = "󰈆 ", color = "red",  keys = { "d", "D", "o", "l", "r", "x" } },
     -- `j` (Pick buffer) is the only one left; it goes under others.
   },
 
@@ -505,7 +505,7 @@ local sections = {
   },
 
   ["<leader>u"] = {
-    { "display", icon = "󰈈 ", color = "cyan",   keys = { "l", "L", "w", "c", "b", "C", "T" } },
+    { "display", icon = "󰈈 ", color = "cyan",   keys = { "l", "L", "w", "c", "b", "C", "T", "r" } },
     -- Diagnostics, inlay hints and spelling are all editing-time hints.
     { "hints",   icon = "󰅱 ", color = "azure",  keys = { "d", "h", "s" } },
     { "format",  icon = "󰉢 ", color = "green",  keys = { "f", "F" } },
