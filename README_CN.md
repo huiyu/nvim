@@ -20,14 +20,16 @@
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** 或 **[Codex](https://developers.openai.com/codex/cli/)** — Native coding agent
 - **Node.js >= 22 + npm** — CodeCompanion ACP bridge 进程
 - `NVIM_ANTHROPIC_API_KEY` 或 `NVIM_OPENAI_API_KEY` — 可选；所选 provider 的 CodeCompanion HTTP Inline/命令 Prompt（见 [API key](#api-key)；不是 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`）
+- **[llama.cpp](https://github.com/ggml-org/llama.cpp)** — `llama-server` 及其 7B 代码模型（一次性下载约 8 GB），供[行内 AI 补全](#行内-ai-补全)使用
 - **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** + **lolcat** — 启动页 banner（任一个缺失都会静默跳过）
 
 **macOS 一键安装：**
 ```bash
-brew install neovim git gh ripgrep fd lazygit tmux cowsay lolcat node
+brew install neovim git gh ripgrep fd lazygit tmux cowsay lolcat node llama.cpp
 brew install --cask font-jetbrains-mono-nerd-font  # 任意 Nerd Font 都行
 gh auth login                                      # 首次为 GitHub picker 认证
 npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
+llama-server --fim-qwen-7b-default                 # 一次性：下载灰色补全模型（约 8 GB），listening 后 Ctrl-C
 ```
 
 **语言工具链** — *只有想用对应的 Mason 包时才需要：*
@@ -83,7 +85,7 @@ nvim
 │   │   └── vcs/              # Git 集成
 │   └── util/                 # 工具模块
 ├── .github/workflows/       # CI：spec 套件 + 两个 provider 启动检查
-├── scripts/                 # Agent TUI 的 $EDITOR wrapper
+├── scripts/                 # Agent TUI 辅助脚本、共享 llama-server 的守护脚本
 ├── tests/                   # Headless spec 套件（tests/run.sh）
 └── docs/                     # MANUAL.md, DIAGNOSTICS.md, UTILITIES.md
 ```
@@ -148,6 +150,7 @@ nvim
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code 集成（仅 Claude provider） |
 | [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | 随 provider 选择的 ACP Chat，以及 HTTP Inline/命令 Prompt |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | 自动保存、按项目感知的 CodeCompanion Chat 历史 |
+| [minuet-ai](https://github.com/milanglacier/minuet-ai.nvim) | 边输入边出现的 AI 灰色补全，模型在本机运行（[行内 AI 补全](#行内-ai-补全)） |
 
 #### 版本控制
 
@@ -257,6 +260,7 @@ Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 
 |----|------|
 | `f` / `F` | Flash 跳转 / Treesitter 跳转（Normal + Visual；`df-`、`ct)` 仍走原生） |
 | `<C-h/j/k/l>` | 窗口移动——在终端输入状态下同样可用 |
+| Insert 中的 `<C-l>` | 接受灰色的 [AI 补全建议](#行内-ai-补全) |
 | `<C-,>` | 跳到编辑器区域，再按一次跳回 |
 | `<C-/>` | 开关终端；文件中用 `3<C-/>` 打开终端 3；终端 Normal 模式下用 `,1`-`,9` 切换 |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | 上/下一个 buffer |
@@ -513,6 +517,26 @@ Normal 模式的布局优先读取 `NVIM_ENGLISH_INPUT_SOURCE`，未设置时回
 `NVIM_MACISM_WAIT_TIME_MS=0` 会关闭 macism 临时抢焦点窗口，从而消除 Ghostty
 可见的焦点闪动。代价是关闭 macism 的 CJK 激活 workaround，在 macOS 26 上开头
 几个字符可能仍按英文输入；不设置该变量则使用 macism 内置等待（当前为 150ms）。
+
+### 行内 AI 补全
+
+在文件里打字时，光标后会出现一段灰色文字，是对这一行剩余部分的建议。
+`<C-l>` 接受；继续打字时，只要你打的内容还和建议对得上，建议就跟着走，
+对不上就换成新的建议。建议来自在本机 llama.cpp 里运行的 Qwen2.5-Coder 7B：
+不需要账号和 API key，代码不出本机；它和 `NVIM_AI_PROVIDER` 无关，
+`vi`、`vic`、`vix` 看到的是同一套建议。
+
+模型只需下载一次（见[环境要求](#环境要求)里的 `llama-server` 那一行），存放在
+Hugging Face 缓存 `~/.cache/huggingface/hub`。第一次在文件里进入 Insert 时会启动一个
+所有 Nvim 共用的 `llama-server`，加载需要几秒；它以 `--offline` 运行，
+不会访问网络，也不会自行换成新版本的模型。沿着一行打字时，每条建议约 0.35 秒，
+换到新位置约 0.8 秒。空闲五分钟后，服务释放模型，下一条建议到来时再重新加载，
+约半秒；最后一个 Nvim 退出几秒后服务也会退出。Headless Nvim 不会启动它。
+
+Markdown、纯文本、提交信息和 rebase 列表不自动出建议；没有 filetype 的 buffer
+（`:enew` 之后、`:setf` 之前）以及终端、picker 和面板也不会。
+`:Minuet virtualtext toggle` 可为当前文件 buffer 打开或关闭建议。排查见
+[`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md#inline-completion-ghost-text)。
 
 ### API key
 

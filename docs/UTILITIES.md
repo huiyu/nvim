@@ -583,6 +583,42 @@ end)
 run.run_current()
 ```
 
+## Inline Completion Server (`util.llama`)
+
+The local `llama-server` behind minuet's ghost text, started on demand and
+shared by every Nvim. Each Nvim registers as `<dir>/clients/<pid>`;
+`scripts/llama-supervise` owns the one server (`<dir>/lock`) and stops it once
+no registered Nvim is alive; its header lists the exit codes `ensure()` acts
+on. A server that never answered and then exited is reported once and not
+started again in that session; one that crashes after serving is restarted.
+Nothing here checks for a UI or a buffer: the minuet spec only calls
+`ensure()` where suggestions can show, so headless runs never load the model.
+
+#### API Reference
+
+```lua
+local llama = require("util.llama")
+
+-- port (8012), dir (stdpath("state") .. "/llama"), server ("llama-server"),
+-- args (the --fim-qwen-7b-default preset and its tuning), model (the Hugging
+-- Face repo the preset loads, for :checkhealth config) and recheck (5000 ms).
+llama.config
+
+-- Register this Nvim and start the server unless /health already answers;
+-- then poll until it does, asking the supervisor again every two seconds in
+-- case the owner it handed over to was stopping. Returns at once while a
+-- check is in flight, and while the server answers (or after a failed start)
+-- checks at most every `recheck` ms, so it can run on every InsertEnter and
+-- every request.
+llama.ensure()
+
+llama.ready()          -- true while /health answers; gates minuet's requests
+llama.failed()         -- true after a failed start, which is not retried
+llama.release()        -- unregister (runs on VimLeavePre)
+llama.url("/infill")   -- "http://127.0.0.1:8012/infill"
+llama.log()            -- <dir>/server.log, rewritten at each server start
+```
+
 ## AI Panel Input (`ai.terminal`)
 
 Buffer-local input rules for the native agent panel, applied through one

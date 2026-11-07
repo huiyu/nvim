@@ -23,6 +23,7 @@ local executables = {
   { "python3", "debugpy venv, ,x runner for Python",                    false },
   { "cc",      ",x compile & run for C",                                false },
   { "lazygit", "<leader>gg git UI",                                    false },
+  { "curl",    "AI ghost-text requests and llama-server checks",       false },
   { "gh",      "<leader>G GitHub pickers and status",                  false },
 }
 
@@ -131,6 +132,41 @@ function M.check()
       :format(cli_key, ai.label), { ("Unset it unless API billing is intended; Nvim reads %s"):format(api_key) })
   else
     health.ok(("%s not set — %s uses its subscription login"):format(cli_key, ai.label))
+  end
+
+  -- Independent of the provider above: ghost text always comes from the local
+  -- server that util.llama starts on the first Insert.
+  local llama = require("util.llama")
+  health.start("config: inline completion")
+  if vim.fn.executable(llama.config.server) ~= 1 then
+    health.warn("llama-server not found — no AI ghost text", { "brew install llama.cpp" })
+  else
+    health.ok("llama-server found — started on the first Insert, shared by every Nvim")
+    -- --offline means a missing model is a failed start, not a download.
+    -- Resolved the way llama.cpp does, where an empty variable counts as unset.
+    local function env(name)
+      local value = vim.env[name]
+      return value ~= "" and value or nil
+    end
+    local cache = env("HF_HUB_CACHE") or env("HUGGINGFACE_HUB_CACHE") or ((env("HF_HOME")
+      or (env("XDG_CACHE_HOME") or (vim.uv.os_homedir() .. "/.cache")) .. "/huggingface") .. "/hub")
+    local snapshots = ("%s/models--%s/snapshots"):format(cache, (llama.config.model:gsub("/", "--")))
+    if #vim.fn.glob(snapshots .. "/*/*.gguf", false, true) > 0 then
+      health.ok(("%s is in %s"):format(llama.config.model, cache))
+    else
+      health.warn(("%s is not in %s; the server starts --offline and cannot fetch it"):format(llama.config.model, cache),
+        { "Download it once (~8 GB): llama-server --fim-qwen-7b-default, then Ctrl-C once it is listening" })
+    end
+    local answer = vim.fn.executable("curl") == 1
+      and vim.system({ "curl", "-sf", "-o", "/dev/null", "--max-time", "1", llama.url("/health") }):wait()
+    if answer and answer.code == 0 then
+      health.ok("server answering at " .. llama.url(""))
+    elseif llama.failed() then
+      health.warn(("the server failed to start in this Nvim and is not retried; see %s"):format(llama.log()),
+        { "Fix what the log reports, then restart Nvim" })
+    else
+      health.info(("server not running (it starts on the next Insert); last log: %s"):format(llama.log()))
+    end
   end
 
   health.start("config: logs")

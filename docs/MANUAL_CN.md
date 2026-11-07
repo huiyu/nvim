@@ -575,9 +575,17 @@ Ctrl-/       切换终端
 ,1 … ,9      在终端 buffer 中选择第 1-9 个终端（先按 jk）
 <Space>ac    打开 AI 面板
 <Space>ai    在真正的 Neovim buffer 里写 prompt
+Ctrl-l       （Insert）接受灰色的 AI 建议
 ```
 
 `Ctrl-]` 退出终端输入但不打扰里面运行的程序——因为 `Esc` 属于 AI CLI 自己。
+
+在文件里打字时，光标后可能出现一段灰色文字，是对这一行剩余部分的建议。
+它来自本机运行的模型，而不是面板里的 agent（安装见
+[行内 AI 补全](../README_CN.md#行内-ai-补全)）。`Ctrl-l` 接受。不理它也没有代价：
+继续打字，只要你打的内容还和它对得上，它就跟着走，否则换成新的建议。
+Markdown、纯文本、提交信息和没有 filetype 的 buffer 里不会自动出现；
+`:Minuet virtualtext toggle` 可以为当前 buffer 打开或关闭。
 
 `,` 加编号会聚焦或创建对应终端，再按同一个编号也不会关闭它。
 `<C-/>` 用来打开、关闭当前或上次使用的终端。

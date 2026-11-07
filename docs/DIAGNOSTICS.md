@@ -25,6 +25,7 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | No / wrong highlight | `:checkhealth nvim-treesitter` · `:InspectTree` · `:Inspect` |
 | Formatting does nothing | `:ConformInfo` · then `:checkhealth conform` |
 | CodeCompanion Chat fails | `:checkhealth config` · `:CodeCompanionChat` · `:messages` |
+| No grey AI suggestions | `:checkhealth config` (inline completion) · `~/.local/state/nvim/llama/server.log` |
 | GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `:messages` |
 | Mason tool missing | `:Mason` (`<leader>mm`) · `:checkhealth mason` |
 | Error flashed by | `:messages` · `:Noice errors` |
@@ -60,6 +61,9 @@ the update checker runs silently once a day (`bootstrap.lua`).
   CodeCompanion HTTP inline/command credentials (`NVIM_ANTHROPIC_API_KEY` /
   `NVIM_OPENAI_API_KEY`), plus a warning while the CLI's own
   `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is set
+- Inline completion: `llama-server`, whether its model is in the Hugging Face
+  cache (the server starts `--offline`, so a missing model is a failed start),
+  and whether the shared server is answering
 - Whether `scripts/agent-editor` is executable. Both agent TUIs bind `ctrl+g` to
   "edit this prompt in `$EDITOR`", and that wrapper is what makes the prompt open
   in this Nvim rather than in a second one nested inside the `:terminal`. It
@@ -196,6 +200,51 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   repair the panel's own content, not these cells.
 - Reinstall ACP bridges with
   `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`.
+
+### Inline completion (ghost text)
+
+minuet (`lua/plugin/lsp/minuet.lua`) draws the grey suggestions; they come from
+a local `llama-server` that `util.llama` starts on the first Insert in a
+buffer that can show them, and that every Nvim shares. None of it depends on
+`NVIM_AI_PROVIDER`.
+
+- **No suggestions anywhere.** `:checkhealth config` → *inline completion*
+  names the missing piece: `llama-server` itself (`brew install llama.cpp`) or
+  its model (`llama-server --fim-qwen-7b-default` once, then Ctrl-C). Then
+  `curl -s localhost:8012/health` should print `{"status":"ok"}`. A server that
+  never comes up is reported once — *Inline completion is off: …* — with the
+  log, `~/.local/state/nvim/llama/server.log` (rewritten at each start), and
+  that Nvim does not try again, so restart it after the fix. A server that
+  crashes after it has served is simply started again.
+- **None in this buffer.** Only file buffers (`buftype` empty) whose filetype
+  is known qualify — minuet turns suggestions on from the `FileType` event, so
+  `:enew` and unrecognised files get none until `:setf` — and markdown, text,
+  gitcommit and gitrebase are excluded. `:Minuet virtualtext toggle` turns them
+  on or off for the current buffer, filetype or not; it cannot reach terminals,
+  pickers or panels. Such buffers do not start the server either, and a
+  headless Nvim (`--headless`, the spec suite) never starts it at all.
+- **Slow.** Expect ~0.35 s per suggestion while typing along a line and
+  ~0.8 s at a new position, plus ~0.5 s for the first one after five idle
+  minutes, when the server has released the model. Several Nvims share the
+  one slot, so requests from two editors at once queue.
+- **Memory.** Loaded, the server shows ~8 GB resident, which is mostly the
+  memory-mapped model file; its own footprint is ~0.6 GB. Asleep it is ~70 MB.
+- **Lifecycle.** Each Nvim registers as `~/.local/state/nvim/llama/clients/<pid>`;
+  the copy of `scripts/llama-supervise` holding `lock/` runs the server and
+  stops it about five seconds after the last registered Nvim is gone, crashed
+  ones included. To stop it by hand, signal that copy:
+  `kill "$(cat ~/.local/state/nvim/llama/lock/pid)"` (not `pkill -f`, which
+  also hits any editor that has the script open). It stops within a few
+  seconds, and the next Insert, or the next suggestion in any Nvim, starts it
+  again: each request rechecks a server that has not been checked in five
+  seconds.
+- **Port.** The server listens on `127.0.0.1:8012`. If something else holds
+  that port, the server cannot start, while whatever does answer there gets
+  the requests; change `port` in `lua/util/llama.lua`.
+- **Updating the model.** `--offline` never fetches; `llama-server
+  --fim-qwen-7b-default` without it checks Hugging Face for a newer revision.
+- **Request-level detail.** `:lua require("minuet").config.notify = "debug"`
+  makes minuet report every request and reply.
 
 ### Transcript viewer (`<leader>at`, `<leader>aT`)
 

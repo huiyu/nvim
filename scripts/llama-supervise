@@ -1,0 +1,102 @@
+#!/bin/sh
+# Owner of the shared llama-server behind inline completion (lua/util/llama.lua).
+#
+#   llama-supervise DIR COMMAND [ARG]...
+#
+# Every Nvim that wants completions registers itself as DIR/clients/<pid> and
+# runs this script whenever the server does not answer, so several copies can
+# start at once. The first one takes DIR/lock and runs COMMAND; the others exit
+# straight away and use that server. The owner stops the server once no
+# registered Nvim is alive -- an Nvim that crashed and never unregistered
+# included, so a dead editor cannot keep the model in memory.
+#
+# Exit status, which util.llama acts on:
+#   0      another copy owns the server; nothing to do.
+#   10     this copy stopped its server: no Nvim was left, or it was sent TERM
+#          (kill "$(cat DIR/lock/pid)" is the way to stop the server by hand).
+#   other  the server exited on its own: a failed start (no cached model under
+#          --offline, port taken) or a crash. The reason is in DIR/server.log,
+#          which each new server truncates.
+#
+# LLAMA_SUPERVISE_INTERVAL (seconds, default 5) is how often the clients are
+# checked, so it is also how long the server outlives the last Nvim.
+
+set -u
+dir=$1
+shift
+interval=${LLAMA_SUPERVISE_INTERVAL:-5}
+lock=$dir/lock
+mkdir -p "$dir/clients"
+
+# DIR survives a reboot and pids get reused, so a live pid proves nothing on
+# its own; check what the process is as well. comm is the executable, not the
+# arguments: plenty of commands mention nvim in a path, this script included.
+is_nvim() {
+  comm=$(ps -p "$1" -o comm= 2>/dev/null) && [ "${comm##*/}" = nvim ]
+}
+is_owner() {
+  ps -ww -p "$1" -o command= 2>/dev/null | grep -F -q -- "llama-supervise $dir "
+}
+
+# mkdir is atomic, so exactly one copy gets the lock.
+if ! mkdir "$lock" 2>/dev/null; then
+  owner=$(cat "$lock/pid" 2>/dev/null)
+  # The owner writes its pid right after its mkdir; give it that moment.
+  if [ -z "$owner" ]; then
+    sleep 1
+    owner=$(cat "$lock/pid" 2>/dev/null)
+  fi
+  if [ -n "$owner" ] && is_owner "$owner"; then
+    exit 0
+  fi
+  rm -rf "$lock"
+  mkdir "$lock" 2>/dev/null || exit 0
+fi
+echo $$ >"$lock/pid"
+
+exec >"$dir/server.log" 2>&1
+"$@" &
+server=$!
+
+release() {
+  [ "$(cat "$lock/pid" 2>/dev/null)" = "$$" ] && rm -rf "$lock"
+}
+
+stop() {
+  kill "$server" 2>/dev/null
+  i=0
+  while kill -0 "$server" 2>/dev/null && [ "$i" -lt 10 ]; do
+    sleep 1
+    i=$((i + 1))
+  done
+  kill -9 "$server" 2>/dev/null
+  release
+}
+
+trap 'stop; exit 10' INT TERM HUP
+
+while kill -0 "$server" 2>/dev/null; do
+  alive=
+  for client in "$dir"/clients/*; do
+    [ -e "$client" ] || continue
+    if is_nvim "${client##*/}"; then
+      alive=1
+    else
+      rm -f "$client"
+    fi
+  done
+  if [ -z "$alive" ]; then
+    echo "llama-supervise: no Nvim left, stopping the server"
+    stop
+    exit 10
+  fi
+  sleep "$interval"
+done
+
+wait "$server"
+status=$?
+echo "llama-supervise: the server exited on its own with status $status"
+release
+# Nothing asked it to stop, so even a clean exit is a failure to the clients.
+case $status in 0 | 10) status=1 ;; esac
+exit "$status"

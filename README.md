@@ -20,14 +20,16 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** or **[Codex](https://developers.openai.com/codex/cli/)** — selected native coding agent
 - **Node.js >= 22 + npm** — CodeCompanion ACP bridge processes
 - `NVIM_ANTHROPIC_API_KEY` or `NVIM_OPENAI_API_KEY` — optional; selected provider's CodeCompanion HTTP inline/command prompts (see [API keys](#api-keys) — not `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`)
+- **[llama.cpp](https://github.com/ggml-org/llama.cpp)** — `llama-server` and its 7B coder model (one ~8 GB download) for [inline AI completion](#inline-ai-completion)
 - **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** + **lolcat** — dashboard banner (silently skipped if either is missing)
 
 **Quick install (macOS):**
 ```bash
-brew install neovim git gh ripgrep fd lazygit tmux cowsay lolcat node
+brew install neovim git gh ripgrep fd lazygit tmux cowsay lolcat node llama.cpp
 brew install --cask font-jetbrains-mono-nerd-font  # or any Nerd Font
 gh auth login                                      # once, for GitHub pickers
 npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
+llama-server --fim-qwen-7b-default                 # once: ghost-text model (~8 GB); Ctrl-C when listening
 ```
 
 **Language toolchains** — *only if you want the matching Mason packages to install:*
@@ -88,7 +90,7 @@ nvim
 │   │   └── vcs/              # Git integration
 │   └── util/                 # Utility modules
 ├── .github/workflows/       # CI: spec suite + both provider startups
-├── scripts/                 # $EDITOR wrapper for the agent TUIs
+├── scripts/                 # Agent TUI helpers, shared llama-server supervisor
 ├── tests/                   # Headless spec suite (tests/run.sh)
 └── docs/                     # MANUAL.md, DIAGNOSTICS.md, UTILITIES.md
 ```
@@ -153,6 +155,7 @@ nvim
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code integration (Claude provider only) |
 | [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | Provider-aware ACP chat plus HTTP inline/command prompts |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | Auto-saved, project-aware CodeCompanion chat history |
+| [minuet-ai](https://github.com/milanglacier/minuet-ai.nvim) | As-you-type AI ghost text from a local model ([inline AI completion](#inline-ai-completion)) |
 
 #### Version Control
 
@@ -267,6 +270,7 @@ Unprefixed keys worth knowing:
 |-----|--------|
 | `f` / `F` | Flash jump / Treesitter jump (Normal + Visual; `df-`, `ct)` stay native) |
 | `<C-h/j/k/l>` | Move between windows — works from terminal input too |
+| `<C-l>` in Insert | Accept the grey [AI suggestion](#inline-ai-completion) |
 | `<C-,>` | Jump to the editor area, press again to return |
 | `<C-/>` | Toggle terminal; `3<C-/>` selects terminal 3 from a file; `,1`-`,9` switch from terminal-Normal |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
@@ -576,6 +580,31 @@ input-source state.
 visible Ghostty focus flash. This trades away macism's CJK activation workaround
 and may let the first characters through as English on macOS 26; leave the
 variable unset to use macism's built-in wait (currently 150ms).
+
+### Inline AI completion
+
+While you type in a file, a grey suggestion for the rest of the line appears
+after the cursor. `<C-l>` accepts it; typing on keeps it in step while your text
+still matches, and otherwise a fresh one replaces it. The suggestions come from
+Qwen2.5-Coder 7B running in llama.cpp on this machine — no account, no API key,
+nothing leaves the computer — and have nothing to do with `NVIM_AI_PROVIDER`:
+`vi`, `vic` and `vix` all get the same ones.
+
+The model is downloaded once (the `llama-server` line under
+[Requirements](#requirements)) into the Hugging Face cache,
+`~/.cache/huggingface/hub`. The first Insert in a file starts one
+`llama-server` that every Nvim shares; it takes a few seconds to load, and runs with `--offline`, so
+it never reaches the network or swaps in a newer model by itself. A suggestion
+takes about 0.35 s while you type along a line and 0.8 s at a new position.
+After five idle minutes the server releases the model and reloads it, in about
+half a second, for the next suggestion; it exits a few seconds after the last
+Nvim does. Headless Nvim never starts it.
+
+Markdown, plain text, commit messages and rebase lists get no automatic
+suggestions, and neither do buffers without a filetype (`:enew` until `:setf`)
+or terminals, pickers and panels. `:Minuet virtualtext toggle` switches them on
+or off for the current file buffer. Troubleshooting is in
+[`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md#inline-completion-ghost-text).
 
 ### API keys
 

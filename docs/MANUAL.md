@@ -627,10 +627,19 @@ Ctrl-/       toggle a terminal
 ,1 … ,9      choose terminal 1-9 from a terminal buffer (jk first)
 <Space>ac    open the AI panel
 <Space>ai    write a prompt in a real Neovim buffer
+Ctrl-l       (Insert) take the grey AI suggestion
 ```
 
 `Ctrl-]` leaves terminal input without disturbing the program running in it —
 useful because `Esc` belongs to the AI CLIs themselves.
+
+While you type in a file, a grey suggestion for the rest of the line may
+appear after the cursor. It comes from a model running on this machine, not
+from the agent in the panel (setup: [Inline AI completion](../README.md#inline-ai-completion)).
+`Ctrl-l` takes it. Ignoring it costs nothing: keep typing and it either follows
+along, while your text still matches it, or gives way to a fresh one. Markdown,
+plain text, commit messages and buffers without a filetype are left alone;
+`:Minuet virtualtext toggle` switches the current buffer either way.
 
 The numbered `,` keys focus or create the selected terminal and never close
 it when pressed again. `<C-/>` opens/closes the current or last-used terminal.

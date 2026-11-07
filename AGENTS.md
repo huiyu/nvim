@@ -66,6 +66,11 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   creation time and forwarded explicitly through `new-session -e` under both tmux
   wrappers. Dropping any of them degrades silently to a nested Nvim inside
   `:terminal`, so treat them as part of the terminal command, not as decoration.
+- Inline ghost text (`lua/plugin/lsp/minuet.lua`) is not part of the provider
+  facade: it always comes from the local `llama-server` that `util.llama`
+  shares between Nvims, whichever provider the process selected. Do not route
+  it through `ai.config`. The server only starts when a UI is attached, so the
+  headless spec suite never loads the model; keep that guard.
 
 ## Editing Conventions
 

@@ -31,6 +31,7 @@
   "mini.icons": { "branch": "main", "commit": "eab3e692d796d78ea6ffc978d8a380ff26fcf4e3" },
   "mini.nvim": { "branch": "main", "commit": "a321b535c75ca88ba7fddfd8eb5b583fbda50dd6" },
   "mini.splitjoin": { "branch": "main", "commit": "de43d1ace70185b2d1da97781586ffba9fbb0338" },
+  "minuet-ai.nvim": { "branch": "main", "commit": "50bf63b031c0391e926fdf0b3d044d37846e6e34" },
   "neogen": { "branch": "main", "commit": "23e7e9f883d01289ebd90e98025acc860ea26366" },
   "neotest": { "branch": "master", "commit": "27bf921498043f7ecd821d6db68d05de244bbd02" },
   "neotest-golang": { "branch": "main", "commit": "65b2be63c3de00e6f15c05388ebdc8d603dbd727" },
