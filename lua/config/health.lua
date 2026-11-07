@@ -118,7 +118,19 @@ function M.check()
   if vim.env[api_key] and vim.env[api_key] ~= "" then
     health.ok(("%s found — CodeCompanion HTTP inline/command prompts available"):format(api_key))
   else
-    health.warn(("%s not set — ACP Chat works, but HTTP inline/command prompts do not"):format(api_key))
+    health.warn(("%s not set — ACP Chat works, but HTTP inline/command prompts do not"):format(api_key),
+      { "See README.md, API keys" })
+  end
+
+  -- The agent's own variable outranks its subscription login, so an export
+  -- meant for something else silently moves the native terminal and ACP Chat
+  -- onto API billing.
+  local cli_key = ai.cli_api_key
+  if vim.env[cli_key] and vim.env[cli_key] ~= "" then
+    health.warn(("%s is set — %s started from this Nvim can bill the API instead of the subscription")
+      :format(cli_key, ai.label), { ("Unset it unless API billing is intended; Nvim reads %s"):format(api_key) })
+  else
+    health.ok(("%s not set — %s uses its subscription login"):format(cli_key, ai.label))
   end
 
   health.start("config: logs")

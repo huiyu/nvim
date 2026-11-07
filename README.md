@@ -19,7 +19,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 - **[GitHub CLI](https://cli.github.com/)** — authenticated `gh` for `<leader>G` GitHub pickers and status
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** or **[Codex](https://developers.openai.com/codex/cli/)** — selected native coding agent
 - **Node.js >= 22 + npm** — CodeCompanion ACP bridge processes
-- `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — optional; selected provider's CodeCompanion HTTP inline/command prompts
+- `NVIM_ANTHROPIC_API_KEY` or `NVIM_OPENAI_API_KEY` — optional; selected provider's CodeCompanion HTTP inline/command prompts (see [API keys](#api-keys) — not `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`)
 - **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** + **lolcat** — dashboard banner (silently skipped if either is missing)
 
 **Quick install (macOS):**
@@ -488,7 +488,7 @@ Add the instruction you want, then press Enter yourself.
 The same setting selects CodeCompanion's ACP Chat agent (`claude_code` /
 `codex`). Chat therefore uses the coding agent's stateful protocol and tools;
 Inline and command prompts remain lightweight HTTP interactions
-(`anthropic` / `openai_responses`) and require the matching API key. Codex ACP
+(`anthropic` / `openai`) and need an [API key](#api-keys). Codex ACP
 uses ChatGPT authentication and inherits `CODEX_HOME` from `vix`.
 
 CodeCompanion chats are auto-saved by codecompanion-history. Open them with
@@ -577,6 +577,43 @@ visible Ghostty focus flash. This trades away macism's CJK activation workaround
 and may let the first characters through as English on macOS 26; leave the
 variable unset to use macism's built-in wait (currently 150ms).
 
+### API keys
+
+The agents need no key: Claude Code and Codex — the native panel and ACP Chat
+alike — run on your Claude or ChatGPT login. A key is only for CodeCompanion's
+HTTP Inline and command prompts (`<leader>api`, `:CodeCompanion`), which call
+the API directly: Anthropic under the Claude provider (`vi`, `vic`), OpenAI
+under Codex (`vix`). Only the selected provider's key is read.
+
+| Variable | Provider | Key from |
+|----------|----------|----------|
+| `NVIM_ANTHROPIC_API_KEY` | Claude | [Anthropic Console](https://platform.claude.com/) → API keys |
+| `NVIM_OPENAI_API_KEY` | Codex | [OpenAI Platform](https://platform.openai.com/api-keys) |
+
+Never use `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` for this. They are the
+CLIs' own variables, and with one in the environment the agents started from
+that shell or from Nvim can bill the API instead of your subscription. This
+config does not read them; `:checkhealth config` warns while the selected
+provider's one is set.
+
+1. Create a key for Nvim alone, so it can be revoked on its own. Spend limits
+   belong to the container, not the key: to cap it, create the key in an
+   Anthropic workspace (or OpenAI project) of its own with a limit set. The
+   Console's identity-federation option is for cloud and CI workloads; choose
+   *Continue with an API key*.
+2. Export it from a shell startup file that is never committed — for example a
+   gitignored file your `.zshrc` sources:
+   ```sh
+   export NVIM_ANTHROPIC_API_KEY="sk-ant-..."
+   export NVIM_OPENAI_API_KEY="sk-proj-..."   # only if you use vix
+   ```
+3. Open a new shell, start Nvim from it, and run `:checkhealth config`: the
+   *AI provider* section reports the key as found.
+
+The name keeps the agents from billing against the key, but not from seeing
+it: like any exported variable it reaches every process Nvim starts,
+agent terminals included. Keep it out of anything you commit or share.
+
 ### Configuration
 
 Set these in `init.lua` before plugins load.
@@ -590,6 +627,8 @@ Set these in `init.lua` before plugins load.
 | Variable | Description |
 |----------|-------------|
 | `NVIM_AI_PROVIDER` | `claude` (default) or `codex`; selects the native agent, CodeCompanion ACP Chat, and HTTP inline adapter for this Nvim process |
+| `NVIM_ANTHROPIC_API_KEY` | CodeCompanion HTTP inline/command prompts under the Claude provider. See [API keys](#api-keys) |
+| `NVIM_OPENAI_API_KEY` | The same under the Codex provider |
 | `NVIM_ENGLISH_INPUT_SOURCE` | macOS input-source ID used in Normal mode; falls back to an enabled keyboard layout reported by macOS, preferring a Latin one |
 | `NVIM_MACISM_WAIT_TIME_MS` | Optional macism CJK workaround wait; `0` removes the temporary focus window at the cost of possible first-character races |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold: `DEBUG`/`INFO`/`WARN`/`ERROR` (default `WARN`) |

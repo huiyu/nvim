@@ -57,7 +57,9 @@ the update checker runs silently once a day (`bootstrap.lua`).
 - The macOS Normal-mode input source and whether it came from
   `NVIM_ENGLISH_INPUT_SOURCE` or the system keyboard-layout fallback
 - Active AI provider, native CLI, selected ACP bridge, and optional
-  CodeCompanion HTTP inline/command credentials
+  CodeCompanion HTTP inline/command credentials (`NVIM_ANTHROPIC_API_KEY` /
+  `NVIM_OPENAI_API_KEY`), plus a warning while the CLI's own
+  `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is set
 - Whether `scripts/agent-editor` is executable. Both agent TUIs bind `ctrl+g` to
   "edit this prompt in `$EDITOR`", and that wrapper is what makes the prompt open
   in this Nvim rather than in a second one nested inside the `:terminal`. It
@@ -152,8 +154,14 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   auto-saved history (also `gh` inside a chat)
 - History restores the local transcript; use `/resume` in a fresh ACP chat to
   reload a stateful agent session.
-- ACP Chat uses the selected agent login. Missing `ANTHROPIC_API_KEY` or
-  `OPENAI_API_KEY` only disables HTTP Inline/command prompts.
+- ACP Chat uses the selected agent login. A missing `NVIM_ANTHROPIC_API_KEY`
+  or `NVIM_OPENAI_API_KEY` only disables HTTP Inline/command prompts, which
+  then fail with an authentication error; set it as in
+  [README → API keys](../README.md#api-keys) and restart Nvim from a new shell.
+- **The agent bills the API although you have a subscription.** Check
+  `:checkhealth config` for *ANTHROPIC_API_KEY is set* (or `OPENAI_API_KEY`).
+  Those are the CLIs' own variables and can take precedence over the login;
+  this config never needs them, so unset them in the shell that starts Nvim.
 - Native Claude and Codex TUIs use provider-specific tmux wrappers when tmux is
   installed. Set `CLAUDE_WRAP_TMUX=0` or `CODEX_WRAP_TMUX=0` for an A/B test.
 - Both wrappers keep tmux mouse support enabled for scrolling, but disable its
@@ -715,6 +723,7 @@ A clean run prints `errmsg=[]` and no tracebacks.
 | Variable | Effect |
 |----------|--------|
 | `NVIM_AI_PROVIDER` | Select `claude` (default) or `codex` for Native AI, ACP Chat, and HTTP Inline |
+| `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key for CodeCompanion HTTP Inline/command prompts under the Claude / Codex provider |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Override the macOS keyboard layout used in Normal and Terminal-Normal modes |
 | `NVIM_MACISM_WAIT_TIME_MS` | Set macism's CJK workaround wait; `0` disables its temporary focus window |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |

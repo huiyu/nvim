@@ -32,6 +32,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - codecompanion-history stores the local transcript; continuing the agent's
   stateful ACP session is a separate `/resume` workflow. Preserve that
   distinction in implementation and documentation.
+- CodeCompanion's HTTP adapter reads `NVIM_ANTHROPIC_API_KEY` /
+  `NVIM_OPENAI_API_KEY` (`lua/ai/config.lua`, applied through
+  `adapters.http.extend`), never `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`: those
+  are the CLIs' own and can take precedence over the subscription login, so a
+  config that asks for them moves the native agent and ACP Chat onto API
+  billing. Exercised by `tests/ai_api_key_spec.lua`.
 - CodeCompanion is an additional chat/inline workflow, not a second native
   terminal facade. Do not stack overlapping native integrations.
 - Preserve the Claude tmux wrapper and watchdog unless a replacement is tested

@@ -19,7 +19,7 @@
 - **[GitHub CLI](https://cli.github.com/)** — 已认证的 `gh`，供 `<leader>G` GitHub picker 与状态使用
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** 或 **[Codex](https://developers.openai.com/codex/cli/)** — Native coding agent
 - **Node.js >= 22 + npm** — CodeCompanion ACP bridge 进程
-- `ANTHROPIC_API_KEY` 或 `OPENAI_API_KEY` — 可选；所选 provider 的 CodeCompanion HTTP Inline/命令 Prompt
+- `NVIM_ANTHROPIC_API_KEY` 或 `NVIM_OPENAI_API_KEY` — 可选；所选 provider 的 CodeCompanion HTTP Inline/命令 Prompt（见 [API key](#api-key)；不是 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`）
 - **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** + **lolcat** — 启动页 banner（任一个缺失都会静默跳过）
 
 **macOS 一键安装：**
@@ -436,8 +436,8 @@ vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex-oauth" nvim
 
 同一设置会为 CodeCompanion Chat 选择对应 ACP agent（`claude_code` /
 `codex`）。Chat 因此使用 coding agent 的有状态协议和工具；Inline 与命令
-Prompt 仍使用较轻量的 HTTP adapter（`anthropic` / `openai_responses`），
-需要相应 API key。Codex ACP 使用 ChatGPT 登录，并继承 `vix` 的
+Prompt 仍使用较轻量的 HTTP adapter（`anthropic` / `openai`），
+需要 [API key](#api-key)。Codex ACP 使用 ChatGPT 登录，并继承 `vix` 的
 `CODEX_HOME`。
 
 codecompanion-history 会自动保存 Chat。用 `<leader>aph`（或
@@ -514,6 +514,40 @@ Normal 模式的布局优先读取 `NVIM_ENGLISH_INPUT_SOURCE`，未设置时回
 可见的焦点闪动。代价是关闭 macism 的 CJK 激活 workaround，在 macOS 26 上开头
 几个字符可能仍按英文输入；不设置该变量则使用 macism 内置等待（当前为 150ms）。
 
+### API key
+
+Agent 本身不需要 key：Claude Code 和 Codex，无论是 Native 面板还是 ACP Chat，
+都用你的 Claude 或 ChatGPT 登录（订阅）。key 只给 CodeCompanion 的 HTTP Inline
+和命令 Prompt（`<leader>api`、`:CodeCompanion`）用，它们直接调用 API：
+Claude provider（`vi`、`vic`）下是 Anthropic，Codex（`vix`）下是 OpenAI。
+只读取当前 provider 对应的那一个。
+
+| 变量 | Provider | 在哪里创建 |
+|------|----------|-----------|
+| `NVIM_ANTHROPIC_API_KEY` | Claude | [Anthropic Console](https://platform.claude.com/) → API keys |
+| `NVIM_OPENAI_API_KEY` | Codex | [OpenAI Platform](https://platform.openai.com/api-keys) |
+
+不要用 `ANTHROPIC_API_KEY` 或 `OPENAI_API_KEY`。它们是 CLI 自己的变量，
+只要环境里有其中一个，从那个 shell 或 Nvim 启动的 agent 就可能改走 API 计费，
+而不是你的订阅。本配置不读取它们；当前 provider 对应的那个被设置时，
+`:checkhealth config` 会给出警告。
+
+1. 单独给 Nvim 建一个 key，方便单独吊销。消费上限设在 key 所属的容器上，
+   而不是 key 本身：要限额，就在一个单独的 Anthropic workspace（或 OpenAI
+   project）里创建 key，并给它设上限。Console 里的 identity federation 是给云端
+   和 CI 工作负载用的，这里选 *Continue with an API key*。
+2. 在一个不会提交的 shell 启动文件里导出它，例如被 `.zshrc` source、
+   且已加入 gitignore 的文件：
+   ```sh
+   export NVIM_ANTHROPIC_API_KEY="sk-ant-..."
+   export NVIM_OPENAI_API_KEY="sk-proj-..."   # 只有用 vix 时才需要
+   ```
+3. 打开一个新 shell，从这个 shell 启动 Nvim，运行 `:checkhealth config`：
+   *AI provider* 一节会显示已找到 key。
+
+这个变量名能防止 agent 拿它计费，但不能防止 agent 看到它：和所有导出的变量一样，
+它会传给 Nvim 启动的每个进程，包括 agent 终端。不要把它放进任何会提交或分享的内容。
+
 ### 配置项
 
 在 `init.lua` 里插件加载前设置。
@@ -527,6 +561,8 @@ Normal 模式的布局优先读取 `NVIM_ENGLISH_INPUT_SOURCE`，未设置时回
 | 变量 | 说明 |
 |------|------|
 | `NVIM_AI_PROVIDER` | `claude`（默认）或 `codex`；为当前 Nvim 进程选择 Native Agent、CodeCompanion ACP Chat 与 HTTP Inline adapter |
+| `NVIM_ANTHROPIC_API_KEY` | Claude provider 下 CodeCompanion HTTP Inline/命令 Prompt 使用的 key，见 [API key](#api-key) |
+| `NVIM_OPENAI_API_KEY` | Codex provider 下的同一用途 |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Normal 模式使用的 macOS 输入源 ID；未设置时使用 macOS 已启用的拉丁键盘布局 |
 | `NVIM_MACISM_WAIT_TIME_MS` | 可选的 macism CJK workaround 等待时间；设为 `0` 可去掉临时焦点窗口，但可能出现首字符竞态 |
 | `NVIM_LOG_LEVEL` | `util.logger` 日志级别：`DEBUG`/`INFO`/`WARN`/`ERROR`（默认 `WARN`） |

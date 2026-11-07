@@ -29,9 +29,14 @@ return {
       acp = {
         extend = ai.is("codex") and {
           -- Reuse the Codex/ChatGPT login selected by the vix profile.  HTTP
-          -- inline prompts still use OPENAI_API_KEY independently below.
+          -- inline prompts use NVIM_OPENAI_API_KEY independently below.
           codex = { defaults = { auth_method = "chat-gpt" } },
         } or {},
+      },
+      http = {
+        -- Inline and command prompts read the dedicated key, never the
+        -- variable the agent CLIs bill against (lua/ai/config.lua).
+        extend = { [ai.codecompanion.http_adapter] = { env = { api_key = ai.codecompanion.api_key } } },
       },
     },
     interactions = {

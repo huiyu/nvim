@@ -17,8 +17,13 @@ local providers = {
       acp_adapter = "claude_code",
       acp_command = "claude-agent-acp",
       http_adapter = "anthropic",
-      api_key = "ANTHROPIC_API_KEY",
+      -- A name of our own: Claude Code and claude-agent-acp prefer
+      -- ANTHROPIC_API_KEY over the subscription login, so exporting that one
+      -- for CodeCompanion would bill every agent started from here to the API.
+      api_key = "NVIM_ANTHROPIC_API_KEY",
     },
+    -- The variable the CLI itself bills against, checked by :checkhealth config.
+    cli_api_key = "ANTHROPIC_API_KEY",
   },
   codex = {
     label = "Codex",
@@ -34,9 +39,14 @@ local providers = {
     codecompanion = {
       acp_adapter = "codex",
       acp_command = "codex-acp",
-      http_adapter = "openai_responses",
-      api_key = "OPENAI_API_KEY",
+      -- CodeCompanion 20 folded openai_responses into openai, which is the
+      -- Responses API now; the old name no longer resolves.
+      http_adapter = "openai",
+      -- Not OPENAI_API_KEY, which Codex and codex-acp can use in place of
+      -- the ChatGPT login.
+      api_key = "NVIM_OPENAI_API_KEY",
     },
+    cli_api_key = "OPENAI_API_KEY",
   },
 }
 
