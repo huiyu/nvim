@@ -56,7 +56,9 @@ local success, error_msg = pcall(function()
       { import = "plugin.vcs" },     -- Version control integration
       { import = "lang" },           -- Language-specific configurations
     },
-    default = {
+    -- A spec with no event/cmd/keys/ft trigger stays unloaded until something
+    -- requires it, so anything that must run at startup says `lazy = false`.
+    defaults = {
       lazy = true,     -- Enable lazy loading for better performance
       version = false, -- Use latest versions instead of tagged releases
     },

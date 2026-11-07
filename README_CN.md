@@ -201,7 +201,7 @@ brew install --cask mactex-no-gui   # TeX Live:latexmk、latexindent、chktex
 brew install --cask skim            # 支持 SyncTeX 的 PDF 阅读器
 ```
 
-`texlab` 首次启动时由 Mason 自动安装,无需额外步骤。反向跳转(在 PDF 里点一下 → 跳回源码)需设置 **Skim → 偏好设置 → Sync → Preset 选 Custom**,Command 填 `nvim`,Arguments 填:
+`texlab` 在第一次打开文件时由 Mason 自动安装,无需额外步骤。反向跳转(在 PDF 里点一下 → 跳回源码)需设置 **Skim → 偏好设置 → Sync → Preset 选 Custom**,Command 填 `nvim`,Arguments 填:
 
 ```
 --headless -c "VimtexInverseSearch %line '%file'"

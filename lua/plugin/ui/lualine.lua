@@ -2,6 +2,9 @@ local ai = require("ai.config")
 
 return {
 	"nvim-lualine/lualine.nvim",
+	-- The statusline is part of the first frame, dashboard included; loading it
+	-- on VeryLazy would flash the builtin one first.
+	lazy = false,
 	opts = {
 		options = {
 			icons_enabled = true,

@@ -2,6 +2,9 @@ return {
   {
     "saghen/blink.cmp",
     version = "1.*",
+    -- nvim-lspconfig's config also requires it for client capabilities, so it
+    -- is already loaded by the time a file has been read.
+    event = { "InsertEnter", "CmdlineEnter" },
     dependencies = { "rafamadriz/friendly-snippets" },
 
     ---@module 'blink.cmp'

@@ -209,7 +209,7 @@ brew install --cask mactex-no-gui   # TeX Live: latexmk, latexindent, chktex
 brew install --cask skim            # PDF viewer with SyncTeX
 ```
 
-`texlab` installs itself through Mason on first launch — no extra step. For inverse search (click in the PDF → jump to source), set **Skim → Preferences → Sync → Preset: Custom**, Command `nvim`, Arguments:
+`texlab` installs itself through Mason the first time a file is opened — no extra step. For inverse search (click in the PDF → jump to source), set **Skim → Preferences → Sync → Preset: Custom**, Command `nvim`, Arguments:
 
 ```
 --headless -c "VimtexInverseSearch %line '%file'"

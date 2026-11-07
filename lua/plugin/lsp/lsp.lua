@@ -15,10 +15,34 @@ end
 return {
   {
     "mason-org/mason.nvim",
+    -- Eager on purpose: setup() prepends mason/bin to $PATH, and every child
+    -- process inherits $PATH when it spawns -- agent terminals, lazygit, the
+    -- formatters conform runs. Deferring it to the first file read would give
+    -- a terminal opened from the dashboard a different PATH.
+    lazy = false,
     opts = {},
   },
   {
     "mason-org/mason-lspconfig.nvim",
+    -- The first file read brings up the LSP stack: nvim-lspconfig loads as a
+    -- dependency and registers every server before the buffer's FileType.
+    event = { "BufReadPre", "BufNewFile" },
+    -- An editing buffer that never read a file (`:enew` then `:setf lua`,
+    -- `nvim -`) fires neither event, so its first filetype loads the stack
+    -- too; vim.lsp.enable() then attaches the buffers that already have one.
+    -- Not a FileType `event`: that would fire for panels, which are nofile.
+    init = function()
+      vim.api.nvim_create_autocmd("FileType", {
+        group = vim.api.nvim_create_augroup("user_lsp_scratch_load", { clear = true }),
+        callback = function(args)
+          if args.match == "" or vim.bo[args.buf].buftype ~= "" then
+            return
+          end
+          require("lazy").load({ plugins = { "mason-lspconfig.nvim" } })
+          return true
+        end,
+      })
+    end,
     dependencies = { "mason-org/mason.nvim", "neovim/nvim-lspconfig" },
     -- Single source of truth: install exactly the servers declared across the
     -- lang/ files (nvim-lspconfig `opts.servers`). Adding a server there is
