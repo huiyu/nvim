@@ -70,33 +70,80 @@ return {
         nts.install(missing):wait(300000)
       end
 
+      local function buf_lang(buf)
+        local ft = vim.bo[buf].filetype
+        return vim.treesitter.language.get_lang(ft) or ft
+      end
+
+      local function attach(buf, lang)
+        pcall(vim.treesitter.start, buf, lang)
+        vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        -- Folding is owned by ufo (see plugin/ui/ufo.lua); no foldexpr here.
+      end
+
+      -- `get_available()` reads a static table, so build the set once.
+      -- `requested` keeps a failed or still-running install from being
+      -- retried on every FileType of that language.
+      local available, requested = nil, {}
+
       -- Enable highlight + indent + fold for buffers whose parser is available.
       vim.api.nvim_create_autocmd("FileType", {
         group = vim.api.nvim_create_augroup("user_treesitter", { clear = true }),
         callback = function(args)
           local buf = args.buf
-          local ft = vim.bo[buf].filetype
-          local lang = vim.treesitter.language.get_lang(ft) or ft
+          local lang = buf_lang(buf)
           if not lang or lang == "" then
             return
           end
 
-          if not pcall(vim.treesitter.language.add, lang) then
-            -- Auto-install on demand if the parser is supported but missing
-            -- (this replaces the old `auto_install = true` option).
-            local available = {}
-            for _, p in ipairs(nts.get_available()) do
-              available[p] = true
-            end
-            if available[lang] then
-              nts.install({ lang })
-            end
+          -- Since Nvim 0.11 a missing parser is reported through the return
+          -- value (nil, err) rather than raised, so pcall's status alone is
+          -- always true -- that is what kept the install below from running.
+          local ok, added = pcall(vim.treesitter.language.add, lang)
+          if not ok then
+            -- The parser file exists but does not load (truncated build,
+            -- wrong ABI). A non-forced install counts it as installed and
+            -- does nothing, so point at the forced rebuild instead.
+            vim.notify_once(
+              ("treesitter: the %s parser does not load; rebuild it with :TSInstall! %s\n%s"):format(lang, lang, added),
+              vim.log.levels.WARN
+            )
+            return
+          end
+          if added then
+            attach(buf, lang)
             return
           end
 
-          pcall(vim.treesitter.start, buf, lang)
-          vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
-          -- Folding is owned by ufo (see plugin/ui/ufo.lua); no foldexpr here.
+          -- Auto-install on demand if the parser is supported but missing
+          -- (this replaces the old `auto_install = true` option).
+          if requested[lang] then
+            return
+          end
+          if not available then
+            available = {}
+            for _, p in ipairs(nts.get_available()) do
+              available[p] = true
+            end
+          end
+          if not available[lang] then
+            return
+          end
+          requested[lang] = true
+
+          -- FileType has already fired for every buffer waiting on this
+          -- parser, so attach them here once it is built.
+          nts.install({ lang }):await(vim.schedule_wrap(function(err, success)
+            local load_ok, loaded = pcall(vim.treesitter.language.add, lang)
+            if err or not success or not (load_ok and loaded) then
+              return
+            end
+            for _, b in ipairs(vim.api.nvim_list_bufs()) do
+              if vim.api.nvim_buf_is_loaded(b) and buf_lang(b) == lang then
+                attach(b, lang)
+              end
+            end
+          end))
         end,
       })
     end,
