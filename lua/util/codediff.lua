@@ -1,0 +1,746 @@
+-- The one module that reads CodeDiff's internals.
+--
+-- codediff.nvim's README calls everything under codediff.core and codediff.ui
+-- internal, and it has no API for the session, the hunks or its keymaps
+-- (upstream #577). What this config needs from there goes through this file,
+-- like which-key's View.sort in lua/plugin/editor/whichkey.lua. Every access
+-- is guarded -- pcall around the require, a type check before each call -- and
+-- setup() compares the plugin's VERSION with the one these hooks were written
+-- against. A mismatch warns once and leaves the patches below off. That
+-- fallback is safe: the upstream keys that would be dangerous here are already
+-- disabled in lua/plugin/vcs/codediff.lua, so what remains is plain CodeDiff.
+-- tests/codediff_spec.lua pins every internal named here.
+--
+--   codediff.version                VERSION
+--   codediff.ui.lifecycle           get_session, set_buf_keymap,
+--                                   begin/end_keymap_scope, close,
+--                                   update_buffers (wrapped)
+--   session fields                  git_root, original/modified ({ relative,
+--                                   absolute }), *_revision, *_bufnr, *_win,
+--                                   result_bufnr/_win, layout, single_side,
+--                                   merge, source_revisions,
+--                                   stored_diff_result.changes,
+--                                   panel { name, data, view { bufnr, winid, tree } }
+--   codediff.ui.explorer.actions    toggle_stage_entry, stage_all,
+--                                   unstage_all, restore_entry
+--   codediff.ui.view.actions.hunk   unstage_hunk
+--   codediff.core.diff              compute_diff
+--   codediff.ui.view.render         diff_options
+--   codediff.ui.layout              arrange
+--   codediff.core.git.runner        run_async
+--   codediff.core.git               get_commit_list
+--
+-- Keys go through the session's own keymap registry (set_keys): it snapshots
+-- whatever a buffer had before, suspends the claims on real file buffers on
+-- TabLeave, and hands every key back when the view closes.
+local M = {}
+
+--- The CodeDiff release the hooks below were written and tested against.
+M.VERSION = "4.0.6"
+
+-- Filetypes of CodeDiff's own panels. lua/util/window.lua names the same two
+-- for its first-tabpage guard; it runs at startup, so it cannot require this.
+M.PANEL_FILETYPES = { "codediff-explorer", "codediff-history" }
+
+-- How long an open() waits for its view. CodeDiff refuses some opens with a
+-- notice of its own and no event, and a label must not land on whatever view
+-- opens next.
+local PENDING_MS = 10000
+
+local degraded = false
+local pending ---@type { label?: string, tab_vars?: table, at: integer }?
+local tab_vars = {} ---@type table<integer, string[]> views on_open set up, with their extra tab vars
+local queued = {} ---@type table<integer, true>
+
+local warned = {}
+local function warn_once(key, msg)
+  if warned[key] then return end
+  warned[key] = true
+  vim.schedule(function() vim.notify(msg, vim.log.levels.WARN, { title = "CodeDiff" }) end)
+end
+
+---@param name string module name below `codediff.`
+local function internal(name)
+  local ok, mod = pcall(require, "codediff." .. name)
+  return ok and type(mod) == "table" and mod or nil
+end
+
+local function tabpage(tab)
+  if tab == nil or tab == 0 then return vim.api.nvim_get_current_tabpage() end
+  return tab
+end
+
+local function raw_session(tab)
+  local lifecycle = internal("ui.lifecycle")
+  if not lifecycle or type(lifecycle.get_session) ~= "function" then return nil end
+  local ok, session = pcall(lifecycle.get_session, tabpage(tab))
+  return ok and type(session) == "table" and session or nil
+end
+
+local function valid_buf(buf)
+  return type(buf) == "number" and vim.api.nvim_buf_is_valid(buf) and buf or nil
+end
+
+local function panel_view(s)
+  return type(s.panel) == "table" and type(s.panel.view) == "table" and s.panel.view or nil
+end
+
+--- The session's buffers by role. "panel" is the explorer or history list.
+local function session_buffers(s)
+  local view = panel_view(s)
+  return {
+    original = valid_buf(s.original_bufnr),
+    modified = valid_buf(s.modified_bufnr),
+    result = valid_buf(s.result_bufnr),
+    panel = view and valid_buf(view.bufnr) or nil,
+  }
+end
+
+---@param s table raw session
+---@return "status"|"staged"|"revision"|"revisions"|"history"|"dir"|"file"
+local function mode_of(s)
+  local panel = type(s.panel) == "table" and s.panel or nil
+  if not panel then return "file" end
+  if panel.name == "history" then return "history" end
+  if not s.git_root then return "dir" end
+  local data = type(panel.data) == "table" and panel.data or {}
+  if not data.base_revision and not data.target_revision then return "status" end
+  if data.target_revision == ":0" then return "staged" end
+  if data.target_revision and data.target_revision ~= "WORKING" then return "revisions" end
+  return "revision"
+end
+
+--- A copy of the session for `tab` (0 = current), or nil when it has no view.
+---
+--- `mode`: "status" (`:CodeDiff`, Staged/Changes/Conflicts groups),
+--- "revision" (rev vs working tree), "revisions" (rev vs rev), "staged"
+--- (`--staged`, rev vs index), "history", "dir" or "file" (no panel).
+--- original/modified are `{ relative, absolute }` real paths even when that
+--- side is a codediff:// buffer, and `""` on the missing side of an added or
+--- deleted file. A nil revision is the working tree, ":0" the index.
+---@param tab? integer
+---@return table?
+function M.session(tab)
+  tab = tabpage(tab)
+  local s = raw_session(tab)
+  if not s then return nil end
+  local view = panel_view(s)
+  local data = type(s.panel) == "table" and type(s.panel.data) == "table" and s.panel.data or {}
+  return {
+    tabpage = tab,
+    mode = mode_of(s),
+    git_root = s.git_root,
+    original = vim.deepcopy(s.original),
+    modified = vim.deepcopy(s.modified),
+    original_revision = s.original_revision,
+    modified_revision = s.modified_revision,
+    source_revisions = vim.deepcopy(s.source_revisions),
+    base_revision = data.base_revision,
+    target_revision = data.target_revision,
+    selection = vim.deepcopy(data.current_selection),
+    original_bufnr = s.original_bufnr,
+    modified_bufnr = s.modified_bufnr,
+    result_bufnr = s.result_bufnr,
+    original_win = s.original_win,
+    modified_win = s.modified_win,
+    result_win = s.result_win,
+    layout = s.layout,
+    single_side = s.single_side,
+    conflict = s.merge == true,
+    panel = type(s.panel) == "table" and s.panel.name or nil,
+    panel_bufnr = view and view.bufnr or nil,
+    panel_win = view and view.winid or nil,
+  }
+end
+
+local function range_copy(r)
+  return { start_line = r.start_line, end_line = r.end_line }
+end
+
+--- The displayed hunk under the cursor of `win` (default: current window).
+---
+--- Same rule as CodeDiff's own find_hunk_at_cursor: lines are 1-based and
+--- end_line is exclusive; an empty range (one side has no lines) matches at
+--- its start line. `side` is the pane the cursor is in; the inline layout
+--- only has the modified one.
+---@param tab? integer
+---@param win? integer
+---@return { index: integer, side: "original"|"modified", original: table, modified: table }?
+function M.hunk_at_cursor(tab, win)
+  local s = raw_session(tab)
+  local result = s and type(s.stored_diff_result) == "table" and s.stored_diff_result or nil
+  if not result or type(result.changes) ~= "table" then return nil end
+  win = (win == nil or win == 0) and vim.api.nvim_get_current_win() or win
+  if not vim.api.nvim_win_is_valid(win) then return nil end
+  local buf = vim.api.nvim_win_get_buf(win)
+  local side
+  if s.layout ~= "inline" and buf == s.original_bufnr then
+    side = "original"
+  elseif buf == s.modified_bufnr then
+    side = "modified"
+  else
+    return nil
+  end
+  local line = vim.api.nvim_win_get_cursor(win)[1]
+  for i, change in ipairs(result.changes) do
+    local r = change[side]
+    if type(r) == "table" and ((line >= r.start_line and line < r.end_line)
+        or (r.start_line == r.end_line and line == r.start_line)) then
+      return { index = i, side = side, original = range_copy(change.original), modified = range_copy(change.modified) }
+    end
+  end
+  return nil
+end
+
+local function same_range(a, b)
+  return a.start_line == b.start_line and a.end_line == b.end_line
+end
+
+--- The hunk under the cursor, only if it is still what both buffers hold.
+---
+--- Recomputes the diff from the two buffers' current text with CodeDiff's
+--- own engine and options, and returns the displayed hunk when the fresh
+--- result has the same ranges. A view that has not caught up with an edit or
+--- an external write yet answers nil, so nothing acts on stale ranges.
+---@param tab? integer
+---@param win? integer
+---@return table? hunk, string? reason
+function M.fresh_hunk(tab, win)
+  local shown = M.hunk_at_cursor(tab, win)
+  if not shown then return nil, "no hunk under the cursor" end
+  local s = raw_session(tab)
+  local diff, render = internal("core.diff"), internal("ui.view.render")
+  local original, modified = valid_buf(s.original_bufnr), valid_buf(s.modified_bufnr)
+  if not diff or type(diff.compute_diff) ~= "function" or not original or not modified then
+    return nil, "CodeDiff's diff engine is unavailable"
+  end
+  local options = render and type(render.diff_options) == "function" and render.diff_options() or {}
+  local ok, result = pcall(diff.compute_diff,
+    vim.api.nvim_buf_get_lines(original, 0, -1, false),
+    vim.api.nvim_buf_get_lines(modified, 0, -1, false),
+    options)
+  if not ok or type(result) ~= "table" then return nil, "the diff could not be recomputed" end
+  for _, change in ipairs(result.changes or {}) do
+    if same_range(change.original, shown.original) and same_range(change.modified, shown.modified) then
+      return shown
+    end
+  end
+  return nil, "the hunk changed since it was displayed"
+end
+
+--- Unstage the hunk under the cursor through CodeDiff itself.
+---
+--- Only correct where upstream allows it: the right side is the index (":0"),
+--- i.e. the status view's Staged group, where the left side is HEAD.
+---@param tab? integer
+---@return boolean ran
+function M.unstage_hunk(tab)
+  tab = tabpage(tab)
+  local s, hunk = raw_session(tab), internal("ui.view.actions.hunk")
+  if not s or not hunk or type(hunk.unstage_hunk) ~= "function" then return false end
+  hunk.unstage_hunk({
+    tabpage = tab,
+    original_bufnr = s.original_bufnr,
+    modified_bufnr = s.modified_bufnr,
+    is_inline = s.layout == "inline",
+  })
+  return true
+end
+
+local TARGETS = {
+  all = { "original", "modified", "result", "panel" },
+  panes = { "original", "modified", "result" },
+  panel = { "panel" },
+  original = { "original" },
+  modified = { "modified" },
+  result = { "result" },
+}
+
+---@class util.codediff.Key
+---@field [1] string|string[] mode(s)
+---@field [2] string lhs
+---@field [3] function rhs
+---@field desc string
+---@field on? "all"|"panes"|"panel"|"original"|"modified"|"result" which buffers (default "all")
+---@field opts? table more vim.keymap.set options (nowait, expr, ...)
+
+--- Map keys on the view in `tab` through CodeDiff's keymap registry.
+---
+--- The registry is what makes these safe on the real file buffers a view
+--- borrows: it snapshots any buffer-local mapping there, suspends the claim
+--- while another tabpage is current, and hands the key back when the file
+--- leaves the view or the view closes. Panel keys stay installed throughout,
+--- as CodeDiff's own do.
+---
+--- Call it again after every `User CodeDiffKeys`: a file switch or a refresh
+--- swaps the pane buffers, and the new ones start without these keys. With a
+--- `scope`, a claim the previous pass of that scope made and this one does
+--- not repeat is released, so a key that no longer applies goes away.
+---@param tab? integer
+---@param specs util.codediff.Key[]
+---@param scope? string
+---@return boolean installed false when `tab` has no view
+function M.set_keys(tab, specs, scope)
+  tab = tabpage(tab)
+  local s, lifecycle = raw_session(tab), internal("ui.lifecycle")
+  if not s or not lifecycle or type(lifecycle.set_buf_keymap) ~= "function" then return false end
+  local scoped = scope and type(lifecycle.begin_keymap_scope) == "function"
+    and type(lifecycle.end_keymap_scope) == "function"
+  if scoped then lifecycle.begin_keymap_scope(tab, scope) end
+  local buffers = session_buffers(s)
+  for _, spec in ipairs(specs) do
+    for _, role in ipairs(TARGETS[spec.on or "all"] or {}) do
+      local buf = buffers[role]
+      if buf then
+        local opts = vim.tbl_extend("force", { silent = true, desc = spec.desc }, spec.opts or {})
+        pcall(lifecycle.set_buf_keymap, tab, buf, spec[1], spec[2], spec[3], opts, { suspendable = role ~= "panel" })
+      end
+    end
+  end
+  if scoped then lifecycle.end_keymap_scope(tab, scope) end
+  return true
+end
+
+local function has_panel_window(tab)
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+    if vim.list_contains(M.PANEL_FILETYPES, vim.bo[vim.api.nvim_win_get_buf(win)].filetype) then
+      return true
+    end
+  end
+  return false
+end
+
+--- A tabpage CodeDiff has let go of while its panel is still on screen. `:e`
+--- in a revision pane, closing a diff pane, or a pane's buffer wiped while
+--- the tabpage was hidden all end the session and leave the tabpage behind,
+--- and nothing in it responds any more.
+local function is_orphan(tab)
+  return vim.api.nvim_tabpage_is_valid(tab) and raw_session(tab) == nil and has_panel_window(tab)
+end
+
+local function close_tab(tab)
+  if #vim.api.nvim_list_tabpages() == 1 then vim.cmd("tabnew") end
+  pcall(vim.cmd, vim.api.nvim_tabpage_get_number(tab) .. "tabclose")
+end
+
+--- Close the view in `tab` (0 = current), and only that tabpage.
+---
+--- A tabpage CodeDiff abandoned (see is_orphan) is closed as well. Anything
+--- else is left alone: false means there was no view to close.
+---@param tab? integer
+---@return boolean
+function M.close(tab)
+  tab = tabpage(tab)
+  if not vim.api.nvim_tabpage_is_valid(tab) then return false end
+  local lifecycle = internal("ui.lifecycle")
+  if raw_session(tab) and lifecycle and type(lifecycle.close) == "function" then
+    -- CodeDiff's own close, which `:CodeDiff` without arguments runs for the
+    -- current tabpage; it asks first about unsaved conflict results.
+    lifecycle.close(tab)
+    return true
+  end
+  if is_orphan(tab) then
+    close_tab(tab)
+    return true
+  end
+  return false
+end
+
+--- Open a CodeDiff view.
+---
+--- `args` are `:CodeDiff`'s arguments, passed as a list so a path with
+--- spaces stays one argument. `root` adds `-C <root>` unless `args` has it.
+--- `label` (vim.t.codediff_label, shown in the statusline) and `tab_vars`
+--- land on the view's tabpage when it opens; CodeDiff opens asynchronously,
+--- after its git commands return.
+---
+--- An empty `args` in a tabpage that already has a view is refused: a bare
+--- `:CodeDiff` there closes the view instead of opening one.
+---@param spec { args?: string[], root?: string, label?: string, tab_vars?: table<string, any> }
+---@return boolean issued
+function M.open(spec)
+  spec = spec or {}
+  local args = vim.deepcopy(spec.args or {})
+  if spec.root and not vim.list_contains(args, "-C") and not vim.list_contains(args, "--repo") then
+    table.insert(args, 1, spec.root)
+    table.insert(args, 1, "-C")
+  end
+  if #args == 0 and raw_session(0) then
+    vim.notify("This tab already shows a CodeDiff view; <leader>gq closes it", vim.log.levels.WARN, { title = "CodeDiff" })
+    return false
+  end
+  pending = { label = spec.label, tab_vars = spec.tab_vars, at = vim.uv.now() }
+  vim.cmd.CodeDiff({ args = args })
+  return true
+end
+
+local function short(rev)
+  if type(rev) ~= "string" then return nil end
+  return rev:match("^%x+$") and #rev > 12 and rev:sub(1, 8) or rev
+end
+
+--- A label for a view CodeDiff opened without open(), e.g. a typed command.
+local function default_label(s)
+  local mode = mode_of(s)
+  if mode == "status" then return "index/HEAD ↔ working tree" end
+  if mode == "history" then return "history" end
+  if mode == "dir" then return "directory diff" end
+  if mode == "file" then return "file diff" end
+  local data = s.panel.data
+  local requested = type(data.source_revisions) == "table" and data.source_revisions or {}
+  local from = short(requested.original) or short(data.base_revision) or "?"
+  if mode == "staged" then return from .. " → index" end
+  if mode == "revision" then return from .. " → working tree" end
+  return from .. " → " .. (short(requested.modified) or short(data.target_revision) or "?")
+end
+
+-- The two global prefixes a view cannot survive: a `;` picker lands its file
+-- in the working-tree pane, which desynchronises the view, and the `s` window
+-- keys close or reshape panes, and closing one tears the session down. On
+-- every buffer of the view, nowait so a fast `;f` cannot slip past to the
+-- global mapping.
+--
+-- nowait alone only stops the prefix key: the one after it then ran as a
+-- command of its own, so `so` opened a line in Insert mode and `;f` started a
+-- flash jump. Swallow it too, when it comes within 'timeoutlen' -- the time
+-- the real prefix would have waited for it. Keys that arrive together (a
+-- macro, `:normal ;f`) still reach the global mapping: Vim prefers the
+-- longer match for keys already typed (:help map-nowait).
+local function blocked(key, hint)
+  return function()
+    vim.notify(("%s is disabled in CodeDiff\n%s"):format(key, hint), vim.log.levels.WARN, { title = "CodeDiff" })
+    if vim.wait(vim.o.timeoutlen, function() return vim.fn.getchar(1) ~= 0 end, 10) then
+      vim.fn.getcharstr()
+    end
+  end
+end
+local BLOCKS = {
+  { "n", ";", blocked(";", "gf opens this file in the previous tab\n<leader>gq closes the view"),
+    desc = "Disabled in CodeDiff", opts = { nowait = true } },
+  { "n", "s", blocked("s", "<C-w> still moves between windows\n<leader>gq closes the view"),
+    desc = "Disabled in CodeDiff", opts = { nowait = true } },
+}
+
+--- Native wheel scrolling leaves the other pane behind: measured, neither a
+--- wheel over an unfocused pane nor one over the focused pane moves its
+--- scrollbind partner. Running the wheel key inside nvim_win_call on the
+--- hovered pane -- focused or not -- does; win_call restores focus, and Nvim
+--- still handles filler, folds and 'mousescroll'. The panel scrolls on its
+--- own, as it always did.
+local function wheel(tab, key)
+  return function()
+    local function scroll() vim.cmd.normal({ args = { vim.keycode(key) }, bang = true }) end
+    local target = vim.fn.getmousepos().winid
+    local s = raw_session(tab)
+    if s and vim.api.nvim_win_is_valid(target)
+      and (target == s.original_win or target == s.modified_win or target == s.result_win) then
+      vim.api.nvim_win_call(target, scroll)
+      return
+    end
+    scroll()
+  end
+end
+
+local function panel_action(tab, fn)
+  return function()
+    local s = raw_session(tab)
+    local view = s and panel_view(s)
+    if view then fn(view, view.tree) end
+  end
+end
+
+local function own_keys(tab, s)
+  local keys = vim.deepcopy(BLOCKS)
+  for _, direction in ipairs({ "Up", "Down" }) do
+    local key = "<ScrollWheel" .. direction .. ">"
+    keys[#keys + 1] = { { "n", "x" }, key, wheel(tab, key), desc = "Scroll " .. direction:lower() .. " (sync diff panes)" }
+  end
+  -- q leaves the diff panes to macro recording.
+  keys[#keys + 1] = { "n", "q", function() M.close(tab) end, desc = "Close the CodeDiff view",
+    on = "panel", opts = { nowait = true } }
+  -- The explorer's file-level index keys, in the status view only: in a
+  -- revision view CodeDiff's X runs `git clean` on any file the index does
+  -- not track, including ones the revision merely contains.
+  local actions = internal("ui.explorer.actions")
+  if mode_of(s) == "status" and actions then
+    for _, k in ipairs({
+      { "-", "toggle_stage_entry", "Stage / unstage" },
+      { "S", "stage_all",          "Stage all files" },
+      { "U", "unstage_all",        "Unstage all files" },
+      { "X", "restore_entry",      "Restore / discard changes" },
+    }) do
+      if type(actions[k[2]]) == "function" then
+        keys[#keys + 1] = { "n", k[1], panel_action(tab, actions[k[2]]), desc = k[3], on = "panel", opts = { nowait = true } }
+      end
+    end
+  end
+  return keys
+end
+
+--- Give the <localleader>g prefix a "Conflict" which-key group label where
+--- conflict maps actually exist (it would otherwise show as an unnamed
+--- prefix). pcall: cosmetic only, must not break the view if which-key is
+--- absent.
+local function label_conflict_group(s)
+  -- nvim_buf_get_keymap reports lhs with the leader already expanded.
+  local probe = (vim.g.maplocalleader or "\\") .. "go"
+  for _, buf in pairs(session_buffers(s)) do
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+      if m.lhs == probe then
+        pcall(function()
+          require("which-key").add({ { "<localleader>g", group = "Conflict", mode = "n", buffer = buf } })
+        end)
+        break
+      end
+    end
+  end
+end
+
+local function install(tab)
+  local s = raw_session(tab)
+  if not s then return end
+  M.set_keys(tab, own_keys(tab, s), "config")
+  label_conflict_group(s)
+  vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffKeys", modeline = false, data = { tabpage = tab } })
+end
+
+--- Install the view's keys once the current event has settled: CodeDiff
+--- builds a view and swaps pane buffers from scheduled callbacks, and maps
+--- its own keys on the new buffers right after the swap.
+local function schedule_install(tab)
+  if queued[tab] then return end
+  queued[tab] = true
+  vim.schedule(function()
+    queued[tab] = nil
+    install(tab)
+  end)
+end
+
+local function on_open(tab)
+  if type(tab) ~= "number" or not vim.api.nvim_tabpage_is_valid(tab) then return end
+  local p = pending
+  pending = nil
+  if p and vim.uv.now() - p.at > PENDING_MS then p = nil end
+  local s = raw_session(tab)
+  local label = p and p.label or (s and default_label(s))
+  vim.t[tab].blocks_global_prefixes = true
+  vim.t[tab].codediff_label = label
+  local names = {}
+  for name, value in pairs(p and p.tab_vars or {}) do
+    vim.t[tab][name] = value
+    names[#names + 1] = name
+  end
+  tab_vars[tab] = names
+  if label then vim.notify("Comparing " .. label, vim.log.levels.INFO, { title = "CodeDiff" }) end
+  schedule_install(tab)
+end
+
+local function clear_vars(tab)
+  local names = tab_vars[tab] or {}
+  tab_vars[tab] = nil
+  if not vim.api.nvim_tabpage_is_valid(tab) then return end
+  vim.t[tab].blocks_global_prefixes = nil
+  vim.t[tab].codediff_label = nil
+  for _, name in ipairs(names) do vim.t[tab][name] = nil end
+end
+
+--- Tidy a tabpage whose view is gone: drop the variables on_open set (only
+--- those -- another view may set blocks_global_prefixes too) and close the
+--- tabpage if CodeDiff left its panel behind (is_orphan).
+local function sweep(tab)
+  if not vim.api.nvim_tabpage_is_valid(tab) or raw_session(tab) then return end
+  if tab_vars[tab] then clear_vars(tab) end
+  if has_panel_window(tab) then
+    close_tab(tab)
+    vim.notify("The diff view lost a pane, so its tab was closed", vim.log.levels.INFO, { title = "CodeDiff" })
+  end
+end
+
+local function on_close(tab)
+  if type(tab) ~= "number" then return end
+  clear_vars(tab)
+  -- CodeDiffClose fires inside the teardown, before the session is gone;
+  -- look once it has finished.
+  vim.schedule(function() sweep(tab) end)
+end
+
+--- Pass `-c core.quotePath=false` to every git command CodeDiff runs.
+---
+--- Its revision and history modes parse `--name-status` without -z, and its
+--- unquoting skips octal escapes, so `中文.txt` became `344270255346226207.txt`.
+--- Not GIT_CONFIG_* in the environment: the agent terminals would inherit it.
+--- Has to run before codediff.core.git.* load -- each takes the function into
+--- a local -- which is why setup() does it before CodeDiff's own setup.
+local function patch_runner()
+  local runner = internal("core.git.runner")
+  if not runner or type(runner.run_async) ~= "function" or runner.nvim_config_patched then return end
+  for _, name in ipairs({ "changes", "history", "statistics", "content", "worktree", "refs", "repository", "revision" }) do
+    if package.loaded["codediff.core.git." .. name] then
+      warn_once("runner", "codediff.core.git." .. name .. " loaded before util.codediff could patch its runner;"
+        .. " non-ASCII paths may be garbled in revision views")
+      break
+    end
+  end
+  local run_async = runner.run_async
+  runner.run_async = function(args, opts, callback)
+    local argv = { "-c", "core.quotePath=false" }
+    vim.list_extend(argv, args or {})
+    return run_async(argv, opts, callback)
+  end
+  runner.nvim_config_patched = true
+end
+
+--- Apply `limit_of()` where CodeDiff caps a history listing at 100.
+---
+--- `:CodeDiff history` without a range is the one call that sets a limit,
+--- and both the first listing (commands/handlers/history.lua) and every
+--- refresh (ui/refresh/panel.lua) reach get_commit_list through the
+--- codediff.core.git table at call time. `false` lifts the cap. A history
+--- with a range never had one.
+---@param limit_of fun(): integer|false
+local function patch_history(limit_of)
+  local git = internal("core.git")
+  if not git or type(git.get_commit_list) ~= "function" or git.nvim_config_patched then return end
+  local get_commit_list = git.get_commit_list
+  git.get_commit_list = function(range, root, opts, callback)
+    if (range == nil or range == "") and type(opts) == "table" and opts.limit == 100 then
+      local ok, limit = pcall(limit_of)
+      if ok and (limit == false or type(limit) == "number") then
+        opts = vim.deepcopy(opts)
+        opts.limit = limit or nil
+      end
+    end
+    return get_commit_list(range, root, opts, callback)
+  end
+  git.nvim_config_patched = true
+end
+
+--- Re-install the view's keys whenever CodeDiff swaps a pane's buffer.
+---
+--- Every path that does -- a file picked in the explorer, a refresh, the
+--- welcome page of an emptied list, a layout toggle -- goes through
+--- lifecycle.update_buffers, looked up on the module table at call time, and
+--- drops this view's claims on the buffers that leave. Neither
+--- CodeDiffFileSelect (it fires before the swap) nor BufWinEnter (it never
+--- fires for a file already shown in another tabpage) catches all of them.
+local function hook_buffer_swaps()
+  local lifecycle = internal("ui.lifecycle")
+  if not lifecycle or type(lifecycle.update_buffers) ~= "function" or lifecycle.nvim_config_patched then return end
+  local update_buffers = lifecycle.update_buffers
+  lifecycle.update_buffers = function(tab, ...)
+    local result = update_buffers(tab, ...)
+    if type(tab) == "number" then schedule_install(tab) end
+    return result
+  end
+  lifecycle.nvim_config_patched = true
+end
+
+--- Even out the two diff panes after a window appears or goes in the view's
+--- tabpage. An agent panel opened beside a view (edgy's right bar) took all
+--- its width from the neighbouring pane -- measured, 52 and 15 columns --
+--- and closing it handed the space back to that pane alone. CodeDiff's own
+--- layout.arrange re-splits the panes' combined width and re-pins the
+--- explorer; it only runs for two side-by-side panes, since its single-pane
+--- branch would take the whole width back from the agent panel.
+---
+--- Keyed on the number of windows, not on every resize, so a pane resized by
+--- hand with <C-w> stays the size it was given.
+local window_counts = {}
+local function rebalance_on_resize()
+  local tab = vim.api.nvim_get_current_tabpage()
+  local s = raw_session(tab)
+  if not s then
+    window_counts[tab] = nil
+    return
+  end
+  local count = #vim.tbl_filter(function(win) return vim.api.nvim_win_get_config(win).relative == "" end,
+    vim.api.nvim_tabpage_list_wins(tab))
+  if window_counts[tab] == count then return end
+  window_counts[tab] = count
+  vim.schedule(function()
+    s = raw_session(tab)
+    local layout = internal("ui.layout")
+    if not s or not layout or type(layout.arrange) ~= "function" or s.layout == "inline" or s.single_side then return end
+    for _, win in ipairs({ s.original_win, s.modified_win }) do
+      if type(win) ~= "number" or not vim.api.nvim_win_is_valid(win) then return end
+    end
+    if s.original_win ~= s.modified_win then pcall(layout.arrange, tab) end
+  end)
+end
+
+--- Set CodeDiff up: version check, the git patches, CodeDiff's own setup,
+--- then the hooks that keep each view's tab variables and keys.
+---
+--- CodeDiff's setup loads its native library (and downloads it when it is
+--- missing and VSCODE_DIFF_NO_AUTO_INSTALL is unset), so this runs from the
+--- lazy spec's config, at first use, never at startup.
+---@param opts table CodeDiff's options
+---@param hooks? { history_limit?: fun(): integer|false }
+function M.setup(opts, hooks)
+  hooks = hooks or {}
+  local version = internal("version")
+  local found = version and version.VERSION
+  degraded = found ~= M.VERSION
+  if degraded then
+    warn_once("version", ("CodeDiff %s is not the %s this config was written against; its path fix and"
+      .. " history limit are off (lua/util/codediff.lua)"):format(tostring(found), M.VERSION))
+  else
+    patch_runner()
+    if hooks.history_limit then patch_history(hooks.history_limit) end
+  end
+
+  require("codediff").setup(opts)
+  -- Not version-gated: without it the `;`/`s` blocks miss every file after
+  -- the first, and the hook only adds a scheduled call.
+  hook_buffer_swaps()
+
+  local group = vim.api.nvim_create_augroup("util_codediff", { clear = true })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeDiffOpen",
+    callback = function(ev) on_open(ev.data and ev.data.tabpage) end,
+  })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeDiffClose",
+    callback = function(ev) on_close(ev.data and ev.data.tabpage) end,
+  })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeDiffFileSelect",
+    callback = function(ev)
+      if ev.data and ev.data.tabpage then schedule_install(ev.data.tabpage) end
+    end,
+  })
+  -- Not every teardown says CodeDiffClose: when a pane's buffer was wiped
+  -- while its tabpage was hidden, CodeDiff's resume (scheduled from its own
+  -- TabEnter) drops the session silently (lifecycle/state.lua resume_diff).
+  -- Sweep after that has run, and after any revision buffer is wiped.
+  local function sweep_later(tab)
+    vim.schedule(function() vim.schedule(function() sweep(tab) end) end)
+  end
+  vim.api.nvim_create_autocmd("TabEnter", {
+    group = group,
+    callback = function() sweep_later(vim.api.nvim_get_current_tabpage()) end,
+  })
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = group,
+    pattern = "codediff://*",
+    callback = function() sweep_later(vim.api.nvim_get_current_tabpage()) end,
+  })
+  vim.api.nvim_create_autocmd("WinResized", { group = group, callback = rebalance_on_resize })
+  -- CodeDiff lists its revision buffers; they would crowd the bufferline and
+  -- buffer pickers with codediff:// entries that vanish on the next file.
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = group,
+    pattern = "codediff://*",
+    callback = function(ev)
+      if vim.bo[ev.buf].buflisted then vim.bo[ev.buf].buflisted = false end
+    end,
+  })
+end
+
+---@return boolean degraded true when the installed CodeDiff is not M.VERSION
+function M.degraded() return degraded end
+
+return M

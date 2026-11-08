@@ -1,10 +1,11 @@
 -- Panels are reached through their own focus keys. A listed terminal (often
 -- named `env` by the agent wrapper) would replace the editor buffer on cycling
 -- or picking, then edgy would move that editor window into the terminal edge.
--- Keep diffview's internal buffers (incl. phantom diffview://null) out too.
+-- Keep CodeDiff's revision buffers (codediff://) out too: util.codediff
+-- unlists them once shown, and this covers the moment before.
 local function shown_in_bufferline(buf)
   return vim.bo[buf].buftype ~= "terminal"
-    and not vim.api.nvim_buf_get_name(buf):match("diffview://")
+    and not vim.api.nvim_buf_get_name(buf):match("^codediff://")
 end
 
 local function open_file(buf)
@@ -138,7 +139,7 @@ return {
         -- `toggle_bufferline` reads `get_buf_count()` outside "tabs" mode, so
         -- tabpages never enter the decision. Opening a diff with no files
         -- loaded then hid the far-right `1`/`2` tabpage indicators along with
-        -- the buffer list, at the one moment they matter most: diffview
+        -- the buffer list, at the one moment they matter most: CodeDiff
         -- disables the global prefixes inside its tabpage, and knowing another
         -- tabpage exists is the way out.
         --

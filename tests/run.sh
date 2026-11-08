@@ -17,6 +17,13 @@ if not ok then
   vim.cmd("cquit 1")
 end'
 
+# Specs never download. CodeDiff fetches its native diff library on first
+# setup and its file watcher on first view when they are missing; with these
+# set, a missing library is a failing spec (tests/codediff_spec.lua says so)
+# and a missing watcher falls back to polling. CI installs the library itself.
+export VSCODE_DIFF_NO_AUTO_INSTALL=1
+export CODEDIFF_WATCHER_NO_AUTO_INSTALL=1
+
 status=0
 for spec in tests/*_spec.lua; do
   [ -e "$spec" ] || continue

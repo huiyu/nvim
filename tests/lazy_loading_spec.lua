@@ -23,6 +23,14 @@ t.ok(loaded("lualine.nvim"), "lualine is loaded for the first frame")
 for _, name in ipairs({ "claudecode.nvim", "codecompanion.nvim" }) do
   t.ok(require("lazy.core.config").plugins[name] ~= nil and not loaded(name), name .. " is declared and stays unloaded at startup")
 end
+-- CodeDiff's setup loads its native library (and would download it), so it
+-- waits for :CodeDiff or a <leader>g key. Nothing of the review loop loads
+-- or runs git before its first use either.
+t.ok(Config.plugins["codediff.nvim"] ~= nil and not loaded("codediff.nvim"), "codediff.nvim is declared and stays unloaded at startup")
+for _, module in ipairs({ "codediff", "util.codediff", "util.codediff_actions", "util.baseline",
+  "ai.review", "ai.review.rounds", "ai.review.feedback" }) do
+  t.eq(package.loaded[module], nil, module .. " is not loaded at startup")
+end
 t.ok(loaded("mason.nvim"), "mason is loaded at startup")
 t.ok(vim.tbl_contains(vim.split(vim.env.PATH, ":", { plain = true }), vim.fn.stdpath("data") .. "/mason/bin"),
   "mason/bin is on PATH before any terminal can spawn")
@@ -35,6 +43,7 @@ vim.cmd.edit("lua/plugin/lsp/lsp.lua")
 for _, name in ipairs({ "mason-lspconfig.nvim", "nvim-lspconfig", "vim-illuminate" }) do
   t.ok(loaded(name), name .. " loads on the first file read")
 end
+t.ok(not loaded("codediff.nvim"), "reading a file in a repository does not load CodeDiff")
 
 if vim.fn.executable("lua-language-server") == 1 then
   t.ok(vim.wait(10000, function()

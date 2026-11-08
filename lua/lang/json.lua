@@ -4,15 +4,29 @@
 -- json parser and its query; json5's own query conceals nothing today, but the
 -- whole family gets the same window setting.
 --
--- 'conceallevel' is window-local, so FileType alone misses one path: diffview
--- detects a revision buffer's filetype inside nvim_buf_call, where the option
--- lands on a scratch autocmd window instead of the diff window that later
--- shows the buffer. BufWinEnter catches every window it is displayed in.
+-- 'conceallevel' is window-local, so FileType alone misses two paths, and
+-- BufWinEnter catches every window a buffer is displayed in:
+-- - a buffer whose filetype was detected inside nvim_buf_call, where the
+--   option lands on a scratch autocmd window instead of the one that later
+--   shows the buffer;
+-- - CodeDiff's revision buffers (codediff://.../a.json), which never get a
+--   filetype at all: it starts Tree-sitter on them directly, json queries and
+--   their concealed quotes included, so the name is all there is to go by.
 local json_filetypes = { json = true, jsonc = true, json5 = true }
+
+local function json_buffer(buf)
+  local ft = vim.bo[buf].filetype
+  if ft == "" then
+    local name = vim.api.nvim_buf_get_name(buf)
+    ft = name:match("^codediff://") and vim.filetype.match({ filename = name }) or ""
+  end
+  return json_filetypes[ft] == true
+end
+
 vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
   group = vim.api.nvim_create_augroup("json_conceal", { clear = true }),
   callback = function(args)
-    if json_filetypes[vim.bo[args.buf].filetype] and args.buf == vim.api.nvim_get_current_buf() then
+    if args.buf == vim.api.nvim_get_current_buf() and json_buffer(args.buf) then
       vim.opt_local.conceallevel = 0
     end
   end,

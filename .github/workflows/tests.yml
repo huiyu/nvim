@@ -68,6 +68,29 @@ jobs:
         run: nvim --headless -u init.lua -i NONE "+Lazy! install" "$FAIL_ON_ERRMSG" +qa
         env: { FAIL_ON_ERRMSG: '+lua if vim.v.errmsg ~= "" then vim.cmd("cquit 1") end' }
 
+      # CodeDiff diffs through a native library it downloads into its plugin
+      # directory on first setup. The spec suite never downloads
+      # (tests/run.sh), so load the plugin once here to fetch it, and check
+      # it against the release's SHA256SUMS -- CodeDiff's installer does not.
+      # Its file watcher is left out: without it the views poll, which the
+      # specs are fine with.
+      - name: Install CodeDiff's native library
+        run: |
+          nvim --headless -u init.lua -i NONE "+Lazy! load codediff.nvim" +qa
+          dir="$HOME/.local/share/nvim/lazy/codediff.nvim"
+          version=$(cat "$dir/VERSION")
+          case "$(uname -m)" in aarch64|arm64) arch=arm64 ;; *) arch=x64 ;; esac
+          curl -fsSL "https://github.com/esmuellert/codediff.nvim/releases/download/v$version/SHA256SUMS" -o "$RUNNER_TEMP/codediff.sums"
+          check() { # <installed file> <release asset name>
+            want=$(awk -v name="$2" '$2 == name { print $1 }' "$RUNNER_TEMP/codediff.sums")
+            got=$(sha256sum "$dir/$1" | cut -d' ' -f1)
+            [ -n "$want" ] && [ "$want" = "$got" ] || { echo "$1: sha256 $got, release says '$want'"; exit 1; }
+            echo "$1: $got (matches $2)"
+          }
+          check "libvscode_diff_$version.so" "libvscode_diff_linux_${arch}_$version.so"
+          # Only fetched when the system has no libgomp.
+          if [ -e "$dir/libgomp.so.1" ]; then check libgomp.so.1 "libgomp_linux_${arch}_$version.so.1"; fi
+
       - name: Spec suite
         run: ./tests/run.sh
 

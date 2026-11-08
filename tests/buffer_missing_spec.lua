@@ -17,8 +17,8 @@ vim.cmd.edit(gone)
 local gone_buf = vim.api.nvim_get_current_buf()
 vim.cmd("badd oil:///tmp")
 local uri_buf = vim.fn.bufnr("oil:///tmp")
-vim.cmd("badd diffview://null/x.lua")
-local diffview_buf = vim.fn.bufnr("diffview://null/x.lua")
+vim.cmd("badd codediff:////tmp/repo///0123abcd/x.lua")
+local codediff_buf = vim.fn.bufnr("codediff:////tmp/repo///0123abcd/x.lua")
 local scratch_buf = vim.api.nvim_create_buf(true, false)
 
 vim.fn.delete(gone)
@@ -27,7 +27,7 @@ local buffer = require("util.buffer")
 t.ok(buffer.is_missing_file(gone_buf), "a deleted file's buffer is reported missing")
 t.ok(not buffer.is_missing_file(kept_buf), "an existing file's buffer is not")
 t.ok(not buffer.is_missing_file(uri_buf), "an oil:// buffer is not a missing file")
-t.ok(not buffer.is_missing_file(diffview_buf), "a diffview:// buffer is not a missing file")
+t.ok(not buffer.is_missing_file(codediff_buf), "a codediff:// buffer is not a missing file")
 t.ok(not buffer.is_missing_file(scratch_buf), "an unnamed scratch buffer is not a missing file")
 
 local map = vim.fn.maparg("<leader>bx", "n", false, true)
@@ -40,7 +40,7 @@ t.ok(not vim.api.nvim_buf_is_valid(gone_buf) or not vim.bo[gone_buf].buflisted,
   "the deleted file's buffer is gone")
 t.ok(vim.api.nvim_buf_is_valid(kept_buf) and vim.bo[kept_buf].buflisted,
   "the existing file's buffer survives")
-t.ok(vim.api.nvim_buf_is_valid(uri_buf) and vim.api.nvim_buf_is_valid(diffview_buf)
+t.ok(vim.api.nvim_buf_is_valid(uri_buf) and vim.api.nvim_buf_is_valid(codediff_buf)
   and vim.api.nvim_buf_is_valid(scratch_buf), "URI and scratch buffers survive")
 t.ok(vim.api.nvim_win_is_valid(vim.api.nvim_get_current_win()), "the window layout survives")
 

@@ -163,9 +163,12 @@ local spec = {
       "  LaTeX: ,b build / ,s stop / ,K clean",
       "         ,E errors / ,v PDF / ,t TOC",
       "         ,L* full VimTeX commands",
-      "  Diffview: ,P focus panel / ,B toggle panel",
+      "  CodeDiff: ,P focus panel / ,B toggle panel",
+      "            ,z compact / ,I inline layout",
       "            ,g{o,t,b,a} choose conflict side",
       "            ,g{O,T,B,A} choose for whole file",
+      "  Review: ,C feedback / ,u ,U stage, unstage hunk",
+      "          ,X discard hunk back to the baseline",
       "  View and language sections can coexist.",
       "  [LSP] actions need a language server.",
       "  , is also <localleader>; old \\ keys are gone.",
@@ -457,7 +460,7 @@ local sections = {
     { "repo",    icon = "󰘬 ", color = "orange", keys = { "s", "b" } },
     { "hunk",    icon = "󰏫 ", color = "green",  keys = { "p", "r", "R", "S" } },
     { "blame",   icon = "󰈈 ", color = "cyan",   keys = { "l", "L", "T" } },
-    { "diff",    icon = "󰓡 ", color = "azure",  keys = { "d", "D", "v", "m", "M", "q" } },
+    { "diff",    icon = "󰓡 ", color = "azure",  keys = { "d", "D", "v", "m", "M", "q", "k", "K" } },
     { "history", icon = "󰓫 ", color = "purple", keys = { "c", "C", "H", "V", "f" } },
     { "tools",   icon = "󰏌 ", color = "yellow", keys = { "g", "B" } },
   },
@@ -481,7 +484,10 @@ local sections = {
     { "session",   icon = "󰚩 ", color = "green",  keys = { "c", "f", "r", "R", "m", "x" } },
     -- `s` only exists in Visual mode and `S` only in oil buffers.
     { "context",   icon = "󰈔 ", color = "cyan",   keys = { "b", "i", "s", "S" } },
-    { "review",    icon = "󰄹 ", color = "orange", keys = { "a", "d" } },
+    -- Claude's own proposals, answered before they reach the disk.
+    { "Claude diffs", icon = "󰓡 ", color = "orange", keys = { "a", "d" } },
+    -- What changed since a round baseline, and starting a new round.
+    { "review",    icon = "󰄹 ", color = "red",    keys = { "v", "V" } },
     { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T" } },
     -- CodeCompanion. Billing is in the heading on purpose: the two chat kinds
     -- look alike once open, and only one of them spends API credits.
@@ -578,7 +584,7 @@ local sections = {
     { "lines",    icon = "󰓡 ", color = "green",  keys = { "j", "k", "h", "l" } },
     { "file",     icon = "󰈔 ", color = "purple", keys = { "x", "O" } },
     -- Context selects the heading, while actual buffer mappings select the
-    -- visible actions. View keys are distinct so a source buffer in Diffview
+    -- visible actions. View keys are distinct so a source buffer in CodeDiff
     -- can show both its language section and its view section.
     { "C/C++ · files", icon = "󰈔 ", color = "purple", filetype = { "c", "cpp" }, keys = { "H" } },
     { "Python · imports / environment", icon = "󰌠 ", color = "yellow", filetype = { "python" }, keys = { "o", "v" } },
@@ -592,7 +598,8 @@ local sections = {
       labels = { L = "VimTeX" } },
     { "Markdown · preview", icon = "󰍔 ", color = "cyan", filetype = { "markdown" }, keys = { "p", "m" } },
     { "Chat · rendering", icon = "󰍔 ", color = "cyan", filetype = { "codecompanion" }, keys = { "m" } },
-    { "Diffview · panels / conflicts", icon = "󰓡 ", color = "orange", keys = { "P", "B", "g" } },
+    { "CodeDiff · panels / layout / conflicts", icon = "󰓡 ", color = "orange", keys = { "P", "B", "g", "z", "I" } },
+    { "Review · feedback / stage / discard", icon = "󰄹 ", color = "red", keys = { "C", "u", "U", "X" } },
     { "Terminal · sessions", icon = "󰆍 ", color = "yellow", buftype = "terminal",
       keys = { "1", "2", "3", "4", "5", "6", "7", "8", "9" } },
   },
