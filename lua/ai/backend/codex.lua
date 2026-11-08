@@ -169,10 +169,24 @@ end
 
 -- Keep the transcript in the wrapper tmux pane history and run Codex without
 -- approvals or its built-in sandbox. These flags apply equally to new,
--- resumed, and continued sessions.
+-- resumed, and continued sessions: a root-level `-c` reaches `resume` and
+-- `resume --last` too.
+--
+-- The `-c` carries the review baseline's UserPromptSubmit hook with its trust
+-- hash (lua/ai/review/hook.lua), so it runs without a review prompt and nothing
+-- is written to ~/.codex. Built per start, so sources.codex and hook_wait_ms
+-- apply from the next spawn. The list reaches Codex without a shell -- jobstart
+-- here, a multi-argument command under tmux -- so the TOML arrives byte-exact.
 local function codex_command(args)
-  return vim.list_extend({ "codex", "--no-alt-screen", "--yolo" }, args or {})
+  local command = { "codex", "--no-alt-screen", "--yolo" }
+  if require("ai.review.config").get().sources.codex then
+    vim.list_extend(command, { "-c", require("ai.review.hook").codex_override() })
+  end
+  return vim.list_extend(command, args or {})
 end
+
+-- For the specs, which record the argv a stand-in Codex receives.
+M._codex_command = codex_command
 
 local function enter_insert(term)
   if not term or not term:buf_valid() then return end
