@@ -37,6 +37,12 @@ jobs:
       - name: Install runtime dependencies
         run: sudo apt-get update && sudo apt-get install -y ripgrep fd-find tmux
 
+      # native_attach_spec attaches codelldb to a process the spec started.
+      # Ubuntu's default ptrace_scope of 1 lets a process be traced only by
+      # its ancestors, and codelldb is the debuggee's sibling.
+      - name: Allow a debugger to attach to a running process
+        run: sudo sysctl -w kernel.yama.ptrace_scope=0
+
       # nvim-treesitter's main branch compiles every parser with
       # `tree-sitter build` (gcc is already on the image). apt's tree-sitter-cli
       # is far below the 0.26.1 floor in lua/config/health.lua, so take the
@@ -58,6 +64,15 @@ jobs:
         run: |
           mkdir -p "$HOME/.config"
           ln -s "$GITHUB_WORKSPACE" "$HOME/.config/nvim"
+
+      # mason-lspconfig, mason-nvim-dap and the language modules' tool lists
+      # install their packages once their plugins load. On a fresh runner that
+      # happened during the spec suite, so whether a spec that needs one ran,
+      # skipped or failed depended on the race. Install them all first.
+      - name: Install the Mason packages
+        run: |
+          nvim --headless -u init.lua -i NONE "+Lazy! install" +qa
+          nvim --headless -u init.lua -i NONE "+Lazy! load nvim-lspconfig nvim-dap" "+luafile .github/mason-wait.lua" +qa
 
       # lazy.nvim bootstraps and clones on first start. Doing it as its own step
       # keeps a clone failure from being reported as a spec failure.
