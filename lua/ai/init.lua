@@ -25,8 +25,15 @@ local function guard(label, method, fn, ...)
   return result
 end
 
--- Methods that put the active provider's panel on screen.
-local REVEALS = { toggle = true, focus = true, resume = true, continue = true, edit_prompt = true }
+-- Methods that put the active provider's panel on screen: the ones that show
+-- it, and the ones that feed it, which open or start the panel to deliver. A
+-- feed that stops short -- a buffer with no file name, a cancelled model
+-- picker -- has then hidden the other panel with nothing in its place; hidden
+-- only, so it comes back the way any hidden panel does.
+local REVEALS = {
+  toggle = true, focus = true, resume = true, continue = true, edit_prompt = true,
+  select_model = true, add_buffer = true, send_selection = true, tree_add = true,
+}
 
 -- One agent panel per tabpage: before the active provider's panel opens here,
 -- the other provider's panel in this tabpage is hidden -- hidden, never

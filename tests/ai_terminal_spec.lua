@@ -324,19 +324,73 @@ else
   t.ok(not shown_here(claude_term.buf), "and the Claude panel in this tabpage made room for it")
   t.ok(alive(claude_term), "hidden, not stopped: Claude's job is still running")
 
-  -- Placed side by side by hand, neither hides the other.
+  -- The keys that feed the agent run for real here, into the stand-in. What
+  -- they write to Codex's channel is recorded on the way through rather than
+  -- read off its screen: the panels stacked by now leave that terminal a row
+  -- or two, which keeps only the tail of a long line.
+  local sample = vim.fn.tempname() .. "_feed.txt"
+  vim.fn.writefile({ "fed to the agent" }, sample)
+  local function edit_sample()
+    local editor_win
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.bo[vim.api.nvim_win_get_buf(win)].buftype == "" and vim.api.nvim_win_get_config(win).relative == "" then
+        editor_win = win
+        break
+      end
+    end
+    if editor_win then vim.api.nvim_set_current_win(editor_win) else vim.cmd("topleft vnew") end
+    vim.cmd("edit " .. vim.fn.fnameescape(sample))
+  end
+  local sent = {}
+  local real_chan_send = vim.api.nvim_chan_send
+  vim.api.nvim_chan_send = function(chan, data)
+    if codex_buf and chan == vim.bo[codex_buf].channel then sent[#sent + 1] = data end
+    return real_chan_send(chan, data)
+  end
+  local function delivered(text)
+    return #vim.tbl_filter(function(data) return data:find(text, 1, true) ~= nil end, sent)
+  end
+  local function arrives(text, before)
+    return vim.wait(2000, function() return delivered(text) > before end, 20)
+  end
+
+  -- Placed side by side by hand, neither hides the other -- not for a key that
+  -- shows the active panel, nor for one that feeds it.
   claude_term:show()
   vim.cmd("stopinsert")
   ai.focus()
   t.ok(claude.visible() and codex.visible(), "with the active panel already shown, nothing yields")
-
-  -- Keys that only feed the agent do not rearrange panels.
-  codex.hide()
-  local real_add = codex.add_buffer
-  codex.add_buffer = function() end
+  vim.cmd("stopinsert")
+  edit_sample()
+  local before = delivered(vim.fs.basename(sample))
   ai.add_buffer()
-  codex.add_buffer = real_add
-  t.ok(claude.visible(), "<leader>ab does not hide the other agent's panel")
+  t.ok(arrives(vim.fs.basename(sample), before), "<leader>ab writes the buffer to the shown panel")
+  t.ok(claude.visible() and codex.visible(), "and rearranges nothing")
+
+  -- A key that feeds the agent opens its panel to deliver, so it makes room
+  -- like any other key that reveals it.
+  for _, case in ipairs({
+    { "<leader>ab", ai.add_buffer, vim.fs.basename(sample) },
+    { "<leader>am", ai.select_model, "/model" },
+  }) do
+    codex.hide()
+    claude_term:show()
+    vim.cmd("stopinsert")
+    edit_sample()
+    t.ok(claude.visible() and not codex.visible(), case[1] .. ": only the Claude panel is shown")
+    before = delivered(case[3])
+    case[2]()
+    t.ok(vim.wait(2000, codex.visible, 20), case[1] .. " opens the Codex panel to deliver")
+    t.ok(not shown_here(claude_term.buf), case[1] .. ": the Claude panel in this tabpage made room for it")
+    t.ok(alive(claude_term), case[1] .. ": hidden, not stopped")
+    t.ok(arrives(case[3], before), case[1] .. ": and wrote to Codex")
+    vim.cmd("stopinsert")
+  end
+  vim.api.nvim_chan_send = real_chan_send
+  codex.hide()
+  claude_term:show()
+  vim.cmd("stopinsert")
+  vim.fn.delete(sample)
 
   -- Another tabpage is left alone.
   local first_tab = vim.api.nvim_get_current_tabpage()

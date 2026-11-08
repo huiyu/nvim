@@ -690,10 +690,13 @@ switched state; after that only `companion.sync` writes it, and never
 Both native backends answer `running()`, `window()` (any tabpage),
 `visible()` (current tabpage) and `hide()` (current tabpage only; the job
 stays), without loading claudecode.nvim. The facade uses them for the
-one-panel-per-tabpage rule: before `toggle`, `focus`, `resume`, `continue` or
-the prompt editor reveals the active provider's panel, the other provider's
-panel in the current tabpage is hidden -- unless the active panel is already on
-screen somewhere, in which case nothing opens here and nothing yields.
+one-panel-per-tabpage rule: before `toggle`, `focus`, `resume`, `continue`,
+the prompt editor, or a key that feeds the agent (`select_model`,
+`add_buffer`, `send_selection`, `tree_add`, which open or start the panel to
+deliver) reveals the active provider's panel, the other provider's panel in
+the current tabpage is hidden -- unless the active panel is already on screen
+somewhere, in which case nothing opens here and nothing yields. A feed that
+stops short (no file name, a cancelled model picker) has still hidden it.
 `require("ai").attach_images(paths, provider)` sends images to the agent that
 owns the prompt, not to whichever provider is active.
 

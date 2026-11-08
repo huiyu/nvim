@@ -540,10 +540,11 @@ A switch decides what the *next* session uses and touches nothing that is
 running:
 
 - The other agent keeps running. The next time the active provider's panel
-  opens in a tabpage, the other agent's panel there is hidden, not stopped;
-  switching back and pressing `<leader>ac` shows it again. While the active
-  provider's panel is already on screen in any tabpage nothing yields, so two
-  panels placed side by side by hand stay.
+  opens in a tabpage, whether from a key that shows it or one that feeds it
+  (`<leader>ab`, `as`, `am`), the other agent's panel there is hidden, not
+  stopped; switching back and pressing `<leader>ac` shows it again. While the
+  active provider's panel is already on screen in any tabpage nothing yields,
+  so two panels placed side by side by hand stay.
 - The `<leader>a` key descriptions follow the switch, so which-key names the
   agent a key reaches. `<leader>aa`/`<leader>ad` always answer Claude's diffs
   and stay while claudecode.nvim is loaded, even with Codex active.
@@ -591,8 +592,9 @@ look alike once open but run — and bill — differently:
 - A missing key is caught before anything starts. With the profile's
   `NVIM_*` key unset, `<leader>ah`, `aH` and `ae` say so and start no chat or
   prompt, instead of a request that fails with 401; with the ACP bridge
-  missing, `<leader>ag` and `aG` say that instead. A chat restored from history and `:CodeCompanion` typed by
-  hand skip this check.
+  missing, `<leader>ag` and `aG` say that instead. A chat restored from
+  history, the action palette's *Inline prompt* (`<leader>ap`) and
+  `:CodeCompanion` typed by hand skip this check.
 - Codex ACP always uses the ChatGPT login, whichever provider started Nvim.
 
 codecompanion-history saves every chat, of either kind, when a message is

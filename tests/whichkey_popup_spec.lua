@@ -178,6 +178,7 @@ local function owner_of(prefix, key)
   end
 end
 for _, case in ipairs({
+  { ";", "c", "positions" }, { ";", "j", "positions" }, { ";", "m", "positions" },
   { "<leader>y", "l", "path" }, { "<leader>y", "g", "path" },
   { "<leader>g", "D", "diff" }, { "<leader>b", "h", "delete" },
   { "<leader>a", "x", "session" }, { "<leader>a", "c", "session" },

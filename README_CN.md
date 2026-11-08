@@ -484,7 +484,8 @@ vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim
 
 切换只决定*下一个*会话用什么，不碰正在运行的东西：
 
-- 另一个 agent 继续运行。之后在某个 tabpage 里打开当前 provider 的面板时，同一
+- 另一个 agent 继续运行。之后在某个 tabpage 里打开当前 provider 的面板时（无论是
+  显示面板的键，还是 `<leader>ab`、`as`、`am` 这类往里送内容的键），同一
   tabpage 里另一个 agent 的面板会被隐藏，而不是停掉；切回去再按 `<leader>ac` 就能
   重新显示。当前 provider 的面板已经显示在任意 tabpage 时，谁都不用让位，所以手动
   并排打开的两个面板会保持原样。
@@ -531,7 +532,8 @@ CodeCompanion 在 Native 面板之外再提供一个 Chat buffer，分两种。�
 - 缺 key 会在启动任何东西之前被发现。profile 的 `NVIM_*` key 没设置时，
   `<leader>ah`、`aH`、`ae` 会直接提示，不新建 Chat 也不打开 Prompt，而不是发出请求
   再收到 401；ACP bridge 不在时，`<leader>ag`、`aG` 也会给出提示。从历史恢复的
-  Chat 和手动输入的 `:CodeCompanion` 不经过这道检查。
+  Chat、操作面板（`<leader>ap`）里的 *Inline prompt*，以及手动输入的
+  `:CodeCompanion` 不经过这道检查。
 - 无论 Nvim 以哪个 provider 启动，Codex ACP 都使用 ChatGPT 登录。
 
 codecompanion-history 会在发送消息和回复结束时保存每个 Chat，两种都存。用

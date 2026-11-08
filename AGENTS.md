@@ -29,7 +29,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `lua/ai/switch.lua`) switch them in-process; nothing is persisted. A switch
   changes state, mapping descriptions and CodeCompanion's live defaults only --
   it never starts, stops, shows or hides a native terminal, ACP connection or
-  chat. Revealing the active provider's native panel hides the other
+  chat. Revealing the active provider's native panel -- by a key that shows
+  it or one that feeds it (`ab`, `as`, `am`, oil's `aS`) -- hides the other
   provider's panel in the current tabpage without stopping its job; a panel
   already on screen in any tabpage makes nothing yield. Keys act on the active
   provider; per-buffer behaviour (terminal input rules, edgy slot, statusline
@@ -232,7 +233,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `fallback_section` in the same data file. Even one remaining key gets this
   heading, so it never appears to belong to the preceding section. Explicit
   sections need at least two keys; do not invent a separate section for a
-  group row such as `+Messages` or `+CodeCompanion` -- it can fall under `others`.
+  group row such as `+Messages` -- it can fall under `others`.
   Context sections are the exception: even one filetype action needs its own
   heading. Optional `filetype` (list) and `buftype` filters select the section;
   `labels` names implicit subgroups without creating global placeholder keys.
@@ -321,7 +322,7 @@ the working-tree whitespace check:
 ```sh
 ./tests/run.sh
 NVIM_AI_PROVIDER=claude nvim --headless -u init.lua -i NONE +qa
-NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex-oauth" nvim --headless -u init.lua -i NONE +qa
+NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim --headless -u init.lua -i NONE +qa
 git diff --check
 ```
 

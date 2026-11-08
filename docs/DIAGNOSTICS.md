@@ -184,8 +184,9 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   adapters stay as they are.
 - **The agent panel vanished after `:AI provider`.** It was hidden, not
   stopped: opening the active provider's panel hides the other agent's panel in
-  that tabpage. `:AI info` lists it as *running, not shown here*; switch back
-  and press `<leader>ac`.
+  that tabpage, and `<leader>ab` / `as` / `am` open it to deliver as well.
+  `:AI info` lists it as *running, not shown here*; switch back and press
+  `<leader>ac`.
 - **`<leader>aa` / `<leader>ad` are missing.** They answer Claude's diffs and
   exist while Claude is active or once claudecode.nvim has loaded. In a
   Codex-started Nvim that never used Claude there is no diff to answer.
@@ -209,9 +210,10 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   it is sent rather than answered with a 401. Set it as in
   [README → API keys](../README.md#api-keys) and restart Nvim from a new
   shell, or `:AI key <profile>` to one whose key is set (`:AI info` lists
-  which). Agent chat is unaffected: it uses the agent's own login. Only a chat
-  restored from history and `:CodeCompanion` / `:CodeCompanionCmd` typed by
-  hand skip this check and can still end in a 401.
+  which). Agent chat is unaffected: it uses the agent's own login. A chat
+  restored from history, the action palette (`<leader>ap`, whose *Inline
+  prompt* runs on the key profile) and `:CodeCompanion` / `:CodeCompanionCmd`
+  typed by hand skip this check and can still end in a 401.
 - **`<leader>ag` / `aG` say `claude-agent-acp not found` (or `codex-acp`).**
   The active provider's ACP bridge is not on `PATH`; reinstall it (last item
   of this section). Codex's ACP adapter always uses the ChatGPT login,

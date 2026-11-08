@@ -289,6 +289,82 @@ vim.cmd("AI provider " .. start)
 t.eq(cc.interactions.chat.adapter, config.providers[start].codecompanion.acp_adapter, "switching back follows too")
 
 ---------------------------------------------------------------------------
+-- The statusline names a switched state, and only that
+---------------------------------------------------------------------------
+
+-- Back where this Nvim started, whatever the shell pinned.
+vim.cmd("AI provider " .. config.startup.provider)
+vim.cmd("AI key " .. config.startup.key)
+
+local ICON = "󰚩"
+local function indicator() return ("%s %s · 󰌆 %s"):format(ICON, config.label, config.key.label) end
+---Wait until the rendered statusline does (or does not) carry `text`.
+local function statusline_has(text, want)
+  local line = ""
+  vim.wait(3000, function()
+    require("lualine").refresh({ place = { "statusline" }, force = true })
+    line = vim.api.nvim_eval_statusline(vim.o.statusline, { maxwidth = 400 }).str
+    return (line:find(text, 1, true) ~= nil) == want
+  end, 50)
+  return (line:find(text, 1, true) ~= nil) == want, vim.trim((line:gsub("%s+", " ")))
+end
+
+t.eq(config.switched(), false, "in the startup state nothing has switched")
+local ok_line, line = statusline_has(ICON, false)
+t.ok(ok_line, "and the statusline shows no AI indicator: " .. line)
+
+vim.cmd("AI provider " .. other)
+t.eq(config.switched(), true, "a provider switch counts as switched")
+ok_line, line = statusline_has(indicator(), true)
+t.ok(ok_line, ("the statusline names the agent and key (%s): %s"):format(indicator(), line))
+vim.cmd("AI provider " .. config.startup.provider)
+t.eq(config.switched(), false, "switching back to the startup provider is not")
+ok_line, line = statusline_has(ICON, false)
+t.ok(ok_line, "and the indicator goes away: " .. line)
+
+-- Any pinned name differs from `auto`, and from another pinned name.
+local moved_key = config.startup.key ~= pinned and pinned or follows
+vim.cmd("AI key " .. moved_key)
+t.eq(config.switched(), true, "a key switch counts as switched")
+ok_line, line = statusline_has(indicator(), true)
+t.ok(ok_line, ("the statusline names the new key (%s): %s"):format(indicator(), line))
+vim.cmd("AI key " .. config.startup.key)
+t.eq(config.switched(), false, "and back at the startup key it is not")
+ok_line, line = statusline_has(ICON, false)
+t.ok(ok_line, "with the indicator gone again: " .. line)
+vim.cmd("AI key auto")
+
+-- An agent terminal is labelled by the agent it runs, not by the active
+-- provider; anything else keeps its own name or title.
+local filename_fmt
+for _, component in ipairs(require("lualine").get_config().sections.lualine_c) do
+  if type(component) == "table" and component[1] == "filename" then filename_fmt = component.fmt end
+end
+t.ok(type(filename_fmt) == "function", "the filename component formats terminal names")
+if filename_fmt then
+  t.eq(filename_fmt("init.lua"), "init.lua", "a file keeps its name")
+  vim.cmd("enew")
+  local term_buf = vim.api.nvim_get_current_buf()
+  local job = vim.fn.jobstart({ "cat" }, { term = true })
+  local commands = {
+    claude = Config.spec.plugins["claudecode.nvim"].opts.terminal_cmd,
+    codex = { "codex", "--no-alt-screen", "--yolo" },
+  }
+  for _, agent in ipairs({ start, other }) do
+    vim.b.snacks_terminal = { cmd = commands[agent] }
+    local shown = filename_fmt("term://whatever")
+    local rival = agent == "claude" and "codex" or "claude"
+    t.ok(vim.endswith(shown, " " .. label(agent)) and not shown:find(label(rival), 1, true),
+      ("a %s terminal reads %s while %s is active (%q)"):format(agent, label(agent), label(config.provider), shown))
+  end
+  vim.b.snacks_terminal = { cmd = { vim.o.shell } }
+  vim.b.term_title = "spec-title"
+  t.ok(vim.endswith(filename_fmt("term://whatever"), " spec-title"), "a shell shows its terminal title")
+  vim.fn.jobstop(job)
+  vim.api.nvim_buf_delete(term_buf, { force = true })
+end
+
+---------------------------------------------------------------------------
 -- Ownership by path and by command
 ---------------------------------------------------------------------------
 
