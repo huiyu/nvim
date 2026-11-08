@@ -57,6 +57,13 @@ end
 
 return {
   "folke/snacks.nvim",
+  opts = {
+    gh = {
+      -- Issue/PR buffers are reading views; keep the inherited fold depths
+      -- out of the gutter, alongside Snacks' disabled line numbers.
+      wo = { foldcolumn = "0" },
+    },
+  },
   keys = {
     {
       "<leader>Gf",

@@ -406,9 +406,9 @@ local window = require("util.window")
 
 -- Jump to the editor area, or back to where the jump started. An editor window
 -- is a non-floating window in the current tab whose buffer has an empty
--- buftype, plus the dashboard and an Oil listing. With several open, the one
--- the cursor last left wins, otherwise the widest. Notifies instead of moving
--- when there is no target. Backs :WindowFocusEditor.
+-- buftype, plus the dashboard, Oil listings and GitHub issue/PR reading views.
+-- With several open, the one the cursor last left wins, otherwise the widest.
+-- Notifies instead of moving when there is no target. Backs :WindowFocusEditor.
 window.focus_editor()
 
 -- Record the current window as the last editor window when it qualifies.
@@ -417,9 +417,10 @@ window.focus_editor()
 window.track_editor_win()
 
 -- Return a window a file can be opened into, creating an empty horizontal
--- split when only panels or modified Oil listings remain. An unmodified Oil
--- listing can receive the file in place; pending directory edits stay visible
--- and untouched. Does not move focus; the caller decides when to enter it.
+-- split when only panels or modified Oil/GitHub views remain. An unmodified
+-- listing or issue/PR reading view can receive the file in place; pending edits
+-- stay visible and untouched. Does not move focus; the caller decides when to
+-- enter it.
 -- Used by location pickers, Oil's terminal entry points, and both debug
 -- frame paths: nvim-dap's `switchbuf` (via `util.dap.jump`) and nvim-dap-ui's
 -- `select_window`. Being scoped to the current tabpage is what keeps a stopped

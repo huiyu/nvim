@@ -255,17 +255,17 @@ end
 --- editing area, so it has to be reachable as a jump target.
 local EDITOR_FILETYPES = { 'snacks_dashboard' }
 
---- Directory views occupy the editor area, even though their buffers use
---- `acwrite`. They are always navigation targets and can receive a file while
---- unmodified. Pending directory edits must stay visible in their own window.
-local NAVIGABLE_FILETYPES = { 'oil' }
+--- Directory and GitHub reading views occupy the editor area, even though
+--- their buffers use `acwrite`. They are navigation targets and can receive a
+--- file while unmodified. Pending edits must stay visible in their own window.
+local NAVIGABLE_FILETYPES = { 'oil', 'markdown.gh' }
 
 --- A window counts as "the editor" when it shows a normal file buffer.
 --- Sidebars, terminals, pickers, quickfix, and help all carry a non-empty
 --- buftype, which excludes them without needing a filetype denylist.
 ---
---- `file_target` protects pending directory edits without treating an ordinary
---- Oil listing as a sidebar: ;f can replace it just like Oil's own Enter key.
+--- `file_target` protects pending edits without treating an unmodified Oil
+--- listing or GitHub reading view as a sidebar: ;f can replace either in place.
 ---@param win integer
 ---@param file_target boolean|nil
 local function is_editor_win(win, file_target)
@@ -314,9 +314,9 @@ end
 --- land on top of one of them. No window variable prevents that; the fallback
 --- is unconditional.
 ---
---- Reuse the editor area, including an unmodified Oil listing. Only when no
---- eligible window remains, create an empty horizontal split. Terminal panels
---- and pending directory edits stay in place. Starting with a blank buffer
+--- Reuse the editor area, including unmodified Oil and GitHub reading views.
+--- Only when no eligible window remains, create an empty horizontal split.
+--- Terminal panels and pending edits stay in place. Starting with a blank buffer
 --- also lets Oil's close restore an editor instead of a copied terminal.
 ---@return integer win
 function M.ensure_editor_win()

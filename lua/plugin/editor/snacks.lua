@@ -416,7 +416,8 @@ return {
       -- and an agent panel therefore gets the file dropped on top of one of
       -- them, and no window variable prevents it -- the fallback is
       -- unconditional. util.window.ensure_editor_win() reuses the editor area
-      -- (including unmodified Oil) and only splits when no safe target exists.
+      -- (including unmodified Oil/GitHub views) and only splits when no safe
+      -- target exists.
       on_show = function(picker)
         if editor_picker_sources[picker.opts.source] then
           picker.main = require("util.window").ensure_editor_win()

@@ -711,11 +711,17 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 
 ## Runtime errors & messages
 
-- **`;f` leaves a blank split below Oil** — the file-target guard used to
-  exclude every Oil listing and create a split as soon as the picker opened,
-  even if it was cancelled. It now reuses an unmodified Oil window: confirming
-  replaces the listing with the file, cancelling keeps the layout. A listing
-  with pending directory edits stays visible and gets a separate file target.
+- **`;f` leaves a blank split below Oil or a GitHub issue** — the file-target
+  guard used to exclude these `acwrite` views and create a split as soon as the
+  picker opened, even if it was cancelled. It now reuses an unmodified Oil or
+  GitHub issue/PR window: confirming replaces the view with the file, cancelling
+  keeps the layout. A view with pending edits stays visible and gets a separate
+  file target.
+- **GitHub issues show repeated `2`/`3` digits at the left** — these are native
+  fold depth markers, visible even when all folds are open. The reading view
+  disables line numbers but inherited the global one-column fold gutter. Its
+  `gh.wo.foldcolumn` is now explicitly `"0"`, hiding the gutter while retaining
+  folding. Restart Nvim to load the view configuration.
 - **Selecting `env` in the buffer list makes the editor disappear** — `env`
   can be the agent's `term://.../env` buffer, not a file. Opening it in the
   editor duplicates the terminal there; edgy then treats both windows as AI

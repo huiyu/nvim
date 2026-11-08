@@ -681,6 +681,10 @@ Scrolling the mouse wheel over either diff pane keeps the panes vertically
 aligned, including added/deleted-line filler and folded regions, while retaining
 keyboard focus. The file/history panel scrolls independently.
 
+GitHub issue/PR buffers are reading views, with line numbers and the fold
+column hidden. From an unmodified reading view, `;f` opens the selected file
+in the same window; cancelling keeps the view and layout in place.
+
 `<Space>gD` shows the current file's changes inside its own window: each line
 removed since the index is drawn, read-only, where it used to be, so a changed
 line has its old text right above it. `]h` / `[h` step through the changes;
