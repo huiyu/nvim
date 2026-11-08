@@ -208,6 +208,11 @@ return {
     { ";D",       function() Snacks.picker.grep({ cwd = require("util.cwd").buffer_dir() }) end,    desc = "Search current directory" },
     { ";j",       function() Snacks.picker.jumps() end,                                             desc = "Jumps" },
     { ";m",       function() Snacks.picker.marks() end,                                             desc = "Marks" },
+    -- Every changed hunk in the repository, staged and unstaged. Like a mark,
+    -- a hunk is a place to be that needs no cursor context, unlike ]h/[h. In
+    -- the picker <Tab> stages or unstages a hunk and <C-r> restores it: after
+    -- a confirmation an unstaged hunk is discarded from the working tree.
+    { ";c",       function() Snacks.picker.git_diff() end,                                          desc = "Git hunks" },
 
     -- ── <leader>y — yank a path ─────────────────────────────────────────
     -- Visual-mode <leader>yy/<leader>yc yank the selection (lua/mappings.lua);

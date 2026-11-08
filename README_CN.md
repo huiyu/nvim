@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-基于 Lua 和 [lazy.nvim](https://github.com/folke/lazy.nvim) 构建的现代 Neovim 配置。键位和插件选择与 [LazyVim](https://www.lazyvim.org/) 对齐，支持 Go、C/C++、Python、Java、Web、Bash、JSON、YAML、LaTeX 开发。
+基于 Lua 和 [lazy.nvim](https://github.com/folke/lazy.nvim) 构建的现代 Neovim 配置。键位和插件选择与 [LazyVim](https://www.lazyvim.org/) 对齐，支持 Go、C/C++、Python、Java、Rust、Web、Bash、JSON、YAML、LaTeX 开发。
 
 ### 环境要求
 
@@ -12,6 +12,7 @@
 - [Nerd Font](https://www.nerdfonts.com/)（图标显示）
 - **ripgrep** (`rg`) — `Snacks.picker.grep` / `live_grep` / `:grep` 的底层
 - **fd** — 文件查找（`venv-selector` 和部分 picker 用到）
+- **[tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md)** >= 0.26.1 和一个 C 编译器 — nvim-treesitter 的 `main` 分支用 `tree-sitter build` 编译每个 parser。请用包管理器安装（Homebrew 里叫 `tree-sitter-cli`），不要用 npm
 
 **可选（按功能）：**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg`（项目）/ `<leader>gf`（当前文件历史）
@@ -25,7 +26,7 @@
 
 **macOS 一键安装：**
 ```bash
-brew install neovim git gh ripgrep fd lazygit tmux cowsay lolcat node llama.cpp
+brew install neovim git gh ripgrep fd tree-sitter-cli lazygit tmux cowsay lolcat node llama.cpp
 brew install --cask font-jetbrains-mono-nerd-font  # 任意 Nerd Font 都行
 gh auth login                                      # 首次为 GitHub picker 认证
 npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
@@ -36,6 +37,7 @@ llama-server --fim-qwen-7b-default                 # 一次性：下载灰色补
 - **Go** — `gopls`、`gofumpt`、`gomodifytags`、`impl`、`delve` 都依赖
 - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
 - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
+- **Rust（rustup）** — Mason 安装的 `rust-analyzer` 需要 `cargo`，格式化用的是工具链自带的 `rustfmt`（`rustup component add rustfmt`）；`rust-src` 由 rust-analyzer 自己通过 rustup 补装
 - **JDK 25+** — 用来运行 `jdtls`（Java）；项目本身仍可面向更早的版本。依次从 `$JAVA_HOME`、[SDKMAN!](https://sdkman.io/)（`~/.sdkman/candidates/java`）、PATH 中查找（见 [`lua/lang/java.lua`](lua/lang/java.lua)）
 - **TeX Live + Skim**（LaTeX）— `brew install --cask mactex-no-gui` 提供 `latexmk`/`latexindent`/`chktex`，`brew install --cask skim` 提供支持 SyncTeX 的 PDF 阅读器；`texlab` 由 Mason 安装。反向跳转需在 Skim → 偏好设置 → Sync 中选 Custom：命令填 `nvim`，参数填 `--headless -c "VimtexInverseSearch %line '%file'"`
 
@@ -171,7 +173,7 @@ nvim
 | Go | gopls | gopls 整理 imports + gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
 | Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
-| Rust | - | - | - | Cargo test (DAP) | codelldb + Cargo |
+| Rust | rust-analyzer | rustfmt（经 rust-analyzer） | cargo check（经 rust-analyzer，保存时） | Cargo test (DAP) | codelldb + Cargo |
 | Dart / Flutter | - | - | - | SDK test (DAP) | SDK DAP |
 | TypeScript/JS | vtsls | prettier | eslint | Vitest (DAP) | js-debug-adapter |
 | HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
@@ -243,7 +245,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 
 | 前缀 | 问题 | 例子 |
 |------|------|------|
-| `;` | 我要去哪个文件 / 符号 / 位置？ | `;<space>` 智能查找、`;f` 找文件、`;/` 全局搜索、`;s` 符号、`;1`-`;9` 钉住的文件 |
+| `;` | 我要去哪个文件 / 符号 / 位置？ | `;<space>` 智能查找、`;f` 找文件、`;/` 全局搜索、`;s` 符号、`;c` git hunk、`;1`-`;9` 钉住的文件 |
 | `,` | 当前文件 / 视图能做什么？ | `,a` code action、`,f` 格式化、`,r` 重命名、`,o` 整理导入（Go/Python）；终端内的 `,1`-`,9` |
 | `s` | 这个窗口怎么办？ | `ss`/`sv` 分屏、`sd` 关闭、`se` 跳编辑器、`s=` 均分 |
 | `<leader>` | 其余，按领域分组 | `g` git、`G` GitHub、`d` 调试、`t` 测试、`a` AI、`x` 诊断、`m` 管理、`s` 会话、`y` 复制、`u` 开关、`b` buffer、`q` 退出 |
@@ -263,6 +265,7 @@ Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 
 | 键 | 作用 |
 |----|------|
 | `f` / `F` | Flash 跳转 / Treesitter 跳转（Normal + Visual；`df-`、`ct)` 仍走原生） |
+| `x` | 删除一个字符，不碰系统剪贴板和 yank 历史（Normal；交换两个字符用 `dlp`，不再是 `xp`） |
 | `<C-h/j/k/l>` | 窗口移动——在终端输入状态下同样可用 |
 | Insert 中的 `<C-l>` | 接受灰色的 [AI 补全建议](#行内-ai-补全) |
 | `<C-,>` | 跳到编辑器区域，再按一次跳回 |

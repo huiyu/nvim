@@ -2,7 +2,7 @@
 
 [中文文档](README_CN.md)
 
-A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/folke/lazy.nvim). Aligned with [LazyVim](https://www.lazyvim.org/) conventions for keybindings and plugin choices, with support for Go, C/C++, Python, Java, Web, Bash, JSON, YAML, and LaTeX development.
+A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/folke/lazy.nvim). Aligned with [LazyVim](https://www.lazyvim.org/) conventions for keybindings and plugin choices, with support for Go, C/C++, Python, Java, Rust, Web, Bash, JSON, YAML, and LaTeX development.
 
 ### Requirements
 
@@ -12,6 +12,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 - A [Nerd Font](https://www.nerdfonts.com/) for icon display
 - **ripgrep** (`rg`) — powers `Snacks.picker.grep` / `live_grep` / `:grep`
 - **fd** — file finder (used by `venv-selector` and some pickers)
+- **[tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md)** >= 0.26.1 and a C compiler — nvim-treesitter's `main` branch builds every parser with `tree-sitter build`. Install it from a package manager (`tree-sitter-cli` in Homebrew), not npm
 
 **Optional (feature-specific):**
 - **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg` (project) / `<leader>gf` (file history)
@@ -25,7 +26,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 
 **Quick install (macOS):**
 ```bash
-brew install neovim git gh ripgrep fd lazygit tmux cowsay lolcat node llama.cpp
+brew install neovim git gh ripgrep fd tree-sitter-cli lazygit tmux cowsay lolcat node llama.cpp
 brew install --cask font-jetbrains-mono-nerd-font  # or any Nerd Font
 gh auth login                                      # once, for GitHub pickers
 npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
@@ -36,6 +37,7 @@ llama-server --fim-qwen-7b-default                 # once: ghost-text model (~8 
 - **Go** — required for `gopls`, `gofumpt`, `gomodifytags`, `impl`, `delve`
 - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
 - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
+- **Rust (rustup)** — `rust-analyzer` (installed by Mason) needs `cargo`, and formats with the toolchain's `rustfmt` (`rustup component add rustfmt`); it adds `rust-src` through rustup itself
 - **JDK 25+** — runs `jdtls` (Java); projects may still target older releases. Found through `$JAVA_HOME`, then [SDKMAN!](https://sdkman.io/) (`~/.sdkman/candidates/java`), then PATH (see [`lua/lang/java.lua`](lua/lang/java.lua))
 - **TeX Live + Skim** (LaTeX) — `brew install --cask mactex-no-gui` for `latexmk`/`latexindent`/`chktex`, and `brew install --cask skim` for the SyncTeX PDF viewer. `texlab` is installed by Mason. For inverse search set Skim → Preferences → Sync → Custom: command `nvim`, arguments `--headless -c "VimtexInverseSearch %line '%file'"`
 
@@ -177,7 +179,7 @@ snacks below.
 | Go | gopls | gopls organize imports + gofumpt | golangci-lint | neotest-golang | nvim-dap-go |
 | Python | basedpyright, ruff | black | ruff | neotest-python | nvim-dap-python |
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
-| Rust | - | - | - | Cargo test (DAP) | codelldb + Cargo |
+| Rust | rust-analyzer | rustfmt (via rust-analyzer) | cargo check (via rust-analyzer, on save) | Cargo test (DAP) | codelldb + Cargo |
 | Dart / Flutter | - | - | - | SDK test (DAP) | SDK DAP |
 | TypeScript/JS | vtsls | prettier | eslint | Vitest (DAP) | js-debug-adapter |
 | HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
@@ -252,7 +254,7 @@ Every key answers one question, and the prefix says which:
 
 | Prefix | Question | Examples |
 |--------|----------|----------|
-| `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;1`-`;9` pinned files |
+| `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;c` git hunks, `;1`-`;9` pinned files |
 | `,` | What can I do in this file / view? | `,a` code action, `,f` format, `,r` rename, `,o` organize imports (Go/Python); terminal-local `,1`-`,9` |
 | `s` | What about this window? | `ss`/`sv` split, `sd` close, `se` editor window, `s=` equalize |
 | `<leader>` | Everything else, by domain | `g` git, `G` GitHub, `d` debug, `t` test, `a` AI, `x` diagnostics, `m` manage, `s` session, `y` yank, `u` toggles, `b` buffer, `q` quit |
@@ -274,6 +276,7 @@ Unprefixed keys worth knowing:
 | Key | Action |
 |-----|--------|
 | `f` / `F` | Flash jump / Treesitter jump (Normal + Visual; `df-`, `ct)` stay native) |
+| `x` | Delete a character without touching the clipboard or yank history (Normal; swap two characters with `dlp`, not `xp`) |
 | `<C-h/j/k/l>` | Move between windows — works from terminal input too |
 | `<C-l>` in Insert | Accept the grey [AI suggestion](#inline-ai-completion) |
 | `<C-,>` | Jump to the editor area, press again to return |

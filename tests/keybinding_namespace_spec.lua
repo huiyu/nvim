@@ -22,6 +22,13 @@ t.eq(mapping("<leader>xT"), {}, "Diagnostics no longer duplicates filtered Todo 
 t.ok(mapping("[t").desc == "Prev todo", "[t keeps previous-Todo navigation")
 t.ok(mapping("]t").desc == "Next todo", "]t keeps next-Todo navigation")
 
+-- Changed hunks are a place to be, so the repository-wide picker is on `;`
+-- (Normal only) while ]h/[h keep stepping from the cursor.
+t.ok(mapping(";c").desc == "Git hunks", ";c lists the repository's hunks")
+for _, mode in ipairs({ "x", "o", "i", "t" }) do
+  t.eq(mapping(";c", mode), {}, ";c is Normal-mode only (" .. mode .. ")")
+end
+
 -- Ordinary files must not inherit the terminal-only localleader digit row.
 -- The Ctrl-digit chords died inside an outer tmux (Ghostty encodes ctrl+digit
 -- as legacy bytes under modifyOtherKeys), so they stay gone rather than linger
@@ -45,6 +52,18 @@ local function terminal_id()
   local info = vim.b.snacks_terminal
   return info and info.id
 end
+
+-- ;c opens Snacks' git_diff source, whose <C-r> restores (discards) a hunk.
+-- The checkout may be clean, so only the source is asserted, not its items.
+mapping(";c").callback()
+local hunks
+vim.wait(2000, function()
+  hunks = Snacks.picker.get({ source = "git_diff" })[1]
+  return hunks ~= nil
+end, 10)
+t.ok(hunks ~= nil, ";c opens the git_diff picker")
+if hunks then hunks:close() end
+vim.api.nvim_set_current_win(editor_win)
 
 press("3<C-/>")
 local three = vim.api.nvim_get_current_buf()

@@ -24,8 +24,9 @@ return {
     "nvim-treesitter/nvim-treesitter",
     -- `main` is the rewrite this spec is written for; `master` stays frozen
     -- for Nvim 0.11. main supports only the latest Nvim stable and has raised
-    -- its minimum before (0.11 -> 0.12), so compare its README requirement
-    -- with the floor in lua/config/health.lua when an update lands.
+    -- its minimum before (0.11 -> 0.12), so compare its README requirements
+    -- -- Nvim and the tree-sitter CLI that builds every parser -- with the
+    -- floors in lua/config/health.lua when an update lands.
     branch = "main",
     -- The rewritten 'main' branch does not support lazy-loading.
     lazy = false,

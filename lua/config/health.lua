@@ -21,7 +21,7 @@ local executables = {
   { "dart",    "Dart debugging (or use a project FVM SDK)",             false },
   { "flutter", "Flutter debugging (or use a project FVM SDK)",          false },
   { "python3", "debugpy venv, ,x runner for Python",                    false },
-  { "cc",      ",x compile & run for C",                                false },
+  { "cc",      "Treesitter parser builds, ,x compile & run for C",      false },
   { "lazygit", "<leader>gg git UI",                                    false },
   { "curl",    "AI ghost-text requests and llama-server checks",       false },
   { "gh",      "<leader>G GitHub pickers and status",                  false },
@@ -32,6 +32,29 @@ local executables = {
 if vim.fn.has("macunix") == 1 then
   table.insert(executables,
     { "macism", "macOS input-source switching between Normal and input", false })
+end
+
+-- nvim-treesitter's main branch builds every parser with `tree-sitter build`,
+-- so without this CLI no parser installs or updates, and every
+-- `build = ":TSUpdate"` asks for a rebuild. The floor is nvim-treesitter's own
+-- (README requirements, TREE_SITTER_MIN_VER in its health.lua); compare the two
+-- when an update lands, as plugin/ui/treesitter.lua notes for the Nvim floor.
+local TREE_SITTER_MIN = "0.26.1"
+
+local function check_tree_sitter()
+  local fix = { "brew install tree-sitter-cli (a package manager's build, not npm's)" }
+  if vim.fn.executable("tree-sitter") ~= 1 then
+    health.error("tree-sitter not found — nvim-treesitter cannot build parsers", fix)
+    return
+  end
+  local out = vim.system({ "tree-sitter", "--version" }, { text = true }):wait(5000)
+  local version = vim.version.parse(out.stdout or "")
+  if version and vim.version.ge(version, TREE_SITTER_MIN) then
+    health.ok(("tree-sitter %s found — nvim-treesitter builds parsers with it"):format(tostring(version)))
+  else
+    health.error(("tree-sitter %s found — nvim-treesitter needs %s or later")
+      :format(version and tostring(version) or "(unknown version)", TREE_SITTER_MIN), fix)
+  end
 end
 
 -- Mason packages worth surfacing (Mason installs lazily, so absence is info).
@@ -72,6 +95,7 @@ function M.check()
       health.warn(("%s not found — %s unavailable"):format(exe, why))
     end
   end
+  check_tree_sitter()
 
   health.start("config: input method")
   if vim.fn.has("macunix") ~= 1 then

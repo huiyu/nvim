@@ -165,7 +165,11 @@ The tabline, buffer cycling (`<S-h>`/`<S-l>` and `[b`/`]b`), and buffer pickers
 skip terminal buffers. Use `<Space>af` to focus the AI panel and `<C-/>` for
 shell terminals, so file navigation keeps the editor window in place.
 
-A few single keys are just abbreviations: `x` = `dl`, `D` = `d$`, `C` = `c$`.
+A few single keys are just abbreviations: `D` = `d$`, `C` = `c$`, and `x` =
+`dl` with one difference: `x` deletes into the black hole register, so it
+never replaces the system clipboard or adds an entry to the yank history
+(`[y` / `]y`). The classic `xp` swap of two characters is therefore `dlp`;
+`"ax` still deletes into register `a`.
 `s` used to be `cl`; here it is the window prefix, so change one character
 with `cl`.
 
@@ -355,7 +359,14 @@ without looking. Re-pin when you move to another task.
 
 ### Positions
 
-`;j` jumplist · `;m` marks · `;t` TODOs · `;T` TODO/FIX/FIXME
+`;j` jumplist · `;m` marks · `;c` git hunks · `;t` TODOs · `;T` TODO/FIX/FIXME
+
+`;c` lists every changed hunk in the repository, staged and unstaged, with the
+diff as its preview; Enter jumps there. `]h` / `[h` step through hunks from
+the cursor instead. In this picker `<Tab>` stages or unstages the hunk, and
+`<C-r>` **restores** it: after a Yes/No confirmation an unstaged hunk is
+discarded from the working tree, and a staged one is taken out of the index.
+It is the one destructive key there.
 
 ---
 
@@ -566,7 +577,7 @@ is open beside your code.
 | `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
 | `<Space>y` | Yank | copy file path, yank history, registers |
-| `<Space>u` | Toggle/UI | wrap, spell, diagnostics, colorscheme |
+| `<Space>u` | Toggle/UI | wrap, spell, diagnostics, inlay hints, colorscheme |
 | `<Space><Tab>` | Tab | tab pages |
 | `<Space>q` | Quit | quit all |
 
@@ -616,7 +627,9 @@ gC  who calls this?
 `K` shows documentation for whatever is under the cursor. `Ctrl-f` / `Ctrl-b`
 scroll that popup while the cursor stays in the code; `KK` moves into it. `gr`
 lists every reference. While you type a call, the parameter list appears above
-it on its own.
+it on its own. `<Space>uh` turns on inlay hints — parameter names and inferred
+types drawn inline — in every language whose server provides them; they start
+off.
 
 ### The edit loop
 
@@ -654,6 +667,7 @@ that referenced it get rewritten instead of silently breaking.
 ### Git
 
 `<Space>gg` opens lazygit — staging, committing and history in one place.
+`;c` jumps to any changed hunk in the repository (see [Positions](#positions)).
 `<Space>gv` opens diffview for reviewing a branch. Inside diffview, the `,` menu includes
 its view actions and `<Space>gq` closes it.
 Scrolling the mouse wheel over either diff pane keeps the panes vertically

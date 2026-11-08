@@ -65,7 +65,31 @@ end
 -- The fuzzy symbol pickers take no starting symbol, so they stay on `;`.
 t.eq(mapping(";s").desc, "[LSP] Symbol in buffer", ";s stays a fuzzy picker")
 t.eq(mapping(";S").desc, "[LSP] Symbol in workspace", ";S stays a fuzzy picker")
-t.eq(mapping(";c"), {}, ";c moved to gC: incoming calls needs a symbol to start from")
+-- ;c used to be incoming calls; that moved to gC because it needs a symbol to
+-- start from. The key now lists git hunks, a global picker, not an LSP jump.
+t.eq(mapping(";c").desc, "Git hunks", ";c is the repository hunk picker")
+t.eq(mapping(";c").buffer, 0, ";c is global, not attached with the server")
+
+-- lua_ls computes no inlay hints unless Lua.hint.enable is set, which left
+-- <leader>uh blank in Lua buffers. Asked directly, the server must answer with
+-- hints; whether they are drawn stays up to the toggle.
+local lua_ls = vim.lsp.get_clients({ bufnr = 0, name = "lua_ls" })[1]
+t.ok(lua_ls ~= nil, "lua_ls is the attached client")
+if lua_ls then
+  t.eq(lua_ls.settings.Lua.hint.enable, true, "lua_ls is configured to compute hints")
+  t.eq(vim.lsp.inlay_hint.is_enabled({ bufnr = 0 }), false, "inlay hints stay off until <leader>uh")
+  local hints = {}
+  vim.wait(30000, function()
+    local reply = lua_ls:request_sync("textDocument/inlayHint", {
+      textDocument = vim.lsp.util.make_text_document_params(0),
+      range = { start = { line = 0, character = 0 },
+        ["end"] = { line = vim.api.nvim_buf_line_count(0), character = 0 } },
+    }, 5000, 0)
+    hints = reply and reply.result or {}
+    return #hints > 0
+  end, 500)
+  t.ok(#hints > 0, ("lua_ls returns inlay hints for lua/util/cwd.lua (%d)"):format(#hints))
+end
 
 -- K is silent. Hovering a blank line is routine; noice used to filter out the
 -- "No information available" notice it raises, and K now asks hover() not to

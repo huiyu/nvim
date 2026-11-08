@@ -170,6 +170,18 @@ end
 return {
   { "nvim-treesitter/nvim-treesitter", opts = { ensure_installed = { "rust" } } },
   {
+    "neovim/nvim-lspconfig",
+    opts = {
+      -- Mason installs rust-analyzer (the list is derived from `servers`) and
+      -- its bin leads PATH. rustup's proxy of the same name fails unless that
+      -- component was added; it is only reached before Mason's first install.
+      -- No conform entry: lsp_format = "fallback" (plugin/lsp/conform.lua)
+      -- hands formatting to rust-analyzer, which runs the toolchain's rustfmt
+      -- with the crate's edition and rustfmt.toml.
+      servers = { rust_analyzer = {} },
+    },
+  },
+  {
     "mfussenegger/nvim-dap",
     opts = {
       handlers = { codelldb = {} },

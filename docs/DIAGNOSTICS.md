@@ -22,7 +22,7 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | Anything broken (LSP/TS/providers) | `:checkhealth` |
 | LSP not attaching / misbehaving | `:checkhealth vim.lsp` (`<leader>mi`) · `:lsp restart` (`<leader>mr`) |
 | No completion | `:checkhealth blink.cmp` · verify LSP attached (`:checkhealth vim.lsp`) |
-| No / wrong highlight | `:checkhealth nvim-treesitter` · `:InspectTree` · `:Inspect` |
+| No / wrong highlight | `:checkhealth nvim-treesitter` · `:checkhealth config` (tree-sitter CLI) · `:InspectTree` · `:Inspect` |
 | Formatting does nothing | `:ConformInfo` · then `:checkhealth conform` |
 | CodeCompanion Chat fails | `:checkhealth config` · `:CodeCompanionChat` · `<leader>mnh` (notification history) |
 | No grey AI suggestions | `:checkhealth config` (inline completion) · `~/.local/state/nvim/llama/server.log` |
@@ -55,6 +55,9 @@ the update checker runs silently once a day (`bootstrap.lua`).
 - Neovim version floor (>= 0.12.5, refactoring.nvim's minimum)
 - External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, python3, cc, lazygit, macism) and
   what each one is needed for
+- The tree-sitter CLI and its version: nvim-treesitter's `main` builds every
+  parser with `tree-sitter build`, so a missing CLI or one below its 0.26.1
+  floor is an error — no parser can install or update
 - The macOS Normal-mode input source and whether it came from
   `NVIM_ENGLISH_INPUT_SOURCE` or the system keyboard-layout fallback
 - Active AI provider, native CLI, selected ACP bridge, and optional
@@ -143,12 +146,22 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 - `:Inspect` — highlight groups under the cursor
 - Parsers: editor-core list in `plugin/ui/treesitter.lua`, language parsers in
   each `lua/lang/*.lua`. Missing ones auto-install on first open.
+- Every parser is compiled here, by the tree-sitter CLI (>= 0.26.1) and a C
+  compiler; `:checkhealth config` reports the CLI's version. Without it, a new
+  machine fails every install and `:TSUpdate` after a plugin update cannot
+  rebuild. Install it from a package manager (`brew install tree-sitter-cli`),
+  not npm. When nvim-treesitter raises that floor, raise `TREE_SITTER_MIN` in
+  `lua/config/health.lua` and the version CI installs.
 
 ## Formatting & linting
 
 - `:ConformInfo` — which formatter runs for this buffer and why
 - `:checkhealth conform` (run `:ConformInfo` first on a fresh process to load it)
 - Toggle autoformat: `<leader>uf` (global) / `<leader>uF` (buffer)
+- Java and Rust have no conform formatter: `lsp_format = "fallback"` hands
+  them to the server (jdtls; rust-analyzer, which runs the toolchain's
+  `rustfmt`, installed with `rustup component add rustfmt`). `:ConformInfo`
+  lists them under LSP.
 
 ## AI and CodeCompanion
 
@@ -453,6 +466,16 @@ integration spec checks launch plus an external JDWP process, source
 breakpoints, local variables and continued execution after disconnect.
 
 ### Rust / Go
+
+Rust's language server is Mason's `rust-analyzer`; Mason's `bin` comes first on
+`PATH`. rustup also puts a `rust-analyzer` on `PATH`, a proxy that fails
+unless that component was added or another `rust-analyzer` is on `PATH`, so a
+`.rs` file opened before Mason finished its first install can report *Client
+rust_analyzer quit with exit code 1*; `:e` the file once `:Mason` shows it
+installed. Diagnostics come from
+rust-analyzer as you type and from `cargo check` (source `rustc`) on save. On a
+rustup toolchain rust-analyzer adds the `rust-src` component it needs for the
+standard library by itself.
 
 Rust's Cargo configurations build from the nearest manifest, parse Cargo's JSON
 artifact messages and offer a target picker. Install Cargo and Mason's codelldb.

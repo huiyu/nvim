@@ -36,6 +36,16 @@ vim.keymap.set("n", "<C-\\>", normal_escape, { desc = "Escape with Normal input 
 vim.keymap.set({ "n", "x" }, "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, desc = "Down" })
 vim.keymap.set({ "n", "x" }, "k", "v:count == 0 ? 'gk' : 'k'", { expr = true, desc = "Up" })
 
+-- x deletes into the black hole register. Under clipboard=unnamedplus a plain x
+-- replaced the system clipboard and pushed a one-character entry onto the
+-- yanky ring. The price is the `xp` swap, which is `dlp` here. Normal mode
+-- only: a Visual x is a deliberate cut. A named register ("ax) still applies;
+-- '"', '+' and '*' are redirected, since v:register cannot tell a typed "+
+-- from the default that 'clipboard' supplies.
+vim.keymap.set("n", "x", function()
+  return vim.v.register:match('^["+*]$') and '"_x' or "x"
+end, { expr = true, desc = "Delete character (no yank)" })
+
 -- Move lines. Alt belongs to tmux here (see lua/util/move.lua), so this lives
 -- under `,` -- the current file/view action prefix -- and then
 -- repeats on bare j/k. See huiyu/nvim#12.

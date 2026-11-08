@@ -89,6 +89,18 @@ return {
               diagnostics = { globals = { "vim", "Snacks" } },
               workspace = { checkThirdParty = false },
               telemetry = { enable = false },
+              -- lua_ls computes no hints until `enable` is set, which left
+              -- <leader>uh blank in Lua. Hints stay off until that toggle; the
+              -- kinds follow vtsls (lang/typescript.lua): parameter names on
+              -- literal arguments and parameter types, no variable types.
+              hint = {
+                enable = true,
+                paramName = "Literal",
+                paramType = true,
+                setType = false,
+                arrayIndex = "Disable",
+                semicolon = "Disable",
+              },
             },
           },
         },

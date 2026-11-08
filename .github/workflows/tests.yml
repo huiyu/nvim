@@ -37,6 +37,20 @@ jobs:
       - name: Install runtime dependencies
         run: sudo apt-get update && sudo apt-get install -y ripgrep fd-find tmux
 
+      # nvim-treesitter's main branch compiles every parser with
+      # `tree-sitter build` (gcc is already on the image). apt's tree-sitter-cli
+      # is far below the 0.26.1 floor in lua/config/health.lua, so take the
+      # upstream release at that floor, the way the matrix pins Nvim's.
+      - name: Install the tree-sitter CLI
+        env: { TREE_SITTER_VERSION: v0.26.1 }
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/tree-sitter/tree-sitter/releases/download/$TREE_SITTER_VERSION/tree-sitter-linux-x64.gz" \
+            | gunzip > "$HOME/.local/bin/tree-sitter"
+          chmod +x "$HOME/.local/bin/tree-sitter"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/tree-sitter" --version
+
       # `-u init.lua` does not put the checkout on the runtimepath, so
       # `require("options")` fails unless the checkout *is* stdpath("config") --
       # which it is on a real machine, where the repo lives at ~/.config/nvim.
