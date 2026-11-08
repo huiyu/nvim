@@ -1,11 +1,15 @@
 -- Review feedback (lua/ai/review/feedback.lua): the entries ,C writes from a
 -- real CodeDiff view, the draft and its float, the staleness check, and
 -- delivery to a native agent (its prompt editor's seed) and to a chat. Also:
--- quoted lines that look like the draft's own (a heading, a review-item, a
--- header, an intro) stay quoted code; every way of closing the float saves
--- it; a draft with no feedback left is an empty file; and two Nvims on one
+-- the draft's structure is the header and markers carrying its nonce, so
+-- quoted or typed lines that look like its own (a heading, a fence, another
+-- draft's header and markers) are text, and its own stay its own when a line
+-- is joined onto them; every way of closing the float saves it; a draft with
+-- no feedback left is an empty file, its open float keeping a header and an
+-- intro to type under that are no part of the file; and two Nvims on one
 -- draft -- the second one a second copy of the module, with buffers of its
--- own -- merge what they type, and never write delivered entries back.
+-- own -- merge what they type entry by entry, never write delivered entries
+-- back, and say why whatever they set aside was.
 --
 -- Every repository is a scratch one under tempname(), with a space in its
 -- path, under an empty global git config. Drafts go to a scratch directory
@@ -93,6 +97,11 @@ local rounds = require("ai.review.rounds")
 local editor = require("ai.editor")
 local cd = require("util.codediff")
 local config = require("ai.config")
+-- Feedback here is for Claude alone. Were any to reach Codex, its real
+-- edit_prompt would start a Codex terminal in this Nvim: it only counts.
+local codex = require("ai.backend.codex")
+local real_codex_edit_prompt, codex_fed = codex.edit_prompt, 0
+codex.edit_prompt = function() codex_fed = codex_fed + 1 end
 
 -- Drafts in the scratch directory, laid out as the real ones are.
 local real_draft_path = rounds.draft_path
@@ -145,12 +154,14 @@ vim.fn.writefile(working, root .. "/f.txt")
 os.remove(root .. "/gone.txt")
 os.rename(root .. "/old.txt", root .. "/new.txt")
 vim.fn.writefile({ "added" }, root .. "/added.txt")
--- A Markdown file whose lines look like a draft's own: a review-item, a
--- header, an intro and a heading. An entry quotes them as they are.
+-- A Markdown file whose lines look like a draft's own: another draft's
+-- entry marker, header and intro marker, an intro and a heading. An entry
+-- quotes them as they are.
 local readme = {
   "# Demo",
-  '<!-- review-item path="x.txt" side="new" digest="none" -->',
-  '<!-- nvim-review round=elsewhere root="/nowhere" -->',
+  '<!-- nvim-review-item n=0123456789ab id=1.1.1 path="x.txt" side="new" digest="none" -->',
+  '<!-- nvim-review n=0123456789ab round=elsewhere root="/nowhere" -->',
+  "<!-- nvim-review-intro n=0123456789ab id=1.1.2 -->",
   "Review of changes since baseline 2020-01-01 00:00:00 (Codex round) in ~/elsewhere:",
   "## Install",
   "run it",
@@ -217,9 +228,17 @@ local function floats_here(tp)
   end
   return out
 end
-local function item(path, side, digest)
-  return ("<!-- review-item path=%s side=%s digest=%s -->"):format(vim.json.encode(path), vim.json.encode(side),
-    vim.json.encode(digest))
+--- What the entry marker on line `i` of a draft says, when it carries the
+--- nonce of the draft's header (line 1); nil when it is no such marker.
+local function item_at(lines, i)
+  local head = lines and lines[1] and feedback._parse_header(lines[1])
+  local body = head and lines[i] and lines[i]:match("^<!%-%- nvim%-review%-item (.-) %-%->$")
+  if not body then return nil end
+  local a = {}
+  for key, value in body:gmatch('(%w+)="([^"]*)"') do a[key] = value end
+  for key, value in body:gmatch('(%w+)=([^%s"]+)') do a[key] = a[key] or value end
+  if a.n ~= head.n or not a.id then return nil end
+  return { path = a.path, side = a.side, digest = a.digest }
 end
 local function digest(path)
   local f = io.open(root .. "/" .. path, "rb")
@@ -262,10 +281,14 @@ end
 api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
 comment(s.modified_win)
 local lines = draft_lines()
-t.eq(lines and lines[1], ("<!-- nvim-review round=%s sha=%s conversation=claude:s1 root=%s -->")
-  :format(vars.id, sha, vim.json.encode(root)), "the draft starts with its header: round, sha, conversation, root")
-t.ok(lines and lines[2]:match("^Review of changes since baseline %d%d%d%d%-%d%d%-%d%d %d%d:%d%d:%d%d %(Claude round%) in .+:$") ~= nil,
-  "then the intro names the baseline's time and source: " .. tostring(lines and lines[2]))
+local head = lines and feedback._parse_header(lines[1]) or {}
+t.ok(type(head.n) == "string" and head.n:match("^" .. ("%x"):rep(12) .. "$") ~= nil, "a new draft has a nonce of its own")
+t.eq(lines and lines[1], ("<!-- nvim-review n=%s round=%s sha=%s conversation=claude:s1 root=%s -->")
+  :format(head.n, vars.id, sha, vim.json.encode(root)), "the draft starts with its header: nonce, round, sha, conversation, root")
+t.eq(lines and lines[2], ("<!-- nvim-review-intro n=%s id=%s -->"):format(head.n, lines and lines[2]:match("id=([%d.]+)")),
+  "then the intro's marker, with the nonce")
+t.ok(lines and lines[3]:match("^Review of changes since baseline %d%d%d%d%-%d%d%-%d%d %d%d:%d%d:%d%d %(Claude round%) in .+:$") ~= nil,
+  "then the intro names the baseline's time and source: " .. tostring(lines and lines[3]))
 local at = index_of(lines, "## f.txt:5 (working tree) · was 5 at the baseline")
 t.ok(at ~= nil, "the hunk's heading gives both sides' lines, the left as the baseline's")
 t.eq(lines and at and vim.list_slice(lines, at + 1, at + 12), {
@@ -273,8 +296,8 @@ t.eq(lines and at and vim.list_slice(lines, at + 1, at + 12), {
   " f line 2", " f line 3", " f line 4", "-f line 5", "+f line 5 CHANGED", " f line 6", " f line 7", " f line 8",
   "```", "> ",
 }, "the hunk is quoted as a diff of both sides with three lines of context, then the comment line")
-t.eq(lines and at and lines[at + 13], item("f.txt", "new", digest("f.txt")),
-  "the review-item names the real path and the file's digest")
+t.eq(lines and at and item_at(lines, at - 1), { path = "f.txt", side = "new", digest = digest("f.txt") },
+  "the entry's marker, right before its heading, names the real path and the file's digest")
 
 local win = api.nvim_get_current_win()
 local fbuf = api.nvim_win_get_buf(win)
@@ -337,8 +360,9 @@ lines = draft_lines()
 at = index_of(lines, "## f.txt:4-5 (baseline side, not on disk)")
 t.ok(at ~= nil, "a left-side selection is marked as the baseline side, not on disk")
 t.eq(lines and at and vim.list_slice(lines, at + 1, at + 6),
-  { "```text", "f line 4", "f line 5", "```", "> ", item("f.txt", "old", digest("f.txt")) },
-  "it quotes the baseline's lines, under the working tree's path")
+  { "```text", "f line 4", "f line 5", "```", "> " }, "it quotes the baseline's lines")
+t.eq(lines and at and item_at(lines, at - 1), { path = "f.txt", side = "old", digest = digest("f.txt") },
+  "under the working tree's path")
 hide_float()
 
 -- Explorer items: the file's name and status only.
@@ -356,7 +380,8 @@ t.eq(it and { it.type, it.status }, { "file", "D" }, "panel_item reads the explo
 comment(pwin)
 lines = draft_lines()
 at = index_of(lines, "## gone.txt (D)")
-t.ok(at ~= nil and lines[at + 1] == "> " and lines[at + 2] == item("gone.txt", "file", "none"),
+t.ok(at ~= nil and lines[at + 1] == "> "
+  and vim.deep_equal(item_at(lines, at - 1), { path = "gone.txt", side = "file", digest = "none" }),
   "a deleted file in the explorer: name, D, the comment line; nothing on disk to digest")
 hide_float()
 pwin = on_item("new.txt")
@@ -396,7 +421,8 @@ t.eq(s.single_side, "original", "a deletion is a one-sided view")
 comment(s.original_win, { 1, 2 })
 lines = draft_lines()
 at = index_of(lines, "## gone.txt:1-2 (baseline side, not on disk)")
-t.ok(at ~= nil and lines[at + 2] == "gone 1" and lines[at + 6] == item("gone.txt", "old", "none"),
+t.ok(at ~= nil and lines[at + 2] == "gone 1"
+  and vim.deep_equal(item_at(lines, at - 1), { path = "gone.txt", side = "old", digest = "none" }),
   "a deleted file's lines: the baseline's real path (original.absolute), never codediff://")
 hide_float()
 api.nvim_win_set_cursor(s.original_win, { 1, 0 })
@@ -419,11 +445,11 @@ hide_float()
 local all = table.concat(draft_lines(), "\n")
 t.ok(not all:find("codediff://", 1, true), "no entry names a codediff:// buffer")
 -- The header names the root, and so does the intro (in full when the scratch
--- directory is outside $HOME); an entry's heading or review-item never does.
+-- directory is outside $HOME); an entry's heading or marker never does.
 local in_scratch = vim.fs.basename(scratch) .. "/"
 local absolute = {}
 for i, l in ipairs(draft_lines()) do
-  local named = l:match('^<!%-%- review%-item path=("[^"]*")')
+  local named = l:match('^<!%-%- nvim%-review%-item .-path=("[^"]*")')
   named = named and vim.json.decode(named)
   local heading = l:match("^## ") ~= nil
   if i > 1 and ((heading and (l:find(in_scratch, 1, true) or l:match("^## /")))
@@ -431,20 +457,20 @@ for i, l in ipairs(draft_lines()) do
     absolute[#absolute + 1] = l
   end
 end
-t.eq(absolute, {}, "entries name their files relative to the root: no heading or review-item holds a full path")
+t.eq(absolute, {}, "entries name their files relative to the root: no heading or marker holds a full path")
 t.eq(count(draft_lines(), "Review of changes since baseline"), 1, "still one intro")
 
 -- Lines that look like the draft's own, quoted, stay the file's: the quote
 -- keeps them as they are, and the draft never reads them as its own.
 t.ok(select_file("README.md"), "the explorer selects README.md")
-local intro_line = draft_lines()[2]
-comment(s.modified_win, { 2, 6 })
-local readme_quote = vim.list_extend({ "```markdown" }, vim.list_slice(readme, 2, 6))
+local intro_line = draft_lines()[3]
+comment(s.modified_win, { 2, 7 })
+local readme_quote = vim.list_extend({ "```markdown" }, vim.list_slice(readme, 2, 7))
 readme_quote[#readme_quote + 1] = "```"
 lines = draft_lines()
-at = index_of(lines, "## README.md:2-6 (working tree)")
+at = index_of(lines, "## README.md:2-7 (working tree)")
 t.eq(lines and at and vim.list_slice(lines, at + 1, at + #readme_quote), readme_quote,
-  "lines shaped like a review-item, a header, an intro and a heading are quoted as they are")
+  "lines shaped like another draft's markers and header, an intro and a heading are quoted as they are")
 hide_float()
 
 -- Back to f.txt for what follows.
@@ -594,7 +620,7 @@ do
   local b = feedback._buf(emptied)
   t.ok(rounds._exempt(emptied_round), "a draft with an entry spares its round")
   -- The entry deleted, its header and intro kept.
-  api.nvim_buf_set_lines(b, 2, -1, false, {})
+  api.nvim_buf_set_lines(b, 3, -1, false, {})
   feedback.hide(b)
   t.eq(uv.fs_stat(emptied).size, 0, "a draft left with its header and intro alone is written as an empty file")
   t.eq(rounds._exempt(emptied_round), false, "and spares its round no more")
@@ -602,17 +628,19 @@ do
   -- A header and intro left on disk some other way: <C-d> empties the file.
   comment(s.modified_win, { 4, 4 })
   b = feedback._buf(emptied)
-  vim.fn.writefile(vim.list_slice(draft_lines(emptied), 1, 2), emptied)
+  vim.fn.writefile(vim.list_slice(draft_lines(emptied), 1, 3), emptied)
   notes, selects = {}, {}
   feedback.deliver(b)
   t.ok(noted("The draft is empty") ~= nil and #selects == 0, "delivering it says there is nothing to deliver")
   t.eq(uv.fs_stat(emptied).size, 0, "and empties the file")
-  t.eq(api.nvim_buf_get_lines(b, 0, -1, false), { "" }, "which the float shows")
+  local kept = api.nvim_buf_get_lines(b, 0, -1, false)
+  t.ok(feedback._parse_header(kept[1]) ~= nil and index_of(kept, intro_line) ~= nil and find(kept, "## ") == nil,
+    "while the float keeps its header and intro to type under: " .. vim.inspect(kept))
 
   -- The next ,C starts the draft again.
   comment(s.modified_win, { 5, 5 })
   lines = draft_lines(emptied)
-  t.ok(lines and feedback._parse_header(lines[1]) ~= nil and lines[2] == intro_line,
+  t.ok(lines and feedback._parse_header(lines[1]) ~= nil and lines[3] == intro_line,
     "the next ,C writes the header and intro again")
   local w = api.nvim_get_current_win()
   t.eq(api.nvim_win_get_buf(w), feedback._buf(emptied), "and shows the draft")
@@ -620,6 +648,339 @@ do
   t.eq(lines and lines[api.nvim_win_get_cursor(w)[1] - 1], "```", "the cursor on its entry's comment line")
   t.eq(lines and lines[api.nvim_win_get_cursor(w)[1]], "> ", "which is empty")
   feedback.hide(feedback._buf(emptied))
+end
+
+---------------------------------------------------------------------------
+-- The draft's structure: nothing typed or quoted takes it apart
+---------------------------------------------------------------------------
+
+do
+  -- Delivery stops at resolve_sink here: what reaches it is the question.
+  local real_resolve_sink = rounds.resolve_sink
+  local sunk = {}
+  rounds.resolve_sink = function(conversation) sunk[#sunk + 1] = conversation end
+  local function header_of(ls) return ls and ls[1] and feedback._parse_header(ls[1]) end
+  local function intro_index(ls)
+    for i, l in ipairs(ls or {}) do
+      if l:match("^Review of changes since baseline") then return i end
+    end
+  end
+  --- Whether any conflict file beside `path` holds `line`.
+  local function aside_has(path, line)
+    for _, file in ipairs(vim.fn.glob((path:gsub("%.md$", "")) .. ".conflict*.md", false, true)) do
+      if index_of(vim.fn.readfile(file), line) then return file end
+    end
+  end
+
+  -- Every entry deleted in the open float: the file is empty, the float keeps
+  -- its header and intro, and a note typed there afterwards delivers.
+  local p = use_round("structure-settled")
+  comment(s.modified_win, { 4, 4 })
+  local b = feedback._buf(p)
+  local intro_at = intro_index(api.nvim_buf_get_lines(b, 0, -1, false))
+  api.nvim_buf_set_lines(b, intro_at, -1, false, {})
+  vim.cmd("write")
+  t.eq(uv.fs_stat(p).size, 0, "a draft emptied in its float is written as an empty file")
+  local now = api.nvim_buf_get_lines(b, 0, -1, false)
+  t.ok(header_of(now) ~= nil and intro_index(now) ~= nil,
+    "the open float keeps its header and intro: " .. vim.inspect(now))
+  api.nvim_buf_set_lines(b, -1, -1, false, { "", "Please also rename foo to bar everywhere." })
+  notes, sunk = {}, {}
+  feedback.deliver(b)
+  t.eq(noted("lost its first line"), nil, "a note typed there afterwards has its header")
+  t.eq(sunk, { "claude:s1" }, "and goes to the round's conversation")
+  lines = draft_lines(p)
+  t.ok(header_of(lines) ~= nil and index_of(lines, "Please also rename foo to bar everywhere.") ~= nil,
+    "the file holds the note under the header")
+  feedback.hide(b)
+
+  -- The header line deleted in the float: it is the draft's metadata, so the
+  -- next save writes it again.
+  p = use_round("structure-headless")
+  comment(s.modified_win, { 4, 4 })
+  b = feedback._buf(p)
+  api.nvim_buf_set_lines(b, 0, 1, false, {})
+  type_comment(b, "## f.txt:4 (working tree)", "> the header line was deleted")
+  notes, sunk = {}, {}
+  feedback.deliver(b)
+  t.eq(noted("lost its first line"), nil, "deleting the header line in the float loses nothing")
+  t.eq(sunk, { "claude:s1" }, "the draft still delivers to its conversation")
+  t.ok(header_of(draft_lines(p)) ~= nil, "the file's first line is its header again")
+  t.ok(header_of(api.nvim_buf_get_lines(b, 0, -1, false)) ~= nil, "and the float's")
+  feedback.hide(b)
+
+  -- Two Nvims starting the draft at once: B types into its float after a
+  -- delivery emptied it, while A's ,C writes it afresh (the verifier's
+  -- probe_top).
+  p = use_round("structure-top")
+  comment(s.modified_win, { 4, 4 })
+  feedback.hide(feedback._buf(p))
+  comment(s.modified_win, { 3, 3 }, other)
+  b = other._buf(p)
+  vim.fn.writefile({}, p)
+  notes = {}
+  other.deliver(b)
+  t.ok(noted("The draft is empty") ~= nil, "B finds the draft delivered")
+  api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
+  comment(s.modified_win)
+  local a = feedback._buf(p)
+  api.nvim_buf_set_lines(b, -1, -1, false, { "General note from B." })
+  notes = {}
+  other.hide(b)
+  lines = draft_lines(p)
+  t.ok(header_of(lines) ~= nil, "both start the draft: its first line is still the header " .. vim.inspect(lines))
+  t.ok(index_of(lines, "General note from B.") ~= nil
+    and index_of(lines, "## f.txt:5 (working tree) · was 5 at the baseline") ~= nil, "with B's note and A's entry")
+  t.eq(noted("changed elsewhere"), nil, "and no warning: neither typed over the other")
+  notes, sunk = {}, {}
+  feedback.deliver(a)
+  t.eq(noted("lost its first line"), nil, "A can deliver it")
+  t.eq(sunk, { "claude:s1" }, "to the round's conversation")
+  feedback.hide(a)
+
+  -- A comment B typed on an entry delivered meanwhile, saved after A's next
+  -- ,C: never grafted onto A's new entry (the verifier's probe_graft).
+  p = use_round("structure-graft")
+  local E1, E3 = "## f.txt:5 (working tree) · was 5 at the baseline", "## f.txt:10 (working tree) · new since the baseline"
+  api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
+  comment(s.modified_win, nil, other)
+  b = other._buf(p)
+  api.nvim_set_current_win(s.modified_win)
+  type_comment(b, E1, "> B: this hunk at line 5 is wrong")
+  vim.fn.writefile({}, p)
+  api.nvim_win_set_cursor(s.modified_win, { 10, 0 })
+  comment(s.modified_win)
+  a = feedback._buf(p)
+  notes = {}
+  other.hide(b)
+  lines = draft_lines(p)
+  t.eq(index_of(lines, "> B: this hunk at line 5 is wrong"), nil,
+    "a comment on an entry delivered elsewhere lands on no other entry: " .. vim.inspect(lines))
+  local at3 = index_of(lines, E3)
+  t.ok(at3 ~= nil and exactly(E3, p) == 1 and index_of(lines, E1) == nil, "the draft holds A's new entry alone")
+  t.eq(at3 and lines[#lines], "> ", "its comment line untouched")
+  local aside = aside_has(p, "> B: this hunk at line 5 is wrong")
+  t.ok(aside ~= nil, "B's comment is kept beside the draft")
+  local warned_graft = noted("deleted elsewhere")
+  t.ok(warned_graft and warned_graft.level == WARN and aside
+    and warned_graft.msg:find(vim.fn.fnamemodify(aside, ":~"), 1, true) ~= nil, "and B is warned, naming that file")
+  feedback.hide(a)
+
+  -- The same with A's float still open through the delivery: A's next ,C goes
+  -- on under the nonce A knows, so only the entries' ids tell them apart.
+  p = use_round("structure-graft-nonce")
+  api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
+  comment(s.modified_win, nil, other)
+  b = other._buf(p)
+  comment(s.modified_win, { 3, 3 })
+  a = feedback._buf(p)
+  local nonce = (feedback._parse_header(draft_lines(p)[1]) or {}).n
+  api.nvim_set_current_win(s.modified_win)
+  type_comment(b, E1, "> B: this hunk at line 5 is wrong")
+  vim.fn.writefile({}, p)
+  api.nvim_win_set_cursor(s.modified_win, { 10, 0 })
+  comment(s.modified_win)
+  t.eq(a, feedback._buf(p), "A's float stayed open")
+  t.eq((feedback._parse_header(draft_lines(p)[1]) or {}).n, nonce, "and A's ,C keeps the nonce it knows")
+  notes = {}
+  other.hide(b)
+  lines = draft_lines(p)
+  t.eq(index_of(lines, "> B: this hunk at line 5 is wrong"), nil, "B's comment lands on no other entry of that nonce")
+  t.ok(exactly(E3, p) == 1 and index_of(lines, E1) == nil and index_of(lines, "## f.txt:3 (working tree)") == nil
+    and lines[#lines] == "> ", "the draft holds A's new entry alone, untouched: " .. vim.inspect(lines))
+  t.ok(aside_has(p, "> B: this hunk at line 5 is wrong") ~= nil and noted("deleted elsewhere") ~= nil,
+    "B's comment is kept beside the draft, with a warning")
+  feedback.hide(a)
+
+  -- A fence typed in a comment and left open: every later entry is still an
+  -- entry (the verifier's probe_classify).
+  p = use_round("structure-fence")
+  local pw = on_item("new.txt")
+  comment(pw)
+  b = feedback._buf(p)
+  type_comment(b, "## new.txt (R old.txt→new.txt)", "> try this instead:")
+  now = api.nvim_buf_get_lines(b, 0, -1, false)
+  local c = index_of(now, "> try this instead:")
+  api.nvim_buf_set_lines(b, c, c, false, { "```sh", "echo better" })
+  feedback.hide(b)
+  comment(s.modified_win, { 4, 4 })
+  b = feedback._buf(p)
+  local new_txt = vim.fn.readfile(root .. "/new.txt", "b")
+  vim.fn.writefile(vim.list_extend(vim.deepcopy(new_txt), { "changed" }), root .. "/new.txt", "b")
+  notes, selects, answers, sunk = {}, {}, { choose("Edit first") }, {}
+  feedback.deliver(b)
+  vim.fn.writefile(new_txt, root .. "/new.txt", "b")
+  t.eq(kinds(), { "ai_review_stale" }, "an unclosed fence in a comment hides no entry from the staleness check")
+  local why_fence = noted("Changed since you commented")
+  t.ok(why_fence and why_fence.msg:find("\nnew.txt\n", 1, true) ~= nil, "the notice names that entry's file")
+  lines = draft_lines(p)
+  t.ok(index_of(lines, "## ⚠ changed since this comment · new.txt (R old.txt→new.txt)") ~= nil,
+    "and its heading is marked")
+  local msg = feedback._message(lines)
+  t.ok(not msg:find("review-item", 1, true) and not msg:find("nvim-review", 1, true),
+    "what would be sent holds none of the draft's own lines")
+  t.ok(msg:find("echo better", 1, true) ~= nil and msg:find("## f.txt:4 (working tree)", 1, true) ~= nil,
+    "and all of its text")
+  feedback.hide(b)
+
+  -- Another draft's real header and markers, pasted into a comment, are text.
+  local px = use_round("structure-x")
+  pw = on_item("new.txt")
+  comment(pw)
+  local pasted = vim.tbl_filter(function(l) return l:match("^<!%-%-") ~= nil end, draft_lines(px))
+  feedback.hide(feedback._buf(px))
+  p = use_round("structure-y")
+  comment(s.modified_win, { 3, 3 })
+  b = feedback._buf(p)
+  type_comment(b, "## f.txt:3 (working tree)", "> as in the other draft:")
+  now = api.nvim_buf_get_lines(b, 0, -1, false)
+  c = index_of(now, "> as in the other draft:")
+  api.nvim_buf_set_lines(b, c, c, false, pasted)
+  vim.fn.writefile(vim.list_extend(vim.deepcopy(new_txt), { "changed" }), root .. "/new.txt", "b")
+  notes, selects, answers, sunk = {}, {}, {}, {}
+  feedback.deliver(b)
+  vim.fn.writefile(new_txt, root .. "/new.txt", "b")
+  t.ok(#pasted >= 2, "the other draft has a header and markers to paste")
+  t.eq({ kinds(), sunk }, { {}, { "claude:s1" } }, "another draft's markers are no entries of this one")
+  msg = feedback._message(draft_lines(p))
+  t.ok(msg:find(table.concat(pasted, "\n"), 1, true) ~= nil, "they are text, sent as typed")
+  feedback.hide(b)
+
+  -- An intro's line is no feedback even once its marker is deleted: a draft
+  -- left with just that line is empty, so it spares no round and sends nothing.
+  p = use_round("structure-intro-alone")
+  comment(s.modified_win, { 3, 3 })
+  feedback.hide(feedback._buf(p))
+  local alone = draft_lines(p)
+  local intro_text = alone[find(alone, "Review of changes ")]
+  t.eq(feedback._message({ alone[1], intro_text, "" }), "", "an intro line without its marker is not feedback")
+
+  -- An entry's marker joined onto the comment above it (J), and text typed
+  -- after another's (A): both are still this draft's markers, so their
+  -- entries are still checked, and neither marker is sent.
+  p = use_round("structure-joined")
+  comment(s.modified_win, { 4, 4 })
+  b = feedback._buf(p)
+  type_comment(b, "## f.txt:4 (working tree)", "> rename it back")
+  feedback.hide(b)
+  pw = on_item("new.txt")
+  comment(pw)
+  feedback.hide(feedback._buf(p))
+  comment(pw)
+  b = feedback._buf(p)
+  api.nvim_buf_set_lines(b, -2, -1, false, { "> second" })
+  now = api.nvim_buf_get_lines(b, 0, -1, false)
+  c = index_of(now, "> rename it back")
+  api.nvim_win_set_cursor(0, { c, 0 })
+  vim.cmd("normal! 3J")
+  now = api.nvim_buf_get_lines(b, 0, -1, false)
+  t.ok(now[c]:match("^> rename it back <!%-%- nvim%-review%-item .*%-%->$") ~= nil, "J joins the marker on: " .. now[c])
+  local last_marker
+  for i, l in ipairs(now) do
+    if l:match("^<!%-%- nvim%-review%-item ") then last_marker = i end
+  end
+  api.nvim_buf_set_lines(b, last_marker - 1, last_marker, false, { now[last_marker] .. "see below:" })
+  vim.fn.writefile(vim.list_extend(vim.deepcopy(new_txt), { "changed" }), root .. "/new.txt", "b")
+  notes, selects, answers, sunk = {}, {}, { choose("Edit first") }, {}
+  feedback.deliver(b)
+  vim.fn.writefile(new_txt, root .. "/new.txt", "b")
+  t.eq(kinds(), { "ai_review_stale" }, "a joined marker hides no entry from the staleness check")
+  local why_joined = noted("Changed since you commented")
+  t.ok(why_joined and why_joined.msg:find("\nnew.txt\n", 1, true) ~= nil, "the notice names that entry's file")
+  lines = draft_lines(p)
+  t.eq({ exactly("## ⚠ changed since this comment · new.txt (R old.txt→new.txt)", p),
+    exactly("## ⚠ changed since this comment · new.txt", p) }, { 1, 1 }, "both entries are marked")
+  c = find(lines, "> rename it back")
+  t.ok(c and lines[c]:match("^> rename it back%s*$") and item_at(lines, c + 1) ~= nil
+    and item_at(lines, c + 1).path == "new.txt", "the save puts the marker back on a line of its own")
+  msg = feedback._message(lines)
+  t.ok(not msg:find("nvim-review", 1, true) and msg:find("> rename it back", 1, true) ~= nil
+    and msg:find("\nsee below:\n", 1, true) ~= nil and msg:find("> second", 1, true) ~= nil,
+    "what would be sent holds no marker, and all the text: " .. msg)
+  feedback.hide(b)
+
+  -- Another Nvim's template float (the draft delivered, nothing typed there)
+  -- written while this one starts the draft again: the template's intro is
+  -- not the draft's (the verifier's p6).
+  local function restarted(name)
+    p = use_round(name)
+    comment(s.modified_win, { 4, 4 })
+    feedback.hide(feedback._buf(p))
+    settle(50)
+    comment(s.modified_win, { 3, 3 }, other)
+    b = other._buf(p)
+    local before_nonce = (feedback._parse_header(draft_lines(p)[1]) or {}).n
+    vim.fn.writefile({}, p)
+    notes = {}
+    other.deliver(b)
+    t.ok(noted("The draft is empty") ~= nil and index_of(api.nvim_buf_get_lines(b, 0, -1, false), intro_line) ~= nil,
+      name .. ": B's float shows the template")
+    api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
+    comment(s.modified_win)
+    a = feedback._buf(p)
+    t.ok((feedback._parse_header(draft_lines(p)[1]) or {}).n ~= before_nonce, name .. ": A starts it with a new nonce")
+    notes = {}
+  end
+  local function intro_sent(ls)
+    local _, n = feedback._message(ls):gsub(vim.pesc(intro_line), "")
+    return n
+  end
+  restarted("structure-template")
+  api.nvim_buf_call(b, function() vim.cmd("write") end)
+  lines = draft_lines(p)
+  t.eq({ exactly(intro_line, p), intro_sent(lines) }, { 1, 1 },
+    "an untouched template written over it adds no intro: " .. vim.inspect(lines))
+  t.eq(noted("elsewhere"), nil, "and no warning")
+  t.eq(api.nvim_buf_get_lines(b, 0, -1, false), lines, "B's float now shows the draft")
+  feedback.hide(a)
+  other.hide(b)
+
+  -- The same with a note typed under the template's intro: it goes under
+  -- the draft's, before A's entry.
+  restarted("structure-template-note")
+  api.nvim_buf_set_lines(b, -1, -1, false, { "General note from B." })
+  other.hide(b)
+  lines = draft_lines(p)
+  t.eq({ exactly(intro_line, p), intro_sent(lines) }, { 1, 1 }, "a note typed there adds no intro either")
+  local ni, ei = index_of(lines, "General note from B."), index_of(lines, "## f.txt:5 (working tree) · was 5 at the baseline")
+  t.ok(ni and ei and index_of(lines, intro_line) < ni and ni < ei, "the note is under it, before A's entry: "
+    .. vim.inspect(lines))
+  t.eq(noted("elsewhere"), nil, "with no warning")
+  feedback.hide(a)
+
+  -- One save that clashes on an entry and finds another delivered or deleted
+  -- elsewhere: the warning says both.
+  p = use_round("structure-mixed")
+  local Ef, Eg = "## f.txt:5 (working tree) · was 5 at the baseline", "## f.txt:3 (working tree)"
+  api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
+  comment(s.modified_win)
+  comment(s.modified_win, { 3, 3 })
+  feedback.hide(feedback._buf(p))
+  comment(s.modified_win, { 8, 8 }, other)
+  b = other._buf(p)
+  comment(s.modified_win, { 9, 9 })
+  a = feedback._buf(p)
+  type_comment(a, Eg, "> A on g")
+  now = api.nvim_buf_get_lines(a, 0, -1, false)
+  local ef = index_of(now, Ef)
+  api.nvim_buf_set_lines(a, ef - 2, index_of(now, Eg) - 2, false, {})
+  feedback.hide(a)
+  t.eq(exactly(Ef, p), 0, "A deleted one entry")
+  type_comment(b, Ef, "> B on f")
+  type_comment(b, Eg, "> B on g")
+  notes = {}
+  other.hide(b)
+  lines = draft_lines(p)
+  t.ok(index_of(lines, "> A on g") ~= nil and index_of(lines, "> B on g") == nil and index_of(lines, Ef) == nil,
+    "the file keeps A's comment, and no deleted entry")
+  local mixed = aside_has(p, "> B on g")
+  t.ok(mixed ~= nil and mixed == aside_has(p, "> B on f"), "both of B's are kept beside it")
+  local warned_mixed = noted(vim.fn.fnamemodify(mixed or "", ":~"))
+  t.ok(warned_mixed and warned_mixed.msg:find("in the same lines", 1, true) ~= nil
+    and warned_mixed.msg:find("delivered or deleted", 1, true) ~= nil,
+    "the warning names both reasons: " .. tostring(warned_mixed and warned_mixed.msg))
+
+  rounds.resolve_sink = real_resolve_sink
 end
 vim.t[tab].ai_review = vars
 
@@ -672,7 +1033,7 @@ t.ok(index_of(lines, "## gone.txt (D)") ~= nil and index_of(lines, "## new.txt (
 t.ok(index_of(lines, "## ⚠ changed since this comment · f.txt:11 (working tree)") ~= nil,
   "an entry made while the view was behind the disk is marked too")
 t.ok(index_of(lines, "## f.txt:2 (working tree)") ~= nil, "but not one made once it caught up")
-at = index_of(lines, "## ⚠ changed since this comment · README.md:2-6 (working tree)")
+at = index_of(lines, "## ⚠ changed since this comment · README.md:2-7 (working tree)")
 t.ok(at ~= nil, "an entry quoting a heading has its own heading marked")
 at = index_of(lines, readme_quote[2])
 t.eq(lines and at and vim.list_slice(lines, at - 1, at + #readme_quote - 2), readme_quote,
@@ -816,9 +1177,9 @@ t.eq(shown[1], "typed in the box", "the box keeps what was typed")
 t.ok(shown[2] and shown[2]:match("^Review of changes since baseline") ~= nil, "the feedback follows it")
 local shown_text = table.concat(shown, "\n")
 t.eq(vim.tbl_filter(function(l)
-  return (l:match("^<!%-%- nvim%-review") or l:match("^<!%-%- review%-item")) and l ~= readme[2] and l ~= readme[3]
-end, shown), {}, "without the header or the review-item lines")
-t.ok(shown_text:find(table.concat(vim.list_extend({ "## ⚠ changed since this comment · README.md:2-6 (working tree)" },
+  return l:match("^<!%-%- nvim%-review") and l ~= readme[2] and l ~= readme[3] and l ~= readme[4]
+end, shown), {}, "without the header or the markers")
+t.ok(shown_text:find(table.concat(vim.list_extend({ "## ⚠ changed since this comment · README.md:2-7 (working tree)" },
   readme_quote), "\n"), 1, true) ~= nil, "a quote is sent byte for byte, lines shaped like the draft's own included")
 t.ok(shown_text:find("> typed, then the window closed", 1, true) ~= nil, "with the comments")
 t.ok(shown_text:find("## ⚠ changed since this comment · f.txt:5", 1, true) ~= nil, "and the stale marks")
@@ -852,6 +1213,37 @@ t.eq(editor._seed_pending("claude"), false, "and the seed is gone")
 t.eq(table.concat(vim.fn.readfile(last_sent), "\n") .. "\n", table.concat(archived, "\n") .. "\n",
   "last-sent still holds the delivery that arrived")
 vim.g.ai_review = nil
+
+-- A ,C while the delivery waits for Claude's editor: once the editor has the
+-- feedback, the draft keeps only the entry added since, under its intro.
+api.nvim_set_current_tabpage(tab)
+comment(s.modified_win, { 6, 6 })
+fbuf = feedback._buf(draft)
+-- A general note under the intro goes out with this delivery, and only once.
+do
+  local at = index_of(api.nvim_buf_get_lines(fbuf, 0, -1, false), intro_line)
+  api.nvim_buf_set_lines(fbuf, at, at, false, { "Overall: keep the public API stable." })
+end
+selects, answers, notes = {}, {}, {}
+feedback.deliver(fbuf)
+vim.cmd("stopinsert")
+t.ok(editor._seed_pending("claude"), "a delivery is staged")
+api.nvim_set_current_tabpage(tab)
+comment(s.modified_win, { 3, 3 })
+type_comment(feedback._buf(draft), "## f.txt:3 (working tree)", "> added while the seed waited")
+editor.open(claude_prompt, claude_prompt .. ".done")
+settle(200)
+shown_text = table.concat(prompt_lines() or {}, "\n")
+t.ok(shown_text:find("## f.txt:6 (working tree)", 1, true) ~= nil and shown_text:find("## f.txt:7", 1, true) ~= nil
+  and not shown_text:find("added while the seed waited", 1, true), "the editor gets what was delivered")
+lines = draft_lines()
+t.ok(feedback._parse_header(lines[1]) ~= nil and exactly(intro_line) == 1, "the draft keeps its header and intro")
+t.ok(index_of(lines, "## f.txt:3 (working tree)") ~= nil and index_of(lines, "> added while the seed waited") ~= nil,
+  "and the entry added meanwhile, with its comment")
+t.eq({ find(lines, "## f.txt:6"), find(lines, "## f.txt:7") }, {}, "but none of what was delivered " .. vim.inspect(lines))
+t.ok(shown_text:find("Overall: keep the public API stable.", 1, true) ~= nil, "the note under the intro was delivered")
+t.eq(find(lines, "Overall: keep the public API stable."), nil, "and is not kept to be sent again")
+close_prompts()
 
 -- Claude's prompt editor already open: the feedback goes straight in.
 editor.open(claude_prompt, claude_prompt .. ".done")
@@ -893,22 +1285,28 @@ notes = {}
 other.deliver(b_buf)
 t.ok(noted("The draft is empty") ~= nil, "B's <C-d> on a draft delivered elsewhere finds it empty")
 t.eq(prompt_lines(), prompt_before, "and sends nothing twice")
-t.eq(api.nvim_buf_get_lines(b_buf, 0, -1, false), { "" }, "B's float catches up with the file")
+local caught_up = api.nvim_buf_get_lines(b_buf, 0, -1, false)
+t.ok(feedback._parse_header(caught_up[1]) ~= nil and index_of(caught_up, intro_line) ~= nil and find(caught_up, "## ") == nil,
+  "B's float catches up with the file: its header and intro, no entry " .. vim.inspect(caught_up))
 other.hide(b_buf)
 
--- What B added after the delivered entries is B's own: it stays, under the
--- header the delivery took.
+-- What B typed below the last of the delivered entries is that entry's: it
+-- goes beside the draft with it, and B is told where.
 comment(s.modified_win, { 11, 11 })
 comment(s.modified_win, { 12, 12 }, other)
 fbuf, b_buf = feedback._buf(draft), other._buf(draft)
-local header_line = draft_lines()[1]
 feedback.deliver(fbuf)
 t.eq(draft_lines(), {}, "and once more")
 api.nvim_set_current_tabpage(tab)
 api.nvim_buf_set_lines(b_buf, -1, -1, false, { "", "A note typed in B after A delivered." })
+notes = {}
 other.hide(b_buf)
-t.eq(draft_lines(), { header_line, "", "A note typed in B after A delivered." },
-  "a note B added after them is kept, under the header, without the delivered entries")
+t.eq(draft_lines(), {}, "a note B typed under an entry delivered elsewhere is not written back with it")
+local note_aside
+for _, file in ipairs(vim.fn.glob((draft:gsub("%.md$", "")) .. ".conflict*.md", false, true)) do
+  if index_of(vim.fn.readfile(file), "A note typed in B after A delivered.") then note_aside = file end
+end
+t.ok(note_aside ~= nil and noted(vim.fn.fnamemodify(note_aside, ":~")) ~= nil, "it is kept beside the draft, B told where")
 -- An empty draft again, for what follows.
 vim.fn.writefile({}, draft)
 close_prompts()
@@ -939,9 +1337,10 @@ vim.t[tab].codediff_baseline = nil
 api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
 comment(s.modified_win)
 lines = draft_lines(unowned)
-t.eq(lines and lines[1], ("<!-- nvim-review round=unowned root=%s -->"):format(vim.json.encode(root)),
+t.eq(lines and lines[1], ("<!-- nvim-review n=%s round=unowned root=%s -->")
+  :format((feedback._parse_header(lines[1]) or {}).n, vim.json.encode(root)),
   "a view that is no round's writes the root's unowned draft, with no owner in its header")
-t.eq(lines and lines[2], ("Review of changes (spec view) in %s:"):format(vim.fn.fnamemodify(root, ":~")),
+t.eq(lines and lines[3], ("Review of changes (spec view) in %s:"):format(vim.fn.fnamemodify(root, ":~")),
   "its intro names what the view compares")
 t.ok(index_of(lines, ("## f.txt:5 (working tree) · was 5 in %s"):format(sha:sub(1, 8))) ~= nil,
   "and its left side by revision")
@@ -1022,7 +1421,7 @@ local cc_draft = rounds.draft_path(root, "cc-round")
 api.nvim_set_current_tabpage(tab)
 comment(s.modified_win, { 5, 5 })
 lines = draft_lines(cc_draft)
-t.ok(lines and lines[2]:find("(API chat round)", 1, true) ~= nil, "a chat's round says so in its intro")
+t.ok(lines and lines[3]:find("(API chat round)", 1, true) ~= nil, "a chat's round says so in its intro")
 
 -- Mid tool loop: refused before anything moves, the draft kept.
 chat._turn_in_progress = true
@@ -1043,8 +1442,8 @@ f:close()
 feedback.deliver(feedback._buf(cc_draft))
 t.eq(#added, 1, "the chat gets the feedback once")
 t.ok(added[1] and added[1]:sub(1, 1) == "\n", "starting with a newline, so it never joins half-typed text")
-t.ok(added[1] and added[1]:find("## f.txt:5 (working tree)", 1, true) and not added[1]:find("review-item", 1, true),
-  "the entries without their review-item lines")
+t.ok(added[1] and added[1]:find("## f.txt:5 (working tree)", 1, true) and not added[1]:find("nvim-review", 1, true),
+  "the entries without their markers")
 t.eq(api.nvim_buf_get_lines(chat_buf, 2, 4, false), { "half typed", "Review of changes since baseline" ..
   (added[1] or ""):match("^\nReview of changes since baseline([^\n]*)") }, "what was typed stays on its own line")
 t.eq(api.nvim_get_current_tabpage(), editor_tab, "a chat not on screen is shown in the tab before the view")
@@ -1078,9 +1477,9 @@ api.nvim_win_set_cursor(rs.modified_win, { 5, 0 })
 comment(rs.modified_win)
 local revs_draft = rounds.draft_path(root, "unowned")
 lines = draft_lines(revs_draft)
-t.ok(index_of(lines, ("## f.txt:5 (%s) · was 5 in %s"):format(second:sub(1, 8), first:sub(1, 8))) ~= nil,
-  "a hunk between two commits names both")
-t.ok(lines[#lines]:match("^<!%-%- review%-item") ~= nil, "and carries its review-item")
+at = index_of(lines, ("## f.txt:5 (%s) · was 5 in %s"):format(second:sub(1, 8), first:sub(1, 8)))
+t.ok(at ~= nil, "a hunk between two commits names both")
+t.eq(at and item_at(lines, at - 1), { path = "f.txt", side = "new", digest = digest("f.txt") }, "under its marker")
 t.ok(index_of(lines, "Review of changes (two revs) in " .. vim.fn.fnamemodify(root, ":~") .. ":") ~= nil,
   "a new comparison in the unowned draft gets its own intro")
 feedback.hide(feedback._buf(revs_draft))
@@ -1132,11 +1531,10 @@ t.ok(#notes >= 2, "and so with no arguments at all")
 -- Everything feedback showed above stays readable
 ---------------------------------------------------------------------------
 
--- The snacks notifier cuts a line off at its width.max, 0.4 x 'columns' (62
--- cells of text at 160), instead of wrapping it; vim.ui.select is the snacks
--- picker, whose prompt is a one-line title. A path in this spec is a long
--- scratch one: on a line of its own it is left as it is (nothing follows it
--- to be cut), elsewhere it counts as a typical one.
+-- Short lines, one clause each: the snacks notifier cuts a long line off at
+-- its width instead of wrapping it. vim.ui.select is the snacks picker, whose
+-- prompt is a one-line title. A path in this spec is a long scratch one: on a line of its
+-- own it is left as it is, elsewhere it counts as a typical one.
 do
   local function lines_of(text)
     local out = {}
@@ -1170,6 +1568,8 @@ end
 -- Cleanup
 ---------------------------------------------------------------------------
 
+t.eq(codex_fed, 0, "nothing went to Codex")
+codex.edit_prompt = real_codex_edit_prompt
 package.loaded["codecompanion.interactions.chat"] = saved_chat_mod
 editor._release = real_release
 rounds.resolve_sink = real_resolve

@@ -179,10 +179,13 @@ api.nvim_create_autocmd("InsertEnter", {
 api.nvim_feedkeys(vim.keycode(",Cmy comment<Esc>"), "xt", false)
 t.ok(package.loaded["ai.review.feedback"] ~= nil, ",C loads ai.review.feedback")
 local lines = draft_lines()
-t.eq(lines[1], ("<!-- nvim-review round=%s sha=%s conversation=claude:loop-1 root=%s -->")
-  :format(round.id, round.sha, vim.json.encode(root)), "the draft starts with the round's header")
-t.ok(lines[2] and lines[2]:match("^Review of changes since baseline .+ %(Manual round%) in .+:$") ~= nil,
-  "then the round's intro: " .. tostring(lines[2]))
+local nonce = lines[1] and lines[1]:match("^<!%-%- nvim%-review n=(%x+) ")
+t.eq(lines[1], ("<!-- nvim-review n=%s round=%s sha=%s conversation=claude:loop-1 root=%s -->")
+  :format(nonce, round.id, round.sha, vim.json.encode(root)), "the draft starts with the round's header, and its nonce")
+t.ok(nonce and lines[2] and lines[2]:match(("^<!%%-%%- nvim%%-review%%-intro n=%s id="):format(nonce)) ~= nil,
+  "then the intro's marker: " .. tostring(lines[2]))
+t.ok(lines[3] and lines[3]:match("^Review of changes since baseline .+ %(Manual round%) in .+:$") ~= nil,
+  "then the round's intro: " .. tostring(lines[3]))
 t.ok(vim.list_contains(lines, "## f.txt:4 (working tree) · was 4 at the baseline"), "then the hunk under the cursor")
 local fwin = api.nvim_get_current_win()
 local fbuf = api.nvim_win_get_buf(fwin)
@@ -267,8 +270,7 @@ t.eq(asked, {}, "nothing asks along the way")
 t.eq(#fed, 1, "ai.feed reaches Claude's edit_prompt once " .. heard())
 local seed = fed[1] and fed[1].opts.seed or ""
 t.ok(seed:match("^Review of changes since baseline") ~= nil, "the seed starts with the intro")
-t.ok(not seed:find("nvim-review", 1, true) and not seed:find("review-item", 1, true),
-  "without the header or the review-item lines")
+t.ok(not seed:find("nvim-review", 1, true), "without the header or the markers")
 t.ok(seed:find("> my comment", 1, true) ~= nil and seed:find("> second comment", 1, true) ~= nil, "with both comments")
 t.eq(fed[1] and fed[1].opts.ttl_ms, require("ai.review.config").get().seed_ttl_ms, "given seed_ttl_ms to arrive in")
 t.eq(fed[1] and fed[1].tab, editor_tab, "fed from the tabpage that shows Claude's terminal")
