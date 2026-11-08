@@ -22,10 +22,17 @@ local config = require("ai.config")
 local uv = vim.uv
 local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 
-local notes = {}
+-- `notes` is reset by each case; everything rounds itself shows is also kept
+-- for the readability check at the end.
+local notes, every_note, every_prompt = {}, {}, {}
+local function from_rounds()
+  local caller = debug.getinfo(3, "S")
+  return caller ~= nil and caller.source:find("ai/review/rounds.lua", 1, true) ~= nil
+end
 local real_notify = vim.notify
 vim.notify = function(msg, level, opts)
   notes[#notes + 1] = { msg = tostring(msg), level = level or INFO, title = opts and opts.title }
+  if from_rounds() then every_note[#every_note + 1] = notes[#notes] end
 end
 local function noted(pattern)
   for _, n in ipairs(notes) do
@@ -344,6 +351,28 @@ rounds.submit({ source = "claude", conversation = "claude:z", root = PLAIN })
 rec = settled(n, false)
 t.ok(rec.done and rec.round == nil and #notes == 0, "submit outside Git: released, silent, no round")
 
+-- A failure says what failed, and git's (or Lua's) words on a line of their own.
+do
+  local real_snapshot, real_save, real_locate = baseline.snapshot, baseline.save, baseline.locate
+  local function failing(what, field, stub)
+    baseline[field] = stub
+    notes = {}
+    n = #submits + 1
+    rounds.submit({ source = "claude", conversation = "claude:failing", root = R1 })
+    rec = settled(n, false)
+    baseline.snapshot, baseline.save, baseline.locate = real_snapshot, real_save, real_locate
+    t.ok(rec.done and rec.round == nil, what .. ": the source is released, no round")
+    return notes[1] and notes[1].level == WARN and notes[1].msg or ""
+  end
+  local said = failing("no snapshot", "snapshot", function(_, cb) cb(nil, "spec: no snapshot") end)
+  t.ok(said:find("^No review baseline for this Claude prompt:\nspec: no snapshot$") ~= nil, "and says why: " .. vim.inspect(said))
+  edit()
+  said = failing("the round not saved", "save", function(_, _, _, cb) cb(nil, "spec: not saved") end)
+  t.ok(said:find("^Could not save the review round:\nspec: not saved$") ~= nil, "and says why: " .. vim.inspect(said))
+  said = failing("an error", "locate", function() error("spec: locate threw", 0) end)
+  t.ok(said:find("^Review round failed:\nspec: locate threw$") ~= nil, "and says what: " .. vim.inspect(said))
+end
+
 -- TermClose forgets the panel.
 vim.fn.jobstop(plain_job)
 vim.wait(2000, function() return native.codex == nil end, 10)
@@ -452,6 +481,16 @@ before_submit(acp)
 rec = settled(n, true)
 t.eq(rec.round and find_round(R1, rec.round.id).trailers.Source, "cc-acp", "and its rounds say so")
 
+do
+  local real_before = rounds._before_submit
+  rounds._before_submit = function() error("spec: before_submit threw", 0) end
+  notes = {}
+  local ok = before_submit(acp) ~= false
+  rounds._before_submit = real_before
+  t.ok(ok and notes[1] and notes[1].msg == "Review round for a chat failed:\nspec: before_submit threw",
+    "a round that fails never cancels the submit, and says why: " .. vim.inspect(notes[1] and notes[1].msg))
+end
+
 vim.api.nvim_exec_autocmds("User", { pattern = "CodeCompanionChatClosed", data = { bufnr = gated.bufnr, id = gated.id } })
 t.eq(rounds._state().chats[("cc:%s:4343"):format(rounds.nonce())], nil, "ChatClosed forgets the chat")
 
@@ -464,6 +503,7 @@ local selects, answers = {}, {}
 vim.ui.select = function(items, opts, on_choice)
   selects[#selects + 1] = { items = items, prompt = opts.prompt, kind = opts.kind,
     labels = vim.tbl_map(function(i) return opts.format_item and opts.format_item(i) or i end, items) }
+  if from_rounds() then every_prompt[#every_prompt + 1] = selects[#selects] end
   local answer = table.remove(answers, 1)
   on_choice(answer and answer(items) or nil)
 end
@@ -496,7 +536,8 @@ t.ok(target and target.redirected == false and target.owner == "claude:s1", "not
 native.claude.dirty = true
 target = resolve("claude:s1", R1, choose("Deliver"))
 t.eq(kinds(), { "ai_review_confirm" }, "dirty: asks first")
-t.ok(selects[1] and selects[1].prompt:find("/new, /resume or /fork", 1, true) ~= nil, "saying why")
+t.ok(noted("/new, /resume or /fork") ~= nil, "saying why")
+t.ok(selects[1] and selects[1].prompt:find("Deliver anyway?", 1, true) ~= nil, "in a notice beside the question")
 t.ok(target and target.agent == "claude", "and delivers once confirmed")
 target, reason = resolve("claude:s1", R1, choose("Cancel"))
 t.ok(target == nil and reason == "cancelled", "cancelling refuses")
@@ -509,9 +550,14 @@ native.claude.dirty = false
 native.codex.session = nil
 target = resolve("codex:c1", R1, choose("Deliver"))
 t.eq(kinds(), { "ai_review_confirm" }, "a session not reported yet: asks first")
-t.ok(selects[1] and selects[1].prompt:find("first prompt", 1, true) ~= nil, "explaining Codex reports it at the first prompt")
+t.ok(noted("first prompt") ~= nil, "explaining Codex reports it at the first prompt")
 t.ok(target and target.agent == "codex", "and delivers once confirmed")
 native.codex.session = "c1"
+native.claude.session = nil
+target = resolve("claude:s1", R1, choose("Deliver"))
+t.ok(kinds()[1] == "ai_review_confirm" and noted("Claude Code has not reported its session") ~= nil and target ~= nil,
+  "a Claude panel that has not reported its session asks the same way")
+native.claude.session = "s1"
 
 vim.g.ai_review = { always_confirm = { "claude" } }
 target = resolve("claude:s1", R1, choose("Deliver"))
@@ -536,6 +582,8 @@ target, reason = resolve("claude:other", R1, choose("Keep the draft"))
 t.ok(target == nil and reason == "owner-gone", "another session in the owner's terminal: refused")
 t.eq(kinds(), { "ai_review_redirect" }, "offering to send it to a current session")
 t.ok(notes[1] and notes[1].msg:find("/resume", 1, true) ~= nil, "and saying how to get the owner back")
+t.ok(selects[1] and notes[1] and selects[1].prompt == vim.split(notes[1].msg, "\n")[1],
+  "the offer is headed by the notice's first line (" .. tostring(selects[1] and selects[1].prompt) .. ")")
 target = resolve("claude:other", R1, choose("current session"), choose("Codex"), choose("Send"))
 t.eq(kinds(), { "ai_review_redirect", "ai_review_target", "ai_review_confirm" }, "redirect: offer, pick, confirm")
 local labels = selects[2] and table.concat(selects[2].labels, " | ") or ""
@@ -543,7 +591,7 @@ t.ok(labels:find("Claude Code · session s1", 1, true) and labels:find("Codex ·
   and labels:find("#" .. http.bufnr, 1, true) and not labels:find("#" .. r2_chat.bufnr, 1, true),
   "of this root only: both panels and the chats (" .. labels .. ")")
 t.ok(selects[3] and selects[3].prompt:find("belongs to Claude Code session other", 1, true)
-  and selects[3].prompt:find("Codex", 1, true), "the confirmation names the owner and the new target")
+  and selects[3].labels[1]:find("Codex · session c1", 1, true), "the confirmation names the owner and the new target")
 t.ok(target and target.agent == "codex" and target.redirected == true and target.owner == "claude:other",
   "confirmed: delivered to the new target, marked redirected")
 
@@ -560,6 +608,13 @@ t.ok(target == nil and reason == "owner-gone" and kinds()[1] == "ai_review_redir
 t.ok(notes[1] and notes[1].msg:find("not running", 1, true) and notes[1].msg:find("codex resume", 1, true),
   "telling how to resume Codex")
 native.codex = saved_codex
+local saved_claude = native.claude
+native.claude = nil
+target, reason = resolve("claude:s1", R1, choose("Keep"))
+t.ok(target == nil and reason == "owner-gone" and notes[1]
+  and notes[1].msg:find("resume session s1 with <leader>ar", 1, true) ~= nil,
+  "a Claude owner not running: refused, telling which session to resume")
+native.claude = saved_claude
 
 -- The owner's agent relaunched in another root. Whether that terminal still
 -- runs the owner is asked first: another session there, or one not reported
@@ -633,7 +688,7 @@ target = resolve(nil, R2, choose("API chat"))
 t.ok(selects[1] and #selects[1].items == 1 and target and target.chat == r2_chat, "it lists the sessions of that root only")
 target, reason = resolve(nil, PLAIN)
 t.ok(target == nil and reason == "no-session" and #selects == 0, "no session there: refused")
-t.ok(notes[1] and notes[1].msg:find("No session in", 1, true) ~= nil, "saying so")
+t.ok(notes[1] and notes[1].msg:find("No session to deliver to", 1, true) ~= nil, "saying so")
 target, reason = resolve("nonsense", R1)
 t.ok(target == nil and reason == "unknown", "an unknown conversation id is refused")
 
@@ -678,7 +733,7 @@ edit(R2)
 rec = start(vim.api.nvim_get_current_buf())
 owner, entry = owner_of(rec)
 t.ok(entry ~= nil and owner == nil and entry.root == R2, "aV where no panel runs: a round without an owner")
-t.ok(noted("no conversation yet") ~= nil, "saying feedback will ask where to go")
+t.ok(noted("No conversation yet") ~= nil, "saying feedback will ask where to go")
 
 edit()
 t.eq((owner_of(start(acp.bufnr))), ("cc:%s:5151"):format(rounds.nonce()), "aV in a chat buffer: owned by the chat")
@@ -850,6 +905,42 @@ keymap(" av").callback()
 keymap(" aV").callback()
 package.loaded["ai.review"], rounds.start = real_view, real_start
 t.eq(calls, { "open", "start" }, "<leader>av opens the review, <leader>aV starts a round")
+
+---------------------------------------------------------------------------
+-- Everything rounds showed above stays readable
+---------------------------------------------------------------------------
+
+-- The snacks notifier cuts a line off at its width.max, 0.4 x 'columns' (62
+-- cells of text at 160), instead of wrapping it; vim.ui.select is the snacks
+-- picker, whose prompt is a one-line title of a window at least 80 columns
+-- wide. This spec's scratch paths are long, so each counts as a typical one.
+do
+  local function typical(text)
+    for _, path in ipairs({ R1, R2, PLAIN }) do
+      for _, form in ipairs({ vim.fn.fnamemodify(path, ":~"), path }) do
+        text = text:gsub(vim.pesc(form), "~/src/project")
+      end
+    end
+    return text
+  end
+  local too_long = {}
+  for _, note in ipairs(every_note) do
+    for _, line in ipairs(vim.split(typical(note.msg), "\n", { plain = true })) do
+      if vim.fn.strdisplaywidth(line) > 60 then too_long[#too_long + 1] = line end
+    end
+  end
+  t.ok(#every_note >= 30, ("the cases above showed rounds' notices (%d)"):format(#every_note))
+  t.eq(too_long, {}, "every line of every notice is at most 60 cells")
+  too_long = {}
+  for _, s in ipairs(every_prompt) do
+    for _, text in ipairs(vim.list_extend({ s.prompt }, s.labels)) do
+      text = typical(text)
+      if text:find("\n", 1, true) or vim.fn.strdisplaywidth(text) > 70 then too_long[#too_long + 1] = text end
+    end
+  end
+  t.ok(#every_prompt >= 15, ("and asked its questions (%d)"):format(#every_prompt))
+  t.eq(too_long, {}, "every prompt and choice is one line of at most 70 cells")
+end
 
 ---------------------------------------------------------------------------
 -- Cleanup

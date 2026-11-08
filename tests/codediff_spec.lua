@@ -496,6 +496,125 @@ t.eq(repo_history(false), { 3, 3 }, "history_limit = false lifts the cap")
 vim.g.ai_review = nil
 
 ---------------------------------------------------------------------------
+-- The panel internals util.codediff.panel_item reads
+---------------------------------------------------------------------------
+
+-- session.panel.view.tree:get_node(line) and the node.data of each kind of
+-- entry, on a fixture with a committed and a staged rename so that old_path
+-- has something to say.
+local panel_root, pgit = repo("codediff panel")
+vim.fn.writefile({ "one" }, panel_root .. "/a.txt")
+vim.fn.writefile({ "moved" }, panel_root .. "/old.txt")
+vim.fn.writefile({ "staged move" }, panel_root .. "/b.txt")
+assert(pgit("add", "."))
+assert(pgit("commit", "-qm", "base"))
+assert(pgit("mv", "old.txt", "new.txt"))
+assert(pgit("commit", "-qm", "rename"))
+assert(pgit("mv", "b.txt", "c.txt"))
+vim.fn.writefile({ "two" }, panel_root .. "/a.txt")
+
+do
+  --- The panel of the current tabpage's view: its raw session, its view, and the
+  --- node.data of every line get_node finds an entry on.
+  local function panel_entries()
+    local raw_s = lifecycle.get_session(vim.api.nvim_get_current_tabpage())
+    local view = raw_s and type(raw_s.panel) == "table" and raw_s.panel.view or {}
+    local tree = view.tree
+    local found = {}
+    if type(tree) == "table" and type(tree.get_node) == "function" and view.bufnr then
+      for line = 1, vim.api.nvim_buf_line_count(view.bufnr) do
+        local ok, node = pcall(tree.get_node, tree, line)
+        if ok and type(node) == "table" and type(node.data) == "table" then
+          found[#found + 1] = { line = line, data = node.data }
+        end
+      end
+    end
+    return raw_s, view, found
+  end
+  --- The first entry whose node.data has every field of `fields`.
+  local function entry_with(found, fields)
+    for _, e in ipairs(found) do
+      local hit = true
+      for k, v in pairs(fields) do hit = hit and e.data[k] == v end
+      if hit then return e end
+    end
+  end
+  local function shape(e, fields)
+    local out = {}
+    for _, f in ipairs(fields) do out[f] = e and e.data[f] end
+    return out
+  end
+  --- panel_item on `e`'s line of the panel window.
+  local function item_at(view, e)
+    if not e then return nil end
+    vim.api.nvim_win_set_cursor(view.winid, { e.line, 0 })
+    return cd.panel_item(0, view.winid)
+  end
+  local function close_view()
+    local tab = vim.api.nvim_get_current_tabpage()
+    press("<leader>gq")
+    vim.wait(2000, function() return not vim.api.nvim_tabpage_is_valid(tab) end, 20)
+    vim.api.nvim_set_current_tabpage(editor_tab)
+  end
+
+  vim.api.nvim_set_current_tabpage(editor_tab)
+  vim.cmd.cd(vim.fn.fnameescape(panel_root))
+  vim.cmd.edit(vim.fn.fnameescape(panel_root .. "/a.txt"))
+  press("<leader>gv")
+  t.ok(vim.wait(15000, ready("a.txt"), 20), "<leader>gv opens on the panel fixture")
+  local praw, pview, found = panel_entries()
+  t.eq(praw and praw.panel.name, "explorer", "session.panel.name is explorer")
+  t.ok(type(pview.tree) == "table" and type(pview.tree.get_node) == "function" and pview.winid ~= nil,
+    "session.panel.view has tree:get_node(line), bufnr and winid")
+  t.ok(entry_with(found, { type = "group" }) ~= nil, "a status group's node.data.type is group")
+  local changed = entry_with(found, { path = "a.txt" })
+  t.eq(shape(changed, { "type", "status", "group" }), { status = "M", group = "unstaged" },
+    "an explorer file's node.data: path, status, group, and no type")
+  local staged_move = entry_with(found, { path = "c.txt" })
+  t.eq(shape(staged_move, { "old_path", "status", "group" }), { old_path = "b.txt", status = "R", group = "staged" },
+    "a staged rename's node.data: old_path, status R, group staged")
+  local item = item_at(pview, staged_move)
+  t.eq(item and { item.panel, item.type, item.path, item.old_path, item.status, item.group },
+    { "explorer", "file", "c.txt", "b.txt", "R", "staged" }, "panel_item reads the explorer entry from them")
+  close_view()
+
+  vim.cmd.edit(vim.fn.fnameescape(panel_root .. "/a.txt"))
+  press("<leader>gH")
+  t.ok(vim.wait(15000, history_ready, 20), "<leader>gH opens on the panel fixture")
+  praw, pview, found = panel_entries()
+  t.eq(praw and praw.panel.name, "history", "session.panel.name is history")
+  t.ok(entry_with(found, { type = "title" }) ~= nil, "the history's title line has node.data.type title")
+  local rename = entry_with(found, { type = "commit", subject = "rename" })
+  local hash = rename and rename.data.hash
+  t.ok(type(hash) == "string" and #hash == 40 and type(rename.data.short_hash) == "string"
+    and hash:sub(1, #rename.data.short_hash) == rename.data.short_hash,
+    "a commit's node.data: type commit, hash, short_hash and subject " .. vim.inspect(shape(rename, { "hash", "short_hash" })))
+  local moved = entry_with(found, { type = "file", path = "new.txt" })
+  t.eq(shape(moved, { "old_path", "status", "commit_hash" }), { old_path = "old.txt", status = "R", commit_hash = hash },
+    "a commit's file: node.data type file, path, old_path, status and commit_hash")
+  item = item_at(pview, moved)
+  t.eq(item and { item.panel, item.type, item.path, item.old_path, item.status, item.commit },
+    { "history", "file", "new.txt", "old.txt", "R", hash }, "panel_item reads a history file from them")
+  item = item_at(pview, rename)
+  t.eq(item and { item.type, item.commit, item.short_hash, item.subject }, { "commit", hash, rename.data.short_hash, "rename" },
+    "and a commit")
+  close_view()
+
+  vim.cmd.edit(vim.fn.fnameescape(panel_root .. "/a.txt"))
+  press("<leader>gV")
+  t.ok(vim.wait(15000, history_ready, 20), "<leader>gV opens a.txt's history")
+  praw, pview, found = panel_entries()
+  t.eq(type(praw.panel.data) == "table" and type(praw.panel.data.opts) == "table" and praw.panel.data.opts.file_path, "a.txt",
+    "a single file's history names it in session.panel.data.opts.file_path")
+  local base = entry_with(found, { type = "commit", subject = "base" })
+  t.eq(base and base.data.file_path, "a.txt", "and each commit's node.data.file_path is the file in that commit")
+  item = item_at(pview, base)
+  t.eq(item and { item.type, item.path }, { "commit", "a.txt" }, "panel_item gives such a commit the file's path")
+  close_view()
+end
+vim.cmd.cd(vim.fn.fnameescape(root))
+
+---------------------------------------------------------------------------
 -- A view CodeDiff tears down under its tabpage
 ---------------------------------------------------------------------------
 
@@ -572,7 +691,7 @@ vim.notify = real_notify
 local cleanup = t.process_cleanup()
 cleanup()
 vim.cmd.cd(vim.fn.fnameescape(cwd))
-for _, dir in ipairs({ root, clean, conflicted }) do vim.fn.delete(dir, "rf") end
+for _, dir in ipairs({ root, clean, panel_root, conflicted }) do vim.fn.delete(dir, "rf") end
 vim.fn.delete(gitconfig)
 
 t.done()

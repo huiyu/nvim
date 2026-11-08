@@ -75,7 +75,17 @@ local function settings()
   return require("ai.review.config").get()
 end
 
-local function notify(msg, level)
+-- The snacks notifier cuts a line off at its width.max (0.4 x 'columns', 62
+-- cells of text at 160) instead of wrapping it, and what to do next sits at
+-- the end of a sentence. So a notice is a list of short lines, a clause each,
+-- with a long path or git's own words on a line of their own. A vim.ui.select
+-- prompt is the snacks picker's one-line title, so it stays one short line and
+-- the reason goes into a notice beside it. tests/review_round_spec.lua pins
+-- both lengths.
+---@param lines string|string[]
+---@param level? integer
+local function notify(lines, level)
+  local msg = type(lines) == "table" and table.concat(lines, "\n") or lines
   vim.notify(msg, level or WARN, { title = "AI review" })
 end
 
@@ -304,7 +314,7 @@ function M.attach_chat(chat)
     chat:add_callback("on_before_submit", function()
       -- Never return false: that would cancel the user's submit.
       local ok, err = pcall(M._before_submit, conversation)
-      if not ok then notify("Review round for a chat failed: " .. tostring(err)) end
+      if not ok then notify({ "Review round for a chat failed:", tostring(err) }) end
     end)
   end
   return entry
@@ -476,7 +486,7 @@ local function run_submit(ev, done)
   if not loc then
     -- Rule 1: outside Git the registry is updated (the caller did) and that
     -- is all.
-    if ev.source == "manual" then notify(("%s; review rounds need a Git worktree"):format(err)) end
+    if ev.source == "manual" then notify({ "Review rounds need a Git worktree:", tostring(err) }) end
     return done()
   end
   local root = loc.toplevel
@@ -499,8 +509,10 @@ local function run_submit(ev, done)
     local late = ev.gave_up ~= nil and ev.gave_up() == true
     done()
     if not tree then
-      return notify(("No review baseline for this %s prompt: %s"):format(SOURCE_LABELS[ev.source] or ev.source,
-        tostring(info)))
+      return notify({
+        ("No review baseline for this %s prompt:"):format(SOURCE_LABELS[ev.source] or ev.source),
+        tostring(info),
+      })
     end
     -- Rule 4: nothing changed since this conversation's last round here.
     local prev = last_round[key]
@@ -523,7 +535,7 @@ local function run_submit(ev, done)
     }, function(entry, save_err)
       if not entry then
         if last_round[key] == claim then last_round[key] = nil end
-        return notify("Could not save the review round: " .. tostring(save_err))
+        return notify({ "Could not save the review round:", tostring(save_err) })
       end
       local round = { tree = tree, root = root, id = entry.id, sha = entry.sha, time = entry.time,
         conversation = ev.conversation, source = ev.source, late = late }
@@ -536,7 +548,7 @@ local function run_submit(ev, done)
     local ok, cb_err = pcall(landed, tree, info)
     if not ok then
       done()
-      notify("Review round failed: " .. tostring(cb_err))
+      notify({ "Review round failed:", tostring(cb_err) })
     end
   end, { priority = true })
 end
@@ -562,7 +574,7 @@ function M.submit(ev)
   local ok, err = pcall(run_submit, ev, done)
   if not ok then
     done()
-    notify("Review round failed: " .. tostring(err))
+    notify({ "Review round failed:", tostring(err) })
   end
 end
 
@@ -594,8 +606,12 @@ function M.native_event(ev)
     local here = M.toplevel(payload.cwd)
     if here ~= entry.root then
       entry.drift_noticed = true
-      notify(("%s is working in %s now; its review rounds are still recorded for %s")
-        :format(agent_label(agent), tilde(here), tilde(entry.root)), INFO)
+      notify({
+        ("%s is working outside its root now:"):format(agent_label(agent)),
+        tilde(here),
+        "Its review rounds are still recorded for:",
+        tilde(entry.root),
+      }, INFO)
     end
   end
   M.submit({
@@ -633,11 +649,12 @@ function M.start(opts)
     force = true,
     on_round = function(round, reused)
       local when = os.date("%H:%M:%S", round.time or os.time())
-      local whose = owner and M.label(owner) or "no conversation yet: delivering feedback asks where it goes"
+      local whose = owner and ("Conversation: " .. M.label(owner))
+        or "No conversation yet: delivering feedback asks where it goes"
       if reused then
-        notify(("Round %s is already the current state (%s)"):format(when, whose), INFO)
+        notify({ ("Round %s is already the current state."):format(when), whose }, INFO)
       else
-        notify(("Review round %s started in %s · %s"):format(when, tilde(root), whose), INFO)
+        notify({ ("Review round %s started"):format(when), "Root: " .. tilde(root), whose }, INFO)
       end
     end,
   })
@@ -719,18 +736,23 @@ end
 -- Rule 3, also for a target chosen in a picker.
 local function deliverable(target, cb)
   if target.kind == "cc" and busy(target.chat) then
-    notify("The chat is replying. Draft kept: deliver again once it is done.")
+    notify({ "The chat is replying.", "Draft kept: deliver again once it is done." })
     return cb(nil, "busy")
   end
   cb(target)
 end
 
 -- Pick one of the live sessions in `root`. The pick itself is the explicit
--- choice; `confirm_with` adds the one confirmation a redirect needs.
+-- choice; `confirm_with` adds the one confirmation a redirect needs, as the
+-- prompt and the choice that says yes.
 local function pick(root, owner, confirm_with, cb)
   local items = M.live_conversations(root)
   if #items == 0 then
-    notify(("No session in %s to deliver to. Start Claude/Codex or open a chat first. Draft kept."):format(tilde(root)))
+    notify({
+      "No session to deliver to.",
+      "Root: " .. tilde(root),
+      "Start Claude/Codex or open a chat there. Draft kept.",
+    })
     return cb(nil, "no-session")
   end
   vim.ui.select(items, {
@@ -741,7 +763,8 @@ local function pick(root, owner, confirm_with, cb)
     if not item then return cb(nil, "cancelled") end
     local target = target_of(item, owner, confirm_with ~= nil)
     if not confirm_with then return deliverable(target, cb) end
-    confirm(confirm_with(target), "Send", function(yes)
+    local prompt, yes_choice = confirm_with(target)
+    confirm(prompt, yes_choice, function(yes)
       if not yes then return cb(nil, "cancelled") end
       deliverable(target, cb)
     end)
@@ -749,22 +772,29 @@ local function pick(root, owner, confirm_with, cb)
 end
 
 -- Rule 4: the owner is gone. Refuse, and -- unless redirect is off -- offer the
--- current sessions of the same root, with one confirmation naming both.
-local function owner_gone(msg, owner, root, cb)
-  notify(msg)
+-- current sessions of the same root, with one confirmation naming both. The
+-- notice's first line says what happened in one short sentence, so it also
+-- heads the offer.
+---@param lines string[]
+local function owner_gone(lines, owner, root, cb)
+  notify(lines)
   if not settings().redirect then return cb(nil, "owner-gone") end
   local offer = "Send to a current session…"
-  vim.ui.select({ offer, "Keep the draft" }, { prompt = msg, kind = "ai_review_redirect" }, function(choice)
+  vim.ui.select({ offer, "Keep the draft" }, { prompt = lines[1], kind = "ai_review_redirect" }, function(choice)
     if choice ~= offer then return cb(nil, "owner-gone") end
     pick(root, owner, function(target)
-      return ("This round belongs to %s (gone). Send it to %s?"):format(M.label(owner), target.label)
+      return ("This round belongs to %s"):format(M.label(owner)), ("Send to %s"):format(target.label)
     end, cb)
   end)
 end
 
 local function refuse_root(there, here, cb)
-  notify(("The target session is in %s, not in %s where this round was taken; refused. Draft kept.")
-    :format(tilde(there), tilde(here)))
+  notify({
+    "Refused: the target session is in another root.",
+    "Session in: " .. tilde(there),
+    "Round taken in: " .. tilde(here),
+    "Draft kept.",
+  })
   cb(nil, "root")
 end
 
@@ -773,10 +803,15 @@ local function resolve_native(agent, session, owner, root, cb)
   local entry = native[agent]
   local label = agent_label(agent)
   if not (entry and terminal_running(entry.buf)) then
-    local how = agent == "codex"
-      and "resume it with <leader>ar (codex resume); Codex cannot report its session before your first prompt, so delivery will ask you to confirm"
-      or ("resume session %s with <leader>ar, then deliver again"):format(short(session))
-    return owner_gone(("%s is not running in this Nvim. Draft kept: %s."):format(label, how), owner, root, cb)
+    local how = agent == "codex" and {
+      "Draft kept: resume it with <leader>ar (codex resume).",
+      "Codex reports its session only at your first prompt;",
+      "until then, delivering asks you to confirm.",
+    } or {
+      ("Draft kept: resume session %s with <leader>ar,"):format(short(session)),
+      "then deliver again.",
+    }
+    return owner_gone({ ("%s is not running in this Nvim."):format(label), unpack(how) }, owner, root, cb)
   end
   -- Rule 1 is about the owner's root, so first ask whether this terminal is
   -- the owner at all. One in another root that runs some other session, or
@@ -785,36 +820,56 @@ local function resolve_native(agent, session, owner, root, cb)
   -- session running elsewhere is a root refusal.
   if entry.root ~= root then
     if entry.session == session then return refuse_root(entry.root, root, cb) end
-    local now = entry.session and ("is in session %s"):format(short(entry.session))
-      or "has not reported its session"
-    local msg = ("%s runs in %s now and %s; this round belongs to session %s, taken in %s."):format(
-      label, tilde(entry.root), now, short(session), tilde(root))
-    return owner_gone(("%s Draft kept: quit it and resume that session with <leader>ar from a file in %s, then deliver again.")
-      :format(msg, tilde(root)), owner, root, cb)
+    return owner_gone({
+      ("%s runs in another root now:"):format(label),
+      tilde(entry.root),
+      entry.session and ("It is in session %s there."):format(short(entry.session))
+        or "It has not reported its session there.",
+      ("This round belongs to session %s, taken in:"):format(short(session)),
+      tilde(root),
+      "Draft kept: quit it, resume that session with <leader>ar",
+      "from a file in the round's root, then deliver again.",
+    }, owner, root, cb)
   end
 
   local item = {
     kind = "native", agent = agent, conversation = owner, buf = entry.buf, root = entry.root,
     label = native_label(entry),
   }
-  local doubt
+  -- `doubt` explains, in a notice; `ask` is the one-line question.
+  local doubt, ask
   if entry.session == nil then
-    doubt = agent == "codex"
-      and "Codex only reports its session at your first prompt, so this delivery cannot be checked against the round's owner."
-      or ("%s has not reported its session, so this delivery cannot be checked against the round's owner."):format(label)
+    doubt = {
+      agent == "codex" and "Codex reports its session only at your first prompt,"
+        or ("%s has not reported its session,"):format(label),
+      "so this delivery cannot be checked against",
+      "the round's conversation.",
+    }
+    ask = ("%s has not reported its session yet. Deliver anyway?"):format(label)
   elseif entry.session ~= session then
-    return owner_gone(("%s is in session %s now; this round belongs to %s. /resume it in the TUI to deliver there. Draft kept.")
-      :format(label, short(entry.session), short(session)), owner, root, cb)
+    return owner_gone({
+      ("%s is in another session now."):format(label),
+      ("It runs session %s;"):format(short(entry.session)),
+      ("this round belongs to session %s."):format(short(session)),
+      "Draft kept: /resume it in the TUI to deliver there.",
+    }, owner, root, cb)
   elseif entry.dirty then
-    doubt = ("You have typed in the %s terminal since it last reported session %s; if that was /new, /resume or /fork, this feedback goes to another conversation.")
-      :format(label, short(session))
+    doubt = {
+      ("You have typed in the %s terminal"):format(label),
+      ("since it last reported session %s."):format(short(session)),
+      "If that was /new, /resume or /fork,",
+      "this feedback goes to another conversation.",
+    }
+    ask = ("%s may be in another conversation. Deliver anyway?"):format(label)
   end
   if doubt then
     if cfg.unknown_session == "refuse" then
-      notify(doubt .. " Refused (unknown_session = \"refuse\"). Draft kept.")
+      doubt[#doubt + 1] = 'Refused (unknown_session = "refuse"). Draft kept.'
+      notify(doubt)
       return cb(nil, "unknown-session")
     end
-    return confirm(doubt .. " Deliver anyway?", "Deliver", function(yes)
+    notify(doubt)
+    return confirm(ask, "Deliver", function(yes)
       if yes then return cb(target_of(item, owner)) end
       cb(nil, "cancelled")
     end)
@@ -833,7 +888,7 @@ local function resolve_chat(nonce, owner, root, cb)
   local entry = nonce == NONCE and chats[owner] or nil
   local chat = chat_alive(entry)
   if not chat then
-    return owner_gone("That chat no longer exists (or belongs to an earlier Nvim). Draft kept.", owner, root, cb)
+    return owner_gone({ "That chat is closed or belongs to an earlier Nvim.", "Draft kept." }, owner, root, cb)
   end
   if entry.root ~= root then return refuse_root(entry.root, root, cb) end
   deliverable(target_of({
@@ -883,7 +938,12 @@ function M.resolve_sink(conversation, root, cb)
   for _, r in ipairs(roots) do
     local this = uv.fs_realpath(r) or r
     if real and this ~= real then
-      notify(("This feedback was written for %s, not %s; refused. Draft kept."):format(tilde(real), tilde(this)))
+      notify({
+        "Refused: this feedback was written for another root.",
+        "Written for: " .. tilde(real),
+        "Here: " .. tilde(this),
+        "Draft kept.",
+      })
       return cb(nil, "root")
     end
     real = this
@@ -895,7 +955,7 @@ function M.resolve_sink(conversation, root, cb)
   if agent == "claude" or agent == "codex" then return resolve_native(agent, session, conversation, real, cb) end
   local nonce = conversation:match("^cc:([^:]+):.+$")
   if nonce then return resolve_chat(nonce, conversation, real, cb) end
-  notify(("Unknown review conversation %q; refused. Draft kept."):format(conversation))
+  notify({ ("Unknown review conversation %q."):format(conversation), "Refused. Draft kept." })
   cb(nil, "unknown")
 end
 
