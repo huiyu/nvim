@@ -893,7 +893,8 @@ for module launch replace `program` with `module`. See the
 
 ### Java
 
-Install JDK 21+ and Mason's `jdtls`, `java-debug-adapter`, and `java-test`.
+Install JDK 25+ (jdtls runs on it; projects may target older releases) and
+Mason's `jdtls`, `java-debug-adapter`, and `java-test`.
 Open the project and wait for jdtls to finish importing. `dc` discovers main
 classes; `df` selects the main class corresponding to the current file.
 An empty static main-class list before discovery is normal. Each project uses

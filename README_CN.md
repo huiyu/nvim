@@ -36,7 +36,7 @@ llama-server --fim-qwen-7b-default                 # 一次性：下载灰色补
 - **Go** — `gopls`、`gofumpt`、`gomodifytags`、`impl`、`delve` 都依赖
 - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
 - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
-- **JDK 17+** — `jdtls`（Java）需要。本配置假设走 [SDKMAN!](https://sdkman.io/)，路径写死在 `~/.sdkman/candidates/java/current`（见 [`lua/lang/java.lua`](lua/lang/java.lua)）
+- **JDK 25+** — 用来运行 `jdtls`（Java）；项目本身仍可面向更早的版本。依次从 `$JAVA_HOME`、[SDKMAN!](https://sdkman.io/)（`~/.sdkman/candidates/java`）、PATH 中查找（见 [`lua/lang/java.lua`](lua/lang/java.lua)）
 - **TeX Live + Skim**（LaTeX）— `brew install --cask mactex-no-gui` 提供 `latexmk`/`latexindent`/`chktex`，`brew install --cask skim` 提供支持 SyncTeX 的 PDF 阅读器；`texlab` 由 Mason 安装。反向跳转需在 Skim → 偏好设置 → Sync 中选 Custom：命令填 `nvim`，参数填 `--headless -c "VimtexInverseSearch %line '%file'"`
 
 如果 Mason 安装失败，运行 `:Mason`（UI）或 `:MasonLog`（原始日志）查看具体错误。最常见的原因是上面这些工具链没装。

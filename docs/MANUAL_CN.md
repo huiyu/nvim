@@ -806,7 +806,8 @@ python -m debugpy --listen 127.0.0.1:5678 --wait-for-client -m pytest tests/test
 
 ### Java
 
-安装 JDK 21+，并在 Mason 中安装 `jdtls`、`java-debug-adapter`、`java-test`。
+安装 JDK 25+（jdtls 运行在它上面；项目本身仍可以面向更早的版本），并在 Mason 中安装
+`jdtls`、`java-debug-adapter`、`java-test`。
 打开项目，等待 jdtls 导入完成。`dc` 动态发现主类，`df` 选择当前文件对应的
 主类；发现前没有静态主类列表是正常的。每个项目使用独立的 jdtls workspace。
 `td`/`tF` 调试最近的方法或第一个发现的测试类；jdtls 附加后也可用 `,dt`/`,dT`。

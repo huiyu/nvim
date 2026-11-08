@@ -16,7 +16,7 @@ local executables = {
   { "node",    "AI ACP adapters, claudecode, markdown-preview, JS run", false },
   { "tmux",    "native AI TUI frame wrapper",                          false },
   { "go",      "go toolchain, ,x runner for Go",                       false },
-  { "java",    "JDK 21+ for jdtls and Java debugging",                 false },
+  { "java",    "JDK 25+ runs jdtls; Java debugging",                   false },
   { "cargo",   "Rust binary and test debugging",                        false },
   { "dart",    "Dart debugging (or use a project FVM SDK)",             false },
   { "flutter", "Flutter debugging (or use a project FVM SDK)",          false },

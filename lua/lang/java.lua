@@ -123,22 +123,45 @@ return {
         -- Lombok
         local lombok_path = jdtls_install .. "/lombok.jar"
 
-        -- Resolve a java binary portably: $JAVA_HOME, then sdkman, then PATH.
+        -- jdtls 1.63+ runs only on Java 25: its OSGi bundles require osgi.ee
+        -- JavaSE 25 and the launcher exits 13 on anything older. Projects
+        -- still build at the release level their build files ask for.
+        local jdtls_java = 25
+
+        -- Major version of a JDK home, read from its `release` file.
+        local function java_major(home)
+          local f = io.open(home .. "/release")
+          if not f then return nil end
+          local major = tonumber(f:read("*a"):match('JAVA_VERSION="(%d+)'))
+          f:close()
+          return major
+        end
+
+        -- The first JDK new enough for jdtls: $JAVA_HOME, sdkman's current,
+        -- the newest other sdkman candidate, then the java on PATH, so a
+        -- default left on an older JDK does not take jdtls down with it.
         local function find_java()
-          local candidates = {}
-          if vim.env.JAVA_HOME and vim.env.JAVA_HOME ~= "" then
-            table.insert(candidates, vim.env.JAVA_HOME .. "/bin/java")
+          local sdkman = vim.fn.expand("~/.sdkman/candidates/java")
+          local homes = { vim.env.JAVA_HOME or "", sdkman .. "/current" }
+          local others = vim.fn.glob(sdkman .. "/*", false, true)
+          table.sort(others, function(a, b) return (java_major(a) or 0) > (java_major(b) or 0) end)
+          vim.list_extend(homes, others)
+          local on_path = vim.fn.exepath("java")
+          if on_path ~= "" then
+            table.insert(homes, vim.fs.dirname(vim.fs.dirname(vim.uv.fs_realpath(on_path) or on_path)))
           end
-          table.insert(candidates, vim.fn.expand("~/.sdkman/candidates/java/current/bin/java"))
-          for _, bin in ipairs(candidates) do
-            if vim.fn.executable(bin) == 1 then return bin end
+          for _, home in ipairs(homes) do
+            if home ~= "" and (java_major(home) or 0) >= jdtls_java
+              and vim.fn.executable(home .. "/bin/java") == 1 then
+              return home .. "/bin/java"
+            end
           end
-          return vim.fn.executable("java") == 1 and vim.fn.exepath("java") or nil
         end
 
         local java_bin = find_java()
         if not java_bin then
-          vim.notify("jdtls: no java found (checked $JAVA_HOME, sdkman, PATH)", vim.log.levels.ERROR)
+          vim.notify(("jdtls needs JDK %d+; none in $JAVA_HOME or ~/.sdkman/candidates/java"):format(jdtls_java),
+            vim.log.levels.ERROR)
           return
         end
 

@@ -429,7 +429,12 @@ breakpoints, variable evaluation and continued output after disconnect.
 
 ### Java
 
-JDK 21+ runs jdtls; Mason installs `jdtls`, `java-debug-adapter`, and `java-test`.
+JDK 25+ runs jdtls: since 1.63 its bundles require Java 25, and on an older
+JDK it exits with code 13 right after starting. `lua/lang/java.lua` takes the
+first JDK 25+ among `$JAVA_HOME`, SDKMAN!'s `current`, the newest other
+SDKMAN! candidate and the `java` on PATH, so the default JDK may stay older;
+projects still build at the release level their build files set. Mason
+installs `jdtls`, `java-debug-adapter`, and `java-test`.
 `<leader>dc` discovers main classes after jdtls attaches. Inspect the live
 `dap.adapters.java` and `dap.providers.configs.jdtls` then. The static Java list
 contains **java: attach to JDWP**; launch main classes are discovered dynamically.

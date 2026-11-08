@@ -4,7 +4,7 @@ local mason = vim.fn.stdpath("data") .. "/mason/packages/"
 if vim.fn.isdirectory(mason .. "jdtls") == 0 or vim.fn.isdirectory(mason .. "java-debug-adapter") == 0
   or vim.fn.isdirectory(mason .. "java-test") == 0
   or vim.fn.executable("java") == 0 then
-  print("SKIP - Java integration needs JDK 21+, jdtls, java-debug-adapter and java-test")
+  print("SKIP - Java integration needs JDK 25+, jdtls, java-debug-adapter and java-test")
   t.done()
   return
 end
