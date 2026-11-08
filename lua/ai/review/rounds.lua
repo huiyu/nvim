@@ -775,7 +775,20 @@ local function resolve_native(agent, session, owner, root, cb)
       or ("resume session %s with <leader>ar, then deliver again"):format(short(session))
     return owner_gone(("%s is not running in this Nvim. Draft kept: %s."):format(label, how), owner, root, cb)
   end
-  if entry.root ~= root then return refuse_root(entry.root, root, cb) end
+  -- Rule 1 is about the owner's root, so first ask whether this terminal is
+  -- the owner at all. One in another root that runs some other session, or
+  -- has not reported one, is the owner gone (rule 4): the redirect lists this
+  -- root's sessions only, so it cannot bypass rule 1. Only the owner's own
+  -- session running elsewhere is a root refusal.
+  if entry.root ~= root then
+    if entry.session == session then return refuse_root(entry.root, root, cb) end
+    local now = entry.session and ("is in session %s"):format(short(entry.session))
+      or "has not reported its session"
+    local msg = ("%s runs in %s now and %s; this round belongs to session %s, taken in %s."):format(
+      label, tilde(entry.root), now, short(session), tilde(root))
+    return owner_gone(("%s Draft kept: quit it and resume that session with <leader>ar from a file in %s, then deliver again.")
+      :format(msg, tilde(root)), owner, root, cb)
+  end
 
   local item = {
     kind = "native", agent = agent, conversation = owner, buf = entry.buf, root = entry.root,
@@ -850,6 +863,10 @@ end
 ---  3. not busy: a chat in mid-turn is refused.
 ---  4. an owner that is gone is refused, with an offer (redirect = true) to
 ---     pick a current session of the same root and confirm the change once.
+---     A native owner is gone when its agent is not running, or runs another
+---     session -- also from another root, where a terminal that has not
+---     reported its session counts as another one; rule 1 refuses only the
+---     owner's own session in another root.
 ---
 ---With no owner the same-root picker opens at once. `cb(target)` or
 ---`cb(nil, reason)`; asynchronous whenever anything is asked.

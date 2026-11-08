@@ -561,6 +561,51 @@ t.ok(notes[1] and notes[1].msg:find("not running", 1, true) and notes[1].msg:fin
   "telling how to resume Codex")
 native.codex = saved_codex
 
+-- The owner's agent relaunched in another root. Whether that terminal still
+-- runs the owner is asked first: another session there, or one not reported
+-- yet, is the owner gone (with the same-root offer); only the owner's own
+-- session there is a root refusal.
+local function not_listed(agent)
+  for _, item in ipairs(selects[2] and selects[2].items or {}) do
+    if item.agent == agent then return false end
+  end
+  return selects[2] ~= nil
+end
+local claude_was = { root = native.claude.root, session = native.claude.session }
+native.claude.root, native.claude.session = R2, "b2"
+target, reason = resolve("claude:s1", R1, choose("Keep the draft"))
+t.ok(target == nil and reason == "owner-gone", "owner's agent now in another root and another session: the owner is gone")
+t.eq(kinds(), { "ai_review_redirect" }, "so the redirect is offered, not a root refusal")
+t.ok(notes[1] and notes[1].msg:find(vim.fn.fnamemodify(R2, ":~"), 1, true) ~= nil
+  and notes[1].msg:find("session b2", 1, true) ~= nil and notes[1].msg:find("<leader>ar", 1, true) ~= nil,
+  "saying where and in which session the agent runs now, and how to get the owner back")
+target = resolve("claude:s1", R1, choose("current session"), choose("Codex"), choose("Send"))
+t.eq(kinds(), { "ai_review_redirect", "ai_review_target", "ai_review_confirm" }, "redirect: offer, pick, confirm")
+t.ok(not_listed("claude"), "the picker lists this root's sessions, not the panel in the other root")
+t.ok(target and target.agent == "codex" and target.root == R1 and target.redirected == true,
+  "confirmed: delivered to this root's Codex, marked redirected")
+native.claude.session = nil
+target, reason = resolve("claude:s1", R1, choose("Keep the draft"))
+t.ok(target == nil and reason == "owner-gone" and kinds()[1] == "ai_review_redirect",
+  "in another root with its session not reported yet: the owner is gone too, with the offer")
+t.ok(notes[1] and notes[1].msg:find("has not reported its session", 1, true) ~= nil, "saying so")
+native.claude.session = "s1"
+target, reason = resolve("claude:s1", R1)
+t.ok(target == nil and reason == "root" and #selects == 0, "the owner's own session in another root: refused, nothing offered")
+native.claude.dirty = true
+target, reason = resolve("claude:s1", R1)
+t.ok(target == nil and reason == "root" and #selects == 0, "also when it was typed into since it said so")
+native.claude.dirty = false
+native.claude.root, native.claude.session = claude_was.root, claude_was.session
+
+local codex_was = { root = native.codex.root, session = native.codex.session }
+native.codex.root, native.codex.session = R2, nil
+target, reason = resolve("codex:c1", R1, choose("current session"), choose("Claude Code · session"), choose("Send"))
+t.ok(selects[1] and selects[1].kind == "ai_review_redirect" and not_listed("codex"),
+  "a Codex panel relaunched in another root before its first prompt: the owner is gone, with the offer")
+t.ok(target and target.agent == "claude" and target.redirected == true, "and the redirect delivers to this root's Claude")
+native.codex.root, native.codex.session = codex_was.root, codex_was.session
+
 -- Chats.
 target = resolve(http_conv, R1)
 t.ok(target and target.kind == "cc" and target.chat == http and #selects == 0, "an open chat of this process: delivered")
