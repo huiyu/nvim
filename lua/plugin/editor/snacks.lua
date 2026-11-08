@@ -280,9 +280,17 @@ return {
     -- No tree sidebar: directories are browsed and edited through oil (`-`,
     -- `;o`, lua/plugin/editor/oil.lua) and files are reached through the
     -- pickers above.
-    -- Notifications are handled by noice (snacks notifier is disabled), so these
-    -- route to it. require("noice") loads the plugin on demand, like noice's own maps.
-    { "<leader>un", function() require("noice").cmd("dismiss") end, desc = "Dismiss notifications" },
+    { "<leader>un", function() Snacks.notifier.hide() end, desc = "Dismiss notifications" },
+
+    -- ── Messages (<leader>mn) ───────────────────────────────────────────
+    -- Two histories: vim.notify goes to the snacks notifier and its own
+    -- history, while Vim's messages (:echo, errors) stay in :messages, which
+    -- ui2 (lua/options.lua) shows in its pager.
+    { "<leader>mnh", function() Snacks.notifier.show_history() end,  desc = "Notification history" },
+    { "<leader>mnt", function() Snacks.picker.notifications() end,   desc = "Search notifications" },
+    { "<leader>mnd", function() Snacks.notifier.hide() end,          desc = "Dismiss notifications" },
+    { "<leader>mnl", "g<",                                           desc = "Last command output" },
+    { "<leader>mna", "<Cmd>messages<CR>",                            desc = "Message history" },
     {
       "<leader>gg",
       function()
@@ -310,7 +318,10 @@ return {
       enabled = true,
       backend = "kitty",
     },
-    notifier = { enabled = false },
+    -- Only with a UI attached. Enabled, it takes over vim.notify as soon as
+    -- snacks is set up, and in --headless that would swallow every warning
+    -- and error the specs and the startup check rely on seeing on stderr.
+    notifier = { enabled = #vim.api.nvim_list_uis() > 0 },
     indent = { enabled = true },
     scroll = { enabled = true },
     picker = {

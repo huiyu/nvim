@@ -379,9 +379,9 @@ local cwd = require("util.cwd")
 -- was fine.
 cwd.recover()
 
--- Startup entry: recover, and notify the report once noice is up (VeryLazy).
--- At init time vim.notify is the builtin echo, which the dashboard's first
--- draw wipes.
+-- Startup entry: recover, and notify the report after VeryLazy, once the
+-- snacks notifier is in place. At init time vim.notify is the builtin echo,
+-- which the dashboard's first draw wipes.
 cwd.setup()
 ```
 

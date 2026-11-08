@@ -83,4 +83,21 @@ t.eq(vim.api.nvim_get_current_buf(), current, "UC-17: no sessions opens no buffe
 local ok = pcall(view.pick)
 t.ok(ok, "UC-12: pick() does not raise when there are no sessions")
 
+-- q in the only layout window, with floats around. ui2 (lua/options.lua) keeps
+-- hidden cmd/msg/pager/dialog floats in the current tabpage, so counting every
+-- window made q try to close the last real one and fail with E444. Headless
+-- never enables ui2, so a hidden float stands in for its windows.
+stub({ { id = "s1", path = "/tmp/fixture-a.jsonl", mtime = 2, title = "Newest" } }, entries)
+view.open_current()
+local transcript = vim.api.nvim_get_current_buf()
+vim.cmd("silent! tabonly")
+local float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+  relative = "editor", row = 0, col = 0, width = 1, height = 1, hide = true, focusable = false,
+})
+local closed, close_err = pcall(vim.fn.maparg("q", "n", false, true).callback)
+t.ok(closed, "q in the only real window does not raise" .. (closed and "" or (": " .. tostring(close_err))))
+t.eq(vim.api.nvim_buf_is_valid(transcript), false, "q wipes the transcript when no other layout window is left")
+t.eq(vim.api.nvim_win_is_valid(float), true, "q leaves floats alone")
+vim.api.nvim_win_close(float, true)
+
 t.done()

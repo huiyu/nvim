@@ -67,4 +67,61 @@ t.eq(mapping(";s").desc, "[LSP] Symbol in buffer", ";s stays a fuzzy picker")
 t.eq(mapping(";S").desc, "[LSP] Symbol in workspace", ";S stays a fuzzy picker")
 t.eq(mapping(";c"), {}, ";c moved to gC: incoming calls needs a symbol to start from")
 
+-- K is silent. Hovering a blank line is routine; noice used to filter out the
+-- "No information available" notice it raises, and K now asks hover() not to
+-- raise it. The unsilenced call first proves the server answers at that spot,
+-- so the silence below is not just a slow server.
+local notified = {}
+local real_notify = vim.notify
+vim.notify = function(msg) notified[#notified + 1] = tostring(msg) end
+local blank
+for i, line in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+  if line == "" then blank = i; break end
+end
+vim.api.nvim_win_set_cursor(0, { blank, 0 })
+-- Until its workspace is loaded, lua_ls answers every hover with a "Workspace
+-- loading" document, which would open a popup instead.
+local hover_params = vim.lsp.util.make_position_params(0, "utf-16")
+for _ = 1, 60 do
+  local replies = vim.lsp.buf_request_sync(0, "textDocument/hover", hover_params, 2000) or {}
+  local reply = select(2, next(replies))
+  if reply and reply.result == nil and reply.err == nil then break end
+  vim.wait(500)
+end
+vim.lsp.buf.hover()
+local answered = vim.wait(10000, function() return #notified > 0 end, 50)
+t.ok(answered and notified[1] == "No information available",
+  "an unsilenced hover on a blank line reports that it found nothing")
+notified = {}
+mapping("K").callback()
+vim.wait(2000, function() return #notified > 0 end, 50)
+t.eq(notified, {}, "K on a blank line raises no notification")
+vim.notify = real_notify
+
+-- <C-f>/<C-b> scroll an open hover from the code window (noice did this
+-- before); with no popup they stay a page scroll. A plain float stands in for
+-- the hover: the maps only look for the window open_floating_preview records.
+local scroll_f, scroll_b = mapping("<C-f>"), mapping("<C-b>")
+t.eq(scroll_f.desc, "[LSP] Scroll hover / page", "<C-f> is the hover/page scroll")
+t.eq(scroll_f.buffer, 1, "<C-f> is buffer-local, so plain buffers keep the builtin")
+t.eq(scroll_f.callback(), "<C-f>", "<C-f> without a popup is the usual page scroll")
+local doc = vim.api.nvim_create_buf(false, true)
+local doc_lines = {}
+for i = 1, 60 do doc_lines[i] = "line " .. i end
+vim.api.nvim_buf_set_lines(doc, 0, -1, false, doc_lines)
+local popup = vim.api.nvim_open_win(doc, false,
+  { relative = "cursor", row = 1, col = 0, width = 20, height = 5 })
+vim.b.lsp_floating_preview = popup
+local code_win, code_top = vim.api.nvim_get_current_win(), vim.fn.line("w0")
+local function topline() return vim.fn.getwininfo(popup)[1].topline end
+t.eq(scroll_f.callback(), "", "<C-f> with a popup open consumes the key")
+t.ok(vim.wait(2000, function() return topline() > 1 end, 20), "<C-f> scrolls the popup down")
+local scrolled = topline()
+t.eq(scroll_b.callback(), "", "<C-b> with a popup open consumes the key")
+t.ok(vim.wait(2000, function() return topline() < scrolled end, 20), "<C-b> scrolls the popup back up")
+t.eq(vim.api.nvim_get_current_win(), code_win, "focus stays in the code window")
+t.eq(vim.fn.line("w0"), code_top, "the code window itself does not scroll")
+vim.api.nvim_win_close(popup, true)
+t.eq(scroll_b.callback(), "<C-b>", "<C-b> after the popup closed is a page scroll again")
+
 t.done()

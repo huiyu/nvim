@@ -24,11 +24,11 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | No completion | `:checkhealth blink.cmp` · verify LSP attached (`:checkhealth vim.lsp`) |
 | No / wrong highlight | `:checkhealth nvim-treesitter` · `:InspectTree` · `:Inspect` |
 | Formatting does nothing | `:ConformInfo` · then `:checkhealth conform` |
-| CodeCompanion Chat fails | `:checkhealth config` · `:CodeCompanionChat` · `:messages` |
+| CodeCompanion Chat fails | `:checkhealth config` · `:CodeCompanionChat` · `<leader>mnh` (notification history) |
 | No grey AI suggestions | `:checkhealth config` (inline completion) · `~/.local/state/nvim/llama/server.log` |
-| GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `:messages` |
+| GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `<leader>mnh` (notification history) |
 | Mason tool missing | `:Mason` (`<leader>mm`) · `:checkhealth mason` |
-| Error flashed by | `:messages` · `:Noice errors` |
+| Error flashed by | `:messages` / `g<` (Vim's own messages) · `<leader>mnh` (plugin notifications) |
 | "Where did this keymap/option come from?" | `:verbose map <lhs>` · `:verbose set <opt>?` |
 | Config won't load cleanly | headless self-check (below) |
 
@@ -127,7 +127,7 @@ uses more server memory, and references become available when loading finishes.
 Preloading runs once per LSP client. After adding/removing projects, use
 `<leader>mr` to restart the server and rescan. After editing the Neovim configuration
 itself, restart Neovim first so the new callback is installed. A preload failure
-is reported in `:messages`. Projects outside those workspace roots, ignored
+is a notification (`<leader>mnh`). Projects outside those workspace roots, ignored
 configs, and configs with custom names are not automatically discovered.
 `gC` queries incoming calls, which still has tsserver project-scope limitations;
 preloading does not make it equivalent to Find References.
@@ -674,12 +674,33 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   `;D` resolve a local directory with `util.cwd.buffer_dir()`: the file's parent,
   the displayed Oil directory, or the current window/tab cwd for terminals and
   other virtual buffers. Restart Nvim after updating to replace the old mappings.
-- `:messages` — message history
-- `:Noice` / `:Noice errors` — noice handles notifications (the snacks notifier
-  is disabled); `<leader>mnh` opens history, `<leader>un` dismisses
-- The exact informational notification `No information available` is hidden;
-  warnings, errors and other messages remain visible. LSP hover/signature
-  documentation has a border (`lsp_doc_border` in `lua/plugin/ui/noice.lua`).
+- **Where a message went** — two places, not one. Vim's own messages (`:echo`,
+  errors such as `E492`, Lua tracebacks) are in `:messages` (`<leader>mna`);
+  `g<` (`<leader>mnl`) reopens the last command's output. Both show in ui2's
+  pager window, where `q` closes. Anything sent through `vim.notify` --
+  plugins, LSP `window/showMessage`, this config's own warnings -- goes to the
+  snacks notifier instead and is only in its history: `<leader>mnh`, or
+  `<leader>mnt` to search it. `<leader>un` / `<leader>mnd` dismiss. Under
+  `--headless` neither ui2 nor the notifier is enabled, so `vim.notify` prints
+  to stderr as usual.
+- **A message shows only its first line, with `[+N]`** — ui2 collapses output
+  taller than 'cmdheight'. Press `g<` to read it in full. A multi-line error is
+  not expanded at all, so its traceback is only reachable through `g<` or
+  `:messages`.
+- **ui2 itself misbehaves** (a stuck message window, a cmdline drawn in the
+  wrong place) — it is experimental. `:lua require("vim._core.ui2").enable({ enable = false })`
+  switches the running Nvim back to the legacy message grid; to keep it off,
+  remove the `ui2.enable` call in `lua/options.lua`. If a future Nvim
+  moves the module, that call is skipped (it is pcall'd) and the legacy UI
+  comes back on its own.
+- `K` on whitespace or a keyword stays quiet: hover runs with `silent = true`
+  (`lua/plugin/lsp/lsp.lua`), which drops both "No information available" and
+  "Empty hover response". The hover and `gK` popups have a rounded border, and
+  `<C-f>` / `<C-b>` scroll them from the code window. Signature help while
+  typing is blink.cmp's (`signature` in `lua/plugin/lsp/cmp.lua`).
+- LSP progress (indexing, workspace loading) is a spinner next to the server's
+  name in the statusline (lualine's `lsp_status`); there is no progress
+  message any more.
 - **Color previews are missing** — `:ColorizerAttachToBuffer` reattaches the
   current buffer; `:ColorizerToggle` toggles previews. Hex/RGB/HSL and CSS
   variable references are enabled; variable definitions must be in the same

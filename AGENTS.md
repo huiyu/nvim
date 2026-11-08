@@ -192,7 +192,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `fallback_section` in the same data file. Even one remaining key gets this
   heading, so it never appears to belong to the preceding section. Explicit
   sections need at least two keys; do not invent a separate section for a
-  group row such as `+Noice` or `+CodeCompanion` -- it can fall under `others`.
+  group row such as `+Messages` or `+CodeCompanion` -- it can fall under `others`.
   Context sections are the exception: even one filetype action needs its own
   heading. Optional `filetype` (list) and `buftype` filters select the section;
   `labels` names implicit subgroups without creating global placeholder keys.
@@ -233,6 +233,14 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `VimEnter`, and assert description-only entries against `whichkey_spec`.
 - Window commands should normally affect the current tab only. Be deliberate
   before using global APIs such as `nvim_list_wins()`.
+- Messages and the cmdline come from Nvim's experimental ui2
+  (`lua/options.lua`), not a plugin. It keeps four floats (cmd, msg, pager,
+  dialog) in whichever tabpage is current, so a "last window here?" check must
+  count non-floating windows only; counting `nvim_tabpage_list_wins()` made the
+  transcript's `q` fail with E444. vim.notify goes to the snacks notifier.
+  Both stay off without a UI, so `--headless` keeps plain stderr messages and
+  the specs never exercise them: check message, cmdline and float changes in
+  a real UI as well.
 - Neovim's built-in `gc`/`gcc` commenting is the default; do not reintroduce a
   comment plugin without a concrete missing capability.
 - Add or remove plugins through lazy.nvim specs and include the resulting

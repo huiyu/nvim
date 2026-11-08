@@ -137,8 +137,25 @@ return {
           -- declaration and same-named strings. Needs callHierarchyProvider:
           -- clangd, gopls, vtsls and basedpyright have it; lua_ls does not.
           map("gC",  function() Snacks.picker.lsp_incoming_calls() end,       "[LSP] Incoming calls")
-          map("K",   function() vim.lsp.buf.hover() end,                      "[LSP] Hover")
-          map("gK",  function() vim.lsp.buf.signature_help() end,             "[LSP] Signature Help")
+          -- silent: hovering whitespace or a keyword is routine, and the "No
+          -- information available" notice it would raise every time says nothing.
+          map("K",   function() vim.lsp.buf.hover({ border = "rounded", silent = true }) end, "[LSP] Hover")
+          map("gK",  function() vim.lsp.buf.signature_help({ border = "rounded" }) end,    "[LSP] Signature Help")
+          -- Scroll an open K / gK popup without entering it (KK enters it).
+          -- With no popup open, the key keeps its usual page scroll, count
+          -- included. The scroll itself is scheduled: an <expr> map runs under
+          -- textlock, which forbids even a temporary switch into the float.
+          for lhs, keys in pairs({ ["<C-f>"] = "4\5", ["<C-b>"] = "4\25" }) do
+            vim.keymap.set("n", lhs, function()
+              local float = vim.b.lsp_floating_preview
+              if not (float and vim.api.nvim_win_is_valid(float)) then return lhs end
+              vim.schedule(function()
+                if not vim.api.nvim_win_is_valid(float) then return end
+                vim.api.nvim_win_call(float, function() vim.cmd.normal({ keys, bang = true }) end)
+              end)
+              return ""
+            end, { buffer = buf, expr = true, desc = "[LSP] Scroll hover / page" })
+          end
           map(",a", function() vim.lsp.buf.code_action() end, "[LSP] Code action", { "n", "v" })
           -- Replaces the grx that nowait above makes unreachable. gopls defines
           -- real lenses here (generate, test, tidy, govulncheck; see lang/go.lua).

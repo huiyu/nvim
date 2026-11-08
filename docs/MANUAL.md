@@ -558,7 +558,7 @@ is open beside your code.
 | `<Space>x` | Diagnostics | error list, quickfix, location list |
 | `<Space>a` | AI | Claude / Codex panels, prompts, transcript |
 | `<Space>b` | Buffer | delete, pin, close others |
-| `<Space>m` | Manage | config, plugin source, help, man, keymaps, Lazy, Mason, LSP status |
+| `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
 | `<Space>y` | Yank | copy file path, yank history, registers |
 | `<Space>u` | Toggle/UI | wrap, spell, diagnostics, colorscheme |
@@ -573,6 +573,25 @@ is open beside your code.
 | `<Space>mF` | Find source files in the lazy.nvim plugin installation directory |
 
 These live under Manage because they maintain the editor itself.
+
+### Messages and notifications
+
+Messages appear in the command-line row, and nothing waits for **Enter**.
+Output taller than that row opens above it until the next key, then shrinks
+back to its first line, marked `[+N]` for the lines it hides; a long error
+shows only its first line from the start. Press **Enter** right after a command
+to read its output in a pager instead; `q` closes the pager. Notifications from plugins pop up at the top right and fade on their own.
+
+| Key | Does |
+|---|---|
+| `g<` / `<Space>mnl` | The last command's output again, in the pager |
+| `:messages` / `<Space>mna` | Message history: echoes and errors |
+| `<Space>mnh` | Notification history |
+| `<Space>mnt` | Search notifications in a picker |
+| `<Space>mnd` / `<Space>un` | Dismiss the notifications on screen |
+
+The two histories are separate. An error from Vim itself is in `:messages`; a
+plugin's notification is only in the notification history.
 
 ---
 
@@ -589,8 +608,10 @@ gC  who calls this?
 ]]  next place this symbol appears in the file
 ```
 
-`K` shows documentation for whatever is under the cursor. `gr` lists every
-reference.
+`K` shows documentation for whatever is under the cursor. `Ctrl-f` / `Ctrl-b`
+scroll that popup while the cursor stays in the code; `KK` moves into it. `gr`
+lists every reference. While you type a call, the parameter list appears above
+it on its own.
 
 ### The edit loop
 

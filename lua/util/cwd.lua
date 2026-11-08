@@ -81,9 +81,10 @@ function M.setup()
   if not report then return end
 
   -- At init time vim.notify is the builtin echo, and the dashboard's first
-  -- draw wipes the command line. noice takes over on VeryLazy; this handler is
-  -- registered before lazy's, so the notify is scheduled past the whole
-  -- VeryLazy chain rather than fired inside it.
+  -- draw wipes the command line. The snacks notifier, which keeps the report
+  -- on screen and in its history, is in place once lazy has set snacks up;
+  -- this handler is registered before lazy's, so the notify is scheduled past
+  -- the whole VeryLazy chain rather than fired inside it.
   vim.api.nvim_create_autocmd("User", {
     pattern = "VeryLazy",
     once = true,

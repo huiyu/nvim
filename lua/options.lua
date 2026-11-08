@@ -69,6 +69,22 @@ for k, v in pairs(options) do
   vim.opt[k] = v
 end
 
+-- Messages and the command line: Nvim's own ui2 instead of the legacy message
+-- grid. No "Press ENTER" prompt; output taller than 'cmdheight' collapses to a
+-- `[+N]` marker, and `g<` / `:messages` open it in a pager window (q closes).
+-- Default routing keeps messages in the cmdline row, as before ui2.
+--
+-- Experimental, and reached through an internal module path, hence the pcall:
+-- if a later Nvim moves it, startup falls back to the legacy UI instead of
+-- failing. enable() returns early when no UI is attached, so --headless runs
+-- (the specs, the startup check) keep plain stdout/stderr messages.
+--
+-- ui2 keeps its four floats (cmd, msg, pager, dialog) in whichever tabpage is
+-- current, so nvim_tabpage_list_wins() never returns just the layout: a "last
+-- window?" check must count non-floating windows only.
+local has_ui2, ui2 = pcall(require, "vim._core.ui2")
+if has_ui2 then ui2.enable({}) end
+
 -- Disable netrw
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1

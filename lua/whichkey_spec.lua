@@ -21,7 +21,8 @@ local hidden = {
 local spec = {
   -- Which-key group labels
   -- Manage covers the editor itself: config/plugin files, help, man, keymaps,
-  -- commands, Noice history, Lazy, Mason, and LSP status/restart.
+  -- commands, message and notification history, Lazy, Mason, and LSP
+  -- status/restart.
   { "<leader>m",     group = "Manage",          mode = { "n", "v" } },
   -- `,` is the twin of `;`: where `;` answers "which file do I want to be in?",
   -- `,` answers "what can I do in this file or view?" -- general editing,
@@ -49,7 +50,7 @@ local spec = {
   -- things depending on mode -- a file path in Normal, the selection in Visual
   -- -- which read as one key with two meanings rather than a group.
   { "<leader>y",     group = "Yank",            mode = { "n", "v" } },
-  { "<leader>mn",    group = "Noice" },
+  { "<leader>mn",    group = "Messages" },
   { "<leader><tab>", group = "Tab" },
   -- Nvim 0.11's own LSP prefix, left unmodified. It is only reachable where no
   -- client is attached, though: in an LSP buffer the buffer-local `gr`
@@ -196,7 +197,7 @@ local spec = {
       "  mC / mc          Commands / Command history",
       "  ml / mm          Lazy / Mason",
       "  mi / mr          LSP info / LSP restart",
-      "  mn*              Noice history & messages",
+      "  mn*              Messages & notification history",
       "",
       "  ── <leader>s — sessions ─────────────────",
       -- Spelled out: bare `ss` is the window split two sections below.
@@ -487,7 +488,7 @@ local sections = {
     -- Runtime state and the two things you reach for when it goes wrong.
     { "runtime",  icon = "󰗟 ", color = "azure",  keys = { "i", "r", "d" } },
     { "help",     icon = "󰉹 ", color = "green",  keys = { "h", "k", "M", "C", "c" } },
-    -- `n` (+Noice) goes under others; see <leader>a above.
+    -- `n` (+Messages) goes under others; see <leader>a above.
   },
 
   ["<leader>b"] = {

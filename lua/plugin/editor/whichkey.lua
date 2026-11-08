@@ -217,8 +217,8 @@ return {
     -- Section first, then groups (+xxx) within a section.
     --
     -- The order of these two matters. With groups first, an undeclared group
-    -- row jumps ahead of every section -- `<leader>m` put a bare "+Noice" above
-    -- the "config" heading, which reads as a stray entry rather than the
+    -- row jumps ahead of every section -- `<leader>m` put a bare "+Messages"
+    -- above the "config" heading, which reads as a stray entry rather than the
     -- uncategorised tail it is. Sectioning first keeps every heading and its
     -- rows together and leaves undeclared keys, groups included, at the end.
     --

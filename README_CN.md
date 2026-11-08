@@ -97,10 +97,9 @@ nvim
 | 插件 | 说明 |
 |------|------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识 |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识和当前 buffer 的语言服务器（忙碌时显示转圈） |
 | [incline](https://github.com/b0o/incline.nvim) | 文件窗口右上角的文件名标签；当前窗口显示粉色，`[+]` 表示未保存的修改 |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择） |
-| [noice](https://github.com/folke/noice.nvim) | 增强命令行和消息；LSP 文档带边框，过滤无内容的悬浮提示通知 |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | 粘性函数/类头（`<leader>uC`） |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
@@ -111,13 +110,17 @@ nvim
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL、CSS 变量颜色预览；前端文件支持 Tailwind 颜色 |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染（`,m`） |
 
+命令行和消息用的是 Neovim 自带的 ui2（实验性功能，见 `:help ui2`）：不再出现
+"Press ENTER" 提示；放不下的输出收起为 `[+N]`，用 `g<` 或 `:messages` 在分页
+窗口中查看（`q` 关闭）。通知由下面的 snacks 负责。
+
 #### 编辑器
 
 | 插件 | 说明 |
 |------|------|
 | [flash](https://github.com/folke/flash.nvim) | 快速跳转导航 |
 | [which-key](https://github.com/folke/which-key.nvim) | 键位提示弹窗 |
-| [snacks](https://github.com/folke/snacks.nvim) | Picker、启动页、终端、缩进线、平滑滚动、重命名、专注模式（`sz`） |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker、启动页、终端、通知（历史 `<leader>mnh`）、缩进线、平滑滚动、重命名、专注模式（`sz`） |
 | [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | 钉住的文件快速跳转（`;1`-`;9`，`;h` 打开列表） |
@@ -139,7 +142,7 @@ nvim
 |------|------|
 | [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | LSP 配置 |
 | [mason](https://github.com/mason-org/mason.nvim) | LSP/DAP/Linter/Formatter 安装管理 |
-| [blink.cmp](https://github.com/saghen/blink.cmp) | 补全引擎，含 [friendly-snippets](https://github.com/rafamadriz/friendly-snippets) |
+| [blink.cmp](https://github.com/saghen/blink.cmp) | 补全引擎，含 [friendly-snippets](https://github.com/rafamadriz/friendly-snippets)；输入函数调用时显示参数提示 |
 | [conform](https://github.com/stevearc/conform.nvim) | 代码格式化（支持自动格式化开关） |
 | [nvim-lint](https://github.com/mfussenegger/nvim-lint) | 代码检查 |
 | [nvim-dap](https://github.com/mfussenegger/nvim-dap) | 调试适配器协议 |

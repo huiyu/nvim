@@ -51,6 +51,11 @@ return {
 				},
 			},
 			lualine_x = {
+				-- Language servers attached to this buffer, with a spinner while
+				-- one reports progress (indexing, loading the workspace). Idle
+				-- servers show their name only; the default "done" check mark
+				-- would stay on screen for good after the first progress report.
+				{ "lsp_status", symbols = { done = "" } },
 				{
 					"diagnostics",
 					sources = { "nvim_diagnostic" },

@@ -20,6 +20,10 @@ return {
       appearance = {
         nerd_font_variant = "mono",
       },
+      -- Signature help while typing a call: opens on the server's trigger
+      -- characters (`(`, `,`) and follows the active parameter. `gK` still
+      -- asks for it on demand in Normal mode.
+      signature = { enabled = true, window = { border = "rounded" } },
       completion = {
         documentation = { auto_show = true, auto_show_delay_ms = 200 },
         menu = {

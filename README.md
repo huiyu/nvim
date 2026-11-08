@@ -102,10 +102,9 @@ nvim
 | Plugin | Description |
 |--------|-------------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator and the buffer's language servers (a spinner while one is busy) |
 | [incline](https://github.com/b0o/incline.nvim) | Top-right filename labels in file windows; pink for the focused window, `[+]` for unsaved changes |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick |
-| [noice](https://github.com/folke/noice.nvim) | Enhanced cmdline/messages; bordered LSP docs and quiet empty-hover notifications |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | Sticky function/class header (`<leader>uC`) |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
@@ -116,13 +115,18 @@ nvim
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL and CSS variable previews; Tailwind colors in frontend files |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering (`,m`) |
 
+The command line and messages are Neovim's own ui2 (experimental, `:help ui2`):
+no "Press ENTER" prompt; output that does not fit collapses to `[+N]`, and
+`g<` or `:messages` opens it in a pager (`q` closes). Notifications come from
+snacks below.
+
 #### Editor
 
 | Plugin | Description |
 |--------|-------------|
 | [flash](https://github.com/folke/flash.nvim) | Fast navigation with labels |
 | [which-key](https://github.com/folke/which-key.nvim) | Keybinding help popup |
-| [snacks](https://github.com/folke/snacks.nvim) | Picker, dashboard, terminal, indent guides, smooth scroll, rename, zen mode (`sz`) |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker, dashboard, terminal, notifications (history `<leader>mnh`), indent guides, smooth scroll, rename, zen mode (`sz`) |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | Pinned-file jumps (`;1`-`;9`, `;h` menu) |
@@ -144,7 +148,7 @@ nvim
 |--------|-------------|
 | [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | LSP configuration |
 | [mason](https://github.com/mason-org/mason.nvim) | LSP/DAP/linter/formatter installer |
-| [blink.cmp](https://github.com/saghen/blink.cmp) | Completion engine with [friendly-snippets](https://github.com/rafamadriz/friendly-snippets) |
+| [blink.cmp](https://github.com/saghen/blink.cmp) | Completion engine with [friendly-snippets](https://github.com/rafamadriz/friendly-snippets); signature help while typing a call |
 | [conform](https://github.com/stevearc/conform.nvim) | Code formatting (with autoformat toggle) |
 | [nvim-lint](https://github.com/mfussenegger/nvim-lint) | Linting |
 | [nvim-dap](https://github.com/mfussenegger/nvim-dap) | Debug Adapter Protocol |
