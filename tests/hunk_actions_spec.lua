@@ -369,6 +369,31 @@ vim.fn.writefile(working, root .. "/f.txt")
 vim.cmd.checktime(buf)
 t.ok(caught_up(right, 11), "the view catches up with the restored file")
 
+-- (b) once more, right before the write: an agent's write that lands while
+-- guard_fresh runs its git calls (here, during `git check-attr`) survives.
+do
+  local late = vim.deepcopy(working)
+  late[#late] = "f line 20 AGENT LATE"
+  local real_system, landed = vim.system, false
+  vim.system = function(cmd, ...)
+    if type(cmd) == "table" and vim.tbl_contains(cmd, "check-attr") then
+      vim.system, landed = real_system, true
+      vim.fn.writefile(late, root .. "/f.txt")
+    end
+    return real_system(cmd, ...)
+  end
+  notices = {}
+  press(right, 11, ",X")
+  vim.system = real_system
+  t.ok(landed, "(the agent's write landed during the check)")
+  t.ok(said("f.txt changed on disk since it was displayed") ~= nil,
+    ",X refuses when the disk moved while it checked " .. heard())
+  t.eq(disk(), late, "and the agent's write is not overwritten")
+  vim.fn.writefile(working, root .. "/f.txt")
+  vim.cmd.checktime(buf)
+  t.ok(caught_up(right, 11), "the view catches up with the restored file")
+end
+
 -- The same bytes written again (only the mtime moves) are no reason to
 -- refuse, and :write must not stop to ask whether to overwrite them.
 settle(20)
@@ -401,6 +426,65 @@ t.eq(index(), base, "or staged")
 vim.api.nvim_buf_set_lines(buf, 0, 1, false, {})
 vim.api.nvim_buf_call(buf, function() vim.cmd("silent noautocmd write") end)
 t.ok(caught_up(right, 11), "the view catches up once more")
+
+---------------------------------------------------------------------------
+-- A stage that runs later still stages only the lines the key was pressed on
+---------------------------------------------------------------------------
+
+-- The agent rewrites the line and the buffer reloads (as CodeDiff's refresh
+-- or the CursorHold :checktime would) while the stage is on its way. Buffer
+-- and disk agree again by then; the lines are not the ones on screen.
+do
+  local rewritten = vim.deepcopy(working)
+  rewritten[11] = "AGENT INSERT v2, never displayed"
+  local function reload_with(lines)
+    vim.fn.writefile(lines, root .. "/f.txt")
+    vim.cmd.checktime(buf)
+  end
+  local function refused_later()
+    return vim.wait(5000, function() return said("f.txt changed while staging; nothing was staged") ~= nil end, 20)
+  end
+
+  -- While gitsigns attaches a buffer it has not seen yet.
+  gs.detach(buf)
+  local real_attach, reloaded = gs.attach, nil
+  gs.attach = function(opts, callback)
+    gs.attach = real_attach
+    return real_attach(opts, function(...)
+      reload_with(rewritten)
+      reloaded = vim.api.nvim_buf_get_lines(buf, 10, 11, false)[1]
+      return callback(...)
+    end)
+  end
+  notices = {}
+  press(right, 11, ",u")
+  t.ok(refused_later(), ",u refuses when the buffer reloads while gitsigns attaches " .. heard())
+  gs.attach = real_attach
+  t.eq(reloaded, rewritten[11], "(the buffer had reloaded the agent's rewrite)")
+  t.eq(index(), base, "and nothing is staged")
+  if not vim.deep_equal(index(), base) then assert(git("reset", "-q", "--", "f.txt")) end -- keep the next case apart
+  reload_with(working)
+  t.ok(caught_up(right, 11), "the view catches up with the restored file")
+  t.ok(unstaged_count(3), "gitsigns is attached again")
+
+  -- Before the retry: the first stage did nothing, as one caught by gitsigns'
+  -- gitdir watcher does, and the reload lands before the second.
+  local real_stage = gs.stage_hunk
+  gs.stage_hunk = function(_, _, callback)
+    gs.stage_hunk = real_stage
+    reload_with(rewritten)
+    callback()
+  end
+  notices = {}
+  press(right, 11, ",u")
+  t.ok(refused_later(), "the retry refuses when the buffer reloaded in between " .. heard())
+  gs.stage_hunk = real_stage
+  t.eq(index(), base, "and nothing is staged")
+  reload_with(working)
+  t.ok(caught_up(right, 11), "the view catches up with the restored file")
+  t.ok(unstaged_count(3), "and so does gitsigns")
+  settle(700)
+end
 
 ---------------------------------------------------------------------------
 -- Keys follow the view: a tab that stops being a baseline view loses ,X
@@ -476,12 +560,152 @@ close(tab)
 
 tab, s = open(sroot, "ch.txt", {}, nil)
 t.eq({ s.mode, s.modified_revision }, { "status", nil }, "ch.txt opens in the Changes group")
-t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), { "n,U", "n,u", "x,U", "x,u" }, "the Changes group has ,u ,U, no ,X")
+t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), { "n,u", "x,u" },
+  "the Changes group has ,u only: no ,U, which every hunk there would refuse, and no ,X")
 notices = {}
 press(s.modified_win, 3, ",u")
 t.ok(vim.wait(5000, function() return (sgit("show", ":ch.txt") or ""):find("ch line 3 changed", 1, true) ~= nil end, 20),
   ",u there stages the hunk " .. heard())
+t.ok(finished("Staged line 3 of ch.txt"), "and says so " .. heard())
 close(tab)
+
+---------------------------------------------------------------------------
+-- ,u ,U change the index only as the view shows: left side -> working tree
+---------------------------------------------------------------------------
+
+do
+  local iroot, igit = repo("hunk actions index")
+  local abc = { "A", "B", "C", "D", "E", "F" }
+  local d_base = rows(1, 10, "d %d")
+  vim.fn.writefile(abc, iroot .. "/f.txt")
+  vim.fn.writefile(d_base, iroot .. "/d.txt")
+  assert(igit("add", "."))
+  assert(igit("commit", "-qm", "index"))
+  -- Before the round, neither staged: C deleted, and line 5 of d.txt edited.
+  local without_c = { "A", "B", "D", "E", "F" }
+  vim.fn.writefile(without_c, iroot .. "/f.txt")
+  local d_user = vim.deepcopy(d_base)
+  d_user[5] = "d 5 USER"
+  vim.fn.writefile(d_user, iroot .. "/d.txt")
+  local round
+  require("util.baseline").save(iroot, "round", { subject = "index round" }, function(e) round = e or false end)
+  t.ok(vim.wait(10000, function() return round ~= nil end, 20) and round, "a round baseline is taken")
+  local ivars = { codediff_baseline = { sha = round.sha, kind = "round" } }
+  -- The agent's round: B changed; d 6, just below the edited d 5, and d 9
+  -- deleted.
+  local f_agent = { "A", "B AGENT", "D", "E", "F" }
+  vim.fn.writefile(f_agent, iroot .. "/f.txt")
+  vim.fn.writefile({ "d 1", "d 2", "d 3", "d 4", "d 5 USER", "d 7", "d 8", "d 10" }, iroot .. "/d.txt")
+  local function iindex(rel) return lines_of(igit("show", ":" .. rel)) end
+  local function refused(text)
+    return vim.wait(5000, function() return said(text) ~= nil end, 20) and said("<leader>gv") ~= nil
+  end
+
+  -- The view shows line 2 alone (B -> B AGENT); the index still has C, and
+  -- gitsigns' hunk against it is B C -> B AGENT.
+  tab, s = open(iroot, "f.txt", { round.sha }, ivars)
+  local fbuf = s.modified_bufnr
+  notices = {}
+  press(s.modified_win, 2, ",u")
+  t.ok(refused("the index differs from the left side around line 2 of f.txt"),
+    ",u refuses a stage that would also take the deletion of C from before the round, and points to <leader>gv " .. heard())
+  t.eq(iindex("f.txt"), abc, "the index is unchanged")
+
+  -- With the deletion of C staged, the baseline is the index there: ,u
+  -- stages exactly the line on screen.
+  local blob = vim.system({ "git", "-C", iroot, "hash-object", "-w", "--stdin" },
+    { stdin = table.concat(without_c, "\n") .. "\n", text = true }):wait()
+  assert(igit("update-index", "--cacheinfo", "100644," .. vim.trim(blob.stdout) .. ",f.txt"))
+  t.ok(vim.wait(5000, function()
+    local h = gs.get_hunks(fbuf)
+    return h ~= nil and #h == 1 and h[1].added.start == 2 and h[1].removed.count == 1
+  end, 20), "gitsigns sees the index without C")
+  notices = {}
+  press(s.modified_win, 2, ",u")
+  t.ok(finished("Staged line 2 of f.txt (the index only)"), "with the baseline equal to the index, ,u stages " .. heard())
+  t.eq(iindex("f.txt"), f_agent, "that line and nothing else")
+  t.ok(vim.wait(5000, function() return #(gs.get_hunks(fbuf) or { 1 }) == 0 end, 20), "gitsigns sees it staged")
+  -- Unstaging goes back to HEAD, which still has C: B AGENT -> B C.
+  notices = {}
+  press(s.modified_win, 2, ",U")
+  t.ok(refused("HEAD differs from the left side around line 2 of f.txt"),
+    ",U refuses an unstage that would also put C back into the index " .. heard())
+  t.eq(iindex("f.txt"), f_agent, "the index is unchanged")
+  close(tab)
+
+  -- Deletions: gitsigns stages one from the line above it.
+  tab, s = open(iroot, "d.txt", { round.sha }, ivars)
+  notices = {}
+  press(s.modified_win, 6, ",u")
+  t.ok(refused("the index differs from the left side around line 5 of d.txt"),
+    ",u refuses the deletion of d 6: the line above it is the unstaged edit of d 5 " .. heard())
+  t.eq(iindex("d.txt"), d_base, "the index is unchanged")
+  notices = {}
+  press(s.modified_win, 8, ",u")
+  t.ok(finished("Staged line 7 of d.txt (the index only)"), ",u stages the deletion of d 9 below an untouched line " .. heard())
+  t.eq(iindex("d.txt"), concat(rows(1, 8, "d %d"), { "d 10" }), "and only that deletion")
+  close(tab)
+end
+
+---------------------------------------------------------------------------
+-- ,X writes the hunks and nothing a BufWritePre hook would add
+---------------------------------------------------------------------------
+
+do
+  local eroot, egit = repo("hunk actions eol")
+  vim.fn.writefile({ "root = true", "", "[*]", "insert_final_newline = true", "trim_trailing_whitespace = true" },
+    eroot .. "/.editorconfig")
+  -- No final newline, and trailing blanks on line 2: Nvim's editorconfig
+  -- would add the one and trim the other in its BufWritePre.
+  local ebase = { "a", "b  ", "c", "d", "e", "f", "g" }
+  local function put(lines) vim.fn.writefile(lines, eroot .. "/e.txt", "b") end
+  local function bytes()
+    local f = assert(io.open(eroot .. "/e.txt", "rb"))
+    local data = f:read("*a")
+    f:close()
+    return data
+  end
+  put(ebase)
+  assert(egit("add", "."))
+  assert(egit("commit", "-qm", "eol"))
+  local esha = vim.trim(assert(egit("rev-parse", "HEAD")))
+  local eagent = vim.deepcopy(ebase)
+  eagent[4], eagent[6] = "d AGENT", "f AGENT"
+  put(eagent)
+  tab, s = open(eroot, "e.txt", { esha }, { codediff_baseline = { sha = esha, kind = "saved" } })
+  local ebuf, ewin = s.modified_bufnr, s.modified_win
+  t.eq({ vim.bo[ebuf].endofline, vim.bo[ebuf].fixendofline }, { false, true },
+    "e.txt reads without a final newline, and editorconfig asks for one")
+  local pre, post = 0, 0
+  local group = vim.api.nvim_create_augroup("hunk_actions_spec_write", { clear = true })
+  vim.api.nvim_create_autocmd("BufWritePre", { group = group, buffer = ebuf, callback = function() pre = pre + 1 end })
+  vim.api.nvim_create_autocmd("BufWritePost", { group = group, buffer = ebuf, callback = function() post = post + 1 end })
+  local eventignore = vim.o.eventignore
+  notices = {}
+  press(ewin, 4, ",X")
+  local one_back = vim.deepcopy(eagent)
+  one_back[4] = "d"
+  t.eq(bytes(), table.concat(one_back, "\n"), ",X writes only the hunk: no final newline added, no blanks trimmed")
+  t.ok(said("Discarded the hunk at line 4 of e.txt") ~= nil and said("also changed") == nil, "and says so, with no warning " .. heard())
+  t.eq({ pre, post }, { 0, 1 }, "BufWritePre is skipped for that write, BufWritePost runs")
+  t.eq(vim.o.eventignore, eventignore, "'eventignore' is as it was")
+  t.eq(vim.bo[ebuf].fixendofline, true, "and so is 'fixendofline'")
+
+  -- A BufWritePost hook that changes how the file will be written next is
+  -- reported, though the lines match.
+  t.ok(caught_up(ewin, 6), "the view catches up with the write")
+  vim.api.nvim_create_autocmd("BufWritePost", {
+    group = group, buffer = ebuf, once = true,
+    callback = function() vim.bo[ebuf].endofline = true end,
+  })
+  notices = {}
+  press(ewin, 6, ",X")
+  t.ok(said("something the write ran also changed e.txt ('endofline')") ~= nil,
+    "a hook that changed 'endofline' during ,X is reported " .. heard())
+  vim.api.nvim_del_augroup_by_id(group)
+  vim.bo[ebuf].endofline = false -- the spec's own hook, undone
+  close(tab)
+end
 
 ---------------------------------------------------------------------------
 -- (d) path types, the filter attribute and one-sided baseline views
@@ -567,9 +791,19 @@ t.eq(desc(s.original_bufnr, ",X"), "Restore from baseline " .. dwhen .. ": show 
 t.eq(keyset({ plain_buf }), {}, "the file the view left has its keys handed back")
 notices = {}
 press(s.original_win, 1, ",X")
-local restore = ("git -C %s restore --source=%s --worktree -- %s"):format(vim.fn.shellescape(droot), dsha, vim.fn.shellescape("gone.txt"))
+local restore = ("git -C %s --literal-pathspecs restore --source=%s --worktree -- %s"):format(
+  vim.fn.shellescape(droot), dsha, vim.fn.shellescape("gone.txt"))
 t.ok(said(restore) ~= nil, ",X on a deleted file gives the copyable restore command " .. heard())
 t.eq(vim.fn.filereadable(droot .. "/gone.txt"), 0, "and restores nothing itself")
+-- Something back at the path before the view caught up (or upstream's
+-- listing calling a present path deleted): the restore would write over it.
+vim.fn.writefile({ "back, by hand" }, droot .. "/gone.txt")
+notices = {}
+press(s.original_win, 1, ",X")
+t.ok(said("gone.txt shows as deleted since baseline") ~= nil and said("restore --source") == nil,
+  ",X prints no restore over a file that is back on disk " .. heard())
+t.eq(vim.fn.readfile(droot .. "/gone.txt"), { "back, by hand" }, "and leaves it")
+vim.fn.delete(droot .. "/gone.txt")
 close(tab)
 
 tab, s = open(droot, "new.txt", { dsha }, dvars)
@@ -586,6 +820,43 @@ close(tab)
 tab, s = open(droot, "new.txt", { "HEAD" }, nil)
 t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), {}, "a one-sided file in a plain rev view gets none of the keys")
 close(tab)
+
+-- The restore command takes the path literally: read as a glob, `[id]*.txt`
+-- also matches id.txt, and would put the baseline back over its edit.
+do
+  local lroot, lgit = repo("hunk actions literal")
+  local odd = "[id]*.txt"
+  vim.fn.writefile({ "odd one" }, lroot .. "/" .. odd)
+  vim.fn.writefile({ "id base" }, lroot .. "/id.txt")
+  assert(lgit("add", "."))
+  assert(lgit("commit", "-qm", "literal"))
+  local lsha = vim.trim(assert(lgit("rev-parse", "HEAD")))
+  vim.fn.delete(lroot .. "/" .. odd)
+  vim.fn.writefile({ "id USER WORK" }, lroot .. "/id.txt")
+  tab, s = open(lroot, "id.txt", { lsha }, { codediff_baseline = { sha = lsha, kind = "saved" } })
+  local found = false
+  for _ = 1, 4 do
+    require("codediff").next_file()
+    found = vim.wait(5000, function()
+      local c = cd.session(0)
+      return c ~= nil and c.original.relative == odd and ready(odd)()
+    end, 20)
+    if found then break end
+  end
+  t.ok(found, "the explorer reaches " .. odd)
+  s = cd.session(0)
+  notices = {}
+  press(s.original_win, 1, ",X")
+  local n = said(odd .. " was deleted since baseline")
+  local printed = n and n.msg:match("\n(git %-C [^\n]+)$")
+  t.eq(printed, ("git -C %s --literal-pathspecs restore --source=%s --worktree -- %s"):format(
+    vim.fn.shellescape(lroot), lsha, vim.fn.shellescape(odd)), ",X gives the restore command with a literal pathspec " .. heard())
+  local r = vim.system({ "sh", "-c", printed or "false" }, { text = true }):wait()
+  t.eq(r.code, 0, "the printed command runs " .. (r.stderr or ""))
+  t.eq(vim.fn.readfile(lroot .. "/" .. odd), { "odd one" }, "it brings " .. odd .. " back")
+  t.eq(vim.fn.readfile(lroot .. "/id.txt"), { "id USER WORK" }, "and leaves id.txt, which the glob would match, alone")
+  close(tab)
+end
 
 vim.notify = real_notify
 local cleanup = t.process_cleanup()

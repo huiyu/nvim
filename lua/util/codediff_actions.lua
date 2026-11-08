@@ -5,12 +5,19 @@
 -- What each key changes:
 --
 --   ,u / ,U  The real index, through gitsigns. gitsigns stages a line range of
---            the right pane against the index, whatever the left side shows,
---            so a view whose left end is a baseline or a branch still stages
---            exactly the lines on screen. CodeDiff's own hunk staging builds
---            its patch against the left side instead, and in a rev-vs-working-
---            tree view it put lines at the wrong place in the index without a
---            word; its keys stay off (lua/plugin/vcs/codediff.lua).
+--            the right pane against the index (unstages it against HEAD),
+--            while a view whose left end is a baseline or a branch shows the
+--            left side against the working tree. Where the two differ next
+--            to the range -- an edit from before the round beside the agent's
+--            hunk, a line staged inside it -- gitsigns' partial hunk carries
+--            those lines along, so plan() works its stage out first and
+--            refuses unless it replaces exactly the left side's lines, and
+--            the callback checks the index it left. The status view diffs
+--            against the index itself (<leader>gv), which the refusal points
+--            to. CodeDiff's own hunk staging builds its patch against the left
+--            side instead, and in a rev-vs-working-tree view it put lines at
+--            the wrong place in the index without a word; its keys stay off
+--            (lua/plugin/vcs/codediff.lua).
 --   ,U       In the status view's Staged group (left HEAD, right the index):
 --            CodeDiff's own unstage, through util.codediff, which is right
 --            there and only there.
@@ -20,12 +27,24 @@
 --            file gets the command to run instead. The index is untouched,
 --            only that buffer is written, and `u` then `:w` undoes it.
 --
+-- Which view gets which key (specs()):
+--
+--   status, Changes group (index vs working tree)   ,u -- no ,U: every hunk
+--                                                    shown there is unstaged
+--   status, Staged group (HEAD vs index)            ,U (CodeDiff's)
+--   baseline vs working tree                        ,u ,U ,X
+--   the same, a file on one side only               ,X, which only says what
+--                                                    would do it
+--   any other rev vs working tree                   ,u ,U
+--
 -- Before any of them acts, guard_fresh checks that it acts on what is on
 -- screen: (a) no unsaved edits in the right pane, (b) the disk still holds
 -- the buffer's bytes (and an index side still holds its text), (c) the hunk
 -- recomputes to the ranges displayed, (d) the path is a regular file on both
 -- ends, not conflicted, and without a filter attribute (Git LFS and the like).
--- A refusal says why and leaves everything as it was.
+-- ,X looks at the disk once more right before it writes; a stage that runs
+-- later (gitsigns attaching first, its retry) refuses once the buffer has
+-- changed at all. A refusal says why and leaves everything as it was.
 local M = {}
 
 local api = vim.api
@@ -39,6 +58,9 @@ local REGULAR = { ["100644"] = true, ["100755"] = true }
 local KIND_OF_MODE = { ["120000"] = "a symlink", ["160000"] = "a submodule", ["040000"] = "a directory" }
 
 local NEWLINE = { unix = "\n", dos = "\r\n", mac = "\r" }
+-- The buffer options that decide the bytes :write puts on disk; ,X must
+-- leave them as the file was read.
+local WRITE_OPTIONS = { "endofline", "bomb", "fileformat", "fileencoding" }
 -- The byte order mark :write puts first when 'bomb' is set.
 local BOM = {
   ["utf-8"] = "\239\187\191",
@@ -185,7 +207,7 @@ end
 
 ---@class codediff_actions.View
 ---@field kind "changes"|"staged"|"revision"|"one-sided"
----@field stage? boolean ,u/,U through gitsigns
+---@field stage? boolean ,u through gitsigns, and ,U except in the Changes group
 ---@field baseline? { sha: string, kind?: string, time?: integer }
 ---@field side? "original"|"modified" the pane a one-sided view keeps
 
@@ -252,6 +274,24 @@ local function disk_bytes(path)
   local data = f:read("*a")
   f:close()
   return data
+end
+
+--- `path` as it is now, for (b) to compare with later: the stat first, so a
+--- write landing between the two shows up in the bytes.
+local function disk_state(path)
+  local st = vim.uv.fs_stat(path)
+  return { stat = st, bytes = disk_bytes(path) }
+end
+
+--- Whether `path` is still exactly what disk_state saw: same bytes, and the
+--- same inode, size and mtime (to the nanosecond), so a write that put the
+--- same bytes back in between is not taken for no write at all.
+local function unmoved(path, seen)
+  local was, now = seen and seen.stat, disk_state(path)
+  local st = now.stat
+  return was ~= nil and st ~= nil and st.dev == was.dev and st.ino == was.ino and st.size == was.size
+    and st.mtime.sec == was.mtime.sec and st.mtime.nsec == was.mtime.nsec
+    and now.bytes ~= nil and now.bytes == seen.bytes
 end
 
 local function describe_mode(mode)
@@ -334,10 +374,23 @@ local function hunks_in(tab, win, top, bot)
   return found
 end
 
+--- After a refusal past (a): have Nvim look at the file again (deferred, as
+--- :checktime from a mapping is), and the view recompute itself: a hunk can
+--- be stale while buffer and disk agree, and no reload would follow then.
+local function catch_up(ctx)
+  if ctx.right_is_file then pcall(vim.cmd.checktime, ctx.s.modified_bufnr) end
+  codediff().refresh(ctx.tab)
+end
+
+local function changed_on_disk(path)
+  return path .. " changed on disk since it was displayed; try again once the view has caught up"
+end
+
 --- Everything an action checks before it changes anything. Returns the
 --- hunks to act on (one, or those a Visual selection touches), or nil and
---- why not.
----@param ctx { tab: integer, s: table, win: integer, range?: integer[], right_is_file: boolean, index?: boolean }
+--- why not. For a right pane that is a file, ctx.seen is the disk as (b)
+--- found it, for a last look right before a write (unmoved).
+---@param ctx { tab: integer, s: table, win: integer, range?: integer[], right_is_file: boolean, index?: boolean, seen?: table }
 ---@return table[]? hunks, string? why
 local function guard_fresh(ctx)
   local s, cd = ctx.s, codediff()
@@ -347,12 +400,8 @@ local function guard_fresh(ctx)
     -- the hunk is measured against.
     return nil, s.modified.relative .. " has unsaved changes: :w or :e! first"
   end
-  -- Past (a), a refusal also has Nvim look at the file again (deferred, as
-  -- :checktime from a mapping is), and the view recompute itself: a hunk can
-  -- be stale while buffer and disk agree, and no reload would follow then.
   local function refused(why)
-    if ctx.right_is_file then pcall(vim.cmd.checktime, right) end
-    cd.refresh(ctx.tab)
+    catch_up(ctx)
     return nil, why
   end
   if ctx.right_is_file then
@@ -361,9 +410,8 @@ local function guard_fresh(ctx)
     if not want then
       return nil, ("cannot compare %s with the disk (fileencoding %s)"):format(s.modified.relative, vim.bo[right].fileencoding)
     end
-    if disk_bytes(api.nvim_buf_get_name(right)) ~= want then
-      return refused(s.modified.relative .. " changed on disk since it was displayed; try again once the view has caught up")
-    end
+    ctx.seen = disk_state(api.nvim_buf_get_name(right))
+    if ctx.seen.bytes ~= want then return refused(changed_on_disk(s.modified.relative)) end
   end
   -- (b) for the index: a side that shows it must still show what it holds.
   for _, side in ipairs({ "original", "modified" }) do
@@ -432,31 +480,175 @@ local function unstaged_hunks(buf)
   return hunks
 end
 
+local WHITESPACE = {
+  iwhite = "ignore_whitespace_change",
+  iwhiteall = "ignore_whitespace",
+  iwhiteeol = "ignore_whitespace_change_at_eol",
+  iblank = "ignore_blank_lines",
+}
+
 --- The diff options gitsigns derives from 'diffopt' (its default diff_opts).
-local function diff_options()
+--- `greedy`: without linematch, as gitsigns diffs for a stage of a range.
+local function diff_options(greedy)
   local opts = { result_type = "indices" }
   for _, item in ipairs(vim.opt.diffopt:get()) do
     local algorithm, linematch = item:match("^algorithm:(%a+)$"), item:match("^linematch:(%d+)$")
     if algorithm then opts.algorithm = algorithm end
-    if linematch then opts.linematch = tonumber(linematch) end
+    if linematch and not greedy then opts.linematch = tonumber(linematch) end
     if item == "indent-heuristic" then opts.indent_heuristic = true end
+    if WHITESPACE[item] then opts[WHITESPACE[item]] = true end
   end
   return opts
 end
 
---- Whether lines [top, bot] of `buf` differ from the index, judged from the
---- index itself rather than from gitsigns' copy of it. nil: unreadable.
-local function index_touched(root, path, buf, top, bot)
-  local index = revision_lines(root, ":0", path)
-  if not index then return nil end
-  local function text(lines) return table.concat(lines, "\n") .. "\n" end
+local function has_linematch()
+  for _, item in ipairs(vim.opt.diffopt:get()) do
+    if item:match("^linematch:%d+$") then return true end
+  end
+  return false
+end
+
+--- `old` against `new` the way gitsigns diffs them (lines joined without a
+--- final newline), as { old start, old count, new start, new count } each.
+---@return integer[][]?
+local function diff_hunks(old, new, greedy)
   local diff = vim.text and vim.text.diff or vim.diff
-  local ok, result = pcall(diff, text(index), text(api.nvim_buf_get_lines(buf, 0, -1, false)), diff_options())
-  if not ok or type(result) ~= "table" then return nil end
-  for _, d in ipairs(result) do
+  local ok, result = pcall(diff, table.concat(old, "\n"), table.concat(new, "\n"), diff_options(greedy))
+  return ok and type(result) == "table" and result or nil
+end
+
+--- Whether lines [top, bot] of `buf` differ from the `index` lines, judged
+--- from the index itself rather than from gitsigns' copy of it. nil: the
+--- diff failed.
+local function index_touched(index, buf, top, bot)
+  local hunks = diff_hunks(index, api.nvim_buf_get_lines(buf, 0, -1, false), false)
+  if not hunks then return nil end
+  for _, d in ipairs(hunks) do
     if touches({ added = { start = d[3], count = d[4] } }, top, bot) then return true end
   end
   return false
+end
+
+--- gitsigns' create_partial_hunk, on diff_hunks output: staging new lines
+--- [top, bot] replaces old lines [first, first + count) with them (count 0:
+--- they go in before old line `first`). nil when no hunk touches the range.
+---@return integer? first, integer? count
+local function partial(hunks, top, bot)
+  local pretop, precount, unused = top, bot - top + 1, 0
+  for _, d in ipairs(hunks) do
+    local removed, start, added = d[2], d[3], d[4]
+    local vend = start + math.max(added - 1, 0)
+    local net, in_range = added - removed, 0
+    -- A deletion at the very top starts at line 0; gitsigns puts it on 1.
+    if math.max(start, 1) >= top and vend <= bot then
+      in_range = net
+    else
+      local above_bot = math.max(0, bot + 1 - (start + removed))
+      local above_top = math.max(0, top - (start + removed))
+      if start >= top and start <= bot then
+        in_range = above_bot
+      elseif vend >= top and vend <= bot then
+        in_range = net - above_top
+        pretop = pretop - above_top
+      elseif start <= top and vend >= bot then
+        in_range = above_bot - above_top
+        pretop = pretop - above_top
+      else
+        unused = unused + 1
+      end
+      if top > vend then pretop = pretop - net end
+    end
+    precount = precount - in_range
+  end
+  if unused == #hunks or precount < 0 then return nil end
+  return pretop, precount
+end
+
+local function slice(lines, first, count) return vim.list_slice(lines, first, first + count - 1) end
+
+--- `lines` with [first, first + count) replaced by `with`, as revision_lines
+--- would read the result back.
+local function splice(lines, first, count, with)
+  local out = vim.list_slice(lines, 1, first - 1)
+  vim.list_extend(out, with)
+  vim.list_extend(out, vim.list_slice(lines, first + count))
+  return #out > 0 and out or { "" }
+end
+
+--- HEAD's copy of `path`: {} when HEAD has no such file, or no HEAD exists
+--- yet (an unborn branch), which is what gitsigns unstages against then.
+local function head_lines(root, path)
+  local mode, err = tree_mode(root, "HEAD", path)
+  if mode == false then return {} end
+  if mode == nil then
+    if select(3, git(root, { "rev-parse", "--verify", "-q", "HEAD" })) == 1 then return {} end
+    return nil, err
+  end
+  if not REGULAR[mode] then return nil, ("%s is %s in HEAD"):format(path, describe_mode(mode)) end
+  return revision_lines(root, "HEAD", path)
+end
+
+--- What gitsigns' stage_hunk({ top, bot }) does to the index, worked out the
+--- way it does it: create_partial_hunk on a greedy diff of the index (of HEAD
+--- to unstage, its toggle) against the buffer. That is the change on screen
+--- only when the lines it replaces are the left side's own, line for line:
+--- with an edit from before the round next to the agent's hunk (the
+--- baseline has it, the index not), the partial hunk takes the index's line
+--- along -- the line above a deletion is part of the range -- and the stage
+--- changes more than the view shows. In the status view the left side is
+--- the index, so the two always agree there.
+---@param p { root: string, path: string, buf: integer, left: integer, index: string[] }
+---@return string[]? index the stage should leave, string? why
+local function plan(p, top, bot, unstage)
+  if not valid_buf(p.left) then return nil, "the view moved on" end
+  local lines, left_lines = api.nvim_buf_get_lines(p.buf, 0, -1, false), api.nvim_buf_get_lines(p.left, 0, -1, false)
+  local where = ("%s of %s"):format(span(top, bot), p.path)
+  local left, index = diff_hunks(left_lines, lines, true), diff_hunks(p.index, lines, true)
+  if not left or not index then return nil, "cannot diff " .. p.path end
+  -- What the same stage would replace on the left side: the change shown.
+  local lfirst, lcount = partial(left, top, bot)
+  local shown = lfirst and slice(left_lines, lfirst, lcount)
+  local added = slice(lines, top, bot - top + 1)
+  if not unstage then
+    local first, count = partial(index, top, bot)
+    if not first then return nil, ("nothing in %s differs from the index"):format(where) end
+    if not vim.deep_equal(slice(p.index, first, count), shown) then
+      return nil, ("the index differs from the left side around %s, so staging it would take more than this view shows; stage it in <leader>gv, which compares with the index"):format(where)
+    end
+    return splice(p.index, first, count, added)
+  end
+  local head, why = head_lines(p.root, p.path)
+  if not head then return nil, ("cannot read HEAD's copy of %s: %s"):format(p.path, why or "unknown error") end
+  local staged = diff_hunks(head, lines, true)
+  if not staged then return nil, "cannot diff " .. p.path end
+  if not has_linematch() then
+    -- Without linematch gitsigns uses its staged hunks as they are, which
+    -- leave out every hunk the index-vs-buffer diff has at the same lines.
+    staged = vim.tbl_filter(function(d)
+      for _, u in ipairs(index) do
+        if u[3] == d[3] and u[4] == d[4] then return false end
+      end
+      return true
+    end, staged)
+  end
+  local first, count = partial(staged, top, bot)
+  if not first then return nil, ("nothing in %s is staged"):format(where) end
+  if not vim.deep_equal(slice(head, first, count), shown) then
+    return nil, ("HEAD differs from the left side around %s, so unstaging it would take more than this view shows; unstage it in <leader>gv, which shows what is staged"):format(where)
+  end
+  -- The index lines the range stands for: the buffer's own, since no
+  -- unstaged change touches it (stage() made sure), at the place gitsigns
+  -- maps them to.
+  local itop, ibot = top, bot
+  for _, d in ipairs(index) do
+    local vend = d[3] + math.max(d[4] - 1, 0)
+    if top > vend then itop = itop - (d[4] - d[2]) end
+    if bot > vend then ibot = ibot - (d[4] - d[2]) end
+  end
+  if not vim.deep_equal(slice(p.index, itop, ibot - itop + 1), added) then
+    return nil, ("%s still has unstaged changes: stage or discard them first"):format(where)
+  end
+  return splice(p.index, itop, ibot - itop + 1, slice(head, first, count))
 end
 
 local in_flight = {} ---@type table<integer, table> buffer -> the stage running on it
@@ -492,6 +684,21 @@ local function stage(tab, unstage, range)
   local hunks
   hunks, why = guard_fresh({ tab = tab, s = s, win = win, range = range, right_is_file = true, index = true })
   if not hunks then return refuse(what, why) end
+  -- [top, bot] below are lines of the buffer as guard_fresh just saw it.
+  -- The stage may run later -- after gitsigns attaches, after the wait in
+  -- unstaged_hunks, on the retry -- and an autoread reload in between
+  -- (CodeDiff's refresh and the CursorHold :checktime both run one) leaves
+  -- buffer and disk agreeing on lines nobody looked at. A reload moves the
+  -- changedtick, which is what each attempt compares.
+  local tick, name, lbuf = api.nvim_buf_get_changedtick(buf), api.nvim_buf_get_name(buf), s.original_bufnr
+  local function moved()
+    if not (valid_buf(buf) and valid_win(mwin) and api.nvim_win_get_buf(mwin) == buf) then
+      return "the view moved on"
+    end
+    if api.nvim_buf_get_changedtick(buf) ~= tick or vim.bo[buf].modified then
+      return path .. " changed while staging; nothing was staged"
+    end
+  end
 
   -- The right pane's lines. A deletion has no lines there: gitsigns keeps it
   -- on the line above (on line 1 for one at the top).
@@ -523,13 +730,13 @@ local function stage(tab, unstage, range)
   local run
   ---@param attempt integer
   run = function(attempt)
-    if not (valid_buf(buf) and valid_win(mwin) and api.nvim_win_get_buf(mwin) == buf) then
-      finish()
-      return refuse(what, "the view moved on")
+    local why_not = moved()
+    if not why_not and disk_bytes(name) ~= buffer_bytes(buf) then
+      why_not = path .. " changed on disk while staging; nothing was staged"
     end
-    if attempt > 1 and (vim.bo[buf].modified or disk_bytes(api.nvim_buf_get_name(buf)) ~= buffer_bytes(buf)) then
+    if why_not then
       finish()
-      return refuse(what, path .. " changed while staging; nothing was staged")
+      return refuse(what, why_not)
     end
     local hunks_now = unstaged_hunks(buf)
     local touched = false
@@ -540,12 +747,14 @@ local function stage(tab, unstage, range)
     -- gitsigns' hunks agree with the index as it is now: a gitsigns that has
     -- not caught up with an outside `git add` would decide the toggle on
     -- the old index.
-    local actual = hunks_now and index_touched(root, path, buf, top, bot)
-    local why_not
+    local index = hunks_now and revision_lines(root, ":0", path)
+    local actual = index and index_touched(index, buf, top, bot)
     if not hunks_now then
       why_not = "gitsigns does not track " .. path
-    elseif actual == nil then
+    elseif not index then
       why_not = "cannot read the index entry of " .. path
+    elseif actual == nil then
+      why_not = "cannot diff " .. path .. " against the index"
     elseif actual ~= touched then
       why_not = "gitsigns has not caught up with " .. path .. " yet; try again in a moment"
     elseif not unstage and not touched then
@@ -555,11 +764,18 @@ local function stage(tab, unstage, range)
     elseif unstage and cached == 0 then
       why_not = path .. " has nothing staged"
     end
+    local after, before
+    if not why_not then
+      after, why_not = plan({ root = root, path = path, buf = buf, left = lbuf, index = index }, top, bot, unstage)
+      before = index_oid(root, path)
+    end
+    -- The last look: unstaged_hunks' wait ran the event loop, and nothing
+    -- from here to stage_hunk does.
+    why_not = why_not or moved()
     if why_not then
       finish()
       return refuse(what, why_not)
     end
-    local before = index_oid(root, path)
     local ok, err = pcall(api.nvim_win_call, mwin, function()
       gs.stage_hunk({ top, bot }, nil, function(stage_err)
         vim.schedule(function()
@@ -578,6 +794,12 @@ local function stage(tab, unstage, range)
             return refuse(what, ("the index did not change for %s of %s"):format(span(top, bot), path))
           end
           finish(true)
+          -- gitsigns reads the lines and its copy of the index after taking
+          -- its lock, past our last look: say so if that was not the plan.
+          if not vim.deep_equal(revision_lines(root, ":0", path), after) then
+            return notify(("%s %s of %s: the index did not come out as planned (it or the file changed meanwhile); check it in <leader>gv"):format(
+              what, span(top, bot), path), vim.log.levels.WARN)
+          end
           notify(("%sd %s of %s (the index only)"):format(what, span(top, bot), path))
         end)
       end)
@@ -634,8 +856,9 @@ local function discard(tab, range)
   if in_flight[s.modified_bufnr] then
     return refuse(what, "a stage of " .. s.modified.relative .. " is still running")
   end
+  local ctx = { tab = tab, s = s, win = win, range = range, right_is_file = true }
   local hunks
-  hunks, why = guard_fresh({ tab = tab, s = s, win = win, range = range, right_is_file = true })
+  hunks, why = guard_fresh(ctx)
   if not hunks then return refuse(what, why) end
   if range then
     for _, h in ipairs(hunks) do
@@ -648,37 +871,64 @@ local function discard(tab, range)
   end
   local buf, orig, path = s.modified_bufnr, s.original_bufnr, s.modified.relative
   if not vim.bo[buf].modifiable or vim.bo[buf].readonly then return refuse(what, path .. " is read-only") end
-
-  -- Bottom-up, so the ranges above stay where they were drawn.
-  table.sort(hunks, function(a, b) return a.modified.start_line > b.modified.start_line end)
-  for _, h in ipairs(hunks) do
-    local o, m = h.original, h.modified
-    api.nvim_buf_set_lines(buf, m.start_line - 1, m.end_line - 1, false,
-      api.nvim_buf_get_lines(orig, o.start_line - 1, o.end_line - 1, false))
-  end
-  local expected = api.nvim_buf_get_lines(buf, 0, -1, false)
+  local name = api.nvim_buf_get_name(buf)
+  local kept = {}
+  for _, option in ipairs(WRITE_OPTIONS) do kept[option] = vim.bo[buf][option] end
 
   -- Only this buffer, and only what (a) and (b) proved is on disk plus the
-  -- hunks: no formatter (conform reads vim.b.autoformat), and no newline
-  -- added to a file that had none ('fixeol'). Autocmds still run, so LSP,
-  -- gitsigns and the view hear about the write. `!` because (b) has just
-  -- compared the bytes themselves: an agent that rewrote the file with the
-  -- same bytes moved only its mtime, and :write would stop to ask about
-  -- that (a :checktime from a mapping is postponed, so it cannot settle it).
-  local ok, err = pcall(api.nvim_buf_call, buf, function()
-    local autoformat, fixeol = vim.b.autoformat, vim.bo.fixeol
-    vim.b.autoformat, vim.bo.fixeol = false, false
-    local wrote, werr = pcall(vim.cmd, "silent lockmarks write!")
-    vim.b.autoformat, vim.bo.fixeol = autoformat, fixeol
-    if not wrote then error(werr, 0) end
+  -- hunks. BufWritePre is skipped for this one write: conform formats there,
+  -- lua/lang/go.lua organizes imports there whatever vim.b.autoformat says,
+  -- and Nvim's own editorconfig sets 'endofline' and trims whitespace there.
+  -- BufWritePost still runs, so LSP, gitsigns and the view hear about the
+  -- write. 'fixeol' off: no newline added to a file that had none; and
+  -- vim.b.autoformat off for a formatter that runs after the write. `!`
+  -- because unmoved() has just compared the bytes themselves: an agent that
+  -- rewrote the file with the same bytes before the key press moved only its
+  -- mtime, and :write would stop to ask about that (a :checktime from a
+  -- mapping is postponed, so it cannot settle it).
+  local autoformat, fixeol, eventignore = vim.b[buf].autoformat, vim.bo[buf].fixeol, vim.o.eventignore
+  vim.b[buf].autoformat, vim.bo[buf].fixeol = false, false
+  vim.o.eventignore = eventignore == "" and "BufWritePre" or (eventignore .. ",BufWritePre")
+  local stale, expected, want
+  local ok, err = pcall(function()
+    -- (b) once more, the last thing before the buffer changes: guard_fresh's
+    -- own git calls take a few ms, and an agent's write landing in them
+    -- would be lost to the `write!`. Nothing from here to the write runs a
+    -- process or the event loop.
+    if not unmoved(name, ctx.seen) then
+      stale = true
+      return
+    end
+    -- Bottom-up, so the ranges above stay where they were drawn.
+    table.sort(hunks, function(a, b) return a.modified.start_line > b.modified.start_line end)
+    for _, h in ipairs(hunks) do
+      local o, m = h.original, h.modified
+      api.nvim_buf_set_lines(buf, m.start_line - 1, m.end_line - 1, false,
+        api.nvim_buf_get_lines(orig, o.start_line - 1, o.end_line - 1, false))
+    end
+    expected, want = api.nvim_buf_get_lines(buf, 0, -1, false), buffer_bytes(buf)
+    api.nvim_buf_call(buf, function() vim.cmd("silent lockmarks write!") end)
   end)
-  if not ok then
-    return notify(("%s: writing %s failed (%s); the buffer holds the change, u undoes it"):format(
-      what, path, tostring(err)), vim.log.levels.ERROR)
+  vim.o.eventignore = eventignore
+  if valid_buf(buf) then vim.b[buf].autoformat, vim.bo[buf].fixeol = autoformat, fixeol end
+  if stale then
+    catch_up(ctx)
+    return refuse(what, changed_on_disk(path))
   end
-  if not vim.deep_equal(api.nvim_buf_get_lines(buf, 0, -1, false), expected) then
-    notify(("%s: a write hook also changed %s (formatting, imports); u undoes both"):format(what, path),
-      vim.log.levels.WARN)
+  if not ok then
+    return notify(("%s: writing %s failed (%s); %s"):format(what, path, tostring(err),
+      expected and "the buffer holds the change, u undoes it" or "nothing was changed"), vim.log.levels.ERROR)
+  end
+  -- What a BufWritePost hook may still have changed.
+  local changed = {}
+  if not vim.deep_equal(api.nvim_buf_get_lines(buf, 0, -1, false), expected) then changed[#changed + 1] = "lines" end
+  for _, option in ipairs(WRITE_OPTIONS) do
+    if vim.bo[buf][option] ~= kept[option] then changed[#changed + 1] = "'" .. option .. "'" end
+  end
+  if #changed == 0 and want and disk_bytes(name) ~= want then changed[#changed + 1] = "the bytes on disk" end
+  if #changed > 0 then
+    notify(("%s: something the write ran also changed %s (%s); u undoes lines, not options"):format(
+      what, path, table.concat(changed, ", ")), vim.log.levels.WARN)
   end
   local where = #hunks == 1 and ("the hunk at " .. span(hunks[1].modified.start_line,
     math.max(hunks[1].modified.start_line, hunks[1].modified.end_line - 1))) or (#hunks .. " hunks")
@@ -693,7 +943,19 @@ local function one_sided_hint(tab)
   if not view or view.kind ~= "one-sided" then return end
   local when = baseline_label(s.git_root, view.baseline)
   if view.side == "original" then
-    local cmd = ("git -C %s restore --source=%s --worktree -- %s"):format(
+    -- Only for a path that is gone: the restore writes the baseline's file
+    -- over whatever is there, a directory and its untracked work included.
+    -- util.codediff's listing never calls a path on disk deleted, but a view
+    -- drawn before the file came back can, and so can upstream's listing,
+    -- which that one falls back to.
+    if vim.uv.fs_lstat(s.git_root .. "/" .. s.original.relative) then
+      codediff().refresh(tab)
+      return notify(("%s shows as deleted since baseline %s, but something is at that path now; no restore command, since it would overwrite that"):format(
+        s.original.relative, when), vim.log.levels.WARN)
+    end
+    -- A literal pathspec: as a glob, `[id].txt` or `*` in the name would
+    -- also restore every other path it matches, over their edits.
+    local cmd = ("git -C %s --literal-pathspecs restore --source=%s --worktree -- %s"):format(
       vim.fn.shellescape(s.git_root), view.baseline.sha, vim.fn.shellescape(s.original.relative))
     notify(("%s was deleted since baseline %s. ,X only restores hunks; to bring the file back:\n%s"):format(
       s.original.relative, when, cmd), vim.log.levels.WARN)
@@ -736,9 +998,13 @@ local function specs(tab, s)
     end, "Unstage hunk (Normal mode here)", "panes")
   elseif view.stage then
     add("n", "u", function() stage(tab, false) end, "Stage hunk", "panes")
-    add("n", "U", function() stage(tab, true) end, "Unstage hunk", "panes")
     add("x", "u", selection(function(r) stage(tab, false, r) end), "Stage selected lines", "panes")
-    add("x", "U", selection(function(r) stage(tab, true, r) end), "Unstage selected lines", "panes")
+    -- The Changes group shows only unstaged hunks, which ,U refuses: its
+    -- staged lines are in the Staged group, with CodeDiff's ,U.
+    if view.kind ~= "changes" then
+      add("n", "U", function() stage(tab, true) end, "Unstage hunk", "panes")
+      add("x", "U", selection(function(r) stage(tab, true, r) end), "Unstage selected lines", "panes")
+    end
     if view.baseline then
       local when = baseline_label(s.git_root, view.baseline)
       add("n", "X", function() discard(tab) end, "Discard hunk back to baseline " .. when, "panes")
