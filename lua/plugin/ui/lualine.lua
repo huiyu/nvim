@@ -1,5 +1,15 @@
 local ai = require("ai.config")
 
+-- The gutter's diagnostic glyphs (vim.diagnostic.config in lua/options.lua),
+-- so a count in the statusline and the sign beside the line look alike.
+local diagnostic_symbols = {}
+do
+	local text, severity = vim.diagnostic.config().signs.text, vim.diagnostic.severity
+	for name, level in pairs({ error = "ERROR", warn = "WARN", info = "INFO", hint = "HINT" }) do
+		diagnostic_symbols[name] = text[severity[level]] .. " "
+	end
+end
+
 return {
 	"nvim-lualine/lualine.nvim",
 	-- The statusline is part of the first frame, dashboard included; loading it
@@ -59,7 +69,7 @@ return {
 				{
 					"diagnostics",
 					sources = { "nvim_diagnostic" },
-					symbols = { error = " ", warn = " ", info = " ", hint = " " },
+					symbols = diagnostic_symbols,
 				},
 				"encoding",
 				"filetype",

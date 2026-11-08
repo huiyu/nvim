@@ -371,7 +371,7 @@ operations share this menu; headings show which context provides each action.
 | `,r` | Rename the symbol, everywhere, with live preview |
 | `,c` | Run a codelens (gopls offers generate, test, tidy, govulncheck) |
 | `,n` | Generate a docstring / annotation |
-| `,x` | Run this file |
+| `,x` | Run this file in a terminal split below |
 | `,O` | Outline of this file |
 
 `,a`, `,r` and `,c` only exist where a language server is running — in a plain text
@@ -524,6 +524,11 @@ tab bar, and dims code outside the current scope. Press it again to return to
 the previous layout; file edits remain in the same buffer. Terminals and other
 special buffers do not enter zen mode. `sm` remains the ordinary split zoom.
 
+`ss` and `sv` are Vim's own `:split` and `:vsplit`. `splitbelow` and
+`splitright` put every plain split below or to the right of the current
+window, so `:new`, `:help` and the `,x` terminal open there too. Panels (the
+agent, quickfix, the debug view) keep the edges edgy gives them.
+
 `scrolloff = 8` tries to keep eight screen lines above and below the cursor,
 scrolling before you reach an edge. Files near their beginning/end and small
 windows cannot always provide that much context. Terminal windows use zero.
@@ -621,6 +626,12 @@ it on its own.
 ,f         format
 <Space>tf  run the tests for this file
 ```
+
+Language servers and linters mark problems in the gutter, with the icons the
+statusline counts them with: `` error, `` warning, `` info, `` hint.
+A line has room for one sign, so a line with several shows the most severe.
+`]d` / `[d` jump to the next / previous one and show its message;
+`<Space>xd` shows the current line's.
 
 If you are bouncing between two files, `;a` toggles between them. If it is
 three or four files, pin them with `;H` and use `;1`-`;4`.

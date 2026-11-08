@@ -577,9 +577,10 @@ run.register({ "sh", "bash" }, function(path)  -- multiple filetypes at once
   return "bash " .. vim.fn.shellescape(path)
 end)
 
--- Flush unsaved edits (:update) and run the current buffer's file in a split
--- terminal (bound to ,x). A refused flush -- read-only file, unwritable
--- directory -- is a warning, and nothing runs.
+-- Flush unsaved edits (:update) and run the current buffer's file in a
+-- terminal split below it (bound to ,x; a plain :split under 'splitbelow').
+-- A refused flush -- read-only file, unwritable directory -- is a warning,
+-- and nothing runs.
 run.run_current()
 ```
 

@@ -13,6 +13,11 @@ local function fixture(lines, terminal)
   local buf = a.nvim_create_buf(false, true)
   a.nvim_set_current_buf(buf)
   if terminal then
+    -- gx opens a file beside a scratch fixture, so the checks above leave a
+    -- stack of editor windows and this one can be down to a row. A terminal
+    -- shorter than the fixture holds only its last rows, and the render wait
+    -- below never sees the line it looks for.
+    if a.nvim_win_get_height(0) < #lines then a.nvim_win_set_height(0, #lines) end
     local channel = a.nvim_open_term(buf, {})
     a.nvim_chan_send(channel, table.concat(lines, "\r\n"))
     t.ok(vim.wait(1000, function()

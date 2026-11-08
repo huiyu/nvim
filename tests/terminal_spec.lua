@@ -182,9 +182,10 @@ vim.wait(100, function() return false end)
 -- The edge rule is unchanged for docked terminals: a real neighbour is reached,
 -- a missing one keeps terminal input active.
 vim.cmd("only")
-vim.cmd("vsplit")
 local left = vim.api.nvim_get_current_win()
-vim.cmd("wincmd l")
+-- Spelled out rather than left to 'splitright', so the terminal is the right
+-- neighbour whichever way plain splits go.
+vim.cmd("rightbelow vsplit")
 vim.cmd("terminal sleep 30")
 local docked = vim.api.nvim_get_current_win()
 t.ok(docked ~= left and relative_of(docked) == "", "a split terminal is a layout window")

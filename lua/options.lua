@@ -36,6 +36,8 @@ local options = {
   background = "dark",   -- Use colors that suit a dark background.
   wrap = false,
   showcmd = true,
+  splitbelow = true,     -- ss / :split put the new window below,
+  splitright = true,     -- sv / :vsplit to the right, as their descs say.
 
   -- Other Options --
   autowrite = true,                        -- Auto write before commands such as :next and :make
@@ -51,9 +53,9 @@ local options = {
   completeopt = { "menuone", "noselect" }, -- mostly just for cmp
   signcolumn = "yes",                      -- always show the sign column, otherwise it would shift the text each time
   showmode = false,                        -- we don't need to see things like -- INSERT -- anymore
-  showtabline = 1,                         -- show tabline only when multiple tabs
+  showtabline = 2,                         -- always on, as bufferline keeps it; set here so the first frame has the row too
   laststatus = 3,                          -- Global statusline (single statusline for all windows)
-  conceallevel = 2,                        -- Hide markup syntax in markdown etc.
+  conceallevel = 2,                        -- Hide markup syntax in markdown, LaTeX etc.; JSON opts out (lua/lang/json.lua)
 }
 
 vim.opt.shortmess:append("c")
@@ -68,6 +70,29 @@ end
 for k, v in pairs(options) do
   vim.opt[k] = v
 end
+
+-- Diagnostics: one global config, set before anything can publish -- LSP,
+-- nvim-lint and neotest all report through vim.diagnostic, and a namespace
+-- without its own config reads this one. Only the differences from Nvim's
+-- defaults are listed, so virtual text and virtual lines stay off.
+--
+-- statuscol gives diagnostics a single sign cell per line
+-- (lua/plugin/ui/statuscol.lua) and keeps the highest-priority sign there.
+-- Without severity_sort every diagnostic sign has the same priority, and a
+-- line holding an ERROR and a HINT could show the HINT. The glyphs are the
+-- ones the statusline counts with; lualine reads them from this config.
+local severity = vim.diagnostic.severity
+vim.diagnostic.config({
+  severity_sort = true,
+  signs = {
+    text = {
+      [severity.ERROR] = "",
+      [severity.WARN] = "",
+      [severity.INFO] = "",
+      [severity.HINT] = "",
+    },
+  },
+})
 
 -- Messages and the command line: Nvim's own ui2 instead of the legacy message
 -- grid. No "Press ENTER" prompt; output taller than 'cmdheight' collapses to a

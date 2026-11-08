@@ -43,6 +43,8 @@ function M.run_current()
     vim_error.notify(err, "Run current file")
     return
   end
+  -- A plain :split, so 'splitbelow' (lua/options.lua) puts the output under
+  -- the file, the same place `ss` would.
   vim.cmd("split | terminal " .. builder(path))
 end
 

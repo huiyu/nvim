@@ -143,7 +143,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   event stream, so `<leader>d` has to work from the editor tabpage too -- you
   set a breakpoint and step from the source you are editing, not only from
   inside the view. Nothing there blocks a global prefix.
-- The tabline stays on (`always_show_bufferline`). bufferline's own toggle
+- The tabline stays on (`always_show_bufferline`, and `showtabline = 2` in
+  `lua/options.lua` so the first frame, drawn before bufferline loads on
+  `VeryLazy`, already has the row). bufferline's own toggle
   counts buffers and never tabpages, so more than one tabpage with at most
   one listed buffer hid the tabline and the `1`/`2` tabpage indicators with
   it -- while diffview, the view most likely to be in that second tabpage,
