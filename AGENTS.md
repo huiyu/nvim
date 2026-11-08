@@ -240,7 +240,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   transcript's `q` fail with E444. vim.notify goes to the snacks notifier.
   Both stay off without a UI, so `--headless` keeps plain stderr messages and
   the specs never exercise them: check message, cmdline and float changes in
-  a real UI as well.
+  a real UI as well. A UI that attaches after startup (`--remote-ui`) turns
+  both on from a once-`UIEnter` hook; decide on that event, not only on
+  `nvim_list_uis()` at spec-evaluation time.
 - Neovim's built-in `gc`/`gcc` commenting is the default; do not reintroduce a
   comment plugin without a concrete missing capability.
 - Add or remove plugins through lazy.nvim specs and include the resulting

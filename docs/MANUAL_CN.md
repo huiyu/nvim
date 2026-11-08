@@ -532,7 +532,7 @@ Ctrl-,                             直达编辑器，再按跳回
 | 键 | 作用 |
 |---|---|
 | `g<` / `<Space>mnl` | 在分页窗口里重看上一条命令的输出 |
-| `:messages` / `<Space>mna` | 消息历史：echo 输出和错误 |
+| `:messages` / `<Space>mna` | 消息历史：`:echomsg`、`print()` 输出和错误（普通 `:echo` 不记录） |
 | `<Space>mnh` | 通知历史 |
 | `<Space>mnt` | 在 picker 里搜索通知 |
 | `<Space>mnd` / `<Space>un` | 关掉屏幕上的通知 |

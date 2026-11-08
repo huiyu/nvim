@@ -100,11 +100,30 @@ vim.notify = real_notify
 
 -- <C-f>/<C-b> scroll an open hover from the code window (noice did this
 -- before); with no popup they stay a page scroll. A plain float stands in for
--- the hover: the maps only look for the window open_floating_preview records.
+-- the hover, tagged the way open_floating_preview tags one: the buffer var
+-- naming the window, plus the hover focus_id as a window var.
 local scroll_f, scroll_b = mapping("<C-f>"), mapping("<C-b>")
 t.eq(scroll_f.desc, "[LSP] Scroll hover / page", "<C-f> is the hover/page scroll")
 t.eq(scroll_f.buffer, 1, "<C-f> is buffer-local, so plain buffers keep the builtin")
 t.eq(scroll_f.callback(), "<C-f>", "<C-f> without a popup is the usual page scroll")
+
+-- The diagnostic float that ]d / [d open goes through open_floating_preview
+-- too, so it also sets b:lsp_floating_preview. It must not capture the key:
+-- scrolling never moves the cursor, so it would stay open and swallow every
+-- later page scroll.
+local diag_ns = vim.api.nvim_create_namespace("lsp_keymap_spec")
+local diag_line = vim.api.nvim_win_get_cursor(0)[1] - 1
+vim.diagnostic.set(diag_ns, 0, {
+  { lnum = diag_line, col = 0, message = "spec diagnostic", severity = vim.diagnostic.severity.WARN },
+})
+local _, diag_float = vim.diagnostic.open_float({ scope = "line" })
+t.ok(diag_float and vim.b.lsp_floating_preview == diag_float,
+  "the diagnostic float is recorded as the buffer's preview float")
+t.eq(scroll_f.callback(), "<C-f>", "<C-f> pages the buffer while a diagnostic float is open")
+t.eq(scroll_b.callback(), "<C-b>", "<C-b> pages the buffer while a diagnostic float is open")
+if diag_float and vim.api.nvim_win_is_valid(diag_float) then vim.api.nvim_win_close(diag_float, true) end
+vim.diagnostic.reset(diag_ns, 0)
+
 local doc = vim.api.nvim_create_buf(false, true)
 local doc_lines = {}
 for i = 1, 60 do doc_lines[i] = "line " .. i end
@@ -112,6 +131,7 @@ vim.api.nvim_buf_set_lines(doc, 0, -1, false, doc_lines)
 local popup = vim.api.nvim_open_win(doc, false,
   { relative = "cursor", row = 1, col = 0, width = 20, height = 5 })
 vim.b.lsp_floating_preview = popup
+vim.w[popup]["textDocument/hover"] = vim.api.nvim_get_current_buf()
 local code_win, code_top = vim.api.nvim_get_current_win(), vim.fn.line("w0")
 local function topline() return vim.fn.getwininfo(popup)[1].topline end
 t.eq(scroll_f.callback(), "", "<C-f> with a popup open consumes the key")

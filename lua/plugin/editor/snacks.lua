@@ -284,7 +284,8 @@ return {
 
     -- ── Messages (<leader>mn) ───────────────────────────────────────────
     -- Two histories: vim.notify goes to the snacks notifier and its own
-    -- history, while Vim's messages (:echo, errors) stay in :messages, which
+    -- history, while Vim's messages (:echomsg, print(), errors; never a plain
+    -- :echo, which only g< shows again) stay in :messages, which
     -- ui2 (lua/options.lua) shows in its pager.
     { "<leader>mnh", function() Snacks.notifier.show_history() end,  desc = "Notification history" },
     { "<leader>mnt", function() Snacks.picker.notifications() end,   desc = "Search notifications" },
@@ -313,6 +314,21 @@ return {
     { "<C-_>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
     -- Numbered switching is buffer-local, installed by TermOpen in autocmds.lua.
   },
+  config = function(_, opts)
+    require("snacks").setup(opts)
+    -- Started without a UI (`nvim --headless --listen`), the notifier is off,
+    -- so a UI attached later through --remote-ui would keep the builtin
+    -- vim.notify. Hand it over on that first UIEnter, the way setup() would
+    -- have; the notifier module itself works whether or not it was enabled.
+    -- A headless run never fires UIEnter, so stderr keeps every message.
+    if not opts.notifier.enabled then
+      vim.api.nvim_create_autocmd("UIEnter", {
+        once = true,
+        callback = function() vim.notify = Snacks.notifier.notify end,
+        desc = "Route vim.notify to the snacks notifier for a UI that attached after startup",
+      })
+    end
+  end,
   opts = {
     image = {
       enabled = true,
@@ -321,6 +337,7 @@ return {
     -- Only with a UI attached. Enabled, it takes over vim.notify as soon as
     -- snacks is set up, and in --headless that would swallow every warning
     -- and error the specs and the startup check rely on seeing on stderr.
+    -- A UI that attaches later gets it from `config` below.
     notifier = { enabled = #vim.api.nvim_list_uis() > 0 },
     indent = { enabled = true },
     scroll = { enabled = true },

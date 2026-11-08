@@ -674,15 +674,18 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   `;D` resolve a local directory with `util.cwd.buffer_dir()`: the file's parent,
   the displayed Oil directory, or the current window/tab cwd for terminals and
   other virtual buffers. Restart Nvim after updating to replace the old mappings.
-- **Where a message went** — two places, not one. Vim's own messages (`:echo`,
-  errors such as `E492`, Lua tracebacks) are in `:messages` (`<leader>mna`);
-  `g<` (`<leader>mnl`) reopens the last command's output. Both show in ui2's
-  pager window, where `q` closes. Anything sent through `vim.notify` --
+- **Where a message went** — two places, not one. Vim's own messages
+  (`:echomsg`, `:echoerr`, errors such as `E492`, Lua `print()` and
+  tracebacks) are in `:messages` (`<leader>mna`). Plain `:echo` is never kept
+  there: only `g<` (`<leader>mnl`) shows it again, and only while it is still
+  the last command's output. Both show in ui2's pager window, where `q`
+  closes. Anything sent through `vim.notify` --
   plugins, LSP `window/showMessage`, this config's own warnings -- goes to the
   snacks notifier instead and is only in its history: `<leader>mnh`, or
   `<leader>mnt` to search it. `<leader>un` / `<leader>mnd` dismiss. Under
   `--headless` neither ui2 nor the notifier is enabled, so `vim.notify` prints
-  to stderr as usual.
+  to stderr as usual. A UI attached later (`nvim --headless --listen`, then
+  `nvim --remote-ui`) gets both on its first `UIEnter`.
 - **A message shows only its first line, with `[+N]`** — ui2 collapses output
   taller than 'cmdheight'. Press `g<` to read it in full. A multi-line error is
   not expanded at all, so its traceback is only reachable through `g<` or
@@ -696,7 +699,9 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 - `K` on whitespace or a keyword stays quiet: hover runs with `silent = true`
   (`lua/plugin/lsp/lsp.lua`), which drops both "No information available" and
   "Empty hover response". The hover and `gK` popups have a rounded border, and
-  `<C-f>` / `<C-b>` scroll them from the code window. Signature help while
+  `<C-f>` / `<C-b>` scroll them from the code window. Only those two: with the
+  diagnostic float from `]d` / `<leader>xd` open, the keys still page the
+  buffer. Signature help while
   typing is blink.cmp's (`signature` in `lua/plugin/lsp/cmp.lua`).
 - LSP progress (indexing, workspace loading) is a spinner next to the server's
   name in the statusline (lualine's `lsp_status`); there is no progress
@@ -732,7 +737,9 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   references; with no server attached it changes nothing, and the warning
   `method "textDocument/definition" is not supported` is followed by an
   `await callback was discarded` error (`:checkhealth vim.lsp`).
-  `tests/refactoring_spec.lua` drives each key against a real file.
+  `tests/refactoring_spec.lua` drives `,ex`, `,ef` and `,R` (its menu answered
+  by a stub) against a real file, and `,i` as well when lua-language-server is
+  installed; `,eF` is not exercised.
 - **"Working directory … no longer exists; started in … instead"** — the shell's
   directory was deleted under it (a pruned worktree, a removed temp dir). Nvim
   moved to the nearest surviving ancestor, or `~`. Without this, Snacks'

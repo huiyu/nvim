@@ -2,8 +2,8 @@
 -- refactor() entry point every mapping called, and on Nvim 0.12 its fallback
 -- `require("async")` resolved to promise-async, which nvim-ufo loads on the
 -- first file read (lua/plugin/editor/refactoring.lua). So this spec reads a
--- real file first, the order a session has, and drives each refactor through
--- its mapped key, asserting the text that comes out.
+-- real file first, the order a session has, and drives the refactors through
+-- their mapped keys (all but ,eF), asserting the text that comes out.
 local t = dofile("tests/helper.lua")
 local Config = require("lazy.core.config")
 
@@ -101,6 +101,50 @@ t.eq(lines(), {
 for _, mode in ipairs({ "n", "x" }) do
   t.eq(vim.fn.maparg(",R", mode, false, true).desc, "Select refactor", ",R offers every refactor in mode " .. mode)
 end
+
+-- ,R asks vim.ui.select (the snacks picker in a session) which refactor to
+-- run, then replays the chosen operator over the same selection with `gv`
+-- through nvim_input. That input only runs once the main loop reads it, which
+-- never happens while a spec is running, so the spec catches the keys and
+-- feeds them as typed input itself. The select stub ends Visual mode first,
+-- as the picker does on open (snacks picker util.visual): left active, `gv`
+-- would swap in the previous selection.
+local offered, queued = nil, {}
+vim.ui.select = function(items, opts, on_choice)
+  local mode = vim.fn.mode():sub(1, 1)
+  if mode == "v" or mode == "V" or mode == "\22" then vim.cmd("normal! " .. mode) end
+  offered = vim.tbl_map(opts.format_item, items)
+  for _, item in ipairs(items) do
+    if opts.format_item(item) == "Extract variable" then
+      return vim.schedule(function() on_choice(item) end)
+    end
+  end
+  on_choice(nil)
+end
+local real_input = vim.api.nvim_input
+vim.api.nvim_input = function(keys)
+  queued[#queued + 1] = keys
+  return #keys
+end
+reset({ 4, 9 })
+local before = lines()
+vim.api.nvim_feedkeys(vim.keycode("v4l,R"), "mx", false)
+vim.wait(3000, function() return #queued > 0 end, 20)
+vim.api.nvim_input = real_input
+t.ok(offered and vim.tbl_contains(offered, "Extract function") and vim.tbl_contains(offered, "Inline variable"),
+  ",R lists the refactors to choose from")
+answers = { "double" }
+for _, keys in ipairs(queued) do vim.api.nvim_feedkeys(keys, "mtx", false) end
+vim.wait(3000, function() return not vim.deep_equal(lines(), before) end, 20)
+t.eq(lines(), {
+  "local function f(a, b)",
+  "  local total = a + b",
+  "  print(total * 3)",
+  "  local double = a * 2",
+  "  return double + b",
+  "end",
+  "return f",
+}, "Visual ,R runs the chosen refactor on the selection")
 
 -- Inline variable resolves references through the language server.
 if vim.fn.executable("lua-language-server") == 1 then

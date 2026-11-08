@@ -145,10 +145,21 @@ return {
           -- With no popup open, the key keeps its usual page scroll, count
           -- included. The scroll itself is scheduled: an <expr> map runs under
           -- textlock, which forbids even a temporary switch into the float.
+          -- b:lsp_floating_preview alone is not enough: every preview float
+          -- sets it, the diagnostic float that ]d / [d open included, and
+          -- scrolling never moves the cursor, so that float would swallow the
+          -- page scroll until something else closed it. The focus_id window
+          -- var is what sets hover and signature help apart from the rest.
+          local function popup()
+            local float = vim.b.lsp_floating_preview
+            if not (float and vim.api.nvim_win_is_valid(float)) then return nil end
+            local w = vim.w[float]
+            if w["textDocument/hover"] or w["textDocument/signatureHelp"] then return float end
+          end
           for lhs, keys in pairs({ ["<C-f>"] = "4\5", ["<C-b>"] = "4\25" }) do
             vim.keymap.set("n", lhs, function()
-              local float = vim.b.lsp_floating_preview
-              if not (float and vim.api.nvim_win_is_valid(float)) then return lhs end
+              local float = popup()
+              if not float then return lhs end
               vim.schedule(function()
                 if not vim.api.nvim_win_is_valid(float) then return end
                 vim.api.nvim_win_call(float, function() vim.cmd.normal({ keys, bang = true }) end)

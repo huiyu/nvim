@@ -585,7 +585,7 @@ to read its output in a pager instead; `q` closes the pager. Notifications from 
 | Key | Does |
 |---|---|
 | `g<` / `<Space>mnl` | The last command's output again, in the pager |
-| `:messages` / `<Space>mna` | Message history: echoes and errors |
+| `:messages` / `<Space>mna` | Message history: `:echomsg`, `print()` and errors (a plain `:echo` is not kept) |
 | `<Space>mnh` | Notification history |
 | `<Space>mnt` | Search notifications in a picker |
 | `<Space>mnd` / `<Space>un` | Dismiss the notifications on screen |

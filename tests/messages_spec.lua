@@ -24,6 +24,29 @@ t.eq(Snacks.config.notifier.enabled, false, "headless: the snacks notifier stays
 t.ok(debug.getinfo(vim.notify, "S").source:find("vim/_core/editor", 1, true) ~= nil,
   "headless: vim.notify is still Nvim's own")
 
+-- A UI that attaches after startup (--headless --listen, then --remote-ui)
+-- gets both on its first UIEnter, the event lazy.nvim also uses to run
+-- VeryLazy late. A headless run never fires it, so the hooks are called
+-- directly here to check what they would do.
+local deferred = {}
+for _, au in ipairs(vim.api.nvim_get_autocmds({ event = "UIEnter" })) do
+  if au.desc then deferred[au.desc] = au end
+end
+local ui2_hook = deferred["Enable ui2 for a UI that attached after startup"]
+local notify_hook = deferred["Route vim.notify to the snacks notifier for a UI that attached after startup"]
+t.ok(ui2_hook and ui2_hook.once, "headless: ui2 waits for the first UIEnter")
+t.ok(notify_hook and notify_hook.once, "headless: the notifier waits for the first UIEnter")
+if ui2_hook and ui2 then
+  ui2_hook.callback()
+  t.eq(ui2.wins.cmd, -1, "the ui2 hook still opens nothing while no UI is attached")
+end
+if notify_hook then
+  local builtin_notify = vim.notify
+  notify_hook.callback()
+  t.eq(vim.notify, Snacks.notifier.notify, "the notifier hook routes vim.notify to snacks")
+  vim.notify = builtin_notify
+end
+
 -- <leader>mn* replaced noice's history keys with the notifier and ui2's pager.
 for lhs, desc in pairs({
   ["<leader>mnh"] = "Notification history",

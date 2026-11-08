@@ -79,11 +79,25 @@ end
 -- failing. enable() returns early when no UI is attached, so --headless runs
 -- (the specs, the startup check) keep plain stdout/stderr messages.
 --
+-- A UI that attaches later (`nvim --headless --listen` + `nvim --remote-ui`)
+-- gets it on its first UIEnter instead; a headless run never fires that event.
+-- The snacks notifier makes the same deferral (lua/plugin/editor/snacks.lua).
+--
 -- ui2 keeps its four floats (cmd, msg, pager, dialog) in whichever tabpage is
 -- current, so nvim_tabpage_list_wins() never returns just the layout: a "last
 -- window?" check must count non-floating windows only.
 local has_ui2, ui2 = pcall(require, "vim._core.ui2")
-if has_ui2 then ui2.enable({}) end
+if has_ui2 then
+  if #vim.api.nvim_list_uis() > 0 then
+    ui2.enable({})
+  else
+    vim.api.nvim_create_autocmd("UIEnter", {
+      once = true,
+      callback = function() ui2.enable({}) end,
+      desc = "Enable ui2 for a UI that attached after startup",
+    })
+  end
+end
 
 -- Disable netrw
 vim.g.loaded_netrw = 1
