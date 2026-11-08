@@ -21,7 +21,8 @@
 --                                   merge, source_revisions,
 --                                   stored_diff_result.changes,
 --                                   panel { name, data, view { bufnr, winid, tree } }
---   panel tree                      get_node(line) and its node.data (panel_item)
+--   panel tree                      get_node(line) and its node.data, and a
+--                                   history's data.opts (panel_item)
 --   codediff.ui.explorer.actions    toggle_stage_entry, stage_all,
 --                                   unstage_all, restore_entry
 --   codediff.ui.view.actions.hunk   unstage_hunk
@@ -246,6 +247,26 @@ end
 -- The panel entry under the cursor
 ---------------------------------------------------------------------------
 
+local function str(v) return type(v) == "string" and v ~= "" and v or nil end
+
+--- The file a commit row of a history panel stands for. A single file's
+--- history follows one file (opts.file_path), and each of its rows is that
+--- file as the working tree names it, which a digest can hash. CodeDiff's own
+--- name for the commit, from `git log --follow --numstat`
+--- (core/git/history.lua), is no use there: for the commit that renamed the
+--- file it is `old => new` verbatim, or the old name alone where git printed
+--- `dir/{old => new}`. Any other history gives the file CodeDiff listed for
+--- the commit, a verbatim `old => new` reduced to the new name.
+local function commit_file(s, data)
+  local opts = type(s.panel.data) == "table" and type(s.panel.data.opts) == "table" and s.panel.data.opts or {}
+  local followed = str(opts.file_path)
+  if followed and not (type(s.git_root) == "string" and vim.fn.isdirectory(s.git_root .. "/" .. followed) == 1) then
+    return followed
+  end
+  local listed = str(data.file_path)
+  return listed and (listed:match("^.- => (.+)$") or listed) or followed
+end
+
 --- The explorer or history entry on the cursor line of `win` (default: the
 --- panel's own window), as plain data, for review feedback on a file rather
 --- than a hunk (lua/ai/review/feedback.lua). Read from the panel's tree
@@ -256,8 +277,9 @@ end
 --- `status` (M, A, D, R, ?? ...), `old_path` for a rename and, in the status
 --- view, `group` ("staged", "unstaged", "conflicts"); in history `commit` is
 --- the commit it belongs to. A history commit has `commit`, `short_hash`,
---- `subject` and, in a single file's history, that file as `path`. nil when
---- `win` does not show the panel or its line holds no entry.
+--- `subject` and, in a single file's history, that file as `path`, as the
+--- working tree names it (commit_file). nil when `win` does not show the
+--- panel or its line holds no entry.
 ---@param tab? integer
 ---@param win? integer
 ---@return { panel: "explorer"|"history", type: string, path?: string, old_path?: string, status?: string, group?: string, commit?: string, short_hash?: string, subject?: string }?
@@ -274,16 +296,11 @@ function M.panel_item(tab, win)
   local ok, node = pcall(tree.get_node, tree, line)
   local data = ok and type(node) == "table" and type(node.data) == "table" and node.data or nil
   if not data then return nil end
-  local function str(v) return type(v) == "string" and v ~= "" and v or nil end
   -- Explorer files carry no type; every other node names its own.
   local kind = str(data.type) or (str(data.path) and "file") or nil
   if not kind then return nil end
   local path = str(data.path)
-  if kind == "commit" and not path then
-    -- A single file's history lists commits only; the file is the panel's.
-    local opts = type(s.panel.data) == "table" and type(s.panel.data.opts) == "table" and s.panel.data.opts or {}
-    path = str(data.file_path) or str(opts.file_path)
-  end
+  if kind == "commit" and not path then path = commit_file(s, data) end
   return {
     panel = s.panel.name,
     type = kind,

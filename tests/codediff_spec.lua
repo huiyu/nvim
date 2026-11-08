@@ -611,6 +611,62 @@ do
   item = item_at(pview, base)
   t.eq(item and { item.type, item.path }, { "commit", "a.txt" }, "panel_item gives such a commit the file's path")
   close_view()
+
+  -- A single file's history across a rename. CodeDiff keeps each commit's
+  -- path from `git log --follow --numstat` (core/git/history.lua): the plain
+  -- name, and for the renaming commit either `old => new` verbatim, where
+  -- git prints no braces, or the old name alone, where it prints
+  -- `dir/{old => new}`; a brace, a `=>` or a blank at the edge of a
+  -- component is misread outright. Those listings are pinned as they come,
+  -- so a CodeDiff that changes them shows up here. panel_item reads none of
+  -- them: every commit row is the followed file as the working tree names
+  -- it, which a digest can hash, and no row claims a rename.
+  local follow_root, fgit = repo("codediff follow")
+  local function rows(prefix, n)
+    local out = {}
+    for i = 1, n do out[i] = prefix .. " " .. i end
+    return out
+  end
+  local follows = {
+    { old = "old.txt", file = "new.txt", listed = "old.txt => new.txt", form = "without braces" },
+    { old = "dir/before.txt", file = "dir/after.txt", listed = "dir/before.txt", form = "with braces" },
+    { old = "x => y.txt", file = "z.txt", listed = "x => y.txt => z.txt", form = "of a name holding =>" },
+    { old = "braces/{a}.txt", file = "braces/{b}.txt", listed = "braces/{a}.txt.txt}", form = "of a name holding braces" },
+    { old = "a /f.txt", file = "b/f.txt", listed = "a/f.txt", form = "of a directory ending in a blank" },
+  }
+  for i, case in ipairs(follows) do
+    for _, name in ipairs({ case.old, case.file }) do
+      vim.fn.mkdir(vim.fs.dirname(follow_root .. "/" .. name), "p")
+    end
+    -- Distinct contents, so that git pairs each rename with its own source.
+    case.tag = "file" .. i
+    vim.fn.writefile(rows(case.tag, 8), follow_root .. "/" .. case.old)
+  end
+  assert(fgit("add", "."))
+  assert(fgit("commit", "-qm", "create"))
+  for _, case in ipairs(follows) do vim.fn.writefile(rows(case.tag, 9), follow_root .. "/" .. case.old) end
+  assert(fgit("commit", "-qam", "edit before"))
+  for _, case in ipairs(follows) do assert(fgit("mv", case.old, case.file)) end
+  assert(fgit("commit", "-qm", "rename"))
+  for _, case in ipairs(follows) do vim.fn.writefile(rows(case.tag, 10), follow_root .. "/" .. case.file) end
+  assert(fgit("commit", "-qam", "edit after"))
+  vim.cmd.cd(vim.fn.fnameescape(follow_root))
+  for _, case in ipairs(follows) do
+    vim.cmd.edit(vim.fn.fnameescape(follow_root .. "/" .. case.file))
+    press("<leader>gV")
+    t.ok(vim.wait(15000, history_ready, 20), "<leader>gV opens " .. case.file .. "'s history")
+    praw, pview, found = panel_entries()
+    local listing = vim.tbl_map(function(c) return { c.subject, c.file_path } end, praw.panel.data.commits or {})
+    t.eq(listing, { { "edit after", case.file }, { "rename", case.listed }, { "edit before", case.old }, { "create", case.old } },
+      "session.panel.data.commits lists the commits newest first, a rename " .. case.form .. " as " .. case.listed)
+    for _, subject in ipairs({ "edit after", "rename", "edit before", "create" }) do
+      item = item_at(pview, entry_with(found, { type = "commit", subject = subject }))
+      t.eq(item and { path = item.path, old_path = item.old_path, status = item.status }, { path = case.file },
+        ("panel_item on %q in %s's history"):format(subject, case.file))
+    end
+    close_view()
+  end
+  vim.fn.delete(follow_root, "rf")
 end
 vim.cmd.cd(vim.fn.fnameescape(root))
 
