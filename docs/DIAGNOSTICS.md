@@ -42,6 +42,12 @@ nvim --startuptime /tmp/st.log +qa && sort -k2 -n -r /tmp/st.log | head -20
 of truth for eager/lazy state. Some core UI and language infrastructure loads at
 startup; the rest is event-, command-, key-, or filetype-triggered.
 
+Lua modules are byte-compiled and cached by `vim.loader`, switched on by the
+first line of `init.lua` (lazy.nvim alone would only do it from its bootstrap
+on). A cache entry is reused only while the file's size and modification time
+are unchanged; `:lua vim.loader.reset()` clears it if a module ever seems to
+run old code.
+
 ## Plugins
 
 `:Lazy` is the source of truth: load order, load time, and any spec/load errors.

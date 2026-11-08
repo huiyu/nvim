@@ -186,7 +186,7 @@ picks from it:
 | Drawer | Means | Examples |
 |---|---|---|
 | `[` `]` | previous / next X | `]d` diagnostic · `]e` error · `]h` git hunk · `]q` quickfix · `]m` function · `]c` class · `]x` conflict · `]y` yank history. Uppercase = first / last: `[D` `]Q` |
-| `g` | go somewhere / about the thing under the cursor | `gd` definition · `gr` references · `gb` implementation · `gy` type · `gC` callers · `K` docs · `gx` open URL / file · `gS` split / join · `gv` reselect |
+| `g` | go somewhere / about the thing under the cursor | `gd` definition · `gr` references · `gb` implementation · `gy` type · `gC` callers · `gs` JS source (JS/TS) · `K` docs · `gx` open URL / file · `gS` split / join · `gv` reselect |
 | `z` | folds and spelling | `zR` open all · `zM` close all · `za` toggle · `z=` suggestions · `zg` add to dictionary |
 | `Ctrl` | act now, no questions, the same in every mode | `<C-h/j/k/l>` windows · `<C-/>` terminal · `<C-o>` back the way you came · `<C-a>` `<C-x>` increment / decrement · `<C-r>` redo |
 
@@ -567,16 +567,16 @@ is open beside your code.
 
 | Key | Group | Contains |
 |---|---|---|
-| `<Space>g` | Git | status, blame, hunks, lazygit (`gg`), diffview |
+| `<Space>g` | Git | status, blame, hunks, inline diff (`gD`), lazygit (`gg`), diffview |
 | `<Space>G` | GitHub | PRs, issues, reviews |
 | `<Space>d` | Debug | breakpoints, step, inspect |
 | `<Space>t` | Test | run file / nearest / debug, output panel |
 | `<Space>x` | Diagnostics | error list, quickfix, location list |
 | `<Space>a` | AI | Claude / Codex panels, prompts, transcript |
-| `<Space>b` | Buffer | delete, pin, close others |
+| `<Space>b` | Buffer | delete, pin, close others, close the hidden ones (`bh`) |
 | `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
-| `<Space>y` | Yank | copy file path, yank history, registers |
+| `<Space>y` | Yank | copy file path, `path:line` (`yl`), git permalink (`yg`), yank history, registers |
 | `<Space>u` | Toggle/UI | wrap, spell, diagnostics, inlay hints, colorscheme |
 | `<Space><Tab>` | Tab | tab pages |
 | `<Space>q` | Quit | quit all |
@@ -627,7 +627,13 @@ gC  who calls this?
 `K` shows documentation for whatever is under the cursor. `Ctrl-f` / `Ctrl-b`
 scroll that popup while the cursor stays in the code; `KK` moves into it. `gr`
 lists every reference. While you type a call, the parameter list appears above
-it on its own. `<Space>uh` turns on inlay hints — parameter names and inferred
+it on its own.
+
+In JavaScript and TypeScript, `gd` on something imported from a package stops
+at the package's type declarations (`.d.ts`). `gs` goes on to the JavaScript
+that actually runs, so you can read the implementation; Ctrl-o comes back as
+after `gd`. A package that ships more than one build (CommonJS and ES modules)
+can have several; they go to the quickfix list. `<Space>uh` turns on inlay hints — parameter names and inferred
 types drawn inline — in every language whose server provides them; they start
 off.
 
@@ -669,10 +675,30 @@ that referenced it get rewritten instead of silently breaking.
 `<Space>gg` opens lazygit — staging, committing and history in one place.
 `;c` jumps to any changed hunk in the repository (see [Positions](#positions)).
 `<Space>gv` opens diffview for reviewing a branch. Inside diffview, the `,` menu includes
-its view actions and `<Space>gq` closes it.
+its view actions and `<Space>gq` closes it. Lines that one side lacks are
+filled with `╱` hatching.
 Scrolling the mouse wheel over either diff pane keeps the panes vertically
 aligned, including added/deleted-line filler and folded regions, while retaining
 keyboard focus. The file/history panel scrolls independently.
+
+`<Space>gD` shows the current file's changes inside its own window: each line
+removed since the index is drawn, read-only, where it used to be, so a changed
+line has its old text right above it. `]h` / `[h` step through the changes;
+`<Space>gD` again goes back to the plain file. `<Space>gd` shows the same comparison in a split instead. The statusline
+counts the buffer's changes against the index next to the branch, `+3 ~1 -2`
+for added, changed and removed lines.
+
+`<Space>yg` copies a permalink to the current line, or to the selected lines
+in Visual mode, on the repository's remote (GitHub, GitLab, ...). It names the
+last commit that changed the file, so the link keeps showing the same code
+after the branch moves on, but the line numbers are that commit's: with
+uncommitted changes above the cursor they drift, and the link only works once
+the commit is pushed.
+
+`<Space>bh` deletes every file buffer that no window shows, in any tabpage,
+and leaves the windows alone; terminals and other special buffers stay.
+`<Space>bo` keeps only the current buffer, replacing whatever the other splits
+were showing.
 
 ### Terminals and AI
 
@@ -687,6 +713,10 @@ Ctrl-l       (Insert) take the grey AI suggestion
 
 `Ctrl-]` leaves terminal input without disturbing the program running in it —
 useful because `Esc` belongs to the AI CLIs themselves.
+
+To point an agent at some code, `<Space>yl` copies `path:12` (in Visual mode
+`path:12-18` for the selected lines), relative to the repository root. Agent
+prompts read that form, and so do `gF` and terminal links.
 
 While you type in a file, a grey suggestion for the rest of the line may
 appear after the cursor. It comes from a model running on this machine, not

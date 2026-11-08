@@ -56,6 +56,8 @@ end
 -- incoming calls took free letters precisely so these stayed builtin.
 t.eq(mapping("gI"), {}, "gI is still Vim's insert-at-column-1")
 t.eq(mapping("gi"), {}, "gi is still Vim's resume-last-insert")
+-- gs (source definition) is vtsls's own; elsewhere it stays Vim's :sleep.
+t.eq(mapping("gs"), {}, "gs is only mapped where vtsls attaches")
 
 -- Nvim 0.11's defaults are not overridden, only shadowed inside LSP buffers.
 for _, lhs in ipairs({ "grr", "gri", "grt", "gra", "grn", "grx" }) do

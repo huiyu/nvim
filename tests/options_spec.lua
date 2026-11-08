@@ -122,6 +122,19 @@ t.eq(vim.wo.conceallevel, 2, "an ordinary window starts from the global level")
 vim.api.nvim_win_set_buf(0, hidden)
 t.eq(vim.wo.conceallevel, 0, "and a JSON buffer it is handed later still shows quotes")
 
+-- Diff filler is a hatch, and appending it kept the rest of 'fillchars'.
+t.eq(vim.opt.fillchars:get().diff, "╱", "diff filler lines are drawn with ╱")
+t.eq(vim.go.fillchars:find("diff:╱", 1, true) ~= nil, true, "the global value carries it")
+
+-- The bytecode loader is on before init.lua's first require, not only from
+-- lazy.nvim's bootstrap on.
+t.eq(vim.loader.enabled, true, "vim.loader is enabled")
+local first_statement
+for line in io.lines("init.lua") do
+  if not line:match("^%s*%-%-") and line:match("%S") then first_statement = line break end
+end
+t.eq(first_statement, "vim.loader.enable()", "it is init.lua's first statement")
+
 -- probe.lua and probe.tex may have started lua_ls / texlab.
 for _, client in ipairs(vim.lsp.get_clients()) do client:stop(true) end
 vim.wait(2000, function() return #vim.lsp.get_clients() == 0 end, 20)

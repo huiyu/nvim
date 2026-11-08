@@ -2,8 +2,10 @@ return {
   "lewis6991/gitsigns.nvim",
   event = "BufReadPost",
   keys = {
-    { "]h",         "<cmd>Gitsigns next_hunk<cr>",      desc = "Next hunk" },
-    { "[h",         "<cmd>Gitsigns prev_hunk<cr>",      desc = "Prev hunk" },
+    -- nav_hunk, not the deprecated next_hunk/prev_hunk. Inside an inline diff
+    -- (<leader>gD) it steps through that view's hunks.
+    { "]h",         "<cmd>Gitsigns nav_hunk next<cr>",  desc = "Next hunk" },
+    { "[h",         "<cmd>Gitsigns nav_hunk prev<cr>",  desc = "Prev hunk" },
     { "<leader>gl", "<cmd>Gitsigns blame_line<cr>",     desc = "Blame line" },
     { "<leader>gL", "<cmd>Gitsigns blame<cr>",          desc = "Blame buffer" },
     { "<leader>gp", "<cmd>Gitsigns preview_hunk<cr>",   desc = "Preview hunk" },
@@ -20,6 +22,12 @@ return {
     { "<leader>gS", function() require("gitsigns").stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end,
       desc = "Stage/unstage selected lines", mode = "x" },
     { "<leader>gd", "<cmd>Gitsigns diffthis<cr>",       desc = "Diff" },
+    -- The same comparison inside this window: lines removed since the index
+    -- are drawn where they were (a changed line's old text right above it),
+    -- no second window. Pressing it again closes the view. A file with merge
+    -- conflicts still gets the three-way split.
+    { "<leader>gD", function() require("gitsigns").diffthis(nil, { unified = true }) end,
+      desc = "Toggle inline diff" },
     { "<leader>gT", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle line blame" },
     { "<leader>gB", function() Snacks.gitbrowse() end,  desc = "Git browse (open)" },
   },

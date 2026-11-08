@@ -29,6 +29,21 @@ for _, mode in ipairs({ "x", "o", "i", "t" }) do
   t.eq(mapping(";c", mode), {}, ";c is Normal-mode only (" .. mode .. ")")
 end
 
+-- The path keys take a Visual range as well; the inline diff and the hidden
+-- buffer sweep are Normal-only. None of them reaches Insert, terminal input
+-- or operator-pending mode.
+for lhs, modes in pairs({
+  ["<leader>yl"] = { n = true, x = true },
+  ["<leader>yg"] = { n = true, x = true },
+  ["<leader>gD"] = { n = true },
+  ["<leader>bh"] = { n = true },
+}) do
+  for _, mode in ipairs({ "n", "x", "o", "i", "t" }) do
+    t.eq(next(mapping(lhs, mode)) ~= nil, modes[mode] == true,
+      ("%s is %smapped in %s"):format(lhs, modes[mode] and "" or "not ", mode))
+  end
+end
+
 -- Ordinary files must not inherit the terminal-only localleader digit row.
 -- The Ctrl-digit chords died inside an outer tmux (Ghostty encodes ctrl+digit
 -- as legacy bytes under modifyOtherKeys), so they stay gone rather than linger

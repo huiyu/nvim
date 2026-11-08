@@ -61,6 +61,10 @@ local options = {
 vim.opt.shortmess:append("c")
 vim.opt.smoothscroll = true
 vim.opt.spelllang = { "en_us", "cjk" }  -- Skip CJK characters in spell check
+-- Filler for the lines one side of a diff lacks (diffview, :diffthis): a
+-- diagonal hatch reads as "nothing here", where the default row of dashes
+-- looks like content.
+vim.opt.fillchars:append({ diff = "╱" })
 
 -- Under Ghostty, disable nvim's title updates; ghostty.zsh shell hook manages them
 if vim.env.TERM_PROGRAM == "ghostty" then

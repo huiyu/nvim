@@ -31,7 +31,21 @@ return {
 		},
 		sections = {
 			lualine_a = { "mode" },
-			lualine_b = { "branch" },
+			lualine_b = {
+				"branch",
+				{
+					"diff",
+					-- gitsigns already counts the buffer's changed lines against the
+					-- index. Without a source lualine would run its own `git diff`
+					-- on every BufEnter and write.
+					source = function()
+						local status = vim.b.gitsigns_status_dict
+						if status then
+							return { added = status.added, modified = status.changed, removed = status.removed }
+						end
+					end,
+				},
+			},
 			lualine_c = {
 				{
 					function()

@@ -104,9 +104,9 @@ nvim
 | Plugin | Description |
 |--------|-------------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator and the buffer's language servers (a spinner while one is busy) |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator, the buffer's git change counts (from gitsigns) and its language servers (a spinner while one is busy) |
 | [incline](https://github.com/b0o/incline.nvim) | Top-right filename labels in file windows; pink for the focused window, `[+]` for unsaved changes |
-| [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick |
+| [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick; `<leader>bh` closes the buffers no window shows, in any tabpage |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | Sticky function/class header (`<leader>uC`) |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
@@ -128,7 +128,7 @@ snacks below.
 |--------|-------------|
 | [flash](https://github.com/folke/flash.nvim) | Fast navigation with labels |
 | [which-key](https://github.com/folke/which-key.nvim) | Keybinding help popup |
-| [snacks](https://github.com/folke/snacks.nvim) | Picker, dashboard, terminal, notifications (history `<leader>mnh`), indent guides, smooth scroll, rename, zen mode (`sz`) |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker, dashboard, terminal, notifications (history `<leader>mnh`), indent guides, smooth scroll, rename, zen mode (`sz`), git permalinks copied to the clipboard (`<leader>yg`) |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | Pinned-file jumps (`;1`-`;9`, `;h` menu) |
@@ -168,7 +168,7 @@ snacks below.
 
 | Plugin | Description |
 |--------|-------------|
-| [gitsigns](https://github.com/lewis6991/gitsigns.nvim) | Git signs, hunk actions, blame |
+| [gitsigns](https://github.com/lewis6991/gitsigns.nvim) | Git signs, hunk actions, blame, inline diff of the current file (`<leader>gD`) |
 | [diffview](https://github.com/sindrets/diffview.nvim) | Diff and file history viewer |
 
 ### Language Support
@@ -181,7 +181,7 @@ snacks below.
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
 | Rust | rust-analyzer | rustfmt (via rust-analyzer) | cargo check (via rust-analyzer, on save) | Cargo test (DAP) | codelldb + Cargo |
 | Dart / Flutter | - | - | - | SDK test (DAP) | SDK DAP |
-| TypeScript/JS | vtsls | prettier | eslint | Vitest (DAP) | js-debug-adapter |
+| TypeScript/JS | vtsls (`gs` source definition) | prettier | eslint | Vitest (DAP) | js-debug-adapter |
 | HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
 | JSON | jsonls + SchemaStore | prettier | - | - | - |
 | YAML | yamlls + SchemaStore | prettier | - | - | - |
@@ -257,7 +257,7 @@ Every key answers one question, and the prefix says which:
 | `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;c` git hunks, `;1`-`;9` pinned files |
 | `,` | What can I do in this file / view? | `,a` code action, `,f` format, `,r` rename, `,o` organize imports (Go/Python); terminal-local `,1`-`,9` |
 | `s` | What about this window? | `ss`/`sv` split, `sd` close, `se` editor window, `s=` equalize |
-| `<leader>` | Everything else, by domain | `g` git, `G` GitHub, `d` debug, `t` test, `a` AI, `x` diagnostics, `m` manage, `s` session, `y` yank, `u` toggles, `b` buffer, `q` quit |
+| `<leader>` | Everything else, by domain | `g` git, `G` GitHub, `d` debug, `t` test, `a` AI, `x` diagnostics, `m` manage, `s` session, `y` yank (paths, `path:line`, permalinks), `u` toggles, `b` buffer, `q` quit |
 
 Frequent actions use short keys. Related commands can share a subgroup, such
 as `,e…` for extraction and `,L…` for VimTeX; `<leader>` groups global domains.

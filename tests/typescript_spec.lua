@@ -1,14 +1,16 @@
 -- Exercise project preloading through a real vtsls process, with only the
 -- shared declaration open. Loading every source buffer would hide this bug.
+-- The same on_attach maps gs (Go to Source Definition), which is followed from
+-- a package's .d.ts into its JavaScript at the end.
 local t = dofile("tests/helper.lua")
 local specs = require("lang.typescript")
-local preload
+local on_attach
 for _, spec in ipairs(specs) do
   if spec[1] == "neovim/nvim-lspconfig" then
-    preload = spec.opts.servers.vtsls.on_attach
+    on_attach = spec.opts.servers.vtsls.on_attach
   end
 end
-t.ok(type(preload) == "function", "vtsls installs the project preload callback")
+t.ok(type(on_attach) == "function", "vtsls installs the project preload callback")
 
 local executable = vim.fn.exepath("vtsls")
 if executable == "" then executable = vim.fn.stdpath("data") .. "/mason/bin/vtsls" end
@@ -36,6 +38,13 @@ for _, name in ipairs({ "match", "category-validation" }) do
     'export const result = compileRule("python");',
   })
 end
+-- A package whose types and code live apart: gd stops at index.d.ts, gs has
+-- to land in index.js.
+write("node_modules/srcdef-lib/package.json", { '{"name":"srcdef-lib","main":"index.js","types":"index.d.ts"}' })
+write("node_modules/srcdef-lib/index.d.ts", { "export declare function greet(name: string): string;" })
+write("node_modules/srcdef-lib/index.js", { "exports.greet = function greet(name) {", "  return 'hi ' + name;", "};" })
+local greeting = "packages/rules/src/greeting.ts"
+write(greeting, { 'import { greet } from "srcdef-lib";', 'export const out = greet("rules");' })
 -- These configs must not be loaded, even though they are inside the root.
 vim.fn.mkdir(root .. "/.git", "p")
 write(".gitignore", { "ignored-project/" })
@@ -55,6 +64,7 @@ vim.bo[buffer].modified = false
 vim.api.nvim_set_current_buf(buffer)
 local buffers_before = vim.api.nvim_list_bufs()
 
+local source_definition ---@type fun(client: vim.lsp.Client)?
 local function run_server(label)
   local calls, completed, requested_files = 0, false, {}
   local id = vim.lsp.start({
@@ -79,7 +89,7 @@ local function run_server(label)
         return request(self, method, params, handler, ...)
       end
     end,
-    on_attach = preload,
+    on_attach = on_attach,
   }, { bufnr = buffer })
   t.ok(id ~= nil, label .. ": language server starts")
   if not id then return end
@@ -105,13 +115,50 @@ local function run_server(label)
   t.eq(vim.api.nvim_list_bufs(), buffers_before, label .. ": no extra buffers were opened")
   t.eq(vim.fn.filereadable(root .. "/.nvim-vtsls-projects"), 0, label .. ": no synthetic config file was written")
 
-  preload(client)
+  on_attach(client, buffer)
   vim.wait(100, function() return false end, 20)
   t.eq(calls, 1, label .. ": further attaches do not reload projects")
+
+  local gs = vim.fn.maparg("gs", "n", false, true)
+  t.eq(gs.desc, "[LSP] Goto source definition", label .. ": gs is mapped on attach")
+  t.eq(gs.buffer, 1, label .. ": gs is buffer-local, so other buffers keep :sleep")
+  if source_definition then source_definition(client) end
   client:stop(true)
   t.ok(vim.wait(3000, function() return vim.lsp.get_client_by_id(id) == nil end, 20),
     label .. ": language server shuts down")
 end
+
+-- gs runs once, against the first server. The jump opens index.js, which would
+-- start the configured JavaScript servers; this spec drives its own client.
+local function source_definition_check(client)
+  source_definition = nil
+  vim.lsp.enable({ "vtsls", "eslint", "tailwindcss" }, false)
+  local buf = vim.api.nvim_create_buf(true, false)
+  vim.api.nvim_buf_set_name(buf, root .. "/" .. greeting)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.fn.readfile(root .. "/" .. greeting))
+  vim.bo[buf].modified = false
+  vim.api.nvim_set_current_buf(buf)
+  vim.lsp.buf_attach_client(buf, client.id)
+  t.eq(vim.fn.maparg("gs", "n", false, true).buffer, 1, "gs is mapped in every attached buffer")
+  vim.api.nvim_win_set_cursor(0, { 2, 20 }) -- on `greet` in the call
+  local target = root .. "/node_modules/srcdef-lib/index.js"
+  -- Pressed once: a second answer would jump again and push index.js onto
+  -- the jumplist ahead of the call.
+  vim.fn.maparg("gs", "n", false, true).callback()
+  local landed = vim.wait(20000, function() return vim.api.nvim_buf_get_name(0) == target end, 50)
+  t.ok(landed, "gs follows the import into the package's JavaScript, past its .d.ts")
+  t.eq(vim.api.nvim_win_get_cursor(0), { 1, 25 }, "gs lands on the function's own name")
+  vim.cmd("normal! \15")
+  t.eq(vim.api.nvim_get_current_buf(), buf, "Ctrl-o returns to the call, as after gd")
+  vim.api.nvim_set_current_buf(buffer)
+  for _, b in ipairs({ buf, vim.fn.bufnr(target) }) do
+    if b > 0 then vim.api.nvim_buf_delete(b, { force = true }) end
+  end
+  -- Showing a real file brings up plugin scratch buffers of its own; the next
+  -- run's "no extra buffers" counts from here.
+  buffers_before = vim.api.nvim_list_bufs()
+end
+source_definition = source_definition_check
 
 run_server("pnpm workspace")
 -- A new client must reload projects. Also cover npm/Yarn's workspace marker.

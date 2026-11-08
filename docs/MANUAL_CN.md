@@ -166,7 +166,7 @@ caa    改这个参数                             vio    选中这个 if 的分
 | 抽屉 | 含义 | 例子 |
 |---|---|---|
 | `[` `]` | 上一个 / 下一个 X | `]d` 诊断 · `]e` 错误 · `]h` git hunk · `]q` quickfix · `]m` 函数 · `]c` 类 · `]x` 冲突 · `]y` yank 历史。大写 = 第一个 / 最后一个：`[D` `]Q` |
-| `g` | 去某处 / 关于光标下的东西 | `gd` 定义 · `gr` 引用 · `gb` 实现 · `gy` 类型 · `gC` 调用方 · `K` 文档 · `gx` 打开 URL / 文件 · `gS` 拆 / 合行 · `gv` 重选 |
+| `g` | 去某处 / 关于光标下的东西 | `gd` 定义 · `gr` 引用 · `gb` 实现 · `gy` 类型 · `gC` 调用方 · `gs` JS 源码（JS/TS） · `K` 文档 · `gx` 打开 URL / 文件 · `gS` 拆 / 合行 · `gv` 重选 |
 | `z` | 折叠与拼写 | `zR` 全展开 · `zM` 全折叠 · `za` 切换 · `z=` 拼写建议 · `zg` 加进词典 |
 | `Ctrl` | 立即执行，不问问题，任何模式都一样 | `<C-h/j/k/l>` 窗口 · `<C-/>` 终端 · `<C-o>` 原路返回 · `<C-a>` `<C-x>` 加减 · `<C-r>` 重做 |
 
@@ -509,16 +509,16 @@ Ctrl-,                             直达编辑器，再按跳回
 
 | 键 | 分组 | 内容 |
 |---|---|---|
-| `<Space>g` | Git | 状态、blame、hunk、lazygit（`gg`）、diffview |
+| `<Space>g` | Git | 状态、blame、hunk、行内 diff（`gD`）、lazygit（`gg`）、diffview |
 | `<Space>G` | GitHub | PR、issue、review |
 | `<Space>d` | 调试 | 断点、单步、查看变量 |
 | `<Space>t` | 测试 | 跑文件 / 跑最近的 / 调试、输出面板 |
 | `<Space>x` | 诊断 | 错误列表、quickfix、location list |
 | `<Space>a` | AI | Claude / Codex 面板、prompt、transcript |
-| `<Space>b` | Buffer | 删除、固定、关其他 |
+| `<Space>b` | Buffer | 删除、固定、关其他、关掉隐藏的（`bh`） |
 | `<Space>m` | 管理 | 配置、插件源码、help、man、键位、消息、Lazy、Mason、LSP 状态 |
 | `<Space>s` | 会话 | 保存 / 恢复工作布局 |
-| `<Space>y` | 复制 | 复制文件路径、yank 历史、寄存器 |
+| `<Space>y` | 复制 | 复制文件路径、`path:line`（`yl`）、git permalink（`yg`）、yank 历史、寄存器 |
 | `<Space>u` | 开关 | 换行、拼写、诊断、inlay hint、配色 |
 | `<Space><Tab>` | Tab | tab page |
 | `<Space>q` | 退出 | 全部退出 |
@@ -568,7 +568,12 @@ gC  谁调用了它？
 
 `K` 显示光标下内容的文档，`Ctrl-f` / `Ctrl-b` 在光标不离开代码的情况下滚动
 这个弹窗，`KK` 进入弹窗。`gr` 列出所有引用。输入函数调用时，参数列表会自动显示在
-上方。`<Space>uh` 打开 inlay hint，把参数名和推断出的类型直接画在代码行里；只要
+上方。
+
+在 JavaScript 和 TypeScript 里，对从某个包导入的东西按 `gd`，只会停在这个包的
+类型声明（`.d.ts`）里。`gs` 会继续跳到实际运行的 JavaScript，方便读实现；和 `gd`
+一样用 Ctrl-o 跳回。同时发布多份构建（CommonJS 和 ES module）的包可能有多个结果，
+这时会放进 quickfix 列表。`<Space>uh` 打开 inlay hint，把参数名和推断出的类型直接画在代码行里；只要
 语言服务器提供就能用，默认关闭。
 
 ### 编辑循环
@@ -606,9 +611,23 @@ dd                    → 删除
 `<Space>gg` 打开 lazygit——暂存、提交、历史都在一处。
 `;c` 跳到仓库里任意一处改动的 hunk（见[位置](#位置)）。
 `<Space>gv` 打开 diffview 做分支 review。在 diffview 内部，`,` 菜单包含它自己的视图操作，
-`<Space>gq` 关闭。
+`<Space>gq` 关闭。某一侧缺少的行用 `╱` 斜线填充。
 鼠标滚轮放在任一对比窗口上，上下滚动都会让各侧保持同步，包括新增/删除行的
 填充区域和折叠区域；键盘焦点保持原处。文件列表和历史面板独立滚动。
+
+`<Space>gD` 在当前窗口里直接显示这个文件的改动：相对 index 删掉的每一行都以只读
+形式画回原来的位置，所以改过的行上方紧挨着它的旧内容。`]h` / `[h` 在改动之间跳；
+再按一次 `<Space>gD` 回到普通视图。`<Space>gd` 则是在分屏里显示同样的对比。状态栏
+在分支名旁边显示当前 buffer 相对 index 的改动行数，例如 `+3 ~1 -2` 分别是新增、
+修改、删除的行。
+
+`<Space>yg` 复制当前行（Visual 模式下是选中的几行）在远端仓库（GitHub、GitLab
+等）上的 permalink。链接指向最后一次修改这个文件的 commit，所以分支继续往前走之后
+它仍然指向同一段代码；但行号也是那个 commit 里的：光标上方有未提交的改动时行号会
+对不上，而且要等这个 commit 推送之后链接才能打开。
+
+`<Space>bh` 删除所有 tabpage 里都没有窗口在显示的文件 buffer，不动任何窗口；终端等
+特殊 buffer 会保留。`<Space>bo` 则只留下当前 buffer，其他分屏里显示的内容也会被换掉。
 
 ### 终端与 AI
 
@@ -622,6 +641,9 @@ Ctrl-l       （Insert）接受灰色的 AI 建议
 ```
 
 `Ctrl-]` 退出终端输入但不打扰里面运行的程序——因为 `Esc` 属于 AI CLI 自己。
+
+要让 agent 看某段代码，`<Space>yl` 复制相对仓库根目录的 `path:12`（Visual 模式下是
+选中几行的 `path:12-18`）。agent 的 prompt 认这种写法，`gF` 和终端里的链接也认。
 
 在文件里打字时，光标后可能出现一段灰色文字，是对这一行剩余部分的建议。
 它来自本机运行的模型，而不是面板里的 agent（安装见

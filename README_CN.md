@@ -99,9 +99,9 @@ nvim
 | 插件 | 说明 |
 |------|------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识和当前 buffer 的语言服务器（忙碌时显示转圈） |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识、当前 buffer 的 git 改动行数（取自 gitsigns）和语言服务器（忙碌时显示转圈） |
 | [incline](https://github.com/b0o/incline.nvim) | 文件窗口右上角的文件名标签；当前窗口显示粉色，`[+]` 表示未保存的修改 |
-| [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择） |
+| [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择）；`<leader>bh` 关掉所有 tabpage 里都没有窗口在显示的 buffer |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | 粘性函数/类头（`<leader>uC`） |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
@@ -122,7 +122,7 @@ nvim
 |------|------|
 | [flash](https://github.com/folke/flash.nvim) | 快速跳转导航 |
 | [which-key](https://github.com/folke/which-key.nvim) | 键位提示弹窗 |
-| [snacks](https://github.com/folke/snacks.nvim) | Picker、启动页、终端、通知（历史 `<leader>mnh`）、缩进线、平滑滚动、重命名、专注模式（`sz`） |
+| [snacks](https://github.com/folke/snacks.nvim) | Picker、启动页、终端、通知（历史 `<leader>mnh`）、缩进线、平滑滚动、重命名、专注模式（`sz`）、把 git permalink 复制到剪贴板（`<leader>yg`） |
 | [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | 钉住的文件快速跳转（`;1`-`;9`，`;h` 打开列表） |
@@ -162,7 +162,7 @@ nvim
 
 | 插件 | 说明 |
 |------|------|
-| [gitsigns](https://github.com/lewis6991/gitsigns.nvim) | Git 标记、块操作、blame |
+| [gitsigns](https://github.com/lewis6991/gitsigns.nvim) | Git 标记、块操作、blame、当前文件的行内 diff（`<leader>gD`） |
 | [diffview](https://github.com/sindrets/diffview.nvim) | Diff 与文件历史 |
 
 ### 语言支持
@@ -175,7 +175,7 @@ nvim
 | Java | jdtls (+ Lombok) | jdtls | - | java-test | java-debug-adapter |
 | Rust | rust-analyzer | rustfmt（经 rust-analyzer） | cargo check（经 rust-analyzer，保存时） | Cargo test (DAP) | codelldb + Cargo |
 | Dart / Flutter | - | - | - | SDK test (DAP) | SDK DAP |
-| TypeScript/JS | vtsls | prettier | eslint | Vitest (DAP) | js-debug-adapter |
+| TypeScript/JS | vtsls（`gs` 跳到源码定义） | prettier | eslint | Vitest (DAP) | js-debug-adapter |
 | HTML/CSS | html, cssls, tailwindcss | prettier | - | - | - |
 | JSON | jsonls + SchemaStore | prettier | - | - | - |
 | YAML | yamlls + SchemaStore | prettier | - | - | - |
@@ -248,7 +248,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 | `;` | 我要去哪个文件 / 符号 / 位置？ | `;<space>` 智能查找、`;f` 找文件、`;/` 全局搜索、`;s` 符号、`;c` git hunk、`;1`-`;9` 钉住的文件 |
 | `,` | 当前文件 / 视图能做什么？ | `,a` code action、`,f` 格式化、`,r` 重命名、`,o` 整理导入（Go/Python）；终端内的 `,1`-`,9` |
 | `s` | 这个窗口怎么办？ | `ss`/`sv` 分屏、`sd` 关闭、`se` 跳编辑器、`s=` 均分 |
-| `<leader>` | 其余，按领域分组 | `g` git、`G` GitHub、`d` 调试、`t` 测试、`a` AI、`x` 诊断、`m` 管理、`s` 会话、`y` 复制、`u` 开关、`b` buffer、`q` 退出 |
+| `<leader>` | 其余，按领域分组 | `g` git、`G` GitHub、`d` 调试、`t` 测试、`a` AI、`x` 诊断、`m` 管理、`s` 会话、`y` 复制（路径、`path:line`、permalink）、`u` 开关、`b` buffer、`q` 退出 |
 
 常用操作使用短键，相关命令可放进子组，例如 `,e…` 提取重构、`,L…` VimTeX；
 `<leader>` 按全局领域分组。按下任一前缀等一下，which-key 会列出当前映射。

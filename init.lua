@@ -1,3 +1,9 @@
+-- Byte-compile and cache Lua modules from the first `require` on. lazy.nvim
+-- turns on the same loader in bootstrap (a no-op once it is already enabled),
+-- but only from there: util.cwd, options, mappings, autocmds and the AI facade
+-- all load before it.
+vim.loader.enable()
+
 -- `dd(value)` anywhere in this config pretty-prints it with the call site as the
 -- title. Loaded lazily so a startup that never debugs never pays for it, and
 -- taking over `vim.print` routes `:lua =expr` through the same view while

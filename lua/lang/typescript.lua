@@ -71,6 +71,40 @@ local function preload_projects(client)
   if not ok then failed(tostring(err)) end
 end
 
+-- tsserver's Go to Source Definition (TypeScript 4.7+). gd stops at a
+-- package's .d.ts; this follows the import into the JavaScript that actually
+-- runs. vtsls offers it as a workspace command rather than an LSP method, so
+-- no picker source covers it. One result jumps like gd (this window, on the
+-- jumplist); several -- a dual CJS/ESM build, for one -- go to quickfix.
+local function goto_source_definition(client, buf)
+  local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+  local sent = client:request("workspace/executeCommand", {
+    command = "typescript.goToSourceDefinition",
+    arguments = { params.textDocument.uri, params.position },
+  }, function(err, locations)
+    if err then
+      vim.notify("Source definition: " .. err.message, vim.log.levels.ERROR)
+    elseif type(locations) ~= "table" or #locations == 0 then
+      vim.notify("No source definition found", vim.log.levels.INFO)
+    elseif #locations == 1 then
+      vim.lsp.util.show_document(locations[1], client.offset_encoding, { focus = true })
+    else
+      vim.fn.setqflist({}, " ", {
+        title = "Source definitions",
+        items = vim.lsp.util.locations_to_items(locations, client.offset_encoding),
+      })
+      vim.cmd("botright copen")
+    end
+  end, buf)
+  if not sent then vim.notify("Source definition: vtsls is not running", vim.log.levels.WARN) end
+end
+
+local function on_attach(client, buf)
+  preload_projects(client)
+  vim.keymap.set("n", "gs", function() goto_source_definition(client, buf) end,
+    { buffer = buf, desc = "[LSP] Goto source definition" })
+end
+
 ---Entry point for js-debug, preferring a build that can debug browser extensions.
 ---
 ---Upstream closed browser-extension support as out-of-scope
@@ -417,7 +451,7 @@ return {
           },
         },
         vtsls = {
-          on_attach = preload_projects,
+          on_attach = on_attach,
           filetypes = {
             "javascript",
             "javascriptreact",

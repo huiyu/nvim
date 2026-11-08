@@ -131,6 +131,7 @@ local spec = {
       "  ;t / ;T          Todos / Todo+Fixme",
       "",
       "  <leader>ya / yr  Yank file path (absolute / project)",
+      "  <leader>yl / yg  Yank path:line / git permalink",
       "  <leader>yy / yc  Yank selection (register / clipboard)",
       "  <leader>yh / y\"  Yank history / Registers",
       "",
@@ -138,6 +139,7 @@ local spec = {
       "  gd / gr          Definition / References",
       "  gb / gy          Implementation / Type definition",
       "  gD / gC          Declaration / Incoming calls",
+      "  gs               Source definition (JS/TS)",
       "  K / gK           Hover / Signature help",
       "  gO               Document symbols (Nvim default)",
       "",
@@ -456,7 +458,7 @@ local sections = {
     { "repo",    icon = "󰘬 ", color = "orange", keys = { "s", "b" } },
     { "hunk",    icon = "󰏫 ", color = "green",  keys = { "p", "r", "R", "S" } },
     { "blame",   icon = "󰈈 ", color = "cyan",   keys = { "l", "L", "T" } },
-    { "diff",    icon = "󰓡 ", color = "azure",  keys = { "d", "v", "m", "M", "q" } },
+    { "diff",    icon = "󰓡 ", color = "azure",  keys = { "d", "D", "v", "m", "M", "q" } },
     { "history", icon = "󰓫 ", color = "purple", keys = { "c", "C", "H", "V", "f" } },
     { "tools",   icon = "󰏌 ", color = "yellow", keys = { "g", "B" } },
   },
@@ -494,7 +496,7 @@ local sections = {
 
   ["<leader>b"] = {
     { "pin",    icon = "󰐃 ", color = "cyan", keys = { "p", "P" } },
-    { "delete", icon = "󰈆 ", color = "red",  keys = { "d", "D", "o", "l", "r", "x" } },
+    { "delete", icon = "󰈆 ", color = "red",  keys = { "d", "D", "o", "h", "l", "r", "x" } },
     -- `j` (Pick buffer) is the only one left; it goes under others.
   },
 
@@ -523,7 +525,7 @@ local sections = {
   },
 
   ["<leader>y"] = {
-    { "path",    icon = "󰆏 ", color = "cyan",   keys = { "a", "r" } },
+    { "path",    icon = "󰆏 ", color = "cyan",   keys = { "a", "r", "l", "g" } },
     { "history", icon = "󰓫 ", color = "purple", keys = { "h", "\"" } },
   },
 
@@ -554,7 +556,7 @@ local sections = {
   -- including gf/ge/gg, sort last under others.
   ["g"] = {
     { "LSP",        icon = "󰅱 ", color = "azure",
-      keys = { "d", "r", "b", "y", "D", "C", "K", "O" } },
+      keys = { "d", "r", "b", "y", "D", "C", "s", "K", "O" } },
     { "edit",       icon = "󰏫 ", color = "yellow",
       keys = { "c", "S", "p", "P", "<C-a>", "<C-x>" } },
     { "textobject", icon = "󰃀 ", color = "purple", keys = { "[", "]" } },

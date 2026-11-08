@@ -30,6 +30,9 @@ return {
     { "<leader>bp", "<cmd>BufferLineTogglePin<cr>",            desc = "Pin buffer" },
     { "<leader>bP", "<cmd>BufferLineGroupClose ungrouped<cr>", desc = "Close unpinned buffers" },
     { "<leader>bx", function() require("util.buffer").delete_missing() end, desc = "Delete buffers of missing files" },
+    -- Unlike <leader>bo this leaves every visible split alone, in this
+    -- tabpage and the others.
+    { "<leader>bh", function() require("util.buffer").delete_hidden() end,  desc = "Delete hidden buffers" },
   },
   opts = function()
     -- Pull accent colors from the active theme so the tabpage indicators

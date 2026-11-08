@@ -169,6 +169,23 @@ for _, prefix in ipairs({ ",", "g", "<leader>g", "<leader>d" }) do
   t.ok(#got >= 2, ("%s popup is sectioned (%s)"):format(prefix, table.concat(got, ", ")))
 end
 
+-- Keys land under their declared heading, matched by key.
+local function owner_of(prefix, key)
+  local owner
+  for _, row in ipairs(popup(prefix)) do
+    if row.key == "" then owner = row.desc:gsub("^── ", "")
+    elseif row.key == key then return owner end
+  end
+end
+for _, case in ipairs({
+  { "<leader>y", "l", "path" }, { "<leader>y", "g", "path" },
+  { "<leader>g", "D", "diff" }, { "<leader>b", "h", "delete" },
+}) do
+  t.eq(owner_of(case[1], case[2]), case[3], ("%s%s sits under %s"):format(case[1], case[2], case[3]))
+end
+-- gs is buffer-local to vtsls buffers, so only the declaration can be checked here.
+t.ok(vim.tbl_contains(Spec.sections["g"][1].keys, "s"), "gs is declared in the g LSP section")
+
 -- <leader> carries only group rows, which have no keymap: sectioning them
 -- depends on `item.keys`, so a regression there shows up here first.
 local leader = leader_popup()

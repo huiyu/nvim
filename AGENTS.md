@@ -105,11 +105,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   may differ between filetypes, but a view must not steal language/general keys.
 - LSP navigation that starts from the symbol under the cursor belongs on `g`,
   not on `;`: `gd`, `gr`, `gb` (implementation), `gy`, `gD`, `gC` (incoming
-  calls) and `gK`. The dividing line is whether the key needs a symbol to start
-  from -- `;s`/`;S` fuzzy-search a symbol list and need no cursor context, so
-  they stay on `;`. Mnemonic letters lose to builtins here: `gi`/`gI` are Vim's
-  insert commands and `gc` is Nvim's comment operator, so implementation and
-  incoming calls take free letters rather than displace them.
+  calls) and `gK`, plus `gs` (source definition) where vtsls attaches, from its
+  `on_attach` in `lua/lang/typescript.lua`. The dividing line is whether the key
+  needs a symbol to start from -- `;s`/`;S` fuzzy-search a symbol list and need
+  no cursor context, so they stay on `;`. Mnemonic letters lose to builtins
+  here: `gi`/`gI` are Vim's insert commands and `gc` is Nvim's comment
+  operator, so implementation, incoming calls and source definition take free
+  letters rather than displace them (`gs` gives up only `:sleep`).
 - Every mapping that requires a language server carries a `[LSP]` prefix in its
   `desc`. A which-key popup on `g` mixes LSP jumps with lexical motions like
   `gf` and `ge`; the prefix is what tells a reader which ones stop working when

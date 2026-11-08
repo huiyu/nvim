@@ -535,6 +535,18 @@ buffer.is_missing_file(buf)
 -- (saving recreates the file, which is sometimes what you want after an
 -- agent deleted it). Notifies how many were removed. Bound to <leader>bx.
 buffer.delete_missing()
+
+-- True for a listed buffer with an empty buftype that no window shows, in any
+-- tabpage (floats included). Unlike Snacks.bufdelete.invisible(), which only
+-- checks the current tabpage, a file shown in a diffview or debug tabpage is
+-- still in use.
+buffer.is_hidden(buf)
+
+-- Delete every such buffer through Snacks.bufdelete. No window changes, a
+-- modified buffer gets the save/discard/cancel prompt, and the empty
+-- placeholder Snacks creates when no listed buffer remains is wiped again.
+-- Notifies how many were removed. Bound to <leader>bh.
+buffer.delete_hidden()
 ```
 
 ## Move (`util.move`)
