@@ -364,7 +364,10 @@ end
 --- Open a CodeDiff view.
 ---
 --- `args` are `:CodeDiff`'s arguments, passed as a list so a path with
---- spaces stays one argument. `root` adds `-C <root>` unless `args` has it.
+--- spaces stays one argument. `root` adds `-C <root>` unless `args` has it,
+--- escaped for the expand() CodeDiff runs on that value; a `-C` value in
+--- `args` is passed as given. Revisions are best passed as shas: CodeDiff
+--- reads a name like `history` as its subcommand.
 --- `label` (vim.t.codediff_label, shown in the statusline) and `tab_vars`
 --- land on the view's tabpage when it opens; CodeDiff opens asynchronously,
 --- after its git commands return.
@@ -377,7 +380,10 @@ function M.open(spec)
   spec = spec or {}
   local args = vim.deepcopy(spec.args or {})
   if spec.root and not vim.list_contains(args, "-C") and not vim.list_contains(args, "--repo") then
-    table.insert(args, 1, spec.root)
+    -- CodeDiff passes -C through vim.fn.expand() (commands/parse.lua,
+    -- to_global_opts), which reads `$app` in a root as a variable and `*`,
+    -- `[` or `{` as a glob. Escaped, expand() returns the path as it was.
+    table.insert(args, 1, vim.fn.fnameescape(spec.root))
     table.insert(args, 1, "-C")
   end
   if #args == 0 and raw_session(0) then
@@ -733,23 +739,42 @@ local function size_text(bytes)
   return ("%d bytes"):format(bytes)
 end
 
---- Untracked files over max_file_size are not in the snapshot, so a view
---- cannot compare them. Say which, once per path per view.
-local function notice_skipped(key, paths)
-  local seen = skipped_noticed[key] or {}
-  skipped_noticed[key] = seen
-  local fresh = {}
-  for _, path in ipairs(paths) do
-    if not seen[path] then
-      seen[path] = true
-      fresh[#fresh + 1] = path
-    end
-  end
-  if #fresh == 0 then return end
+local function size_reason()
   local ok, settings = pcall(function() return require("ai.review.config").get() end)
   local limit = ok and settings.max_file_size and size_text(settings.max_file_size) or "the size limit"
-  vim.notify(("Not compared (untracked, over %s; vim.g.ai_review.max_file_size): %s")
-    :format(limit, table.concat(fresh, ", ")), vim.log.levels.INFO, { title = "CodeDiff" })
+  return ("untracked, over %s; vim.g.ai_review.max_file_size"):format(limit)
+end
+
+-- Why a path is missing from the snapshot, in the order the notice names them.
+local LEFT_OUT = {
+  { "size", size_reason },
+  { "ignored", function() return "ignored, still on disk" end },
+  { "other", function() return "still on disk, so not listed as deleted" end },
+}
+
+--- Paths a view cannot compare: untracked files over max_file_size, which the
+--- snapshot leaves out, and paths the revision has that are still on disk
+--- but not listed (listing_result). Say which, once per path per view, in one
+--- notice with a line per reason.
+---@param by_reason table<string, string[]>
+local function notice_left_out(key, by_reason)
+  local seen = skipped_noticed[key] or {}
+  skipped_noticed[key] = seen
+  local lines = {}
+  for _, reason in ipairs(LEFT_OUT) do
+    local fresh = {}
+    for _, path in ipairs(by_reason[reason[1]] or {}) do
+      if not seen[path] then
+        seen[path] = true
+        fresh[#fresh + 1] = path
+      end
+    end
+    if #fresh > 0 then
+      lines[#lines + 1] = ("Not compared (%s): %s"):format(reason[2](), table.concat(fresh, ", "))
+    end
+  end
+  if #lines == 0 then return end
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "CodeDiff" })
 end
 
 --- `diff-tree -z --name-status` output as CodeDiff's status entries.
@@ -772,23 +797,72 @@ local function parse_name_status(out)
   return entries
 end
 
-local function listing_result(revision, git_root, out, info, pathspec)
+--- Which of `paths` (relative to `toplevel`) git ignores: `cb(set)`, empty
+--- when git cannot say. One batch, NUL-separated on stdin.
+local function ignored_of(toplevel, paths, cb)
+  local function answer(r)
+    local set = {}
+    if r.code == 0 then
+      for _, path in ipairs(vim.split(r.stdout or "", "\0", { plain = true, trimempty = true })) do
+        set[path] = true
+      end
+    end
+    cb(set)
+  end
+  local ok, err = pcall(vim.system, require("util.baseline").git_cmd({ "check-ignore", "-z", "--stdin" }), {
+    cwd = toplevel,
+    stdin = table.concat(paths, "\0") .. "\0",
+  }, function(r) vim.schedule(function() answer(r) end) end)
+  if not ok then
+    warn_once("check-ignore", "CodeDiff: git check-ignore failed: " .. tostring(err))
+    vim.schedule(function() answer({ code = -1 }) end)
+  end
+end
+
+--- CodeDiff's status result for `diff-tree` output: `done(result)`, or
+--- `done(nil, err)` when building it failed.
+---
+--- A D whose path is still on disk is not listed: the snapshot left the file
+--- out -- over max_file_size, ignored now (a .env a baseline captured before
+--- .gitignore named it), unreadable -- or something else is there. It is
+--- named instead, so it never reaches the one-sided "deleted since baseline"
+--- hint (util.codediff_actions), whose `git restore` overwrites whatever is
+--- at the path. Measured: it replaced a directory, untracked work in it
+--- included, with the old file, and on a case-insensitive file system (macOS
+--- by default) it wrote a file renamed in case only back over the new one.
+local function listing_result(revision, git_root, out, info, pathspec, done)
   local skipped = {}
   for _, path in ipairs(info.skipped or {}) do skipped[path] = true end
-  local entries, dropped = {}, {}
-  for _, e in ipairs(parse_name_status(out)) do
-    -- Not a deletion: the file is only too large for the snapshot.
-    if e.status == "D" and skipped[e.path] and vim.uv.fs_lstat(info.toplevel .. "/" .. e.path) then
-      dropped[#dropped + 1] = e.path
-    else
-      entries[#entries + 1] = e
+  local entries = parse_name_status(out)
+  local dropped, by_reason, present = {}, { size = {}, ignored = {}, other = {} }, {}
+  for _, e in ipairs(entries) do
+    if e.status == "D" and vim.uv.fs_lstat(info.toplevel .. "/" .. e.path) then
+      dropped[e] = true
+      if skipped[e.path] then
+        table.insert(by_reason.size, e.path)
+      else
+        present[#present + 1] = e.path
+      end
     end
   end
-  -- Scoped to a pathspec, only the dropped paths are known to be in scope.
-  notice_skipped(view_key(git_root, revision), (pathspec and #pathspec > 0) and dropped or info.skipped or {})
-  local ok, err = pcall(notice_unsaved, git_root, entries)
-  if not ok then warn_once("unsaved", "CodeDiff: the unsaved-buffer check failed: " .. tostring(err)) end
-  return { unstaged = entries, staged = {} }
+  local function finish(ignored)
+    for _, path in ipairs(present) do
+      table.insert(ignored[path] and by_reason.ignored or by_reason.other, path)
+    end
+    local kept = vim.tbl_filter(function(e) return not dropped[e] end, entries)
+    -- Scoped to a pathspec, only the dropped paths are known to be in scope.
+    if not (pathspec and #pathspec > 0) then by_reason.size = info.skipped or {} end
+    notice_left_out(view_key(git_root, revision), by_reason)
+    local ok, err = pcall(notice_unsaved, git_root, kept)
+    if not ok then warn_once("unsaved", "CodeDiff: the unsaved-buffer check failed: " .. tostring(err)) end
+    return { unstaged = kept, staged = {} }
+  end
+  if #present == 0 then return done(finish({})) end
+  ignored_of(info.toplevel, present, function(ignored)
+    local ok, result = pcall(finish, ignored)
+    if not ok then return done(nil, tostring(result)) end
+    done(result)
+  end)
 end
 
 ---@param original function upstream's get_diff_revision
@@ -820,11 +894,15 @@ local function listing(original)
             if r.code ~= 0 then
               return fallback("git diff-tree: " .. (vim.split(vim.trim(r.stderr or ""), "\n")[1] or ("exit " .. r.code)))
             end
-            local built, result = pcall(listing_result, revision, git_root, r.stdout or "", info, pathspec)
-            if not built then return fallback(tostring(result)) end
-            if answered then return end
-            answered = true
-            callback(nil, result)
+            local built, raised = pcall(listing_result, revision, git_root, r.stdout or "", info, pathspec,
+              function(result, why)
+                if not result then return fallback(why) end
+                if answered then return end
+                answered = true
+                -- Outside the pcall: an error in CodeDiff's callback is its own.
+                vim.schedule(function() callback(nil, result) end)
+              end)
+            if not built then fallback(tostring(raised)) end
           end)
         end)
         if not spawned then fallback(tostring(e)) end

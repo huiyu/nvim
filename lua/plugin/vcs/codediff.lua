@@ -20,6 +20,18 @@ local function git(cwd, ...)
   return vim.split(result.stdout or "", "\n", { trimempty = true })
 end
 
+--- The commit `name` names in `cwd`, as a full sha, or nil and why. git and
+--- :CodeDiff get the sha, never the name, which stays in labels: diff-tree
+--- refuses a name that is also a top-level path (a branch `docs`) as
+--- ambiguous, and CodeDiff runs one that is also its subcommand (`history`,
+--- `file`, `install`) as that.
+---@return string? sha, string? reason
+local function commit_of(cwd, name)
+  local out = git(cwd, "rev-parse", "--verify", "--quiet", "--end-of-options", name .. "^{commit}")
+  if not out or not out[1] then return nil, "not a revision: " .. name end
+  return out[1]
+end
+
 --- The repository CodeDiff picks when it is given no -C: the current buffer's
 --- file, else the working directory (resolve_working_root in codediff's
 --- commands/parse.lua). Checking the same one is what keeps a refusal here
@@ -68,18 +80,21 @@ end
 local function diff_main()
   local root, reason = repo_root()
   if not root then return warn("Diff against main branch", reason) end
-  -- Detect main branch: check for main, then master, fallback to HEAD
-  local main = git(root, "rev-parse", "--verify", "--quiet", "main") and "main"
-    or git(root, "rev-parse", "--verify", "--quiet", "master") and "master"
-    or "HEAD"
-  -- Against the working tree, not the merge base.
-  require("util.codediff").open({ root = root, args = { main }, label = main .. " → working tree" })
+  -- main, then master, else HEAD; against the working tree, not the merge base.
+  for _, name in ipairs({ "main", "master", "HEAD" }) do
+    local sha = commit_of(root, name)
+    if sha then
+      return require("util.codediff").open({ root = root, args = { sha }, label = name .. " → working tree" })
+    end
+  end
+  warn("Diff against main branch", "no main, master or HEAD commit in " .. root)
 end
 
 -- Picker items name one end of a comparison: { kind, rev?, label, display,
 -- baseline? }. kind is "working", "index", "rev" (a baseline's sha, a
 -- branch, a tag, a commit, a typed revision), "range" (a typed A...B or A...,
--- a whole comparison of its own) or "type" (the free-input entry).
+-- a whole comparison of its own) or "type" (the free-input entry). A picked
+-- or typed rev gains `sha` (commit_of) before anything compares it.
 
 --- Branches, tags and the 50 newest commits of `root`, as picker items.
 ---@return table[]?, string?
@@ -158,14 +173,15 @@ local function diff_ref()
       prompt = "Diff against",
       format_item = function(item) return item.display end,
     }, function(choice)
-      if choice then
-        require("util.codediff").open({
-          root = root,
-          args = { choice.rev },
-          label = choice.label .. " → working tree",
-          tab_vars = baseline_vars(choice),
-        })
-      end
+      if not choice then return end
+      local sha, why = commit_of(root, choice.rev)
+      if not sha then return warn("Diff against commit/branch", why) end
+      require("util.codediff").open({
+        root = root,
+        args = { sha },
+        label = choice.label .. " → working tree",
+        tab_vars = baseline_vars(choice),
+      })
     end)
   end)
 end
@@ -214,28 +230,38 @@ local function plan(left, right)
     notes[#notes + 1] = "Index → working tree is the status view: see its Changes group"
     p.args, p.label = {}, "index/HEAD ↔ working tree"
   elseif right.kind == "working" then
-    p.args, p.label, p.tab_vars = { left.rev }, left.label .. " → working tree", baseline_vars(left)
+    p.args, p.label, p.tab_vars = { left.sha }, left.label .. " → working tree", baseline_vars(left)
   elseif right.kind == "index" then
-    p.args, p.label = { "--staged", left.rev }, left.label .. " → index"
+    p.args, p.label = { "--staged", left.sha }, left.label .. " → index"
   else
-    p.args, p.label = { left.rev, right.rev }, left.label .. " → " .. right.label
+    p.args, p.label = { left.sha, right.sha }, left.label .. " → " .. right.label
   end
   return p
 end
 
 --- A typed A...B (B against its merge base with A) or A... (the working tree
---- against A's merge base with HEAD), passed to CodeDiff as typed.
+--- against A's merge base with HEAD), passed to CodeDiff as the same range
+--- of shas and labelled as typed.
 local function plan_range(range)
   return {
     left = range,
-    args = { range.rev },
+    args = { range.base .. "..." .. (range.target or "") },
     label = range.target and range.rev or range.rev .. " → working tree",
     notes = {},
   }
 end
 
+--- `item`, a picked rev, with the commit it names.
+---@return table?, string?
+local function resolved(root, item)
+  local sha, why = commit_of(root, item.rev)
+  if not sha then return nil, why end
+  return vim.tbl_extend("force", item, { sha = sha })
+end
+
 --- The end typed into "Type a revision…", nil when nothing was typed, or nil
---- and why. A range is a whole comparison, so only the first end takes one.
+--- and why. A range is a whole comparison, so only the first end takes one;
+--- its `base` and `target` are shas, `rev` the text as typed.
 ---@return table?, string?
 local function typed_end(root, text, first)
   text = vim.trim(text or "")
@@ -243,14 +269,16 @@ local function typed_end(root, text, first)
   local base, target = text:match("^(.+)%.%.%.(.*)$")
   if base then
     if not first then return nil, text .. " is a comparison of its own; type it as the first end" end
-    if base:sub(1, 1) == "-" then return nil, "not a revision: " .. base end
-    return { kind = "range", rev = text, base = base, target = target ~= "" and target or nil, label = text }
+    local base_sha, why = commit_of(root, base)
+    if not base_sha then return nil, why end
+    local target_sha
+    if target ~= "" then
+      target_sha, why = commit_of(root, target)
+      if not target_sha then return nil, why end
+    end
+    return { kind = "range", rev = text, base = base_sha, target = target_sha, label = text }
   end
-  -- A leading dash would reach CodeDiff's argument parser as a flag.
-  if text:sub(1, 1) == "-" or not git(root, "rev-parse", "--verify", "--quiet", text .. "^{commit}") then
-    return nil, "not a revision: " .. text
-  end
-  return { kind = "rev", rev = text, label = text }
+  return resolved(root, { kind = "rev", rev = text, label = text })
 end
 
 --- Do both ends of `p` hold the same content? `cb(true|false)`, or
@@ -258,7 +286,9 @@ end
 --- comparison with a bare "No changes to show" (#582); this says what was
 --- compared instead. The working tree side is a util.baseline snapshot, so
 --- untracked files count; a snapshot that fails answers false and the view
---- opens to speak for itself.
+--- opens to speak for itself. So does one that left untracked files out for
+--- size: they can differ unseen, and the view names them (util.codediff's
+--- listing) or, in the status view, lists them.
 local function same_content(root, p, cb)
   local B = require("util.baseline")
   local function run(args, k)
@@ -278,10 +308,10 @@ local function same_content(root, p, cb)
   end
   -- `rev` against the working tree, or the index against it when nil.
   local function against_working(rev)
-    B.snapshot(root, function(tree)
-      if not tree then return cb(false) end
+    B.snapshot(root, function(tree, info)
+      if not tree or #(info.skipped or {}) > 0 then return cb(false) end
       if rev then
-        run({ "diff-tree", "--quiet", "-r", rev, tree }, verdict)
+        run({ "diff-tree", "--quiet", "-r", rev, tree, "--" }, verdict)
       else
         run({ "diff-index", "--cached", "--quiet", tree, "--" }, verdict)
       end
@@ -292,17 +322,17 @@ local function same_content(root, p, cb)
     run({ "merge-base", left.base, left.target or "HEAD" }, function(r)
       local base = vim.trim(r.stdout or "")
       if r.code ~= 0 or base == "" then return cb(nil, reason(r, "no merge base for " .. left.rev)) end
-      if left.target then return run({ "diff-tree", "--quiet", "-r", base, left.target }, verdict) end
+      if left.target then return run({ "diff-tree", "--quiet", "-r", base, left.target, "--" }, verdict) end
       against_working(base)
     end)
   elseif left.kind == "index" then
     against_working(nil)
   elseif right.kind == "working" then
-    against_working(left.rev)
+    against_working(left.sha)
   elseif right.kind == "index" then
-    run({ "diff-index", "--cached", "--quiet", left.rev, "--" }, verdict)
+    run({ "diff-index", "--cached", "--quiet", left.sha, "--" }, verdict)
   else
-    run({ "diff-tree", "--quiet", "-r", left.rev, right.rev }, verdict)
+    run({ "diff-tree", "--quiet", "-r", left.sha, right.sha, "--" }, verdict)
   end
 end
 
@@ -332,6 +362,11 @@ local function compare_two()
     local function pick(prompt, first, k)
       vim.ui.select(items, { prompt = prompt, format_item = function(item) return item.display end }, function(choice)
         if not choice then return end
+        if choice.kind == "rev" then
+          local e, why = resolved(root, choice)
+          if not e then return warn("Compare", why) end
+          return k(e)
+        end
         if choice.kind ~= "type" then return k(choice) end
         vim.ui.input({ prompt = first and "From (a revision, A...B or A...)" or "To (a revision)" }, function(text)
           local e, why = typed_end(root, text, first)

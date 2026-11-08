@@ -9,7 +9,13 @@
 --     or the index on the right, and refusing the same end twice;
 --   * a typed A...B or A... is a whole comparison, and only as the first end;
 --     a typed name that is not a revision is refused;
---   * both ends holding the same content says so and opens nothing;
+--   * git and :CodeDiff get every end as a sha (ranges as a range of shas),
+--     the name only the label: a branch named like a top-level directory
+--     (docs) or like a CodeDiff subcommand (history) compares as any other;
+--   * open() escapes the -C root for CodeDiff's expand();
+--   * both ends holding the same content says so and opens nothing, unless
+--     the working tree has untracked files over max_file_size: those cannot
+--     be compared, so the view opens;
 --   * baselines are passed as shas, newest first, this worktree's only, and
 --     one against the working tree marks the view (codediff_baseline, plus
 --     ai_review for a round through ai.review.rounds, which may be absent);
@@ -150,13 +156,19 @@ t.eq(#vim.api.nvim_list_tabpages(), tabs, "and neither opens anything")
 
 local root, git = repo("compare spec")
 write(root, "a.txt", { "one" })
+-- A top-level directory that a branch is named after.
+vim.fn.mkdir(root .. "/docs", "p")
+write(root, "docs/guide.txt", { "guide" })
 git("add", ".")
 git("commit", "-qm", "one")
 git("tag", "v1")
 git("branch", "old")
+-- Named like CodeDiff's subcommand.
+git("branch", "history")
 write(root, "a.txt", { "two" })
 git("commit", "-qam", "two")
 git("branch", "same")
+git("branch", "docs")
 write(root, "s.txt", { "staged" })
 git("add", "s.txt")
 -- A branch whose tree is the index exactly.
@@ -245,17 +257,41 @@ vim.cmd.cd(vim.fn.fnameescape(root))
 -- <leader>gk: every cell
 ---------------------------------------------------------------------------
 
-local function C(...) return vim.list_extend({ "-C", root }, { ... }) end
+-- open() escapes the root for the expand() CodeDiff runs on -C.
+local function C_in(dir, ...) return vim.list_extend({ "-C", vim.fn.fnameescape(dir) }, { ... }) end
+local function C(...) return C_in(root, ...) end
+local function sha(name) return git("rev-parse", name .. "^{commit}") end
+local OLD, MAIN = sha("old"), sha("main")
 
 local args, spec = press("<leader>gk", { rev("old"), WORKING })
-t.eq(args, C("old"), "rev → working tree: :CodeDiff -C root rev")
-t.eq(spec and spec.label, "old → working tree", "labelled")
+t.eq(args, C(OLD), "rev → working tree: :CodeDiff -C root sha")
+t.eq(spec and spec.label, "old → working tree", "labelled with the name")
 t.eq(spec and spec.tab_vars, nil, "a branch sets no tab variables")
+t.eq(spec and spec.root, root, "open() is given the root as it is")
+t.eq(vim.fn.expand(args and args[2] or ""), root, "and the -C it passes expands back to it")
 args = press("<leader>gk", { rev("old"), INDEX })
-t.eq(args, C("--staged", "old"), "rev → index: --staged rev")
+t.eq(args, C("--staged", OLD), "rev → index: --staged sha")
 args, spec = press("<leader>gk", { rev("old"), rev("main") })
-t.eq(args, C("old", "main"), "rev → rev: both revisions")
+t.eq(args, C(OLD, MAIN), "rev → rev: both shas")
 t.eq(spec and spec.label, "old → main", "labelled")
+
+-- Names that git or CodeDiff would read as something else.
+local DOCS, HISTORY = sha("docs"), sha("history")
+args, spec = press("<leader>gk", { rev("docs"), WORKING })
+t.eq(args, C(DOCS), "a branch named like a top-level directory compares (docs → working tree)")
+t.ok(not said("ambiguous"), "without git refusing the name as ambiguous")
+t.eq(spec and spec.label, "docs → working tree", "labelled with the name")
+args = press("<leader>gk", { rev("docs"), rev("old") })
+t.eq(args, C(DOCS, OLD), "docs → old as well")
+args = press("<leader>gk", { rev("docs"), INDEX })
+t.eq(args, C("--staged", DOCS), "and docs → index")
+args = press("<leader>gk", { TYPE, "old...docs" })
+t.eq(args, C(OLD .. "..." .. DOCS), "a typed range naming it goes as a range of shas")
+args, spec = press("<leader>gk", { rev("history"), WORKING })
+t.eq(args, C(HISTORY), "a branch named like CodeDiff's history subcommand goes as its sha")
+t.eq(spec and spec.label, "history → working tree", "labelled with the name")
+args = press("<leader>gk", { rev("history"), rev("main") })
+t.eq(args, C(HISTORY, MAIN), "history → main as well")
 
 args, spec = press("<leader>gk", { INDEX, WORKING })
 t.eq(args, C(), "index → working tree: the status view")
@@ -273,13 +309,13 @@ t.eq(args, nil, "the same revision twice is refused")
 t.ok(said("both are main"), "saying why")
 
 args = press("<leader>gk", { INDEX, rev("old") })
-t.eq(args, C("--staged", "old"), "index → rev swaps into rev → index")
+t.eq(args, C("--staged", OLD), "index → rev swaps into rev → index")
 t.ok(said("Swapped the ends: CodeDiff shows the index on the right"), "and says so")
 args = press("<leader>gk", { WORKING, INDEX })
 t.eq(args, C(), "working tree → index swaps into the status view")
 t.ok(said("shows the working tree on the right") and said("is the status view"), "with both notes")
 args = press("<leader>gk", { WORKING, rev("old") })
-t.eq(args, C("old"), "working tree → rev swaps into rev → working tree")
+t.eq(args, C(OLD), "working tree → rev swaps into rev → working tree")
 t.ok(said("Swapped the ends: CodeDiff shows the working tree on the right"), "and says so")
 
 -- Baselines go as shas, and against the working tree mark the view.
@@ -336,18 +372,18 @@ package.loaded["ai.review.rounds"] = saved_rounds
 ---------------------------------------------------------------------------
 
 args, spec = press("<leader>gk", { TYPE, "old...main" })
-t.eq(args, C("old...main"), "a typed A...B opens as typed")
+t.eq(args, C(OLD .. "..." .. MAIN), "a typed A...B opens as the same range of shas")
 t.eq(#offered, 1, "without a second pick")
 t.eq(spec and spec.label, "old...main", "labelled as typed")
 args, spec = press("<leader>gk", { TYPE, "old..." })
-t.eq(args, C("old..."), "a typed A... compares the working tree with the merge base")
+t.eq(args, C(OLD .. "..."), "a typed A... compares the working tree with the merge base")
 t.eq(#offered, 1, "also without a second pick")
 t.eq(spec and spec.label, "old... → working tree", "labelled with the working tree")
 args = press("<leader>gk", { rev("old"), TYPE, "old...main" })
 t.eq(args, nil, "A...B as the second end is refused")
 t.ok(said("old...main is a comparison of its own; type it as the first end"), "saying why")
 args = press("<leader>gk", { TYPE, "HEAD~1", WORKING })
-t.eq(args, C("HEAD~1"), "a typed revision is an end like any other")
+t.eq(args, C(sha("HEAD~1")), "a typed revision is an end like any other, by sha")
 args = press("<leader>gk", { TYPE, "no-such-rev" })
 t.eq(args, nil, "a typed name that is not a revision is refused")
 t.ok(said("Compare: not a revision: no-such-rev"), "saying so")
@@ -388,9 +424,26 @@ vim.cmd.cd(vim.fn.fnameescape(clean))
 args = press("<leader>gk", { INDEX, WORKING })
 t.eq(args, nil, "the index against a working tree that matches it opens nothing")
 t.ok(said("no differences, index/HEAD ↔ working tree"), "and says so")
+-- An untracked file over max_file_size is left out of the snapshot, so the
+-- ends cannot be shown to agree: the view opens and speaks for it.
+vim.g.ai_review = { max_file_size = 1024 }
+write(clean, "big.bin", { string.rep("b", 4096) })
+local CLEAN_MAIN = cgit("rev-parse", "main")
+args = press("<leader>gk", { INDEX, WORKING })
+t.eq(args, C_in(clean), "with an untracked file over max_file_size, index → working tree opens the status view")
+t.ok(not said("no differences"), "instead of saying there are none")
+args = press("<leader>gk", { rev("main"), WORKING })
+t.eq(args, C_in(clean, CLEAN_MAIN), "so does a revision against the working tree")
+t.ok(not said("no differences"), "without a no-differences notice either")
+args = press("<leader>gk", { TYPE, "main..." })
+t.eq(args, C_in(clean, CLEAN_MAIN .. "..."), "and a range against the working tree")
+os.remove(clean .. "/big.bin")
+vim.g.ai_review = nil
+args = press("<leader>gk", { rev("main"), WORKING })
+t.eq(args, nil, "without it, the revision and the working tree agree again")
 write(clean, "new.txt", { "untracked" })
 args = press("<leader>gk", { WORKING, INDEX })
-t.eq(args, { "-C", clean }, "an untracked file is a difference between them")
+t.eq(args, C_in(clean), "an untracked file is a difference between them")
 vim.cmd.cd(vim.fn.fnameescape(root))
 
 ---------------------------------------------------------------------------
@@ -407,8 +460,14 @@ t.eq(spec and spec.label, "saved · before refactor → working tree", "labelled
 t.eq(spec and spec.tab_vars, { codediff_baseline = { sha = before_refactor.sha, kind = "saved" } },
   "and marked as a baseline view")
 args, spec = press("<leader>gM", { rev("old") })
-t.eq(args, C("old"), "a branch still diffs by name")
+t.eq(args, C(OLD), "a branch diffs by sha")
 t.eq(spec and spec.label, "old → working tree", "labelled as before")
+args, spec = press("<leader>gM", { rev("history") })
+t.eq(args, C(HISTORY), "a branch named history as well, not as CodeDiff's subcommand")
+t.eq(spec and spec.label, "history → working tree", "labelled with its name")
+args, spec = press("<leader>gm", {})
+t.eq(args, C(MAIN), "<leader>gm diffs main by sha")
+t.eq(spec and spec.label, "main → working tree", "labelled with its name")
 
 ---------------------------------------------------------------------------
 -- Retention of saved baselines

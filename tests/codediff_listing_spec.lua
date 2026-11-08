@@ -11,6 +11,13 @@
 --     M (critique t19), in a <leader>gM view as well;
 --   * an untracked file over max_file_size is never shown as deleted, and is
 --     named once per path per view;
+--   * neither is any other path the revision has that is still on disk:
+--     ignored now (a .env a baseline captured), unreadable, a directory
+--     where a file was, or (case-insensitive file systems) renamed in case
+--     only; each is named with its reason in the same notice;
+--   * <leader>gk opens a repository whose path holds `$app` (CodeDiff
+--     expands -C), and a branch named history as a revision view, not as
+--     CodeDiff's history subcommand;
 --   * a modified buffer whose file changed on disk is named once per disk
 --     mtime, and only for files the listing shows;
 --   * a failing snapshot falls back to upstream's listing with one warning;
@@ -325,6 +332,84 @@ t.ok(close(port_tab), "the view closes")
 vim.api.nvim_set_current_tabpage(editor_tab)
 
 ---------------------------------------------------------------------------
+-- Paths the revision has that are still on disk, but not in the snapshot
+---------------------------------------------------------------------------
+
+local out_root, ogit = repo("listing left out")
+write(out_root, "kept.txt", { "kept" })
+assert(ogit("add", "."))
+assert(ogit("commit", "-qm", "init"))
+-- Untracked when the baseline is taken, so it captures them.
+write(out_root, ".env", { "API_KEY=first-secret-value" })
+write(out_root, "locked.txt", { "readable when the baseline was taken" })
+write(out_root, "dirfile", { "a plain file at the baseline" })
+write(out_root, "Notes.md", { "first draft of the notes" })
+local left_round = save(out_root, "round", { subject = "nvim review: left out" })
+t.ok(left_round ~= nil, "a baseline holding .env, locked.txt, dirfile and Notes.md is saved")
+-- Then .env is ignored and its secret rotated, locked.txt cannot be read,
+-- dirfile is a directory, and Notes.md is NOTES.md with other text.
+write(out_root, ".gitignore", { ".env" })
+write(out_root, ".env", { "API_KEY=rotated-secret-value" })
+local locked = out_root .. "/locked.txt"
+uv.fs_chmod(locked, tonumber("000", 8))
+local unreadable = io.open(locked, "r") == nil -- not as root
+os.remove(out_root .. "/dirfile")
+vim.fn.mkdir(out_root .. "/dirfile", "p")
+write(out_root, "dirfile/inner.txt", { "inside the new directory" })
+assert(os.rename(out_root .. "/Notes.md", out_root .. "/NOTES.md"))
+write(out_root, "NOTES.md", { "nothing in common with what was there" })
+-- Where the file system folds case (macOS by default), Notes.md still
+-- resolves, to NOTES.md, and a restore of it would overwrite that.
+local folds = uv.fs_lstat(out_root .. "/notes.md") ~= nil
+local expected = { "A .gitignore", "A NOTES.md", "A dirfile/inner.txt" }
+if not folds then expected[#expected + 1] = "D Notes.md" end
+table.sort(expected)
+local on_disk = {}
+if folds then on_disk[#on_disk + 1] = "Notes.md" end
+on_disk[#on_disk + 1] = "dirfile"
+if unreadable then on_disk[#on_disk + 1] = "locked.txt" end
+notices = {}
+t.eq((listing(left_round.sha, out_root)), expected, "a path that is still on disk is not listed as deleted")
+t.eq(count("Not compared"), 1, "what was left out is named in one notice")
+t.ok(said("Not compared (ignored, still on disk): .env"), "an ignored file as ignored")
+t.ok(said("Not compared (still on disk, so not listed as deleted): " .. table.concat(on_disk, ", ")),
+  "the rest as still on disk: " .. table.concat(on_disk, ", "))
+listing(left_round.sha, out_root)
+t.eq(count("Not compared"), 1, "and not named again for the same view")
+uv.fs_chmod(locked, tonumber("644", 8))
+
+---------------------------------------------------------------------------
+-- A root CodeDiff's expand() would rewrite, and a branch named history
+---------------------------------------------------------------------------
+
+-- `$app` is unset, so expand() drops it. Not a set variable like $HOME:
+-- gitsigns expands those in a repository's path (vim.fs.normalize) and fails.
+local dollar_root, dgit = repo("listing my$app")
+t.ok(dollar_root:find("listing my$app", 1, true) ~= nil, "the fixture's path holds a literal $app")
+write(dollar_root, "a.txt", { "one" })
+assert(dgit("add", "."))
+assert(dgit("commit", "-qm", "one"))
+assert(dgit("branch", "history"))
+write(dollar_root, "a.txt", { "two" })
+local _, _, history_sha = dgit("rev-parse", "history")
+vim.api.nvim_set_current_dir(dollar_root)
+vim.cmd.enew()
+notices = {}
+script = { function(item) return item.kind == "rev" and item.rev == "history" end, display("Working tree") }
+key("<leader>gk")()
+t.ok(vim.wait(15000, ready, 20), "<leader>gk history → working tree opens a revision view")
+local dollar_tab = vim.api.nvim_get_current_tabpage()
+local ds = cd.session(0)
+t.eq(ds and ds.git_root, dollar_root, "of the repository whose path holds $app")
+t.eq(ds and ds.base_revision, history_sha, "against the branch's commit")
+t.eq(vim.t.codediff_label, "history → working tree", "labelled with the branch")
+t.eq(ds and ds.mode, "revision", "a revision view, not CodeDiff's history")
+t.eq(ds and ds.mode == "revision" and view_list(dollar_tab) or nil, { "M a.txt" }, "listing what changed since")
+t.ok(not said("Not a git repository"), "CodeDiff found the repository")
+t.ok(ds and close(dollar_tab), "the view closes")
+vim.api.nvim_set_current_tabpage(editor_tab)
+
+---------------------------------------------------------------------------
 -- A failing snapshot falls back to upstream's listing
 ---------------------------------------------------------------------------
 
@@ -349,7 +434,7 @@ vim.g.ai_review = nil
 local cleanup = t.process_cleanup()
 cleanup()
 vim.cmd.cd(vim.fn.fnameescape(cwd))
-for _, dir in ipairs({ root, port_root }) do vim.fn.delete(dir, "rf") end
+for _, dir in ipairs({ root, port_root, out_root, dollar_root }) do vim.fn.delete(dir, "rf") end
 vim.fn.delete(gitconfig)
 
 t.done()
