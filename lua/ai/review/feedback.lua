@@ -11,8 +11,10 @@
 -- against that line alone (rounds.resolve_sink), so a draft still delivers
 -- after retention pruned its round's ref, or from an Nvim started since. Every
 -- Nvim reads and writes the same file: ,C reads it, appends, writes it back,
--- and keeps no copy of its own between presses. Retention spares a round whose
--- draft is a non-empty file (rounds._exempt); a delivered draft is emptied.
+-- and keeps no copy of its own between presses; what is typed in a float is
+-- merged into what the file holds by then (save). Retention spares a round
+-- whose draft is a non-empty file (rounds._exempt); a delivered draft is
+-- emptied, and so is one with no feedback left.
 -- An intro line opens the entries: a round's names its baseline, once; any
 -- other view's names what it compares, again whenever a later entry comes
 -- from a view that compares something else.
@@ -62,7 +64,13 @@ local HEADER = "^<!%-%- nvim%-review (.-)%s*%-%->%s*$"
 local ITEM = "^<!%-%- review%-item (.-)%s*%-%->%s*$"
 local INTRO = "^Review of changes .+ in .+:$"
 
-local function notify(msg, level)
+-- Short lines, a clause each, with a path or an error's own words on a line
+-- of their own: the snacks notifier cuts a long line off instead of wrapping
+-- it (as in rounds.lua). tests/review_feedback_spec.lua pins the lengths.
+---@param lines string|string[]
+---@param level? integer
+local function notify(lines, level)
+  local msg = type(lines) == "table" and table.concat(lines, "\n") or lines
   vim.notify(msg, level or WARN, { title = "AI review" })
 end
 
@@ -218,10 +226,72 @@ local function is_intro(line)
   return line:match(INTRO) ~= nil
 end
 
-local function last_intro(lines)
-  for i = #lines, 1, -1 do
-    if is_intro(lines[i]) then return lines[i] end
+--- What each line of a draft is, the way markdown reads it. A line inside a
+--- code fence is quoted code, whatever it looks like: an entry quotes the
+--- file's lines as they are (lines_entry), so a quoted "## " heading, or a
+--- line shaped like a header, review-item or intro, is the file's text and
+--- never the draft's. A fence opens on three or more backticks or tildes (a
+--- backtick fence's info string has none) and closes on a run of the same
+--- character at least as long with nothing after it, as in CommonMark;
+--- fence_for makes an entry's closing fence its opening one, longer than any
+--- run it quotes.
+---@param lines string[]
+---@return string[] kinds "header", "item", "heading", "intro", "fence", "code" or "text", per line
+local function classify(lines)
+  local kinds, open = {}, nil
+  for i, line in ipairs(lines) do
+    local kind
+    if open then
+      local run = line:match("^ ? ? ?(`+)%s*$") or line:match("^ ? ? ?(~+)%s*$")
+      if run and run:sub(1, 1) == open:sub(1, 1) and #run >= #open then
+        kind, open = "fence", nil
+      else
+        kind = "code"
+      end
+    else
+      local run, info = line:match("^ ? ? ?(```+)(.*)$")
+      if run and info:find("`", 1, true) then run = nil end
+      run = run or line:match("^ ? ? ?(~~~+)")
+      if run then
+        kind, open = "fence", run
+      elseif parse_header(line) then
+        kind = "header"
+      elseif line:match(ITEM) then
+        kind = "item"
+      elseif line:match("^## ") then
+        kind = "heading"
+      elseif is_intro(line) then
+        kind = "intro"
+      else
+        kind = "text"
+      end
+    end
+    kinds[i] = kind
   end
+  return kinds
+end
+
+local function last_intro(lines)
+  local kinds = classify(lines)
+  for i = #lines, 1, -1 do
+    if kinds[i] == "intro" then return lines[i] end
+  end
+end
+
+--- What the agent is sent: the draft without its header and review-item
+--- lines, blank lines trimmed at both ends; "" when it holds no feedback.
+local function message(lines)
+  local kinds, out, content = classify(lines), {}, false
+  for i, line in ipairs(lines) do
+    if kinds[i] ~= "header" and kinds[i] ~= "item" then
+      out[#out + 1] = line
+      if kinds[i] ~= "intro" and vim.trim(line) ~= "" then content = true end
+    end
+  end
+  if not content then return "" end
+  while vim.trim(out[1]) == "" do table.remove(out, 1) end
+  while vim.trim(out[#out]) == "" do table.remove(out) end
+  return table.concat(out, "\n")
 end
 
 ---------------------------------------------------------------------------
@@ -258,15 +328,18 @@ local function view_of(tab)
   local s = codediff().session(tab)
   if not s then return nil, "There is no CodeDiff view in this tab." end
   if type(s.git_root) ~= "string" or s.git_root == "" then
-    return nil, "This view compares files outside a Git repository; review feedback needs one."
+    return nil, "This view compares files outside a Git repository;\nreview feedback needs one."
   end
   local root = real(s.git_root)
-  if root:find("\n", 1, true) then return nil, "A repository path with a newline cannot hold a review draft." end
+  if root:find("\n", 1, true) then return nil, "A repository path with a newline\ncannot hold a review draft." end
   local vars = vim.t[tab].ai_review
   local round = type(vars) == "table" and type(vars.id) == "string" and vars.id ~= "" and vars or nil
   if round and type(round.root) == "string" and real(round.root) ~= root then
-    return nil, ("This view shows %s, but its round was taken in %s. Feedback not recorded.")
-      :format(tilde(root), tilde(round.root))
+    return nil, table.concat({
+      "This view's repository is not its round's:", tilde(root),
+      "The round was taken in:", tilde(round.root),
+      "Feedback not recorded.",
+    }, "\n")
   end
   local requested = type(s.source_revisions) == "table" and s.source_revisions or {}
   local baseline = round ~= nil or type(vim.t[tab].codediff_baseline) == "table"
@@ -512,7 +585,7 @@ local function build_entry(view, opts)
   if buf == s.panel_bufnr then
     local item = codediff().panel_item(view.tab, win)
     if not item or not item.path or (item.type ~= "file" and item.type ~= "commit") then
-      return nil, "Put the cursor on a file in the list, or on a hunk in a diff pane."
+      return nil, "Put the cursor on a file in the list,\nor on a hunk in a diff pane."
     end
     return item_entry(view, item)
   end
@@ -563,10 +636,89 @@ local function load(d, text)
   d.synced = text
 end
 
+--- What the file holds for a draft whose text is `text`: nothing at all once
+--- no feedback is left. A header and an intro alone count as empty for
+--- delivery (message), so they count as empty on disk too, where retention
+--- spares a round only for a non-empty draft (rounds._exempt). The next ,C
+--- writes both again.
+local function settled(text)
+  return message(split(text)) == "" and "" or text
+end
+
+--- The changes that turn `base` into `lines`, each as the base lines it
+--- replaces (lo+1..hi; none when lo == hi, an insertion there) and the new
+--- ones.
+---@return { lo: integer, hi: integer, new: string[] }[]
+local function changes(base, lines)
+  local out = {}
+  for _, h in ipairs(vim.text.diff(join(base), join(lines), { result_type = "indices" })) do
+    local lo = h[2] == 0 and h[1] or h[1] - 1
+    out[#out + 1] = { lo = lo, hi = lo + h[2], new = vim.list_slice(lines, h[3], h[3] + h[4] - 1) }
+  end
+  return out
+end
+
+--- A three-way merge of two versions of a draft against the one both started
+--- from, line by line. Changes to different lines of `base` are both made;
+--- two insertions at the same place are both kept, `ours` first; a change
+--- both made alike is made once.
+---@return string[]? merged nil when the two changed the same lines differently
+local function merge3(base, ours, theirs)
+  local list = changes(base, ours)
+  local mine = #list
+  for _, c in ipairs(changes(base, theirs)) do
+    local dup = false
+    for i = 1, mine do
+      local o = list[i]
+      if o.lo == c.lo and o.hi == c.hi and vim.deep_equal(o.new, c.new) then
+        dup = true
+      elseif o.lo < c.hi and c.lo < o.hi then
+        return nil
+      end
+    end
+    if not dup then
+      c.theirs = true
+      list[#list + 1] = c
+    end
+  end
+  -- By position; at one position an insertion before a replacement, and ours
+  -- before theirs. Neither side's own changes overlap, nor (checked) do the
+  -- two sides'.
+  table.sort(list, function(a, b)
+    if a.lo ~= b.lo then return a.lo < b.lo end
+    if a.hi ~= b.hi then return a.hi < b.hi end
+    return not a.theirs and b.theirs == true
+  end)
+  local out, pos = {}, 0
+  for _, c in ipairs(list) do
+    for k = pos + 1, c.lo do out[#out + 1] = base[k] end
+    vim.list_extend(out, c.new)
+    pos = c.hi
+  end
+  for k = pos + 1, #base do out[#out + 1] = base[k] end
+  return out
+end
+
+--- Where a draft's version that lost a merge is written: beside it, under a
+--- name no earlier one took.
+local function conflict_path(path)
+  local stem = (path:gsub("%.md$", ""))
+  local candidate, n = stem .. ".conflict.md", 1
+  while uv.fs_stat(candidate) do
+    n = n + 1
+    candidate = ("%s.conflict-%d.md"):format(stem, n)
+  end
+  return candidate
+end
+
 --- Write what is typed in the draft buffer to its file. Another Nvim may have
---- written the file meanwhile: what it appended (a ,C of its own) is kept
---- after this text; anything else it did is replaced by this text, with a
---- warning, so that nothing typed here is lost.
+--- written the file meanwhile -- a ,C of its own, a comment typed there, a
+--- delivery that emptied it: that is merged with this buffer's changes,
+--- against the text both started from (d.synced). Where the two changed the
+--- same lines, the file keeps what it has -- entries another Nvim delivered
+--- stay delivered -- and this buffer's text is written beside it
+--- (<id>.conflict.md), with a warning naming it: nothing typed in either Nvim
+--- is lost.
 ---@return boolean ok
 local function save(buf)
   local d = drafts[buf]
@@ -575,16 +727,41 @@ local function save(buf)
   local disk = read(d.path) or ""
   local merged = text
   if disk ~= d.synced and disk ~= text then
-    if d.synced ~= "" and disk:sub(1, #d.synced) == d.synced then
-      merged = text .. disk:sub(#d.synced + 1)
+    local ours = split(text)
+    local lines = merge3(split(d.synced), ours, split(disk))
+    if lines then
+      -- A delivery elsewhere took the header with what it sent; what was
+      -- added here still needs it.
+      if parse_header(ours[1]) and not vim.list_contains(classify(lines), "header") then
+        table.insert(lines, 1, ours[1])
+      end
+      merged = join(lines)
     else
-      notify(("%s was changed elsewhere while it was open here; this version was kept."):format(tilde(d.path)))
+      local aside = conflict_path(d.path)
+      local ok, err = write(aside, text)
+      if not ok then
+        notify({
+          "Could not save the review draft:", tilde(d.path),
+          "It was changed elsewhere in the same lines,",
+          "and what was typed here could not be written to:", tilde(aside), tostring(err),
+        })
+        return false
+      end
+      notify({
+        "The draft was changed elsewhere in the same lines",
+        "while it was open here:", tilde(d.path),
+        "It keeps that version; what was typed here is in:", tilde(aside),
+      })
+      merged = disk
     end
   end
-  local ok, err = write(d.path, merged)
-  if not ok then
-    notify(("Could not save the review draft %s: %s"):format(tilde(d.path), tostring(err)))
-    return false
+  merged = settled(merged)
+  if merged ~= disk then
+    local ok, err = write(d.path, merged)
+    if not ok then
+      notify({ "Could not save the review draft:", tilde(d.path), tostring(err) })
+      return false
+    end
   end
   if merged ~= text then
     local cursor = api.nvim_get_current_buf() == buf and api.nvim_win_get_cursor(0) or nil
@@ -625,7 +802,10 @@ local function create_buffer(path)
   -- otherwise come up mid-delivery.
   vim.bo[buf].buftype = "acwrite"
   vim.bo[buf].swapfile = false
-  vim.bo[buf].bufhidden = "wipe"
+  -- hide, then wiped once saved (BufHidden below): with bufhidden=wipe Nvim
+  -- refuses :close, <C-w>c and sd (nvim_win_close(win, false)) over a draft
+  -- edited in Normal mode (E37), before any autocmd could save it.
+  vim.bo[buf].bufhidden = "hide"
   pcall(api.nvim_buf_set_name, buf, path)
   local d = { buf = buf, path = path, synced = "" }
   drafts[buf] = d
@@ -651,11 +831,25 @@ local function create_buffer(path)
     end,
   })
   -- Typed text reaches the file whenever the float is left, hidden or closed
-  -- -- by q, :q, <C-w>c, a click elsewhere or quitting Nvim.
+  -- -- by q, :q, :close, <C-w>c, sd, a click elsewhere or quitting Nvim.
   api.nvim_create_autocmd({ "InsertLeave", "WinLeave", "BufWinLeave", "BufUnload", "QuitPre", "FocusLost" }, {
     group = group,
     buffer = buf,
     callback = function() save(buf) end,
+  })
+  -- Shown nowhere any more, and saved: the file holds it, so the buffer goes.
+  -- One whose save failed stays (hidden, modified) for the next ,C to retry.
+  api.nvim_create_autocmd("BufHidden", {
+    group = group,
+    buffer = buf,
+    callback = function()
+      save(buf)
+      vim.schedule(function()
+        if valid_buf(buf) and not vim.bo[buf].modified and #vim.fn.win_findbuf(buf) == 0 then
+          pcall(api.nvim_buf_delete, buf, {})
+        end
+      end)
+    end,
   })
   api.nvim_create_autocmd("VimLeavePre", {
     group = group,
@@ -775,7 +969,7 @@ local function comment(opts)
   local header = { round = id, sha = round and round.sha, conversation = round and round.conversation, root = view.root }
   local time = round and baseline_time(view)
   local line, err = append(path, header, intro_for(view, time), entry)
-  if not line then return notify(("Could not write the review draft %s: %s"):format(tilde(path), tostring(err))) end
+  if not line then return notify({ "Could not write the review draft:", tilde(path), tostring(err) }) end
   reload(path)
 
   local title
@@ -803,30 +997,14 @@ end
 -- Delivery
 ---------------------------------------------------------------------------
 
---- What the agent is sent: the draft without its header and review-item
---- lines, blank lines trimmed at both ends; "" when it holds no feedback.
-local function message(lines)
-  local out = {}
-  for _, line in ipairs(lines) do
-    if not parse_header(line) and not line:match(ITEM) then out[#out + 1] = line end
-  end
-  while out[1] and vim.trim(out[1]) == "" do table.remove(out, 1) end
-  while out[#out] and vim.trim(out[#out]) == "" do table.remove(out) end
-  for _, line in ipairs(out) do
-    if vim.trim(line) ~= "" and not is_intro(line) then return table.concat(out, "\n") end
-  end
-  return ""
-end
-
---- Entries whose file changed since their comment, marked in `lines`.
+--- Entries whose file changed since their comment, marked in `lines`: the
+--- entry's heading, never a quoted line that looks like one (classify).
 ---@return string[] paths the files concerned, each once
 local function mark_stale(lines, root)
-  local paths, heading = {}, nil
-  for i = 2, #lines do
-    local line = lines[i]
-    local body = line:match(ITEM)
-    if body then
-      local a = parse_attrs(body)
+  local kinds, paths, heading = classify(lines), {}, nil
+  for i, line in ipairs(lines) do
+    if kinds[i] == "item" then
+      local a = parse_attrs(line:match(ITEM))
       if a.path and a.digest and digest_of(root, a.path) ~= a.digest then
         if not vim.list_contains(paths, a.path) then paths[#paths + 1] = a.path end
         if heading and not lines[heading]:find(STALE, 1, true) then
@@ -834,7 +1012,7 @@ local function mark_stale(lines, root)
         end
       end
       heading = nil
-    elseif line:match("^## ") then
+    elseif kinds[i] == "heading" then
       heading = i
     end
   end
@@ -848,8 +1026,7 @@ local function delivered(path, snapshot)
   local copy = last_sent_path(path)
   local ok, err = write(copy, snapshot)
   if not ok then
-    return notify(("Delivered, but the draft was kept: no copy could be written to %s (%s)."):format(tilde(copy),
-      tostring(err)))
+    return notify({ "Delivered, but the draft was kept:", "no copy could be written to", tilde(copy), tostring(err) })
   end
   -- A draft reopened meanwhile (another ,C) may hold typing not saved yet:
   -- it belongs to what stays.
@@ -863,13 +1040,16 @@ local function delivered(path, snapshot)
     local lines = split(snapshot)
     local head = { lines[1] }
     head[#head + 1] = last_intro(lines)
-    rest = join(head) .. now:sub(#snapshot + 1)
+    -- What came after may be blank lines only: then nothing stays.
+    rest = settled(join(head) .. now:sub(#snapshot + 1))
   else
-    return notify(("Delivered. The draft was edited meanwhile, so it was kept as it is; what was sent is in %s.")
-      :format(tilde(copy)), INFO)
+    return notify({
+      "Delivered. The draft was edited meanwhile,",
+      "so it was kept as it is. What was sent is in:", tilde(copy),
+    }, INFO)
   end
   ok, err = write(path, rest)
-  if not ok then notify(("Delivered, but the draft could not be emptied: %s"):format(tostring(err))) end
+  if not ok then notify({ "Delivered, but the draft could not be emptied:", tostring(err) }) end
   reload(path)
 end
 
@@ -920,20 +1100,20 @@ local function sink(path, target)
   if target.kind == "cc" then
     local companion = require("ai.companion")
     if companion.busy(target.chat) then
-      return notify("The chat is replying. Draft kept: deliver again once it is done.")
+      return notify({ "The chat is replying.", "Draft kept: deliver again once it is done." })
     end
     local buf = buf_of[path]
     if buf then M.hide(buf) end
     switch_tab(target)
     local ok, why, err = companion.add_text(target.chat, "\n" .. text)
     if not ok then
-      if why == "busy" then return notify("The chat is replying. Draft kept: deliver again once it is done.") end
+      if why == "busy" then return notify({ "The chat is replying.", "Draft kept: deliver again once it is done." }) end
       if why == "gone" then return notify("That chat no longer exists. Draft kept.") end
-      return notify(("Could not add the feedback to the chat (%s). Draft kept."):format(tostring(err or why)))
+      return notify({ "Could not add the feedback to the chat. Draft kept:", tostring(err or why) })
     end
     delivered(path, snapshot)
     local shown_ok, show_err = pcall(companion.show_input, target.chat)
-    if not shown_ok then notify("The feedback is in the chat, which could not be shown: " .. tostring(show_err)) end
+    if not shown_ok then notify({ "The feedback is in the chat, which could not be shown:", tostring(show_err) }) end
     return
   end
 
@@ -951,7 +1131,7 @@ local function sink(path, target)
   local function expired()
     if answered then return end
     answered = true
-    notify(("%s did not open its prompt editor for the feedback (busy?). Draft kept."):format(label))
+    notify({ ("%s did not open its prompt editor (busy?)."):format(label), "Draft kept: deliver again." })
   end
   -- That agent's prompt editor is already open: the TUI is blocked on it and
   -- reads no key, so the text goes straight into it.
@@ -975,11 +1155,23 @@ deliver = function(buf)
   if not save(buf) then return end
   local path = d.path
   local lines = split(read(path) or "")
+  if message(lines) == "" then
+    -- No feedback left (delivered elsewhere, or only its header and intro
+    -- remain): no draft, and no longer one that spares its round (settled).
+    if #lines > 0 then
+      local ok, err = write(path, "")
+      if not ok then notify({ "Could not empty the review draft:", tilde(path), tostring(err) }) end
+    end
+    reload(path)
+    return notify("The draft is empty: nothing to deliver.")
+  end
   local header = parse_header(lines[1])
   if not header then
-    return notify("This draft lost its first line (<!-- nvim-review ... -->), so where it belongs is unknown. Not delivered.")
+    return notify({
+      "This draft lost its first line (<!-- nvim-review ... -->),",
+      "so where it belongs is unknown. Not delivered.",
+    })
   end
-  if message(lines) == "" then return notify("The draft is empty: nothing to deliver.") end
 
   local function failed(err)
     notify("Delivering the review feedback failed; the draft is kept:\n" .. tostring(err))
@@ -1001,11 +1193,16 @@ deliver = function(buf)
   local stale = mark_stale(lines, header.root)
   if #stale == 0 then return go() end
   local ok, err = write(path, join(lines))
-  if not ok then return notify(("Could not mark the changed entries: %s"):format(tostring(err))) end
+  if not ok then return notify({ "Could not mark the changed entries:", tostring(err) }) end
   reload(path)
-  local names = table.concat(vim.list_slice(stale, 1, 3), ", ") .. (#stale > 3 and (" and %d more"):format(#stale - 3) or "")
-  local prompt = ("%s changed since you commented on %s (marked %q). Deliver anyway?"):format(
-    names, #stale == 1 and "it" or "them", STALE)
+  -- Which files, in a notice beside the question: the picker's prompt is one
+  -- line.
+  local why = vim.list_extend({ "Changed since you commented:" }, vim.list_slice(stale, 1, 3))
+  if #stale > 3 then why[#why + 1] = ("and %d more"):format(#stale - 3) end
+  why[#why + 1] = ("%s entries are marked %s."):format(#stale == 1 and "Its" or "Their", STALE)
+  notify(why)
+  local prompt = ("%s changed since you commented. Deliver anyway?"):format(
+    #stale == 1 and "A file" or ("%d files"):format(#stale))
   vim.ui.select({ "Deliver anyway", "Edit first" }, { prompt = prompt, kind = "ai_review_stale" }, function(choice)
     if choice == "Deliver anyway" then return go() end
     local win = valid_buf(buf) and windows_here(buf)[1]
