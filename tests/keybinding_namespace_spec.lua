@@ -79,7 +79,20 @@ local function terminal_id()
 end
 
 -- ;c opens Snacks' git_diff source, whose <C-r> restores (discards) a hunk.
--- The checkout may be clean, so only the source is asserted, not its items.
+-- Snacks closes a picker that finds nothing, and this checkout may be clean
+-- (CI always is), so the key runs from a scratch repository with one hunk.
+local scratch = vim.fn.tempname()
+vim.fn.mkdir(scratch, "p")
+local function git(...)
+  return vim.system({ "git", "-C", scratch, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+    "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", ... }):wait()
+end
+git("init", "-q")
+vim.fn.writefile({ "one" }, scratch .. "/hunk.txt")
+git("add", "hunk.txt")
+git("commit", "-qm", "fixture")
+vim.fn.writefile({ "two" }, scratch .. "/hunk.txt")
+local spec_cwd = vim.fn.chdir(scratch)
 mapping(";c").callback()
 local hunks
 vim.wait(2000, function()
@@ -88,6 +101,7 @@ vim.wait(2000, function()
 end, 10)
 t.ok(hunks ~= nil, ";c opens the git_diff picker")
 if hunks then hunks:close() end
+vim.fn.chdir(spec_cwd)
 vim.api.nvim_set_current_win(editor_win)
 
 press("3<C-/>")
