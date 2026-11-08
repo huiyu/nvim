@@ -27,6 +27,8 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | CodeCompanion chat refuses or fails | `:AI info` · `:checkhealth config` · `<leader>mnh` (notification history) |
 | No grey AI suggestions | `:checkhealth config` (inline completion) · `~/.local/state/nvim/llama/server.log` |
 | GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `<leader>mnh` (notification history) |
+| A diff view (`<leader>gv`, `gm`, `gk`, …) errors or never opens | `:checkhealth config` (CodeDiff) · `:CodeDiff install!` · [Diff views](#diff-views-codediff) |
+| `<leader>av` finds no round, or delivering feedback refuses | `:checkhealth config` (review) · `git for-each-ref refs/nvim-review/` · [Review rounds](#review-rounds-and-agent-hooks) |
 | File search / terminal starts in an unexpected directory | `:pwd` · `:verbose pwd` · `:cd /path/to/project` |
 | Mason tool missing | `:Mason` (`<leader>mm`) · `:checkhealth mason` |
 | Error flashed by | `:messages` / `g<` (Vim's own messages) · `<leader>mnh` (plugin notifications) |
@@ -94,6 +96,31 @@ the update checker runs silently once a day (`bootstrap.lua`).
   in this Nvim rather than in a second one nested inside the `:terminal`. It
   degrades to the nested editor silently, so the check is a warning, not an
   error — `chmod +x` is the fix.
+- *CodeDiff*: whether codediff.nvim is installed and is the release
+  `lua/util/codediff.lua` was written against (4.0.6; another one turns its
+  patches off); whether its native library is there and loads, and reports the
+  plugin's version; the two `NO_AUTO_INSTALL` variables when set; and which
+  file watcher the views would use — `CODEDIFF_WATCHER_PATH`, the downloaded
+  one, or one on `PATH` — or that they poll instead. This check loads the
+  plugin and its library to ask, and never downloads.
+- *git*: its version. Review baselines need 2.26 or later.
+- *Review hooks*: whether `scripts/agent-hook` is executable and `nvim` is on
+  `PATH` (the hook calls back with `nvim --server`); whether the `--settings`
+  JSON native Claude gets and the `-c hooks=` value native Codex gets carry the
+  hook they should, with Codex's trust hash checked against the command it
+  covers; which `sources` are off. Static only: no agent is started, so
+  whether the installed CLIs run the hooks is checked as the hook steps below
+  describe.
+- *Review baselines*, for the worktree of the working directory: how many
+  round and saved baselines it has (and its worktree id); refs of worktrees
+  that no longer exist, named by the root they were taken in, with the command
+  that deletes them; refs CodeCompanion's own code review left under
+  `refs/worktree/codecompanion/`, likewise; and where the feedback drafts are:
+  how many still hold feedback (a non-empty file, which keeps its round from
+  retention), how many last-sent copies, and any conflict files.
+- *Review settings*: every `vim.g.ai_review` setting with the value in effect
+  and whether it is the default or yours, and each one of yours that was not
+  applied.
 - Oversized LSP logs (warns above 10 MiB)
 - A few key Mason packages
 
@@ -184,6 +211,101 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   them to the server (jdtls; rust-analyzer, which runs the toolchain's
   `rustfmt`, installed with `rustup component add rustfmt`). `:ConformInfo`
   lists them under LSP.
+
+## Diff views (CodeDiff)
+
+The `<leader>g` diff views and the review view are CodeDiff's
+(`lua/plugin/vcs/codediff.lua`). `lua/util/codediff.lua` is the one module that
+reaches into its internals, for the `,` keys, the `;`/`s` blocks, the tab
+labels and the listing; its header lists what it depends on.
+
+- **The native library.** CodeDiff computes diffs in a C library,
+  `libvscode_diff_<version>.dylib` (`.so` on Linux), kept in its plugin
+  directory, `~/.local/share/nvim/lazy/codediff.nvim`, beside a file watcher,
+  `codediff-watcher_<version>`. It downloads each from its GitHub release when
+  first needed — the library when the plugin loads (the first `<leader>g` diff
+  key or `:CodeDiff`), the watcher at the first view — and again after an
+  update changes the version. That needs `curl` or `wget` and github.com.
+  CodeDiff does not verify what it downloads; CI checks the library against
+  the release's `SHA256SUMS` (`.github/workflows/tests.yml`).
+- **`libvscode-diff not found and automatic installation failed`** — the
+  download failed, and the error lists CodeDiff's own steps. `:CodeDiff
+  install!` downloads it again. Offline, take
+  `libvscode_diff_<os>_<arch>_<version>.<ext>` (for example
+  `libvscode_diff_macos_arm64_4.0.6.dylib`) from the release matching the
+  plugin's `VERSION` file and save it in the plugin directory as
+  `libvscode_diff_<version>.<ext>`. `:checkhealth config` says whether the
+  library is installed and which version it is.
+- **Not downloading.** `VSCODE_DIFF_NO_AUTO_INSTALL` set to any non-empty value
+  stops the library download (set but empty, it does not): a missing library
+  is then an error when the plugin loads.
+  `CODEDIFF_WATCHER_NO_AUTO_INSTALL=1` stops the watcher download, and the views
+  poll the repository instead; `CODEDIFF_WATCHER_PATH` names a watcher binary
+  of your own. `tests/run.sh` exports both `NO_AUTO_INSTALL` variables, so the
+  spec suite never downloads, and `tests/codediff_spec.lua` fails with a
+  pointer here when the library is missing. "Failed to install codediff-watcher;
+  using polling fallback" means the watcher download failed and the views still
+  work.
+- **`CodeDiff X is not the 4.0.6 this config was written against`** — the
+  plugin moved past the pin in `lazy-lock.json`. Plain CodeDiff still works
+  (the upstream keys that could harm a review are off in the spec), but the
+  revision listing, the non-ASCII path fix and the history limit are off.
+  `:Lazy restore codediff.nvim` goes back to the pin; moving the pin means
+  running `tests/codediff_spec.lua` against the new version first.
+- **`CodeDiff's revision listing fell back to upstream's`** — the listing (below)
+  failed once in this Nvim, for the reason in parentheses. Until a restart a
+  revision view can show a path as both `D` and `??`.
+- **A revision view lists something unexpected.** A view of a revision or a
+  baseline against the working tree lists what the two trees differ in, taken
+  from a snapshot of the working tree (the one the review baselines use): a
+  file the revision tracks and the index does not shows as `M`, a plain `mv` as
+  `R`. Ignored files never show, so an agent's edit to `.env` is not there. A
+  path that is still on disk is never listed as deleted; such paths are named
+  once per view in a `Not compared (…)` notice, by reason —
+  `untracked, over 10 MiB; vim.g.ai_review.max_file_size`, `ignored, still on
+  disk`, or `still on disk, so not listed as deleted` (an unreadable file, a
+  directory where a file was, a case-only rename on macOS).
+- **`<file>: unsaved changes here, and the file changed on disk since`** —
+  CodeDiff never reloads a buffer you have modified, so the view shows your
+  text, not the disk's. `:e!` takes the disk's version; `:w` keeps yours and
+  overwrites the disk's.
+- **`; is disabled in CodeDiff` / `s is disabled in CodeDiff`** — intended, in
+  every window of a view: a `;` picker opens its file in the working-tree pane,
+  which desynchronises the view, and `s` keys close or reshape panes. `gf` opens
+  the file in the previous tab, `<C-w>` still moves between windows. A key
+  typed right after the blocked one is swallowed with it, so `so` cannot fall
+  through to `o`.
+- **`The diff view lost a pane, so its tab was closed`** — `:e` in the baseline
+  pane, or closing one pane, ends CodeDiff's session and leaves a dead tab
+  behind; this config closes it. Use `gf` to edit the file.
+- **`This tab already shows a CodeDiff view; <leader>gq closes it`** —
+  `<leader>gv` in a CodeDiff tab: a bare `:CodeDiff` there would close the view
+  instead.
+- **`,u`/`,U`/`,X` refuse** — each says why (unsaved edits, the file changed on
+  disk, the index differs from the view's left side, a symlink or LFS file, …)
+  and changes nothing. [The manual](MANUAL.md#git) lists which view has which
+  key. A stage that warns `the index did not come out as planned` ran while the
+  index or the file changed; check the index in `<leader>gv`.
+- **History stops at 100 commits** — `:CodeDiff history` without a range lists
+  the newest 100 non-merge commits. `vim.g.ai_review.history_limit` changes
+  that (`false` for all); a range, `:CodeDiff history origin/main..HEAD`, has
+  no limit.
+- **Only one diff pane follows the mouse wheel** — native Nvim ignores
+  `scrollbind` when scrolling an unfocused window (see
+  [scrollbind-quickadj](https://neovim.io/doc/user/scroll/#scrollbind-quickadj)).
+  `lua/util/codediff.lua` maps the wheel in both panes to scroll in the hovered
+  pane's context and restore focus, so filler and folds stay aligned; the file
+  and history panels scroll on their own. Restart Nvim after updating.
+- **A Claude diff opened in a new tab** — intended
+  (`diff_opts.open_in_new_tab`). claudecode picks the window for a proposal by
+  skipping `'diff'` windows, and CodeDiff's panes never set `'diff'`, so in the
+  current tab a proposal could land inside a diff view. `<leader>aa` /
+  `<leader>ad` answer it as before.
+- **A repository whose path holds `$NAME`.** CodeDiff views work there.
+  gitsigns does not when `NAME` is a set variable (`$HOME`): it normalises the
+  repository path with `vim.fs.normalize`, which expands the variable, and
+  reports `ENOENT (cwd)`. Nvim's own `:cd`, `chdir()` and
+  `nvim_set_current_dir()` expand a set variable too, even escaped.
 
 ## AI and CodeCompanion
 
@@ -439,6 +561,152 @@ rather than a broken viewer.
   it, including `VimLeavePre`, and the wrapper gives up on its own once the host
   stops answering RPC. A genuine hang means the buffer is still open somewhere —
   find it with `:ls` and close it.
+
+### Review rounds and agent hooks
+
+A round is a baseline — a snapshot of the working tree, kept as a parentless
+commit under `refs/nvim-review/` — taken when a prompt is submitted
+(`lua/ai/review/`, `lua/util/baseline.lua`; the workflow is in the
+[manual](MANUAL.md#reviewing-a-round-of-agent-changes)). Native Claude is
+started with `--settings <json>` carrying a `UserPromptSubmit` hook and an
+async `SessionStart` hook; native Codex with `-c hooks=…` carrying a
+`UserPromptSubmit` hook and its trust hash. Both run `scripts/agent-hook`,
+which hands the event to this Nvim through `$NVIM` and holds a submit until
+the baseline is written, at most `hook_wait_ms` (2.5 s). Only agents started
+from this Nvim's panel have the hooks; nothing is written to `~/.claude` or
+`~/.codex`. CodeCompanion chats take the baseline from a callback instead.
+
+- **`<leader>av` says there is no review round, though a prompt was sent.**
+  In order:
+  1. `:checkhealth config`, *review hooks*: is the hook script executable, do
+     the injected settings carry the hook, does Codex's trust hash match?
+  2. Which repository: rounds belong to the conversation's root, the Git root
+     the agent started in. `<leader>av` from a file of another repository looks
+     there. List what exists:
+     `git -C <repo> for-each-ref --format='%(refname) %(subject)' refs/nvim-review/`.
+  3. Was the agent started from this Nvim with its source on
+     (`vim.g.ai_review.sources`)? A CLI started in a shell has no hook, and
+     a source turned on after Claude's first start needs a restart.
+  4. Claude: its `/hooks` menu does not list hooks given through
+     `--settings` (checked with Claude Code 2.1), so ours never show there.
+     Nvim shows instead whether they run: with Claude open in this root,
+     `<leader>aV` from a file names `Conversation: Claude Code session …`
+     once the `SessionStart` hook has reported, and "No conversation yet"
+     when it has not. Not running: Claude was started with `--bare` (which
+     skips hooks), managed settings set `disableAllHooks` or
+     `allowManagedHooksOnly`, or the folder's trust prompt has not been
+     accepted — Claude holds hooks back until it is. For a log, quit Claude
+     and start it from Nvim with
+     `:ClaudeCode --debug=hooks --debug-file /tmp/claude-hooks.log`.
+  5. Codex: `/hooks` → `UserPromptSubmit` lists ours with source *Session
+     flags* and trust *Trusted*. Listed as needing review ("hooks need review
+     before they can run") means the trust hash no longer matches what this
+     Codex computes — expected after a Codex update that changed how it hashes
+     hooks. The hash comes from `codex_trust_hash` in `lua/ai/review/hook.lua`,
+     pinned by `tests/agent_hook_spec.lua`.
+  6. Outside a Git worktree, in a bare repository, or with `GIT_DIR` /
+     `GIT_WORK_TREE` set in Nvim's environment, nothing is snapshotted.
+  7. Prompts of subagents (Claude's Task agents, Codex's spawned threads) open
+     no round by design, and the later steps of a chat's tool loop open none
+     of their own.
+- **Codex warns at startup: `Running without the shared background server:
+  command-line configuration overrides (-c, --enable, --disable, or --search)
+  requires embedded mode`.** That is the review hook's `-c hooks=…`: a Codex
+  given any `-c` runs its own server for the session instead of the shared
+  background one. `vim.g.ai_review = { sources = { codex = false } }` drops
+  the `-c`, and with it the warning and Codex's review rounds.
+- **`Late: the baseline landed after the prompt went out`** in the view's
+  notice (a `Late: 1` trailer on the commit) — the snapshot took longer than
+  `hook_wait_ms`, so the prompt went ahead and the agent's first edits may be
+  in the baseline. Usually many untracked files (one warning when a repository
+  has over 5000: a missing `.gitignore` entry) or a busy Nvim. Raise
+  `hook_wait_ms`, or add what needs no comparing to `.gitignore`.
+- **`Missed a Claude Code prompt submit (Nvim was busy)`** (or Codex) — Nvim's
+  main loop was blocked for the whole wait, the hook gave up, and the prompt
+  went ahead without a baseline. It may also pass unreported: once the hook has
+  given up, Nvim may never see the request. Either way no late baseline is
+  taken; `<leader>aV` takes one now.
+- **`No review baseline for this <source> prompt:`** — the snapshot failed;
+  git's reason is on the next line.
+- **`Agent hook receiver failed`** / **`Review round for a chat failed`** — an
+  error in `lua/ai/review/`, with its text. The prompt itself went ahead.
+- **`<agent> is working outside its root now:`** — the agent `cd`'d into
+  another repository. Its rounds are still recorded in the root it started in.
+- **Rounds by hand.** One worktree's baselines are
+  `refs/nvim-review/<wtid>/round/<id>` and `…/saved/<id>`;
+  `git log -1 --format=%B <ref>` shows the trailers (`Source`, `Conversation`,
+  `Root`, `Late`, a saved baseline's `Label`). After each save the oldest are
+  removed past `retention.rounds` (20) and `retention.saved` (10) per worktree,
+  and a removed saved baseline is named in a notice. A round whose draft still
+  holds feedback is never removed; a delivered draft is emptied and no longer
+  protects it. `git update-ref -d <ref>` deletes one by hand. A ref whose
+  commit has gone (deleted objects, a broken clone) is removed with a warning
+  the next time baselines are listed.
+- **Drafts** are files shared by every Nvim, under
+  `~/.local/state/nvim/ai-review/<12 hex digits of the repository path's
+  sha256>/`: `<round id>.md`, `unowned.md` for views that are no round's,
+  `<id>.last-sent.md` for the last delivery, and `<id>.conflict.md` (then
+  `.conflict-2.md`, …) when two Nvims changed the same lines of an entry, or
+  one typed into an entry the other has since delivered or deleted: the draft
+  keeps what its file has, the conflict file holds what was typed in the Nvim
+  that saved second, and a warning there names it. Edits to different lines
+  of one entry are both kept. A delivered or cleared draft is an empty file. A
+  draft that lost its first line is not delivered: `This draft lost its first
+  line`.
+- **Delivery refused.** The notice says why and the draft stays; the
+  [manual](MANUAL.md#who-receives-it) has each refusal and what to do about
+  it. `did not open its prompt editor (busy?)` means the agent took no
+  `ctrl+g` within `seed_ttl_ms` (10 s), usually because a turn was running;
+  deliver again once it is idle, or raise `seed_ttl_ms`.
+
+### What review baselines leave in a repository
+
+Baselines never touch HEAD, the index, branches or the stash, and these are
+the only traces:
+
+- **Refs in every view of all refs.** About 30 parentless commits per worktree
+  (20 rounds and 10 saved baselines, plus any round a draft keeps), with
+  subjects such as `nvim review: Claude round 11:22:33` and
+  `saved · before refactor`, show in `git log --all`, `gitk --all` and
+  lazygit's all-branches graph. Leave them out with `--exclude`, which has to come
+  before `--all`:
+  ```sh
+  git log --exclude='refs/nvim-review/*' --all --oneline --graph
+  ```
+  For lazygit, add the same option to the commands in `git.allBranchesLogCmds`
+  in its `config.yml`. A baseline has no parent, so it never keeps old
+  history alive.
+- **Mirrors and `ls-remote`.** `git ls-remote <this repository>`,
+  `git clone --mirror` and `git push --mirror` carry `refs/nvim-review/*`;
+  `git push`, `--all` and `--tags` do not. A snapshot holds every untracked
+  file `.gitignore` does not exclude — a `.env` missing from it included — so
+  mind a mirror push.
+- **A temporary index**, `nvim-review-index.XXXXXX` in the Git directory
+  (`.git/`, or `.git/worktrees/<name>/` in a linked worktree), for the length of
+  one snapshot. Each snapshot has its own; none is shared between Nvims.
+- **No hooks, no locks.** These git calls run with `--no-optional-locks` and
+  `core.hooksPath=/dev/null`: none of your hooks runs, and an agent's own
+  `git add` or `commit` never waits on them. CodeDiff's own `git status`, like
+  any `git status`, refreshes the index's cached file stats; its content does
+  not change.
+- **Worktrees that are gone.** After `git worktree remove`, that worktree's
+  refs stay and keep their objects alive; nothing deletes them automatically.
+  `:checkhealth config` names such ids by the `Root` they were taken in, and
+  prints the command that deletes them. By hand, one worktree id's refs, or
+  every worktree's:
+  ```sh
+  git for-each-ref --format='delete %(refname)' refs/nvim-review/<wtid>/ | git update-ref --stdin
+  git for-each-ref --format='delete %(refname)' refs/nvim-review/ | git update-ref --stdin
+  # The current worktree's id:
+  printf %s "$(cd "$(git rev-parse --absolute-git-dir)" && pwd -P)" | shasum -a 256 | cut -c1-12
+  ```
+  Drafts in `~/.local/state/nvim/ai-review/` are not touched by this.
+- **CodeCompanion's own review refs.** CodeCompanion's code review, which this
+  config turns off so that there is one baseline system, kept its snapshots
+  under `refs/worktree/codecompanion/`, one set per worktree. Nothing reads
+  them any more; `:checkhealth config` counts them and gives the command, the
+  same `for-each-ref … | git update-ref --stdin` with that prefix, run in each
+  worktree.
 
 ## Debugging (DAP)
 
@@ -803,6 +1071,11 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   taller than 'cmdheight'. Press `g<` to read it in full. A multi-line error is
   not expanded at all, so its traceback is only reachable through `g<` or
   `:messages`.
+- **A notification line ends at the window's edge** — the snacks notifier
+  makes its windows at most 40% of the screen wide and cuts a longer line
+  there instead of wrapping it. `<leader>mnh` shows the whole text. This
+  config's own review and diff-view notices are written as short lines for
+  that reason, with paths and git's messages on lines of their own.
 - **ui2 itself misbehaves** (a stuck message window, a cmdline drawn in the
   wrong place) — it is experimental. `:lua require("vim._core.ui2").enable({ enable = false })`
   switches the running Nvim back to the legacy message grid; to keep it off,
@@ -832,14 +1105,6 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   terminal/special buffers alone. Returning to a regular split exits zen mode;
   file edits remain in the original buffer. `scrolloff` is eight for editing
   and zero for terminals; keep `splitkeep=screen` for Edgy's layout handling.
-- **Only one Diffview pane follows the mouse wheel** — native Nvim ignores
-  `scrollbind` when scrolling an unfocused window (see
-  [scrollbind-quickadj](https://neovim.io/doc/user/scroll/#scrollbind-quickadj)).
-  Diffview's buffer-local wheel mappings execute vertical scrolling in the
-  hovered diff window's context and restore focus, keeping diff filler and
-  folds aligned. File/history panels still scroll independently. Reopen
-  Diffview after reloading its configuration, or restart Nvim after updating.
-  Check `:setlocal diff? scrollbind?` in the content panes if they still drift.
 - **A refactor key (`,ef`, `,ex`, `,i`, `,R`) errors with
   `attempt to call field 'wrap'`** — on Nvim 0.12 refactoring.nvim needs the
   async runtime from `lewis6991/async.nvim`, which
@@ -868,7 +1133,8 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   Restart Nvim to remove old live mappings, then press `,` in the relevant file
   or view. Headings separate general editing from filetype and view actions.
   Conflict-free replacements include C/C++ `,H`, Markdown `,m`, LaTeX `,K`/`,E`
-  and `,L…`, Diffview `,P`/`,B`/`,g…`, and search-panel actions under `,S…`.
+  and `,L…`, CodeDiff `,P`/`,B`/`,z`/`,I`/`,g…`, and search-panel actions
+  under `,S…`.
   `[LSP]` entries still require a server;
   use `:checkhealth vim.lsp` if those actions are unavailable.
   The [manual](MANUAL.md#filetype-and-view-actions) lists every migrated action.
@@ -877,9 +1143,11 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   Headings classify existing mappings; they do not create actions. Python and
   LaTeX share `,v` with different meanings, and terminal digits require a terminal
   buffer in Normal mode. Java's `,dt`/`,dT` also need jdtls/debug initialization.
-  Diffview adds `,P`/`,B`/`,g…` beside the language section and removes those
-  actions on close. Section metadata lives in `lua/whichkey_spec.lua`; the
-  rendering code in `lua/plugin/editor/whichkey.lua` reads it generically.
+  A CodeDiff view adds its panel, layout and conflict keys and the review keys
+  (`,C`, and `,u`/`,U`/`,X` where the view can do them) beside the language
+  section, and gives every key back on close. Section metadata lives in
+  `lua/whichkey_spec.lua`; the rendering code in
+  `lua/plugin/editor/whichkey.lua` reads it generically.
   grug-far's `,S` subgroup appears only inside its search-and-replace panel;
   open it with `,F`, then use `g?` to inspect its action mappings.
 - **Which-key hints stop appearing while mappings still work** — check for the
@@ -935,3 +1203,6 @@ A clean run prints `errmsg=[]` and no tracebacks.
 | `NVIM_MACISM_WAIT_TIME_MS` | Set macism's CJK workaround wait; `0` disables its temporary focus window |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |
 | `NVIM_DEV=1` | `util.logger` defaults to `DEBUG` (more verbose) |
+| `VSCODE_DIFF_NO_AUTO_INSTALL` | Any non-empty value: CodeDiff never downloads its native library; a missing one is an error when the plugin loads. `tests/run.sh` sets it |
+| `CODEDIFF_WATCHER_NO_AUTO_INSTALL=1` | CodeDiff never downloads its file watcher; the views poll instead. `tests/run.sh` sets it |
+| `CODEDIFF_WATCHER_PATH` | A `codediff-watcher` binary to use instead of the downloaded one |

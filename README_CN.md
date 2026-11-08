@@ -8,7 +8,7 @@
 
 **必装：**
 - **Neovim** >= 0.12.5（refactoring.nvim 的最低要求；nvim-treesitter 的 `main` 分支需要 0.12）
-- **Git**
+- **Git**（[审阅轮次](docs/MANUAL_CN.md#审阅一轮-agent-修改)需要 2.26 或更新版本）
 - [Nerd Font](https://www.nerdfonts.com/)（图标显示）
 - **ripgrep** (`rg`) — `Snacks.picker.grep` / `live_grep` / `:grep` 的底层
 - **fd** — 文件查找（`venv-selector` 和部分 picker 用到）
@@ -68,7 +68,7 @@ nvim
 │   ├── whichkey_spec.lua     # which-key 分组、弹窗分区、spec 键位（数据）
 │   ├── autocmds.lua          # 自动命令
 │   ├── bootstrap.lua         # lazy.nvim 初始化
-│   ├── ai/                    # Provider 配置 + Native Claude/Codex facade
+│   ├── ai/                    # Provider 配置 + Native Claude/Codex facade、审阅轮次（ai/review/）
 │   ├── config/
 │   │   └── health.lua        # `:checkhealth config` 提供者
 │   ├── lang/                 # 语言专属配置
@@ -167,7 +167,7 @@ nvim
 | 插件 | 说明 |
 |------|------|
 | [gitsigns](https://github.com/lewis6991/gitsigns.nvim) | Git 标记、块操作、blame、当前文件的行内 diff（`<leader>gD`） |
-| [diffview](https://github.com/sindrets/diffview.nvim) | Diff 与文件历史 |
+| [CodeDiff](https://github.com/esmuellert/codediff.nvim) | Diff、历史与[审阅](docs/MANUAL_CN.md#审阅一轮-agent-修改)视图（`<leader>g`、`<leader>av`）。diff 由一个原生库计算，首次使用时从它的 GitHub release 下载，旁边还有一个文件监视器；`:CodeDiff install!` 重新安装（[排错](docs/DIAGNOSTICS.md#diff-views-codediff)） |
 
 ### 语言支持
 
@@ -258,7 +258,8 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 `<leader>` 按全局领域分组。按下任一前缀等一下，which-key 会列出当前映射。
 
 `,` 菜单分别显示通用编辑、当前语言的操作类别（导入/环境、编译/预览、测试调试）
-和视图操作。Diffview 中会同时显示源文件的语言分区和 Diffview 分区。
+和视图操作。CodeDiff 视图会在源文件的语言分区旁增加两个分区：它的面板、布局和冲突键，
+以及审阅键（`,C` 反馈、`,u` / `,U` 暂存 / 取消暂存一个 hunk、`,X` 把一个 hunk 恢复成基线的样子）。
 搜索替换面板的专用操作放在 `,S…` 子组。
 完整键表见[文件类型与视图操作](docs/MANUAL_CN.md#文件类型与视图操作)。
 Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 Nvim，
@@ -278,6 +279,21 @@ Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 
 | `g` · `[` / `]` · `z` | 跳转+LSP（从光标下的符号出发）· 上/下一个某物 · 折叠与拼写 |
 | `-` | 用 oil 打开当前目录（可当文本编辑） |
 | `jk` · `<C-]>` / `<C-\>` | 输入法安全退出；在 Normal 中切回其输入源 |
+
+Diff 视图都在 `<leader>g` 下，各自开在独立的 tabpage 里（CodeDiff）：
+
+| 键 | 打开 |
+|----|------|
+| `gv` | Diff 视图：状态视图（已暂存、未暂存、未跟踪、冲突） |
+| `gm` / `gM` | 对比 main 分支 / 对比选中的 commit、分支、tag 或基线 |
+| `gk` | 任选两端对比：工作区 / index / 基线 / ref |
+| `gK` | 把当前代码存为基线，供 `gk` 和 `gM` 对比 |
+| `gV` / `gH` | 文件 / 仓库历史（最近 100 个，不含 merge） |
+| `gq` | 关闭本 tab 的 diff 视图 |
+
+`gd` / `gD` 仍是 gitsigns 对当前文件的 diff，分别以分屏和行内显示。视图里 `;` 和 `s`
+被禁用，因为 picker 或窗口键会弄坏它的窗格；在它的文件面板里按 `q` 也能关闭视图。
+每种视图的 `,` 键做什么，见[使用手册](docs/MANUAL_CN.md#git)。
 
 **→ [docs/MANUAL_CN.md](docs/MANUAL_CN.md) 有完整讲解**，从键位背后的组合规则讲起。
 
@@ -362,6 +378,7 @@ API key——并随 [`:AI`](#ai-provider-选择) 切换而更新。
 | `ab` / `as` | n / x | 把当前 buffer / 选区附加到 agent 的输入框 |
 | `ai` | n, x | [在 buffer 里编辑 agent 的 prompt](#在-buffer-里编辑-prompt) |
 | `at` / `aT` | n | [阅读 transcript](#阅读历史输出) / 选择过去的会话 |
+| `av` / `aV` | n | [审阅自本轮基线以来的改动](docs/MANUAL_CN.md#审阅一轮-agent-修改) / 立即开始一轮；每条 prompt 都会开始一轮 |
 | `aa` / `ad` | n | 接受 / 拒绝 Claude 的 diff |
 | `aS` | n（oil） | 添加光标下的文件（Claude） |
 | `ag` / `aG` | n | [Agent Chat](#codecompanion-的两种-chat)：显示或隐藏 / 新建——ACP，走订阅 |
@@ -680,6 +697,7 @@ Inline 和命令 Prompt（`<leader>ah`、`<leader>ae`、`:CodeCompanion`）用�
 | 选项 | 说明 |
 |------|------|
 | `vim.g.terminal_position` | `"float"`（默认）或 `"bottom"`，决定编号终端在哪里打开。只在启动时选定，不支持运行时切换——Snacks 在开窗那一刻定死窗口形态，edgy 又独立判断终端是否属于底部边栏，运行时切换意味着要在每一次隐藏、显示、重排里维持两者一致。 |
+| `vim.g.ai_review` | 审阅闭环和 diff 视图的设置：保留多少轮次和基线、哪些对话会开启轮次、投递时如何确认、Native Claude 从哪里启动、`<leader>gH` 列出多少历史。只写要改的键，例如 `{ retention = { rounds = 30 } }`；全部键和默认值见[使用手册](docs/MANUAL_CN.md#设置vimgai_review)。 |
 
 ### 环境变量
 

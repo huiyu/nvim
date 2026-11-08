@@ -20,6 +20,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   profile -- which `lua/ai/switch.lua` (`:AI`) switches in-process.
   `lua/ai/init.lua` exposes provider-neutral mappings; `lua/ai/backend/` owns
   native-agent details.
+- `lua/ai/review/` is the review loop: `config.lua` (every setting's default,
+  `vim.g.ai_review` merged over them), `hook.lua` (the native agents' prompt
+  hooks), `rounds.lua` (rounds and delivery checks), `init.lua` (`<leader>av`
+  and `,C`) and `feedback.lua` (drafts and delivery). Its storage and its
+  views are utilities: `lua/util/baseline.lua` (snapshots under
+  `refs/nvim-review/`), `lua/util/codediff.lua` and
+  `lua/util/codediff_actions.lua` (the CodeDiff views behind `<leader>g` and
+  their hunk keys). The vcs layer reads a baseline's subject and sha only;
+  its trailers mean something to `ai.review` alone (`rounds.review_vars`).
 
 ## AI Provider Invariants
 
@@ -32,12 +41,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `lua/ai/switch.lua`) switch them in-process; nothing is persisted. A switch
   changes state, mapping descriptions and CodeCompanion's live defaults only --
   it never starts, stops, shows or hides a native terminal, ACP connection or
-  chat. Revealing the active provider's native panel -- by a key that shows
-  it or one that feeds it (`ab`, `as`, `am`, oil's `aS`) -- hides the other
-  provider's panel in the current tabpage without stopping its job; a panel
-  already on screen in any tabpage makes nothing yield. Keys act on the active
-  provider; per-buffer behaviour (terminal input rules, edgy slot, statusline
-  label, image hand-back) follows the buffer's own agent.
+  chat. Revealing a native panel hides the other provider's panel in the
+  current tabpage without stopping its job, and whichever panel is revealed
+  decides (`make_room` in `lua/ai/init.lua`): a key that shows the active
+  provider's panel or feeds it (`ab`, `as`, `am`, oil's `aS`) makes room for
+  the active one; delivering review feedback (`ai.feed`) makes room for the
+  round's agent, active or not. A panel already on screen in any tabpage
+  makes nothing yield. Keys act on the active provider; per-buffer behaviour
+  (terminal input rules, edgy slot, statusline label, image hand-back, the
+  feedback a review round delivers) follows the buffer's own agent.
 - The key profile is `auto` unless pinned: `auto` follows the provider
   (claude -> anthropic, codex -> openai), `:AI key <name>` pins one so a later
   provider switch leaves it alone. So switching a process to a provider leaves
@@ -48,8 +60,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `<leader>aa`/`<leader>ad` always answer Claude's diffs and exist while Claude
   is active or claudecode.nvim is loaded. The CodeCompanion keys are
   facade-owned for the same reason, not in its lazy spec; they load the plugin
-  on first `require`. `<leader>ap` is a leaf: no `<leader>ap*` mapping may
-  return.
+  on first `require`. So are `<leader>av`/`aV` (review), though a round
+  belongs to a conversation, not to the active provider: their `desc` names
+  no agent, a switch leaves it alone, and they load the review modules on
+  first press. `<leader>ap` is a leaf: no `<leader>ap*` mapping may return.
+- Claude proposes its diffs in a tabpage of its own
+  (`diff_opts.open_in_new_tab`, asserted by `tests/ai_terminal_spec.lua`):
+  claudecode picks its target window by skipping `'diff'` windows, CodeDiff's
+  panes never set `'diff'`, and its working-tree pane is an ordinary file
+  window a proposal could land in.
 - Two chat kinds on separate keys: agent chat (`<leader>ag`/`aG`) is the active
   provider over ACP, on the subscription; API chat (`<leader>ah`/`aH`) is the
   active key profile over HTTP, on API credits. Inline (`<leader>ae`) and
@@ -78,7 +97,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   always uses `auth_method = "chat-gpt"`. Nothing writes `vim.env` for billing
   variables. Exercised by `tests/ai_api_key_spec.lua`.
 - CodeCompanion is an additional chat/inline workflow, not a second native
-  terminal facade. Do not stack overlapping native integrations.
+  terminal facade. Do not stack overlapping native integrations. Its own code
+  review stays off (`interactions.code_review.enabled = false`, and
+  `#{code_review}` offered to no interaction), `:CodeCompanionCodeReview` is
+  deleted after setup and is not a lazy `cmd` trigger: that review keeps a
+  second set of baselines under `refs/worktree/codecompanion/*`, and there is
+  one baseline system here, `refs/nvim-review/`. `tests/companion_spec.lua`
+  asserts the command stays gone.
 - Preserve the Claude tmux wrapper and watchdog unless a replacement is tested
   against terminal flicker, CJK rendering, cleanup, resume, and appended CLI
   arguments. Claude's watchdog starts at VimEnter in a Claude-started Nvim and
@@ -112,6 +137,163 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   it through `ai.config`. The server only starts when a UI is attached, so the
   headless spec suite never loads the model; keep that guard.
 
+## Review Baselines
+
+- A baseline is an immutable snapshot of a worktree (`lua/util/baseline.lua`):
+  a commit with no parent under `refs/nvim-review/<wtid>/{round,saved}/<id>`,
+  `wtid` the first 12 hex digits of sha256 of the realpath'd gitdir. Taking
+  one writes nothing of the user's: HEAD, the real index, branches, tags,
+  stash and their reflogs stay byte for byte. The lasting writes are objects
+  and those refs; while a snapshot runs, a temporary index
+  `<gitdir>/nvim-review-index.XXXXXX` (and its `.lock`) made by `mkstemp` for
+  that snapshot alone and deleted after it. Never a fixed file name: a shared
+  index raced between Nvims, kept a file ignored after an earlier snapshot (a
+  `.env` named in `.gitignore` too late), and failed after `gc --prune=now`.
+- The temporary index is a copy of the real one stamped with the real
+  index's mtime, 1 ms earlier and never later. git trusts an entry's cached
+  stat only while the entry is older than the index file, so a copy stamped
+  "now" missed a same-size edit made in the second before the real index was
+  written (5 of 5 tries). A repository with no index yet gets no copy.
+- Every git command `util.baseline` runs, and those of util.codediff's
+  listing, `util.codediff_actions` and `ai.review`, goes through
+  `util.baseline.git_cmd`: `--no-optional-locks` (no opportunistic index
+  refresh racing an agent's `git add` for `index.lock`),
+  `-c core.hooksPath=/dev/null` (the user's `post-index-change` and
+  `reference-transaction` hooks are not ours to fire) and
+  `-c core.splitIndex=false` (the temporary index is written whole), with
+  `GIT_NO_LAZY_FETCH=1` so a missing object never becomes a fetch.
+- The commit is `commit-tree --no-gpg-sign` without `-p`, under the fixed
+  identity `nvim review <nvim-review@localhost>` with both dates set to now,
+  so an inherited `GIT_*_DATE` cannot reorder baselines and a baseline never
+  pins history a rebase or amend rewrote. A ref is made with
+  `update-ref --stdin` `create` (an existing ref fails the call rather than
+  being overwritten) under `-c core.logAllRefUpdates=false` (no reflog), and
+  deleted by compare-and-swap; `delete()` refuses any ref outside
+  `refs/nvim-review/`.
+- Never move the refs back to `refs/worktree/*`. A per-worktree ref is a gc
+  root only in its own worktree: a gc from another worktree deleted the
+  commits and left `git log --all` fatal in the one that made them. The cost
+  is visibility -- every worktree's `git log --all`, lazygit's all-branches
+  graph, `ls-remote` and mirrors list them -- and `docs/DIAGNOSTICS.md` says
+  how to exclude them.
+- Untracked files over `max_file_size` are excluded by a
+  `:(exclude,literal)` pathspec, passed to `git add` on stdin, so they are
+  never hashed into `.git/objects`; ignored files follow the current
+  `.gitignore` on every snapshot. `locate()` refuses a bare repository and an
+  Nvim whose environment sets `GIT_DIR` or `GIT_WORK_TREE`.
+- CodeDiff only displays baselines. It is given a baseline's sha, never its
+  ref, since retention may delete the ref under an open view. Every
+  revision-vs-working-tree listing goes through util.codediff's listing patch
+  (a snapshot tree and `diff-tree -r -M -z`), so a path the revision has and
+  the index lacks is no fake `D` plus `??`, and a path still on disk is never
+  listed as deleted. Upstream's hunk stage, unstage and discard keys stay off
+  in every view -- in a revision view they build the patch against the
+  revision, not the index -- and only the status view's Staged group calls
+  its unstage (`,U`), where the left side is HEAD and it is right. The
+  explorer's `-`/`S`/`U`/`X` exist in the status view only: in a revision
+  view upstream's `X` runs `git clean` on any file the index does not track.
+- Retention runs after every save, per worktree and kind
+  (`retention.rounds`, `retention.saved`); a round whose feedback draft is a
+  non-empty file is exempt (`rounds._exempt`, handed over through
+  `util.baseline.set_exempt`). Objects are left to git's own gc. Exercised by
+  `tests/baseline_spec.lua`.
+
+## Agent Hooks
+
+- The native agents' prompt hooks are injected per process, never through
+  the user's configuration. Claude gets `--settings <json>`
+  (`build_terminal_cmd` in `lua/plugin/lsp/ai.lua`): UserPromptSubmit, plus
+  SessionStart run async. Codex gets one `-c hooks={...}` (`codex_command` in
+  `lua/ai/backend/codex.lua`): UserPromptSubmit only, with its
+  `trusted_hash` under `state` in the same `-c`, so it runs without a review
+  prompt. Both CLIs merge these with the user's own hooks. Nothing writes
+  `~/.claude/settings.json`, `~/.codex/config.toml` or `vim.env` for them; no
+  `--dangerously-bypass-hook-trust` (it trusts every project's hooks) and no
+  `notify` override (it replaces the user's). Codex gets no SessionStart: it
+  runs only at a thread's first turn, never before its first
+  UserPromptSubmit.
+- `lua/ai/review/hook.lua` builds both strings with a hand-written JSON
+  encoder (sorted keys, serde_json's escapes: Codex hashes the handler that
+  way) and computes the trust hash from the same data as the command it
+  injects. It is pure string work, because the plugin spec calls it at
+  startup: no plugin, no git. A Codex upgrade that changes the hash or the
+  key format turns the hook untrusted without a word;
+  `tests/agent_hook_spec.lua` pins the hash against fixed vectors.
+- `scripts/agent-hook <agent> <event> [<wait-ms>]` never prints and always
+  exits 0: both CLIs feed a hook's stdout to the model, report any other
+  status as a hook error, and exit 2 blocks the prompt. Its wait is bounded:
+  a submit waits for the baseline up to `hook_wait_ms` (in argv, since the
+  script cannot read Lua), the RPC's delivery as long but never under
+  0.5 s, and a client that failed -- no socket, a receiver that raised --
+  ends the wait at once. It deletes the payload when it stops waiting; that
+  is how Nvim tells a baseline that landed too late (Late), and a request
+  that arrives after it (a missed submit: no baseline, possibly a notice).
+- `hook.event` answers the RPC at once and schedules the work. Events that
+  carry `agent_id` (a Claude subagent or teammate, a Codex spawned thread)
+  are dropped there, and again in `rounds.native_event`: they belong to the
+  parent's turn. `sources.claude` / `sources.codex` gate the injection, and
+  the receiver reads them again on every event.
+- The hook finds its Nvim through the `NVIM` both wrappers already forward;
+  the agent kind travels in argv. Add no environment variable for it: a new
+  one has to join both wrappers' `new-session -e` whitelist, or it silently
+  never reaches the pane.
+- The injected words follow the CLI's name, so `provider_of_command` still
+  finds the agent (`tests/agent_hook_spec.lua` and
+  `tests/ai_terminal_spec.lua`, both wrapper paths), and claudecode's appended
+  `--resume`/`--continue` still land after them through `"$@"`. Claude's
+  command is built again in claudecode's `config`, so a `vim.g.ai_review` set
+  later in `init.lua` reaches the first launch; Codex's on every spawn.
+
+## One Round Model
+
+- Every source opens rounds through `rounds.submit`
+  (`lua/ai/review/rounds.lua`), where the round rules live once: the native
+  UserPromptSubmit hooks (`rounds.native_event`), CodeCompanion's
+  `on_before_submit` for agent and API chats (attached on
+  `User CodeCompanionChatCreated`), and `<leader>aV` (`rounds.start`).
+  `<leader>gK`'s saved baselines are no round and belong to no conversation.
+- Conversation ids are `claude:<session_id>`, `codex:<session_id>` and
+  `cc:<nonce>:<chat.id>`, with a nonce made once per process: CodeCompanion's
+  `chat.id` comes from an unseeded `math.random`, so two Nvims, or one before
+  and after a restart, hand out the same ids. The chat callback waits for the
+  baseline with a bounded `vim.wait(hook_wait_ms)` and never returns false,
+  which would cancel the user's submit. A baseline that lands after its
+  source stopped waiting is recorded `Late`.
+- A conversation's root is the Git toplevel of the agent's working
+  directory, fixed when it starts: a native terminal's cwd at TermOpen, a
+  chat's `getcwd()` at ChatCreated (CodeCompanion's ACP session and tools work
+  there). Claude starts in the current file's Git root, as Codex does
+  (claudecode's `cwd_provider`, `claude_cwd = "git_root"`); an agent that
+  `cd`s elsewhere later keeps its root.
+- Delivery goes through `rounds.resolve_sink`, in order, and every refusal
+  keeps the draft: (1) the view's root, the draft header's root and the
+  target session's root are one realpath -- nothing bypasses this, and it
+  asks nothing; (2) a native owner's terminal runs that session, and one
+  typed into since it reported it, or that never reported one, asks first
+  (or refuses, `unknown_session = "refuse"`), never passes silently; a chat
+  owner is an open chat of this process; (3) a chat mid-turn is refused; (4)
+  an owner that is gone is refused, with an offer (unless `redirect = false`)
+  to pick a current session of the same root and confirm the change once.
+  The registry it checks is in memory, per Nvim.
+- Seeds are per provider (`ai.editor.stage_seed`): feedback staged for
+  Claude is never taken by a Codex prompt, or the other way round, and
+  exactly one of `on_consumed` / `on_expired` fires. A draft is copied to
+  `<id>.last-sent.md` and emptied only once its text arrived -- that agent's
+  prompt editor took the seed, or `ai.companion.add_text` succeeded. A seed
+  not taken within `seed_ttl_ms`, or replaced by a plain `<leader>ai`, leaves
+  the draft as it was.
+- A round proves only that a change came after its baseline: the user or
+  another agent in the same worktree is listed too. Messages say "changes
+  since round HH:MM:SS", never "the agent's changes".
+- There is one review tab per root. `<leader>av` reads every tabpage's
+  `vim.t.ai_review` and closes only an older review of the same root, through
+  CodeDiff's own close; it never changes another tabpage's windows.
+- Exercised by `tests/review_round_spec.lua` (round rules, the
+  `resolve_sink` matrix), `tests/review_view_spec.lua`,
+  `tests/review_feedback_spec.lua` (drafts, sinks, seed slots),
+  `tests/compose_spec.lua` (`<leader>ai`'s seeds) and
+  `tests/review_loop_spec.lua` (submit to delivery, no agent started).
+
 ## Editing Conventions
 
 - Preserve unrelated user changes and avoid destructive Git operations.
@@ -137,9 +319,24 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   Filetype and view contributions stay buffer-local and must preserve general
   editing keys, including `,h`/`,l` dedent/indent, `,k` move up, `,r` rename,
   `,c` codelens and `,e...` extraction. VimTeX uses `,L...` to keep `,l`
-  immediate. Diffview uses `,P`/`,B` for its panel and `,g...` for conflicts,
-  so language actions still work in its source buffers. Terminal digits only
-  map Normal mode. grug-far's editable search panel uses `,S...`; its plugin
+  immediate. CodeDiff uses `,P`/`,B` for its panel (focus, toggle), `,z`/`,I`
+  for compact and inline layout and `,g...` for conflicts (`o` ours, `t`
+  theirs, `b` base, `a` all, uppercase for the whole file), so language
+  actions still work in its source buffers; its defaults that would shadow
+  this config's keys (`q`, `t`, `gc`, `-`, `gS`, `gm`, `<leader>b`,
+  `<leader>e`, `<leader>h*`, `<leader>c*`) are moved or off. The review keys
+  join them per view: `,C` (feedback) on every buffer of every Git view;
+  `,u` (stage, through gitsigns) in the status view's Changes group and in
+  any revision- or baseline-vs-working-tree file shown on both sides; `,U`
+  (unstage) in the latter too, and in the Staged group as CodeDiff's own;
+  `,X` (discard a hunk back to the baseline) only where the left end is a
+  baseline (`vim.t.codediff_baseline`); for a file on one side only it just
+  says what would do it -- the `git restore` command for a file deleted since
+  the baseline (none when something is at that path again), nothing to run
+  for a new one. Revision-vs-revision, `--staged`, history,
+  conflict and single-file views get none of `,u`/`,U`/`,X`
+  (`lua/util/codediff_actions.lua`). Terminal digits only map Normal mode.
+  grug-far's editable search panel uses `,S...`; its plugin
   defaults also use localleader and must not overwrite general comma actions.
   Filetype scope and view scope can coexist; a shared suffix
   may differ between filetypes, but a view must not steal language/general keys.
@@ -174,12 +371,19 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   only one filetype belongs in the buffer-local comma menu, not in a global group.
 - Standalone panels put view-local actions on single letters (quickfix, aerial,
   neotest). A multi-window view keeps one vocabulary across every buffer it
-  owns, so diffview's own actions live on `,` in the diff windows
-  and its file panel alike, and single letters there stay reserved for that
-  panel's list operations. Only layout-fragile multi-window views (currently
-  diffview) block layout-sensitive prefixes (`;` everywhere, `s` in its content
-  and history windows), with `nowait` and a visible disabled hint. Its file
-  panel keeps single-letter `s` for staging; the comma action menu stays active.
+  owns, so CodeDiff's own actions live on `,` in its diff panes and its
+  explorer or history panel alike, and single letters there stay reserved for
+  that panel's list operations. The status view's explorer keeps upstream's
+  `-`/`S`/`U`/`X` (stage, stage all, unstage all, restore a file); no other
+  view gets them. `q` closes the view from the explorer and history panels
+  only, and stays macro recording in a diff pane. Only layout-fragile
+  multi-window views (currently CodeDiff) block layout-sensitive prefixes:
+  `;` and `s` in every window of a CodeDiff tabpage, panels included, with
+  `nowait` and a visible disabled hint. A `;` picker drops its file into the
+  working-tree pane, which desynchronises the view, and `sd`/`so` close a
+  pane, which ends the session. The block also swallows the next key when it
+  comes within 'timeoutlen', so `so` opens no line and `;f` starts no flash
+  jump; `<C-w>` stays available, and the comma action menu stays active.
 - The debug view is the other multi-window view with a tabpage of its own, and
   it is deliberately the opposite case: its keys stay global. Debugging has an
   event stream, so `<leader>d` has to work from the editor tabpage too -- you
@@ -190,7 +394,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `VeryLazy`, already has the row). bufferline's own toggle
   counts buffers and never tabpages, so more than one tabpage with at most
   one listed buffer hid the tabline and the `1`/`2` tabpage indicators with
-  it -- while diffview, the view most likely to be in that second tabpage,
+  it -- while CodeDiff, the view most likely to be in that second tabpage,
   disables the global prefixes. Re-enabling the toggle and overriding
   `showtabline` afterwards does not work: it re-runs from the tabline's own
   redraw and undoes the override on the next draw. Because it is permanent,
@@ -213,10 +417,17 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `SessionLoadPost`). Views open after it on their own -- `tab split`
   inserts after the current tabpage -- so the guard only repairs the state
   where the pages in front of a view are gone. It keys on the view, not on
-  window contents: diffview's diff windows hold ordinary file buffers, so
-  every window-level check calls its tabpage editable while `;f` is mapped
-  to a disabled hint throughout it. A new prefix-blocking view has to be
-  added to `PREFIX_BLOCKING_FILETYPES`.
+  window contents: CodeDiff's working-tree pane holds an ordinary file
+  buffer, so every window-level check calls its tabpage editable while `;f`
+  is mapped to a disabled hint throughout it. The view says so itself:
+  util.codediff sets `vim.t.blocks_global_prefixes` on `CodeDiffOpen` and
+  clears it on `CodeDiffClose`, which `util.window.blocks_global_prefixes`
+  reads first; `PREFIX_BLOCKING_FILETYPES` (`codediff-explorer`,
+  `codediff-history`) is the second test, for a tabpage CodeDiff let go of
+  with its panel still on screen. A single-file `:CodeDiff file` has no
+  panel, so a new prefix-blocking view sets that tab variable (and adds its
+  panel filetypes). `tests/first_tab_spec.lua` stands a view in with the
+  variable alone.
 - Both paths that place a stopped frame -- nvim-dap's `switchbuf`
   (`util.dap.jump`) and nvim-dap-ui's `select_window` -- must stay scoped to the
   current tabpage. `usetab`, or anything else that hunts across tabpages, turns
@@ -244,7 +455,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   determine which rows exist; headings never create keys or load plugins.
   See `docs/UTILITIES.md` for the section-data contract. Context/menu changes
   are exercised by `tests/context_actions_spec.lua`; combined language and
-  view mappings, including cleanup, are exercised by `tests/diffview_spec.lua`.
+  view mappings, including cleanup, are exercised by `tests/codediff_spec.lua`.
   Popups with no declared entries keep which-key's default layout.
   Sectioning sorts *before* which-key's groups-first rule; the other
   order lets an undeclared group row jump ahead of every heading.
@@ -264,13 +475,52 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   it cannot slice a single level. The `;` headings therefore come from replacing
   which-key's `View.sort` and inserting display-only rows: the popup body is a
   table whose rows *are* the items, and its render loop reads only `key`, `sep`,
-  `icon`, `desc`, `group` and `icon_hl`. This and `lua/ai/companion.lua` (next
-  item) are the only places here that depend on plugin internals. It is
-  guarded (a renamed `sort` drops headings and colours, ordering still works
-  through the supported `sort` option, nothing errors) and covered by
-  `tests/whichkey_popup_spec.lua`, with real contextual menus covered by
-  `tests/context_actions_spec.lua`. It assumes the single-column `helix`
+  `icon`, `desc`, `group` and `icon_hl`. This, `lua/util/codediff.lua` and
+  `lua/ai/companion.lua` (next items) are the only places here that depend on
+  plugin internals, apart from two narrower readers: `:checkhealth config`
+  asks CodeDiff for its library and watcher versions (next item), and
+  `busy` in `lua/ai/review/rounds.lua` repeats `ai.companion.busy`'s reads of
+  a chat as a fallback for when that function is missing. The `sort`
+  replacement is guarded (a renamed `sort` drops headings and colours,
+  ordering still works through the supported `sort` option, nothing errors)
+  and covered by `tests/whichkey_popup_spec.lua`, with real contextual menus
+  covered by `tests/context_actions_spec.lua`. It assumes the single-column `helix`
   preset: a multi-column preset would split a heading from its items.
+- `lua/util/codediff.lua` is the one reader of CodeDiff's internals;
+  everything else -- `lua/util/codediff_actions.lua`, `ai.review`, the
+  `<leader>g` spec -- goes through it, and only the specs and
+  `lua/config/health.lua` require `codediff.core.*` or `codediff.ui.*`
+  themselves. The health check is the second, sanctioned reader, of two
+  values and nothing else: the library's version through
+  `core.diff.get_version`, called only from `:checkhealth`, only once the
+  library file exists, and with `VSCODE_DIFF_NO_AUTO_INSTALL` held at 1 for
+  the require (which loads the plugin); and the watcher release it wants,
+  `core.installer.watcher.VERSION`, read only once CodeDiff is loaded. Both
+  are pcall'd and type-checked. `lua/util/codediff.lua` reads `ui.lifecycle`
+  (`get_session`, `set_buf_keymap`, `begin`/`end_keymap_scope`, `close`, and
+  wraps `update_buffers`), the session's fields and
+  `stored_diff_result.changes`, the panel tree's `get_node`,
+  `ui.explorer.actions`, `ui.view.actions.hunk.unstage_hunk`,
+  `ui.refresh.request`, `core.diff.compute_diff`,
+  `ui.view.render.diff_options` and `ui.layout.arrange`, and patches
+  `core.git.runner.run_async` (`-c core.quotePath=false`),
+  `core.git.get_commit_list` (`history_limit`) and
+  `core.git.changes.get_diff_revision` (the listing). Its header is that list;
+  keep it current. Every access is pcall'd and type-checked, and `setup()`
+  compares `codediff.version` with `M.VERSION` (4.0.6, the lazy pin): a
+  mismatch warns once and leaves the three patches off, which is safe
+  because the upstream keys that would be dangerous are already off in
+  `lua/plugin/vcs/codediff.lua`. CodeDiff's own setup runs inside
+  `util.codediff.setup`, after the runner patch, since each
+  `codediff.core.git.*` module copies `run_async` when it loads.
+  `tests/codediff_spec.lua` pins the internals,
+  `tests/codediff_listing_spec.lua` the listing and
+  `tests/hunk_actions_spec.lua` `refresh.request`; moving the pin means
+  re-running them first. Keys on a view go through its `set_keys`,
+  CodeDiff's own keymap registry, from `User CodeDiffKeys`: the panes borrow
+  the user's real file buffers, and the registry suspends its claims on them
+  in other tabpages and hands every key back when the view closes. Never map
+  a pane buffer with a bare `vim.keymap.set`.
 - `lua/ai/companion.lua` reads CodeCompanion's `chat.adapter`, `chat.ui`,
   `chat.prompt:add`, `interactions.chat.open` and `utils.context.get`, because
   upstream's Toggle and Add cannot be aimed at one chat kind. The facade
@@ -279,7 +529,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   it without creating an ACP chat (that spawns the bridge) or sending a
   request. It reuses upstream's single-slot open, so a chat shown in another
   tabpage gives up its window there, exactly as `:CodeCompanionChat Toggle`
-  does.
+  does. Review feedback goes to one exact chat through `add_text`, `busy` and
+  `show_input`, which also read `chat.current_request` and the private
+  `chat._turn_in_progress`: a tool loop clears `current_request` and makes the
+  buffer editable between its steps, and only that flag stays set. It is read
+  in a pcall, so a rename upstream loses that signal only; `add_text` answers
+  `false, "gone"|"busy"|"failed"` rather than raising, and
+  `tests/review_feedback_spec.lua` pins the mid-loop refusal.
 - which-key keeps description-only spec entries in its own trie, so `maparg()`
   cannot see those. Entries with an RHS are created through `vim.keymap.set`
   after which-key's scheduled loader runs; assert those with `maparg()` after
@@ -338,10 +594,25 @@ late write to a pipe whose reader is gone, such as an LSP server the spec has
 just stopped, can kill a passing spec with status 141, and sh does not report
 that (`tests/exit_status_spec.lua`).
 
+Specs never download. CodeDiff fetches its native diff library on first setup
+and its file watcher on first view when they are missing; `tests/run.sh`
+exports `VSCODE_DIFF_NO_AUTO_INSTALL=1` and
+`CODEDIFF_WATCHER_NO_AUTO_INSTALL=1`, so a missing library fails the specs
+that need one and says so, and a missing watcher only makes views poll. Set
+both when running one spec by hand. Install the library once from a normal
+Nvim (load `codediff.nvim`; see `docs/DIAGNOSTICS.md`). CI loads the plugin
+once after `Lazy! install` to fetch it, checks the library (and `libgomp`,
+when that was fetched too) against the release's `SHA256SUMS`, and installs
+no watcher.
+
 For CodeCompanion changes, load it under both providers and confirm the resolved
 ACP adapter plus `:CodeCompanionHistory`. For formatting changes, trigger
 `BufWritePre` before checking Conform. For keymap, terminal, window, or deletion
 changes, reproduce the exact edge case rather than relying only on startup.
+For baseline, CodeDiff or review changes, use a temporary repository (a space
+in its path, an empty global git config) and never start a real agent or
+submit a chat: the specs hand hook payloads to `ai.review.hook.event` and
+dispatch a chat's `on_before_submit` directly.
 
 Use `:checkhealth config` as the config-specific dependency check and
 `:ConformInfo`, `:checkhealth vim.lsp`, `:Mason`, and `:Lazy profile` as the
