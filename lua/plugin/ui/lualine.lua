@@ -65,16 +65,29 @@ return {
 							return name
 						end
 						-- Agent terminal commands can be very long (Claude is tmux-
-						-- wrapped). Collapse the selected provider to a clean label.
+						-- wrapped). Collapse them to the label of the agent the
+						-- terminal runs, which after a switch need not be the
+						-- active provider.
 						local info = vim.b.snacks_terminal
-						if info and ai.is_native_command(info.cmd) then
-							return " " .. ai.label
+						local provider = info and ai.provider_of_command(info.cmd)
+						if provider then
+							return " " .. ai.providers[provider].label
 						end
 						return " " .. (vim.b.term_title or "terminal")
 					end,
 				},
 			},
 			lualine_x = {
+				-- Only once :AI has moved either axis away from how this Nvim
+				-- started: the startup state is what the shell alias says, so it
+				-- needs no reminder. A click reopens the switcher.
+				{
+					function()
+						return ("󰚩 %s · 󰌆 %s"):format(ai.label, ai.key.label)
+					end,
+					cond = ai.switched,
+					on_click = function() vim.cmd("AI") end,
+				},
 				-- Language servers attached to this buffer, with a spinner while
 				-- one reports progress (indexing, loading the workspace). Idle
 				-- servers show their name only; the default "done" check mark
@@ -118,6 +131,12 @@ return {
 				lualine.refresh({ place = { "statusline" } })
 			end,
 			desc = "Refresh the macro recording indicator",
+		})
+		vim.api.nvim_create_autocmd("User", {
+			group = vim.api.nvim_create_augroup("lualine_ai_state", { clear = true }),
+			pattern = "AIStateChanged",
+			callback = function() lualine.refresh({ place = { "statusline" } }) end,
+			desc = "Show or update the switched AI provider / key in the statusline",
 		})
 	end,
 }

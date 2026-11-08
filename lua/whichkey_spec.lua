@@ -478,8 +478,10 @@ local sections = {
   },
 
   ["<leader>a"] = {
-    { "session",   icon = "󰚩 ", color = "green",  keys = { "c", "f", "r", "R", "m" } },
-    { "context",   icon = "󰈔 ", color = "cyan",   keys = { "b", "i" } },
+    -- `x` switches which agent the rest of these keys reach (:AI).
+    { "session",   icon = "󰚩 ", color = "green",  keys = { "c", "f", "r", "R", "m", "x" } },
+    -- `s` only exists in Visual mode and `S` only in oil buffers.
+    { "context",   icon = "󰈔 ", color = "cyan",   keys = { "b", "i", "s", "S" } },
     { "review",    icon = "󰄹 ", color = "orange", keys = { "a", "d" } },
     { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T" } },
     -- `p` (+CodeCompanion) goes under others, without a dedicated section.

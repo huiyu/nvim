@@ -160,10 +160,10 @@ function M.attach(buf)
   end
 end
 
----Install the TermOpen hook that calls `attach` on the selected provider's
----panel. Both backends open through Snacks, so one hook covers both; the
----per-backend alternative would need a callback threaded through
----claudecode.nvim's own terminal provider.
+---Install the TermOpen hook that calls `attach` on every agent panel, the
+---active provider's or not. Both backends open through Snacks, so one hook
+---covers both; the per-backend alternative would need a callback threaded
+---through claudecode.nvim's own terminal provider.
 function M.setup()
   local group = vim.api.nvim_create_augroup("ai_terminal_input", { clear = true })
   vim.api.nvim_create_autocmd("TermOpen", {

@@ -112,12 +112,29 @@ function M.check()
 
   local ai = require("ai.config")
   health.start("config: AI provider")
-  health.ok(("%s selected (provider=%s)"):format(ai.label, ai.provider))
+  local function moved(now, startup) return now ~= startup and (" (started as %s)"):format(startup) or "" end
+  health.ok(("%s active (provider=%s%s), :AI provider switches it")
+    :format(ai.label, ai.provider, moved(ai.provider, ai.startup.provider)))
+  health.ok(("HTTP key profile %s (%s%s), :AI key switches it")
+    :format(ai.key.label, ai.key_setting(), moved(ai.key_setting(), ai.startup.key)))
 
-  if vim.fn.executable(ai.native.command) == 1 then
-    health.ok(("%s found — native coding agent available"):format(ai.native.command))
-  else
-    health.error(("%s not found — %s native agent unavailable"):format(ai.native.command, ai.label))
+  -- Both providers, because either can become active with :AI. Only the
+  -- active one's absence is an error: the other is unavailable, not broken.
+  for _, name in ipairs(ai.names()) do
+    local provider = ai.providers[name]
+    local report = name == ai.provider and health.error or health.warn
+    local command = provider.native.command
+    if vim.fn.executable(command) == 1 then
+      health.ok(("%s found — %s native agent available"):format(command, provider.label))
+    else
+      report(("%s not found — %s native agent unavailable"):format(command, provider.label))
+    end
+    local acp = provider.codecompanion.acp_command
+    if vim.fn.executable(acp) == 1 then
+      health.ok(("%s found — CodeCompanion Chat can use %s over ACP"):format(acp, provider.label))
+    else
+      report(("%s not found — CodeCompanion ACP Chat with %s unavailable"):format(acp, provider.label))
+    end
   end
 
   -- The agents' ctrl+g ("edit this prompt in $EDITOR") is pointed at this
@@ -132,30 +149,31 @@ function M.check()
       { "chmod +x " .. wrapper })
   end
 
-  local acp_command = ai.codecompanion.acp_command
-  if vim.fn.executable(acp_command) == 1 then
-    health.ok(("%s found — CodeCompanion Chat uses %s over ACP"):format(acp_command, ai.label))
-  else
-    health.error(("%s not found — CodeCompanion ACP Chat unavailable"):format(acp_command))
+  local function is_set(var) return vim.env[var] ~= nil and vim.env[var] ~= "" end
+  for _, name in ipairs(ai.key_names()) do
+    local var = ai.key_profiles[name].api_key
+    if is_set(var) then
+      health.ok(("%s found — key profile %s can run HTTP inline/command prompts"):format(var, name))
+    elseif name == ai.key.name then
+      health.warn(("%s not set — ACP Chat works, but HTTP inline/command prompts do not"):format(var),
+        { "See README.md, API keys" })
+    else
+      health.info(("%s not set — key profile %s unavailable until it is"):format(var, name))
+    end
   end
 
-  local api_key = ai.codecompanion.api_key
-  if vim.env[api_key] and vim.env[api_key] ~= "" then
-    health.ok(("%s found — CodeCompanion HTTP inline/command prompts available"):format(api_key))
-  else
-    health.warn(("%s not set — ACP Chat works, but HTTP inline/command prompts do not"):format(api_key),
-      { "See README.md, API keys" })
-  end
-
-  -- The agent's own variable outranks its subscription login, so an export
+  -- An agent's own variable outranks its subscription login, so an export
   -- meant for something else silently moves the native terminal and ACP Chat
-  -- onto API billing.
-  local cli_key = ai.cli_api_key
-  if vim.env[cli_key] and vim.env[cli_key] ~= "" then
-    health.warn(("%s is set — %s started from this Nvim can bill the API instead of the subscription")
-      :format(cli_key, ai.label), { ("Unset it unless API billing is intended; Nvim reads %s"):format(api_key) })
-  else
-    health.ok(("%s not set — %s uses its subscription login"):format(cli_key, ai.label))
+  -- onto API billing. Both are checked: either agent can be started from here.
+  for _, name in ipairs(ai.names()) do
+    local provider = ai.providers[name]
+    local cli_key = provider.cli_api_key
+    if is_set(cli_key) then
+      health.warn(("%s is set — %s started from this Nvim can bill the API instead of the subscription")
+        :format(cli_key, provider.label), { "Unset it unless API billing is intended; Nvim reads NVIM_* keys" })
+    else
+      health.ok(("%s not set — %s uses its subscription login"):format(cli_key, provider.label))
+    end
   end
 
   -- Independent of the provider above: ghost text always comes from the local

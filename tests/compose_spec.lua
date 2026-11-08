@@ -118,4 +118,81 @@ t.eq(vim.api.nvim_get_current_win(), prompt_win, "UC-4: compose refocuses the op
 local lines = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(prompt_win), 0, -1, false)
 t.ok(#lines > 1 and lines[1] == "half written", "UC-4: the selection is appended to the open prompt")
 
+-- After a switch both agents can have a prompt open, and the active provider
+-- is not necessarily the one that handed a prompt over. Ownership comes from
+-- the temp path each CLI chooses (claude-prompt-*.md, $CODEX_HOME/editor/*.md).
+local function close_floats()
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_config(w).relative == "editor" then pcall(vim.api.nvim_win_close, w, true) end
+  end
+  vim.wait(100, function() return false end)
+end
+local function float_titled(text)
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    local cfg = vim.api.nvim_win_get_config(w)
+    local title = cfg.relative == "editor" and cfg.title
+    if type(title) == "table" then title = (title[1] or {})[1] end
+    if type(title) == "string" and title:find(text, 1, true) then return w end
+  end
+end
+close_floats()
+
+local saved_provider = config.provider
+config.use_provider("claude")
+local dir = vim.fn.tempname()
+vim.fn.mkdir(dir .. "/editor", "p")
+local codex_prompt = dir .. "/editor/0193.md"
+local claude_prompt = dir .. "/claude-prompt-1a2b.md"
+vim.fn.writefile({ "for codex" }, codex_prompt)
+vim.fn.writefile({ "for claude" }, claude_prompt)
+
+editor.open(codex_prompt, codex_prompt .. ".done")
+vim.wait(200, function() return false end)
+local codex_win = float_titled("Codex")
+t.ok(codex_win ~= nil, "a Codex prompt is titled for Codex while Claude is the active provider")
+
+-- <C-v> stages an image; :w returns the prompt; the image goes back to Codex.
+local routed = {}
+local backends = { claude = require("ai.backend.claude"), codex = require("ai.backend.codex") }
+local real_attach = { claude = backends.claude.attach_images, codex = backends.codex.attach_images }
+for name, b in pairs(backends) do
+  b.attach_images = function(paths) routed[#routed + 1] = { name, paths } end
+end
+local clipboard = require("ai.clipboard")
+local real_has, real_save = clipboard.has_image, clipboard.save_image
+clipboard.has_image = function() return true end
+clipboard.save_image = function(path) vim.fn.writefile({ "png" }, path) return true end
+
+vim.api.nvim_set_current_win(codex_win)
+vim.cmd("stopinsert")
+vim.fn.maparg("<C-v>", "n", false, true).callback()
+vim.cmd("silent write")
+vim.cmd("close")
+vim.wait(2000, function() return #routed > 0 end)
+t.eq(#routed, 1, "the staged image is attached once")
+t.eq(routed[1] and routed[1][1], "codex", "to the agent that owns the prompt, not to the active provider")
+
+clipboard.has_image, clipboard.save_image = real_has, real_save
+for name, b in pairs(backends) do b.attach_images = real_attach[name] end
+for _, entry in ipairs(routed) do
+  for _, png in ipairs(entry[2]) do vim.fn.delete(png) end
+end
+
+-- With one prompt open per agent, <leader>ai returns to the active provider's.
+editor.open(codex_prompt, codex_prompt .. ".done")
+editor.open(claude_prompt, claude_prompt .. ".done")
+vim.wait(200, function() return false end)
+local claude_win, codex_again = float_titled("Claude Code"), float_titled("Codex")
+t.ok(claude_win and codex_again, "both agents' prompts are open at once")
+vim.cmd("noautocmd wincmd t")
+t.ok(editor.focus_open(), "a prompt is open to return to")
+t.eq(vim.api.nvim_get_current_win(), claude_win, "the active provider's prompt wins (Claude)")
+config.use_provider("codex")
+vim.cmd("noautocmd wincmd t")
+editor.focus_open()
+t.eq(vim.api.nvim_get_current_win(), codex_again, "and follows a switch (Codex)")
+close_floats()
+config.use_provider(saved_provider)
+vim.fn.delete(dir, "rf")
+
 t.done()

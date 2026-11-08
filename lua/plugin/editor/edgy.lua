@@ -9,8 +9,8 @@ return {
     local ai = require("ai.config")
 
     -- snacks.terminal sets vim.b[buf].snacks_terminal = { cmd, id, win, ... }.
-    -- The selected native agent always has an explicit command; plain bottom
-    -- terminals have no cmd (default shell).
+    -- A native agent -- either one, the active provider's or not -- always has
+    -- an explicit command; plain bottom terminals have no cmd (default shell).
     local function is_agent_term(buf)
       local info = vim.b[buf].snacks_terminal
       if not info then return false end
@@ -47,14 +47,16 @@ return {
         { title = "DAP Watches",     ft = "dapui_watches",     size = { height = 0.25 } },
       },
       right = {
+        -- Constant titles: edgy reads them once, and the provider can change
+        -- after that (:AI). With winbar off they are never drawn anyway.
         {
-          title = ai.label,
+          title = "AI agent",
           ft = "snacks_terminal",
           filter = is_agent_term,
           size = { width = ai.panel.width },
         },
         {
-          title = "CodeCompanion (" .. ai.label .. ")",
+          title = "CodeCompanion",
           ft = "codecompanion",
           size = { width = ai.panel.width },
         },

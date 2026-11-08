@@ -165,9 +165,9 @@ M._release = function(sentinel)
   vim.fn.writefile({ "done" }, sentinel)
 end
 
--- Prompts currently open, keyed by the temp file the agent handed over. Two
--- agents in one Nvim (Claude and Codex side by side) can legitimately have one
--- each, so this is a table rather than a single slot.
+-- Prompts currently open, keyed by the temp file the agent handed over, each
+-- `{ win, owner }`. Two agents in one Nvim (Claude and Codex side by side) can
+-- legitimately have one each, so this is a table rather than a single slot.
 local state = { open = {} }
 
 -- Each open gets its own augroup. Naming it after the buffer looked natural but
@@ -190,6 +190,11 @@ end
 local function present(path, sentinel)
   -- The float is entered from a :terminal window sitting in Terminal-mode.
   if vim.fn.mode() == "t" then vim.cmd("stopinsert") end
+
+  -- Whose prompt this is, from the temp path the CLI chose. After a switch the
+  -- active provider is not necessarily the agent that handed this over, and
+  -- images staged here must go back to the agent that is waiting for them.
+  local owner = config.provider_of_prompt(path)
 
   -- Images staged by <C-v>, and whether the prompt was actually returned.
   -- Cancelling has to drop them: the box keeps its old text, so pushing images
@@ -254,7 +259,7 @@ local function present(path, sentinel)
 
       -- Captured because `images` is per-open and this runs later.
       local queued = images
-      vim.defer_fn(function() require("ai").attach_images(queued) end, ATTACH_DELAY_MS)
+      vim.defer_fn(function() require("ai").attach_images(queued, owner) end, ATTACH_DELAY_MS)
     end,
   })
 
@@ -326,11 +331,11 @@ local function present(path, sentinel)
     col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
     border = "rounded",
-    title = (" Prompt · %s "):format(config.label),
+    title = (" Prompt · %s "):format(config.providers[owner].label),
     title_pos = "center",
   })
 
-  state.open[path] = win
+  state.open[path] = { win = win, owner = owner }
 
   -- Modal: focus stays here until the prompt is returned or cancelled.
   --
@@ -375,7 +380,7 @@ end
 ---@return boolean
 function M.is_prompt_win(win)
   for _, open in pairs(state.open) do
-    if open == win then return true end
+    if open.win == win then return true end
   end
   return false
 end
@@ -387,22 +392,29 @@ end
 ---is blocked on the wrapper and drops pty input for as long as the float is
 ---open, so <leader>ai checks here first. A Visual selection made in the
 ---meantime is appended to the prompt the way a seed would have been.
+---
+---The active provider's prompt wins when both agents have one open; the
+---other agent's is still preferred over sending a key nobody reads.
 ---@param text string? lines to append to the prompt
 ---@return boolean focused false when no prompt is open
 function M.focus_open(text)
-  for path, win in pairs(state.open) do
-    if vim.api.nvim_win_is_valid(win) then
-      if text and text ~= "" then
-        local buf = vim.api.nvim_win_get_buf(win)
-        vim.api.nvim_buf_set_lines(buf, -1, -1, false, vim.split(text, "\n", { plain = true }))
-      end
-      if vim.fn.mode() == "t" then vim.cmd("stopinsert") end
-      vim.api.nvim_set_current_win(win)
-      return true
+  local chosen
+  for path, open in pairs(state.open) do
+    if not vim.api.nvim_win_is_valid(open.win) then
+      state.open[path] = nil
+    elseif not chosen or (open.owner == config.provider and chosen.owner ~= config.provider) then
+      chosen = open
     end
-    state.open[path] = nil
   end
-  return false
+  if not chosen then return false end
+
+  if text and text ~= "" then
+    local buf = vim.api.nvim_win_get_buf(chosen.win)
+    vim.api.nvim_buf_set_lines(buf, -1, -1, false, vim.split(text, "\n", { plain = true }))
+  end
+  if vim.fn.mode() == "t" then vim.cmd("stopinsert") end
+  vim.api.nvim_set_current_win(chosen.win)
+  return true
 end
 
 ---Open a prompt file handed over by the agent TUI.
@@ -427,9 +439,9 @@ function M.open(path, sentinel)
   -- Opening a second window on it would stack two editors on one buffer, so
   -- surface the one that exists and let the duplicate's wrapper go.
   local open = state.open[path]
-  if open and vim.api.nvim_win_is_valid(open) then
+  if open and vim.api.nvim_win_is_valid(open.win) then
     vim.schedule(function()
-      if vim.api.nvim_win_is_valid(open) then vim.api.nvim_set_current_win(open) end
+      if vim.api.nvim_win_is_valid(open.win) then vim.api.nvim_set_current_win(open.win) end
     end)
     release(sentinel)
     return "focused"

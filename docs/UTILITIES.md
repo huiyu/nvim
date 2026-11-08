@@ -483,7 +483,7 @@ covered.
 
 ## Terminal (`util.terminal`)
 
-Helpers for `:terminal` windows, including the selected native AI agent.
+Helpers for `:terminal` windows, including the native AI agents' panels.
 
 #### API Reference
 
@@ -498,7 +498,12 @@ local terminal = require("util.terminal")
 -- terminal buffers are safe. Bound to <leader>md.
 terminal.fix_drift(win)   -- win defaults to the current window
 
--- True when buf belongs to the selected native coding agent.
+-- Which native coding agent buf runs ("claude" / "codex"), or nil for any
+-- other buffer. Any configured agent counts, not only the active provider:
+-- after :AI provider both can be running, and each panel keeps its own rules.
+terminal.agent_of(buf)
+
+-- True when buf belongs to any configured native coding agent.
 terminal.is_agent_buf(buf)
 
 -- Open or close a terminal -- the only thing that closes one. Without a count
@@ -632,10 +637,71 @@ llama.url("/infill")   -- "http://127.0.0.1:8012/infill"
 llama.log()            -- <dir>/server.log, rewritten at each server start
 ```
 
+## AI Provider State (`ai.config`, `ai.switch`)
+
+Two axes, both switchable in-process and neither persisted: the **provider**
+(native agent panel and CodeCompanion ACP Chat, on the subscription) and the
+HTTP **key profile** (CodeCompanion Inline and command prompts, on API
+credits). `auto` follows the provider. Every consumer holds the one
+`ai.config` table and reads it per call, so a switch mutates it in place.
+
+#### API Reference
+
+```lua
+local config = require("ai.config")
+
+config.provider, config.label, config.native   -- active provider, its label, native CLI data
+config.codecompanion  -- { acp_adapter, acp_command, http_adapter, api_key, model }
+config.key            -- { name, label, auto }
+config.startup        -- { provider, key } as this Nvim started
+config.providers, config.key_profiles          -- the data both axes choose from
+
+config.use_provider(name)  -- validate, then switch; an auto key follows
+config.use_key(name)       -- "auto" follows the provider, a profile name pins it
+config.key_setting()       -- "auto" or the pinned profile name
+config.switched()          -- has either axis moved since startup?
+config.http_adapter_spec() -- inline/cmd adapter: name, or { name, model }
+config.check_key_profile(name, profile) -- error unless api_key is NVIM_*, never a CLI's own
+
+-- Which agent a terminal command runs (any configured CLI), and which agent
+-- handed over a prompt file -- from its temp path, falling back to the active
+-- provider.
+config.provider_of_command(cmd)  -- "claude" / "codex" / nil
+config.provider_of_prompt(path)
+config.is_native_command(cmd)
+
+local switch = require("ai.switch")
+switch.provider(name)       -- :AI provider [name]; nil opens the picker
+switch.key(name)            -- :AI key [name]
+switch.pick(axis)           -- vim.ui.select over "provider", "key" or both (nil)
+switch.info()               -- :AI info / :AIInfo
+switch.sync_codecompanion() -- write the live CodeCompanion defaults (no-op until loaded)
+```
+
+A switch runs `use_*`, then `require("ai").apply_keymaps()` (relabels the
+`<leader>a` keys, adds or removes `<leader>aa`/`ad` and oil's `<leader>aS`),
+then `sync_codecompanion()`, then fires `User AIStateChanged` with
+`data = { axis = "provider"|"key", from, to }` -- lualine listens to it. An
+invalid name is an error notification and changes nothing. CodeCompanion's
+`opts` is a function, so a plugin loaded after a switch starts from the
+switched state; after that only `sync_codecompanion` writes it, and never
+`vim.g.codecompanion_adapter`.
+
+Both native backends answer `running()`, `window()` (any tabpage),
+`visible()` (current tabpage) and `hide()` (current tabpage only; the job
+stays), without loading claudecode.nvim. The facade uses them for the
+one-panel-per-tabpage rule: before `toggle`, `focus`, `resume`, `continue` or
+the prompt editor reveals the active provider's panel, the other provider's
+panel in the current tabpage is hidden -- unless the active panel is already on
+screen somewhere, in which case nothing opens here and nothing yields.
+`require("ai").attach_images(paths, provider)` sends images to the agent that
+owns the prompt, not to whichever provider is active.
+
 ## AI Panel Input (`ai.terminal`)
 
-Buffer-local input rules for the native agent panel, applied through one
-`TermOpen` hook because both providers open through Snacks — the per-backend
+Buffer-local input rules for every native agent panel -- the active
+provider's or not -- applied through one `TermOpen` hook because both
+providers open through Snacks — the per-backend
 alternative would need a callback threaded through claudecode.nvim's own
 terminal provider. Ordinary `:terminal` buffers are untouched.
 
@@ -813,7 +879,12 @@ cannot leak its seed into a later `ctrl+g`.
 into the buffer — the prompt file is plain markdown, and only the CLI can put
 image bytes into its request. On return, the staged files are replayed through
 the TUI's own `ctrl+v` (`ai.attach_images`), and the CLI writes its own
-`[Image #N]` marker.
+`[Image #N]` marker. They go to the agent that owns the prompt, read from the
+temp path its CLI chose (`config.provider_of_prompt`: `claude-prompt-*.md` for
+Claude, `$CODEX_HOME/editor/*.md` for Codex), so a Codex prompt opened before a
+switch to Claude still hands its images to Codex. The float's title names the
+same owner, and `<leader>ai` with both agents' prompts open returns to the
+active provider's.
 
 The replay is deferred until after the buffer closes. Measured: while the prompt
 is open the agent is blocked on the editor and discards pty input, so a `ctrl+v`

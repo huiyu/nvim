@@ -264,6 +264,31 @@ local function buffer_context()
   return buf, rel
 end
 
+---Is a Codex session running in this Nvim, shown or not?
+---@return boolean
+function M.running()
+  return active()
+end
+
+---The panel's window, in whichever tabpage shows it; nil while hidden.
+---@return integer|nil
+function M.window()
+  return active() and current:valid() and current.win or nil
+end
+
+---Is the panel on screen in the current tabpage?
+---@return boolean
+function M.visible()
+  local win = M.window()
+  return win ~= nil and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage()
+end
+
+---Hide the panel in the current tabpage only. Snacks' hide closes the window
+---and keeps the buffer, so the job and its tmux client stay.
+function M.hide()
+  if M.visible() then current:hide() end
+end
+
 function M.toggle()
   if active() then
     current:toggle()

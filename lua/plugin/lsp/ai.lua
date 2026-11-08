@@ -1,9 +1,10 @@
 local ai_config = require("ai.config")
 
--- One side effect of this: lazy.nvim writes lazy-lock.json from the specs it
--- can see, so `:Lazy update` run from a Codex process drops claudecode.nvim's
--- line. Update the lock under the Claude provider, or put the line back.
-if not ai_config.is("claude") then return {} end
+-- Declared under both providers, lazy and command-triggered: `:AI provider
+-- claude` in a Codex-started Nvim needs the plugin, and nothing loads it before
+-- the first Claude key does. Never make this spec conditional on the provider:
+-- lazy then prunes its lock line and lists the plugin in `to_clean`, so
+-- `:Lazy clean` / `:Lazy sync` from a Codex process deletes it.
 
 -- Whether to wrap claude in a dedicated tmux server when launching the
 -- terminal. Precedence: env var > vim.g > default.
@@ -217,33 +218,45 @@ end
 -- once the server and claude's leftover processes are gone. The watchdog is
 -- spawned via `setsid` to leave nvim's process group/session, making it
 -- immune to the SIGHUP cascade. Also sweeps stale servers from prior crashes
--- on startup, leftovers included.
-if vim.fn.executable("tmux") == 1 and should_wrap_tmux() then
+-- when it starts, leftovers included.
+--
+-- Started once per Nvim: at VimEnter in a Claude-started process, as before,
+-- and otherwise when claudecode.nvim first loads -- after a switch, which is
+-- long after VimEnter has fired.
+local watchdog_started = false
+local function ensure_watchdog()
+  if watchdog_started or vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then return end
+  watchdog_started = true
+
+  local pid = vim.fn.getpid()
+  local teardown = vim.fn.shellescape(require("ai.editor").teardown())
+  local script = string.format([[
+    # Sweep stale servers whose owning nvim pid is gone.
+    for s in /private/tmp/tmux-*/claude-nvim-* /tmp/tmux-*/claude-nvim-*; do
+      [ -e "$s" ] || continue
+      case $s in *.lock) continue ;; esac   # tmux's lock file beside the socket
+      owner=${s##*claude-nvim-}
+      if ! kill -0 "$owner" 2>/dev/null; then
+        %s --wait "$s" || tmux -S "$s" kill-server 2>/dev/null
+        rm -f "$s"
+      fi
+    done
+    # Watchdog loop for this nvim instance.
+    while kill -0 %d 2>/dev/null; do sleep 2; done
+    %s --wait claude-nvim-%d || tmux -L claude-nvim-%d kill-server 2>/dev/null
+    rm -f /private/tmp/tmux-*/claude-nvim-%d /tmp/tmux-*/claude-nvim-%d
+  ]], teardown, pid, teardown, pid, pid, pid, pid)
+  -- jobstart with detach=true calls setsid, placing the watchdog in a
+  -- new session so it survives the SIGHUP cascade through nvim's pgroup.
+  vim.fn.jobstart({ "sh", "-c", script }, { detach = true })
+end
+
+-- A Claude-started Nvim keeps its startup sweep of stale servers.
+if ai_config.is("claude") then
   vim.api.nvim_create_autocmd("VimEnter", {
     group = vim.api.nvim_create_augroup("ClaudeTmuxWatchdog", { clear = true }),
-    callback = function()
-      local pid = vim.fn.getpid()
-      local teardown = vim.fn.shellescape(require("ai.editor").teardown())
-      local script = string.format([[
-        # Sweep stale servers whose owning nvim pid is gone.
-        for s in /private/tmp/tmux-*/claude-nvim-* /tmp/tmux-*/claude-nvim-*; do
-          [ -e "$s" ] || continue
-          case $s in *.lock) continue ;; esac   # tmux's lock file beside the socket
-          owner=${s##*claude-nvim-}
-          if ! kill -0 "$owner" 2>/dev/null; then
-            %s --wait "$s" || tmux -S "$s" kill-server 2>/dev/null
-            rm -f "$s"
-          fi
-        done
-        # Watchdog loop for this nvim instance.
-        while kill -0 %d 2>/dev/null; do sleep 2; done
-        %s --wait claude-nvim-%d || tmux -L claude-nvim-%d kill-server 2>/dev/null
-        rm -f /private/tmp/tmux-*/claude-nvim-%d /tmp/tmux-*/claude-nvim-%d
-      ]], teardown, pid, teardown, pid, pid, pid, pid)
-      -- jobstart with detach=true calls setsid, placing the watchdog in a
-      -- new session so it survives the SIGHUP cascade through nvim's pgroup.
-      vim.fn.jobstart({ "sh", "-c", script }, { detach = true })
-    end,
+    once = true,
+    callback = ensure_watchdog,
   })
 end
 
@@ -251,6 +264,13 @@ return {
   {
     "coder/claudecode.nvim",
     dependencies = { "folke/snacks.nvim" },
+    config = function(_, opts)
+      ensure_watchdog()
+      require("claudecode").setup(opts)
+      -- <leader>aa/ad exist once a Claude diff can arrive, whichever provider
+      -- is active (lua/ai/init.lua).
+      require("ai").apply_keymaps()
+    end,
     cmd = {
       "ClaudeCode",
       "ClaudeCodeFocus",

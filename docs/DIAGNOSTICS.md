@@ -66,10 +66,12 @@ the update checker runs silently once a day (`bootstrap.lua`).
   floor is an error — no parser can install or update
 - The macOS Normal-mode input source and whether it came from
   `NVIM_ENGLISH_INPUT_SOURCE` or the system keyboard-layout fallback
-- Active AI provider, native CLI, selected ACP bridge, and optional
-  CodeCompanion HTTP inline/command credentials (`NVIM_ANTHROPIC_API_KEY` /
-  `NVIM_OPENAI_API_KEY`), plus a warning while the CLI's own
-  `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is set
+- Active AI provider and HTTP key profile, and what each started as; both
+  providers' native CLIs and ACP bridges (missing ones are an error for the
+  active provider, a warning for the other); every key profile's variable
+  (`NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY`; unset is a warning for the
+  active profile, information for the rest); and a warning while either CLI's
+  own `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is set
 - Inline completion: `llama-server`, whether its model is in the Hugging Face
   cache (the server starts `--offline`, so a missing model is a failed start),
   and whether the shared server is answering
@@ -171,16 +173,42 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 
 ## AI and CodeCompanion
 
-- `:AIInfo` — resolved Native, ACP Chat, and HTTP Inline adapter
+- `:AI info` (or `:AIInfo`) — active provider and key profile and what they
+  started as, the resolved Native / ACP Chat / HTTP Inline adapters, whether
+  each profile's variable and each CLI's own key variable is set (never the
+  value), each native agent's state, and — once CodeCompanion is loaded — its
+  chats per adapter. It loads no plugin to answer.
+- `:AI provider` / `:AI key` (`<leader>ax`) switch in-process. A switch moves
+  only what the *next* session uses: running agents, open chats and their
+  adapters stay as they are.
+- **The agent panel vanished after `:AI provider`.** It was hidden, not
+  stopped: opening the active provider's panel hides the other agent's panel in
+  that tabpage. `:AI info` lists it as *running, not shown here*; switch back
+  and press `<leader>ac`.
+- **`<leader>aa` / `<leader>ad` are missing.** They answer Claude's diffs and
+  exist while Claude is active or once claudecode.nvim has loaded. In a
+  Codex-started Nvim that never used Claude there is no diff to answer.
+- **The statusline shows `󰚩 … · 󰌆 …`.** Either setting differs from how this
+  Nvim started; click it (or `<leader>ax`) to switch again. It disappears once
+  both are back where they started.
+- **Inline / command prompts use the "wrong" key after a provider switch.** The
+  key profile was pinned with `:AI key <name>`; `:AI key auto` makes it follow
+  the provider again.
 - `:checkhealth config` — native CLI plus `claude-agent-acp`/`codex-acp`
 - `<leader>apc` — new ACP chat; `<leader>aph` / `:CodeCompanionHistory` —
   auto-saved history (also `gh` inside a chat)
 - History restores the local transcript; use `/resume` in a fresh ACP chat to
   reload a stateful agent session.
-- ACP Chat uses the selected agent login. A missing `NVIM_ANTHROPIC_API_KEY`
-  or `NVIM_OPENAI_API_KEY` only disables HTTP Inline/command prompts, which
-  then fail with an authentication error; set it as in
-  [README → API keys](../README.md#api-keys) and restart Nvim from a new shell.
+- ACP Chat uses the agent's own login; Codex's ACP adapter always uses the
+  ChatGPT login, whichever provider started Nvim. A missing
+  `NVIM_ANTHROPIC_API_KEY` or `NVIM_OPENAI_API_KEY` only disables HTTP
+  Inline/command prompts for that key profile, which then fail with an
+  authentication error (`:AI key` warns when it selects such a profile); set it
+  as in [README → API keys](../README.md#api-keys) and restart Nvim from a new
+  shell.
+- **Nvim refuses to start: `AI key profile "…" must read an NVIM_* variable`.**
+  A `key_profiles` entry in `lua/ai/config.lua` names a CLI's own variable (or
+  something not `NVIM_*`). Give it an `NVIM_*` variable of its own.
 - **The agent bills the API although you have a subscription.** Check
   `:checkhealth config` for *ANTHROPIC_API_KEY is set* (or `OPENAI_API_KEY`).
   Those are the CLIs' own variables and can take precedence over the login;
@@ -845,8 +873,9 @@ A clean run prints `errmsg=[]` and no tracebacks.
 
 | Variable | Effect |
 |----------|--------|
-| `NVIM_AI_PROVIDER` | Select `claude` (default) or `codex` for Native AI, ACP Chat, and HTTP Inline |
-| `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key for CodeCompanion HTTP Inline/command prompts under the Claude / Codex provider |
+| `NVIM_AI_PROVIDER` | Startup provider, `claude` (default) or `codex`, for Native AI and ACP Chat; `:AI provider` switches it |
+| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile (`auto` by default, following the provider); an unknown name warns and falls back to `auto`; `:AI key` switches it |
+| `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key of the `anthropic` / `openai` profile, for CodeCompanion HTTP Inline/command prompts |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Override the macOS keyboard layout used in Normal and Terminal-Normal modes |
 | `NVIM_MACISM_WAIT_TIME_MS` | Set macism's CJK workaround wait; `0` disables its temporary focus window |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |

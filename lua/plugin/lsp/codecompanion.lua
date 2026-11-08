@@ -1,5 +1,3 @@
-local ai = require("ai.config")
-
 return {
   "olimorris/codecompanion.nvim",
   cmd = {
@@ -24,71 +22,97 @@ return {
     { "<leader>apb", "<cmd>CodeCompanionChat Add<cr>",    desc = "Add selection to Companion", mode = "x" },
     { "<leader>aph", "<cmd>CodeCompanionHistory<cr>",     desc = "Companion chat history" },
   },
-  opts = {
-    adapters = {
-      acp = {
-        extend = ai.is("codex") and {
-          -- Reuse the Codex/ChatGPT login selected by the vix profile.  HTTP
-          -- inline prompts use NVIM_OPENAI_API_KEY independently below.
-          codex = { defaults = { auth_method = "chat-gpt" } },
-        } or {},
+  -- A function, so the plugin starts from the state lua/ai/switch.lua left
+  -- behind when it first loads; after that, switching writes the live config
+  -- (switch.sync_codecompanion).
+  opts = function()
+    local ai = require("ai.config")
+
+    -- Every key profile reads its own NVIM_* variable, never the one the agent
+    -- CLIs bill against (lua/ai/config.lua). Both built-in adapters are
+    -- redirected whichever provider started this Nvim, because either can be
+    -- the active key profile after a switch.
+    local http = { extend = {} }
+    for name, profile in pairs(ai.key_profiles) do
+      if name == profile.adapter then
+        http.extend[name] = { env = { api_key = profile.api_key } }
+      else
+        -- An adapter of its own name, so a chat restored from history comes
+        -- back on this profile rather than on the plain built-in one.
+        http[name] = function()
+          return require("codecompanion.adapters.http").extend(profile.adapter, {
+            name = name,
+            formatted_name = profile.label,
+            env = { api_key = profile.api_key },
+          })
+        end
+      end
+    end
+
+    return {
+      adapters = {
+        acp = {
+          extend = {
+            -- Unconditional: a Claude-started Nvim reaches Codex too, and the
+            -- adapter's own default (`api-key`) would bill OPENAI_API_KEY
+            -- instead of the ChatGPT login.
+            codex = { defaults = { auth_method = "chat-gpt" } },
+          },
+        },
+        http = http,
       },
-      http = {
-        -- Inline and command prompts read the dedicated key, never the
-        -- variable the agent CLIs bill against (lua/ai/config.lua).
-        extend = { [ai.codecompanion.http_adapter] = { env = { api_key = ai.codecompanion.api_key } } },
-      },
-    },
-    interactions = {
-      chat = {
-        adapter = ai.codecompanion.acp_adapter,
-        -- Provider selection belongs to NVIM_AI_PROVIDER for this Nvim process.
-        keymaps = { change_adapter = false },
-        -- Pinned rather than auto-detected: CodeCompanion takes the first of
-        -- telescope, fzf-lua and mini.pick it can require before snacks, so
-        -- any plugin that ships one of those would silently swap these pickers.
-        -- These five are the picker-backed commands an ACP chat offers.
-        slash_commands = {
-          ["buffer"] = { opts = { provider = "snacks" } },
-          ["file"] = { opts = { provider = "snacks" } },
-          ["help"] = { opts = { provider = "snacks" } },
-          ["symbols"] = { opts = { provider = "snacks" } },
-          ["fetch"] = { opts = { provider = "snacks" } },
+      interactions = {
+        chat = {
+          adapter = ai.codecompanion.acp_adapter,
+          -- A chat's adapter is fixed when it is created; choosing another is
+          -- :AI's job (lua/ai/switch.lua), and applies to the next chat.
+          keymaps = { change_adapter = false },
+          -- Pinned rather than auto-detected: CodeCompanion takes the first of
+          -- telescope, fzf-lua and mini.pick it can require before snacks, so
+          -- any plugin that ships one of those would silently swap these pickers.
+          -- These five are the picker-backed commands an ACP chat offers.
+          slash_commands = {
+            ["buffer"] = { opts = { provider = "snacks" } },
+            ["file"] = { opts = { provider = "snacks" } },
+            ["help"] = { opts = { provider = "snacks" } },
+            ["symbols"] = { opts = { provider = "snacks" } },
+            ["fetch"] = { opts = { provider = "snacks" } },
+          },
+        },
+        inline = {
+          adapter = ai.http_adapter_spec(),
+        },
+        cmd = {
+          adapter = ai.http_adapter_spec(),
         },
       },
-      inline = {
-        adapter = ai.codecompanion.http_adapter,
-      },
-      cmd = {
-        adapter = ai.codecompanion.http_adapter,
-      },
-    },
-    extensions = {
-      history = {
-        enabled = true,
-        opts = {
-          auto_save = true,
-          picker = "snacks",
-          -- ACP agents already own session state.  Avoid a second model call
-          -- solely to title each local History entry; entries remain renameable.
-          auto_generate_title = false,
+      extensions = {
+        history = {
+          enabled = true,
+          opts = {
+            auto_save = true,
+            picker = "snacks",
+            -- ACP agents already own session state.  Avoid a second model call
+            -- solely to title each local History entry; entries remain renameable.
+            auto_generate_title = false,
+          },
         },
       },
-    },
-    display = {
-      action_palette = {
-        provider = "snacks",
-      },
-      chat = {
-        show_header_separator = false,
-        start_in_insert_mode = false,
-        window = {
-          layout = "vertical",
-          position = "right",
-          full_height = true,
-          width = ai.panel.width,
+      display = {
+        action_palette = {
+          provider = "snacks",
+        },
+        chat = {
+          show_header_separator = false,
+          start_in_insert_mode = false,
+          window = {
+            layout = "vertical",
+            position = "right",
+            full_height = true,
+            width = ai.panel.width,
+          },
         },
       },
-    },
-  },
+    }
+  end,
 }

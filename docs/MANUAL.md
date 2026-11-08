@@ -572,7 +572,7 @@ is open beside your code.
 | `<Space>d` | Debug | breakpoints, step, inspect |
 | `<Space>t` | Test | run file / nearest / debug, output panel |
 | `<Space>x` | Diagnostics | error list, quickfix, location list |
-| `<Space>a` | AI | Claude / Codex panels, prompts, transcript |
+| `<Space>a` | AI | Claude / Codex panels, prompts, transcript, switch provider / API key (`ax`) |
 | `<Space>b` | Buffer | delete, pin, close others, close the hidden ones (`bh`) |
 | `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
@@ -708,11 +708,21 @@ Ctrl-/       toggle a terminal
 ,1 … ,9      choose terminal 1-9 from a terminal buffer (jk first)
 <Space>ac    open the AI panel
 <Space>ai    write a prompt in a real Neovim buffer
+<Space>ax    switch between Claude Code and Codex (or the API key)
 Ctrl-l       (Insert) take the grey AI suggestion
 ```
 
 `Ctrl-]` leaves terminal input without disturbing the program running in it —
 useful because `Esc` belongs to the AI CLIs themselves.
+
+The shell alias you started with picks the agent (`vic` Claude Code, `vix`
+Codex), and `<Space>ax` (`:AI`) changes it without restarting. Switching only
+changes where the `<Space>a` keys go next — which-key's menu shows the new
+name — and stops nothing. The agent you left keeps running; when you open the
+new one's panel, the old panel in that tabpage steps aside, and switching back
+then `<Space>ac` brings it back. `:AI info` shows which agents are running and
+which API key the HTTP prompts would use. Details: [AI provider
+selection](../README.md#ai-provider-selection).
 
 To point an agent at some code, `<Space>yl` copies `path:12` (in Visual mode
 `path:12-18` for the selected lines), relative to the repository root. Agent

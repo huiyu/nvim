@@ -180,6 +180,7 @@ end
 for _, case in ipairs({
   { "<leader>y", "l", "path" }, { "<leader>y", "g", "path" },
   { "<leader>g", "D", "diff" }, { "<leader>b", "h", "delete" },
+  { "<leader>a", "x", "session" }, { "<leader>a", "c", "session" },
 }) do
   t.eq(owner_of(case[1], case[2]), case[3], ("%s%s sits under %s"):format(case[1], case[2], case[3]))
 end

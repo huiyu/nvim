@@ -2,18 +2,28 @@ local M = {}
 
 local pending_drift_fixes = {}
 
--- Snacks records the original command on every terminal buffer. Only native
--- coding-agent TUIs need the automatic resize workaround; applying it to plain
--- shell terminals would make every Normal -> Terminal-mode transition flicker.
-function M.is_agent_buf(buf)
+-- Snacks records the original command on every terminal buffer, which is what
+-- tells an agent panel from a shell -- and which agent it is. Any configured
+-- agent counts, not only the active provider: after a switch both can be
+-- running, and each panel keeps its own rules.
+---@param buf integer?
+---@return string|nil provider
+function M.agent_of(buf)
   buf = buf or vim.api.nvim_get_current_buf()
-  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "terminal" then return false end
+  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "terminal" then return nil end
   local info = vim.b[buf].snacks_terminal
-  return info ~= nil and require("ai.config").is_native_command(info.cmd)
+  return info ~= nil and require("ai.config").provider_of_command(info.cmd) or nil
 end
 
--- Identifies the selected native AI agent's :terminal window in the current
--- tabpage, if visible. Matches edgy.lua's command-based filter.
+-- Only native coding-agent TUIs need the automatic resize workaround; applying
+-- it to plain shell terminals would make every Normal -> Terminal-mode
+-- transition flicker.
+function M.is_agent_buf(buf)
+  return M.agent_of(buf) ~= nil
+end
+
+-- Identifies a native AI agent's :terminal window in the current tabpage, if
+-- visible. Matches edgy.lua's command-based filter.
 local function find_agent_win()
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     local buf = vim.api.nvim_win_get_buf(win)

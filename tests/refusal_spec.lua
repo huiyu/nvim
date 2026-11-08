@@ -110,5 +110,29 @@ t.eq(last() and last().level, vim.log.levels.ERROR, "it reports the failure")
 t.ok(said("boom"), "with its cause")
 transcript.open_current = real_open
 
+-- :AI with a name it does not know.
+local ai_config = require("ai.config")
+local provider_before = ai_config.provider
+reset()
+ok = pcall(vim.cmd, "AI provider nope")
+t.ok(ok, ":AI provider with an unknown name does not raise")
+t.eq(#notified, 1, "it notifies once")
+t.ok(last() and last().level == vim.log.levels.ERROR and said("Unknown AI provider"), "with the reason, as an error")
+t.eq(ai_config.provider, provider_before, "and the provider is unchanged")
+
+-- <leader>aa answers Claude's diffs whichever provider is active, so a failure
+-- there is reported against Claude, not against the active provider.
+local claude_backend = require("ai.backend.claude")
+local real_accept = claude_backend.accept_diff
+claude_backend.accept_diff = function() error("no pending diff") end
+ai_config.use_provider("codex")
+reset()
+ok = pcall(require("ai").accept_diff)
+t.ok(ok, "<leader>aa does not raise when the diff command fails")
+t.ok(said("Claude Code accept_diff failed") and said("no pending diff"),
+  "it names Claude, whose diff it was, even with Codex active")
+ai_config.use_provider(provider_before)
+claude_backend.accept_diff = real_accept
+
 vim.notify = real_notify
 t.done()

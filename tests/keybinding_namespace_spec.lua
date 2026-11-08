@@ -37,6 +37,7 @@ for lhs, modes in pairs({
   ["<leader>yg"] = { n = true, x = true },
   ["<leader>gD"] = { n = true },
   ["<leader>bh"] = { n = true },
+  ["<leader>ax"] = { n = true },
 }) do
   for _, mode in ipairs({ "n", "x", "o", "i", "t" }) do
     t.eq(next(mapping(lhs, mode)) ~= nil, modes[mode] == true,

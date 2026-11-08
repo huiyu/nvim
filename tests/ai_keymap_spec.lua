@@ -17,6 +17,12 @@ for _, lhs in ipairs({ " ac", " af", " ar", " aR", " am", " ab" }) do
 end
 t.ok(mapped(" as", "x"), "UC-R1: <leader>as still lives in Visual mode")
 
+-- <leader>ax opens :AI's switcher, Normal mode only.
+t.eq(vim.fn.maparg(" ax", "n", false, true).desc, "Switch AI provider / API key", "<leader>ax switches provider / key")
+for _, mode in ipairs({ "x", "o", "i", "t" }) do
+  t.ok(not mapped(" ax", mode), "<leader>ax is Normal-mode only (" .. mode .. ")")
+end
+
 -- The facade must expose the methods those mappings call.
 local ai = require("ai")
 for _, method in ipairs({ "compose", "transcript", "transcript_pick" }) do
