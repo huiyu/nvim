@@ -654,7 +654,7 @@ Ctrl-l       （Insert）接受灰色的 AI 建议
 
 `Ctrl-]` 退出终端输入但不打扰里面运行的程序——因为 `Esc` 属于 AI CLI 自己。
 
-用哪个 agent 由启动时的 shell alias 决定（`vic` 是 Claude Code，`vix` 是 Codex），
+用哪个 agent 由启动选项决定（`vi --claude` 是 Claude Code，`vi --codex` 是 Codex），
 `<Space>ax`（`:AI`）可以不重启就换过去。切换只改变 `<Space>a` 这组键接下来发给谁
 ——which-key 菜单里会显示新的名字——不会停掉任何东西。离开的那个 agent 继续运行；
 打开新 agent 的面板时，同一 tabpage 里旧的面板会让出位置，切回去再按 `<Space>ac`

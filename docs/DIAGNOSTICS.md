@@ -187,6 +187,13 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 
 ## AI and CodeCompanion
 
+- **`nvim --claude` / `nvim --codex` reports an unknown option.** These are
+  leading options of the Zsh `vi` launcher in `~/.config/zsh/functions.zsh`,
+  not native Neovim flags: use `vi --claude` / `vi --codex`. Open a new shell
+  after changing that file. In another shell, use
+  `NVIM_AI_PROVIDER=claude nvim` or
+  `NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim`. Put native options
+  after the provider flag, for example `vi --codex -c 'set number' file.lua`.
 - `:AI info` (or `:AIInfo`) — active provider and key profile and what they
   started as, the resolved adapters (native CLI, agent chat over ACP, API chat
   and Inline over HTTP), whether each profile's variable and each CLI's own key

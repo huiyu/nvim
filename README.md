@@ -519,18 +519,24 @@ runs:
   [API credits](#api-keys). `auto`, the default, follows the provider:
   Anthropic under Claude, OpenAI under Codex.
 
-The shell aliases used by this setup pick the startup provider:
+The shell launcher used by this setup picks the startup provider:
 
 ```bash
 vi                 # default provider (Claude unless overridden)
-vic                # NVIM_AI_PROVIDER=claude nvim
-vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim
+vi --claude        # NVIM_AI_PROVIDER=claude nvim
+vi --codex         # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim
 ```
 
+Provider flags are case-insensitive. Put the provider flag first:
+`vi --codex -p a.lua b.lua`. These flags belong to the Zsh `vi` function in
+`~/.config/zsh/functions.zsh`; other shells can use
+the environment-variable commands shown in the comments directly with `nvim`.
+Neovim's own arguments, including `-c`, pass through unchanged.
+
 `~/.codex` is Codex's own default home, and `~/.codex-oauth` is a symlink to
-it, so a Codex started from a `vic` process lands on the same login and
+it, so a Codex started from a `vi --claude` process lands on the same login and
 sessions. `NVIM_AI_KEY_PROFILE` (optional) sets the startup key profile.
-Nothing is saved: every Nvim starts from its alias and environment.
+Nothing is saved: every Nvim starts from its launch options and environment.
 
 | Command | Does |
 |---------|------|
@@ -692,7 +698,7 @@ after the cursor. `<C-l>` accepts it; typing on keeps it in step while your text
 still matches, and otherwise a fresh one replaces it. The suggestions come from
 Qwen2.5-Coder 7B running in llama.cpp on this machine — no account, no API key,
 nothing leaves the computer — and have nothing to do with `NVIM_AI_PROVIDER`:
-`vi`, `vic` and `vix` all get the same ones.
+`vi`, `vi --claude` and `vi --codex` all get the same ones.
 
 The model is downloaded once (the `llama-server` line under
 [Requirements](#requirements)) into the Hugging Face cache,
@@ -717,8 +723,8 @@ chat alike — run on your Claude or ChatGPT login. A key is only for
 CodeCompanion's API chat and its Inline and command prompts (`<leader>ah`,
 `<leader>ae`, `:CodeCompanion`), which call the API directly with the active
 [key profile](#ai-provider-selection): under
-`auto`, Anthropic with the Claude provider (`vi`, `vic`) and OpenAI with Codex
-(`vix`); `:AI key` picks another. Only the active profile's key is used.
+`auto`, Anthropic with the Claude provider (`vi --claude`) and OpenAI with Codex
+(`vi --codex`); `:AI key` picks another. Only the active profile's key is used.
 
 | Variable | Key profile | Key from |
 |----------|-------------|----------|

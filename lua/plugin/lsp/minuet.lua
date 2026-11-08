@@ -1,5 +1,5 @@
 -- As-you-type AI ghost text from the local model behind util.llama, accepted
--- with <C-l>. It is a service of its own: NVIM_AI_PROVIDER (vi/vic/vix) picks
+-- with <C-l>. It is a service of its own: NVIM_AI_PROVIDER (vi's launch flags) picks
 -- the agent and CodeCompanion's backend and never changes where these
 -- suggestions come from.
 --

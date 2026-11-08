@@ -729,8 +729,8 @@ Ctrl-l       (Insert) take the grey AI suggestion
 `Ctrl-]` leaves terminal input without disturbing the program running in it —
 useful because `Esc` belongs to the AI CLIs themselves.
 
-The shell alias you started with picks the agent (`vic` Claude Code, `vix`
-Codex), and `<Space>ax` (`:AI`) changes it without restarting. Switching only
+The launch option picks the agent (`vi --claude` for Claude Code, `vi --codex`
+for Codex), and `<Space>ax` (`:AI`) changes it without restarting. Switching only
 changes where the `<Space>a` keys go next — which-key's menu shows the new
 name — and stops nothing. The agent you left keeps running; when you open the
 new one's panel, the old panel in that tabpage steps aside, and switching back

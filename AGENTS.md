@@ -23,7 +23,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 
 ## AI Provider Invariants
 
-- `vi` uses the default provider, `vic` selects Claude, and `vix` selects Codex:
+- `vi` uses the default provider, `vi --claude` selects Claude,
+  and `vi --codex` selects Codex. These are case-insensitive leading flags
+  of the Zsh launcher; all remaining arguments pass unchanged to Neovim,
+  including its native `-c`.
   `NVIM_AI_PROVIDER` is the startup default, `NVIM_AI_KEY_PROFILE` (optional)
   the startup HTTP key profile. `:AI provider` / `:AI key` (`<leader>ax`,
   `lua/ai/switch.lua`) switch them in-process; nothing is persisted. A switch

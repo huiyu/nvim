@@ -466,17 +466,21 @@ AI 请求发到哪里，由两项设置决定，两项都能在 Nvim 运行时�
   Prompt（`<leader>ae`），这部分按 [API 额度](#api-key)计费。默认的 `auto` 跟随
   provider：Claude 下是 Anthropic，Codex 下是 OpenAI。
 
-当前 shell alias 决定启动时的 provider：
+Shell 启动器决定启动时的 provider：
 
 ```bash
 vi                 # 默认 provider（未覆盖时为 Claude）
-vic                # NVIM_AI_PROVIDER=claude nvim
-vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim
+vi --claude        # NVIM_AI_PROVIDER=claude nvim
+vi --codex         # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim
 ```
 
+Provider 选项不区分大小写，放在最前面，例如 `vi --codex -p a.lua b.lua`。这些选项属于
+`~/.config/zsh/functions.zsh` 中的 Zsh `vi` 函数；其他 shell 可以直接用注释中的
+环境变量命令启动 `nvim`。Neovim 自身的参数（包括 `-c`）原样传递。
+
 `~/.codex` 就是 Codex 自己的默认目录，`~/.codex-oauth` 是指向它的符号链接，所以从
-`vic` 进程里启动的 Codex 用的也是同一份登录和会话。可选的 `NVIM_AI_KEY_PROFILE`
-设定启动时的 key profile。不做任何持久化：每个 Nvim 都按 alias 和环境变量启动。
+`vi --claude` 进程里启动的 Codex 用的也是同一份登录和会话。可选的 `NVIM_AI_KEY_PROFILE`
+设定启动时的 key profile。不做任何持久化：每个 Nvim 都按启动选项和环境变量启动。
 
 | 命令 | 作用 |
 |------|------|
@@ -617,7 +621,7 @@ Normal 模式的布局优先读取 `NVIM_ENGLISH_INPUT_SOURCE`，未设置时回
 `<C-l>` 接受；继续打字时，只要你打的内容还和建议对得上，建议就跟着走，
 对不上就换成新的建议。建议来自在本机 llama.cpp 里运行的 Qwen2.5-Coder 7B：
 不需要账号和 API key，代码不出本机；它和 `NVIM_AI_PROVIDER` 无关，
-`vi`、`vic`、`vix` 看到的是同一套建议。
+`vi`、`vi --claude`、`vi --codex` 看到的是同一套建议。
 
 模型只需下载一次（见[环境要求](#环境要求)里的 `llama-server` 那一行），存放在
 Hugging Face 缓存 `~/.cache/huggingface/hub`。第一次在文件里进入 Insert 时会启动一个
@@ -636,8 +640,8 @@ Markdown、纯文本、提交信息和 rebase 列表不自动出建议；没有 
 Agent 本身不需要 key：Claude Code 和 Codex，无论是 Native 面板还是 Agent Chat，
 都用你的 Claude 或 ChatGPT 登录（订阅）。key 只给 CodeCompanion 的 API Chat 以及
 Inline 和命令 Prompt（`<leader>ah`、`<leader>ae`、`:CodeCompanion`）用，它们用当前的
-[key profile](#ai-provider-选择) 直接调用 API：`auto` 时，Claude provider（`vi`、
-`vic`）下是 Anthropic，Codex（`vix`）下是 OpenAI；`:AI key` 可以换成别的。只使用
+[key profile](#ai-provider-选择) 直接调用 API：`auto` 时，Claude provider（`vi --claude`）
+下是 Anthropic，Codex（`vi --codex`）下是 OpenAI；`:AI key` 可以换成别的。只使用
 当前 profile 的那一个 key。
 
 | 变量 | Key profile | 在哪里创建 |
