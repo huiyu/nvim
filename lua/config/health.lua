@@ -55,10 +55,10 @@ end
 
 function M.check()
   health.start("config: Neovim version")
-  if vim.fn.has("nvim-0.11.3") == 1 then
+  if vim.fn.has("nvim-0.12.5") == 1 then
     health.ok("Neovim " .. tostring(vim.version()))
   else
-    health.error("Neovim >= 0.11.3 required (config and locked nvim-lspconfig floor)")
+    health.error("Neovim >= 0.12.5 required (refactoring.nvim's minimum; nvim-treesitter main needs 0.12)")
   end
 
   health.start("config: external tools")

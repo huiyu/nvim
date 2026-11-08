@@ -12,12 +12,6 @@ local function loaded(name)
   return plugin ~= nil and plugin._.loaded ~= nil
 end
 
-if vim.fn.has("nvim-0.12.5") == 0 then
-  t.eq(vim.fn.maparg(",ex", "x"), "", "below Nvim 0.12.5 the refactor keys are absent, not broken")
-  t.done()
-  return
-end
-
 require("lazy").load({ plugins = { "which-key.nvim" } })
 vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })
 t.ok(vim.wait(1000, function() return require("which-key.config").loaded end), "which-key owns the comma trigger, as in a session")

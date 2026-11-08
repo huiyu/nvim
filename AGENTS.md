@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This is a personal Neovim configuration for Neovim 0.11+ written in Lua and
+This is a personal Neovim configuration for Neovim 0.12.5+ written in Lua and
 managed by lazy.nvim. Keep changes small, reversible, lazy-loaded where
 practical, and consistent with the existing LazyVim-style key namespaces.
 

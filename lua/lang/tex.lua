@@ -47,9 +47,9 @@ vim.api.nvim_create_autocmd("FileType", {
 return {
   {
     "lervag/vimtex",
-    -- v2.18 is the last release before VimTeX raised its Neovim requirement
-    -- from 0.10 to 0.12.4. Keep the documented 0.11.3 floor honest instead of
-    -- disabling VimTeX's version guard and running an unsupported revision.
+    -- Pinned to a tagged release rather than master; v2.18 is the latest.
+    -- Releases can raise VimTeX's Nvim requirement (master needs 0.12.4), so
+    -- compare a new one with the floor in lua/config/health.lua before moving.
     version = "v2.18",
     -- VimTeX recommends against lazy-loading: it owns its filetype detection and
     -- inverse-search needs the plugin live before the first PDF<->source sync.

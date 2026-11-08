@@ -22,12 +22,11 @@ local ensure_installed = {
 return {
   {
     "nvim-treesitter/nvim-treesitter",
+    -- `main` is the rewrite this spec is written for; `master` stays frozen
+    -- for Nvim 0.11. main supports only the latest Nvim stable and has raised
+    -- its minimum before (0.11 -> 0.12), so compare its README requirement
+    -- with the floor in lua/config/health.lua when an update lands.
     branch = "main",
-    -- 90cd658 is the final main-branch revision with the explicit Nvim 0.11
-    -- compatibility path. The next commit removed it and began calling
-    -- vim.list directly, so updating past this point would silently raise this
-    -- config's documented minimum version to 0.12.
-    commit = "90cd6580e720caedacb91fdd587b747a6e77d61f",
     -- The rewritten 'main' branch does not support lazy-loading.
     lazy = false,
     build = ":TSUpdate",

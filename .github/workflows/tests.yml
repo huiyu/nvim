@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        neovim: [v0.11.3, stable]
+        neovim: [v0.12.5, stable]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -7,7 +7,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 ### Requirements
 
 **Required:**
-- **Neovim** >= 0.11.3 (uses `vim.lsp.config`/`vim.lsp.enable`, `vim.hl`, `vim.diagnostic.jump`)
+- **Neovim** >= 0.12.5 (refactoring.nvim's minimum; nvim-treesitter's `main` branch needs 0.12)
 - **Git**
 - A [Nerd Font](https://www.nerdfonts.com/) for icon display
 - **ripgrep** (`rg`) — powers `Snacks.picker.grep` / `live_grep` / `:grep`
@@ -128,7 +128,7 @@ nvim
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | Pinned-file jumps (`;1`-`;9`, `;h` menu) |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank history ring |
 | [dial](https://github.com/monaqa/dial.nvim) | Increment/decrement booleans, dates, etc.; `let` / `const` in JS/TS |
-| [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | Extract function/variable, inline (`,e…` / `,i`; Nvim 0.12.5+) |
+| [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | Extract function/variable, inline (`,e…` / `,i`) |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | Enhanced text objects |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | Toggle single-line/multi-line (`gS`) |
 | [mini.bracketed](https://github.com/echasnovski/mini.bracketed) | Extra `[`/`]` motions on the suffixes this config leaves free (`x` conflict, `i` indent, `j` jump, `o` oldfile, `u` undo) |

@@ -8,9 +8,8 @@ end
 
 return {
   "ThePrimeagen/refactoring.nvim",
-  -- Upstream requires Nvim 0.12.5 and builds on 0.12-only APIs (vim.pos,
-  -- vim.range). Below that the keys are absent instead of erroring on use.
-  cond = vim.fn.has("nvim-0.12.5") == 1,
+  -- Upstream requires Nvim 0.12.5 (vim.pos, vim.range); that requirement is
+  -- the config's floor, checked by lua/config/health.lua.
   dependencies = {
     {
       "lewis6991/async.nvim",

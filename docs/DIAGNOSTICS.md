@@ -52,7 +52,7 @@ the update checker runs silently once a day (`bootstrap.lua`).
 
 `lua/config/health.lua` checks the things specific to this configuration:
 
-- Neovim version floor (>= 0.11.3)
+- Neovim version floor (>= 0.12.5, refactoring.nvim's minimum)
 - External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, python3, cc, lazygit, macism) and
   what each one is needed for
 - The macOS Normal-mode input source and whether it came from
@@ -702,10 +702,9 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   Diffview after reloading its configuration, or restart Nvim after updating.
   Check `:setlocal diff? scrollbind?` in the content panes if they still drift.
 - **A refactor key (`,ef`, `,ex`, `,i`, `,R`) errors with
-  `attempt to call field 'wrap'`** — refactoring.nvim needs Nvim 0.12.5 (below
-  that its keys are not mapped) and, on 0.12, the async runtime from
-  `lewis6991/async.nvim`, which `lua/plugin/editor/refactoring.lua` hands it as
-  `vim.async`. Its own fallback, `require("async")`, returns promise-async's
+  `attempt to call field 'wrap'`** — on Nvim 0.12 refactoring.nvim needs the
+  async runtime from `lewis6991/async.nvim`, which
+  `lua/plugin/editor/refactoring.lua` hands it as `vim.async`. Its own fallback, `require("async")`, returns promise-async's
   module once nvim-ufo has loaded, and that API has no `wrap`. After the first
   refactor, `:lua =vim.async ~= nil` should print `true`; `:Lazy` should list
   async.nvim as loaded. `,i` asks the language server for the definition and

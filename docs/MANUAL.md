@@ -135,9 +135,9 @@ caa    change this argument                                              vio    
 
 You do not have to be inside the object first: with the cursor before a pair,
 `ci(` changes inside the **next** parentheses. An `l` (last) in between looks
-backwards instead: `cil(` changes inside the previous ones. On Neovim 0.12+,
-Visual `an` and `in` are the builtin syntax-node selection: each `an` widens the
-selection to the enclosing node, `in` narrows it back.
+backwards instead: `cil(` changes inside the previous ones. Visual `an` and
+`in` are Neovim's builtin syntax-node selection: each `an` widens the selection
+to the enclosing node, `in` narrows it back.
 
 **which-key:** press `di` (or `da`, `vi`) and wait half a second — the popup
 lists every object.
@@ -408,8 +408,7 @@ for a name; `,eF` asks for the target file first. `,ex` replaces every
 identical expression in the buffer, even in other functions, so review the
 result. `,i` finds references through the language server, so it needs one
 attached. `:Refactor extract_var total` runs an operation on the last Visual
-selection, with the name given as an argument. The refactorings need Nvim
-0.12.5 or newer; on older versions these keys are not mapped.
+selection, with the name given as an argument.
 
 
 ### Filetype and view actions
