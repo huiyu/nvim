@@ -208,6 +208,13 @@ Neovim and truncate that file rather than leaving debug logging enabled.
   that tabpage, and `<leader>ab` / `as` / `am` open it to deliver as well.
   `:AI info` lists it as *running, not shown here*; switch back and press
   `<leader>ac`.
+- **The agent session is alive, but its panel disappeared after clicking a file
+  tab.** bufferline's default `:buffer` ran in the focused panel; Snacks' window
+  protection could close that window when no ordinary file window was available
+  to receive the file. File-tab clicks now focus the current tabpage's editor
+  area first, creating a split if needed, so Claude, Codex and chat panels stay
+  visible. In an older running Nvim, `<leader>af` restores the native panel;
+  restart Nvim to load the fix.
 - **`<leader>aa` / `<leader>ad` are missing.** They answer Claude's diffs and
   exist while Claude is active or once claudecode.nvim has loaded. In a
   Codex-started Nvim that never used Claude there is no diff to answer.

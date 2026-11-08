@@ -434,10 +434,10 @@ window.track_editor_win()
 -- listing or issue/PR reading view can receive the file in place; pending edits
 -- stay visible and untouched. Does not move focus; the caller decides when to
 -- enter it.
--- Used by location pickers, Oil's terminal entry points, and both debug
--- frame paths: nvim-dap's `switchbuf` (via `util.dap.jump`) and nvim-dap-ui's
--- `select_window`. Being scoped to the current tabpage is what keeps a stopped
--- frame in the tabpage the user is actually in.
+-- Used by file-tab clicks, location pickers, Oil's terminal entry points, and
+-- both debug frame paths: nvim-dap's `switchbuf` (via `util.dap.jump`) and
+-- nvim-dap-ui's `select_window`. Being scoped to the current tabpage is what
+-- keeps a stopped frame in the tabpage the user is actually in.
 window.ensure_editor_win()
 
 -- Resize the current window through whichever system owns it: edgy's own

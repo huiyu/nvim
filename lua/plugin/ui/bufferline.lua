@@ -7,6 +7,22 @@ local function shown_in_bufferline(buf)
     and not vim.api.nvim_buf_get_name(buf):match("diffview://")
 end
 
+local function open_file(buf)
+  -- Match bufferline's scheduled default, but choose the file's destination
+  -- before switching buffers. :buffer in a Snacks panel invokes fixbuf; when
+  -- no file window remains, its fallback closes the panel (not the job).
+  vim.schedule(function()
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    local win = vim.api.nvim_get_current_win()
+    if vim.bo.buftype == "terminal" then vim.cmd.stopinsert() end
+    if vim.bo.buftype ~= "" or vim.api.nvim_win_get_config(win).relative ~= "" then
+      win = require("util.window").ensure_editor_win()
+    end
+    vim.api.nvim_set_current_win(win)
+    vim.api.nvim_set_current_buf(buf)
+  end)
+end
+
 return {
   "akinsho/bufferline.nvim",
   event = "VeryLazy",
@@ -132,6 +148,7 @@ return {
         separator_style = "slant",
         show_tab_indicators = true,
         custom_filter = shown_in_bufferline,
+        left_mouse_command = open_file,
       },
     }
   end,

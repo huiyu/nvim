@@ -164,6 +164,9 @@ every level:
 The tabline, buffer cycling (`<S-h>`/`<S-l>` and `[b`/`]b`), and buffer pickers
 skip terminal buffers. Use `<Space>af` to focus the AI panel and `<C-/>` for
 shell terminals, so file navigation keeps the editor window in place.
+Clicking a file tab focuses the editor area in the current tabpage, leaving
+chat and terminal panels visible. If only panels remain, it creates an editor
+split for the file.
 
 A few single keys are just abbreviations: `D` = `d$`, `C` = `c$`, and `x` =
 `dl` with one difference: `x` deletes into the black hole register, so it
