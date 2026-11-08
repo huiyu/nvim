@@ -82,16 +82,6 @@ autocmd("TermOpen", {
   end,
 })
 
--- Set cwd when opening a directory
-autocmd("VimEnter", {
-  group = augroup("vimenter_cd", { clear = true }),
-  callback = function(data)
-    if vim.fn.isdirectory(data.file) == 1 then
-      vim.cmd.cd(data.file)
-    end
-  end
-})
-
 -- Highlight on yank (brief flash after copying)
 autocmd("TextYankPost", {
   group = augroup("highlight_yank", { clear = true }),

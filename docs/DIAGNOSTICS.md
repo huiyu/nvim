@@ -27,6 +27,7 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | CodeCompanion chat refuses or fails | `:AI info` · `:checkhealth config` · `<leader>mnh` (notification history) |
 | No grey AI suggestions | `:checkhealth config` (inline completion) · `~/.local/state/nvim/llama/server.log` |
 | GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `<leader>mnh` (notification history) |
+| File search / terminal starts in an unexpected directory | `:pwd` · `:verbose pwd` · `:cd /path/to/project` |
 | Mason tool missing | `:Mason` (`<leader>mm`) · `:checkhealth mason` |
 | Error flashed by | `:messages` / `g<` (Vim's own messages) · `<leader>mnh` (plugin notifications) |
 | "Where did this keymap/option come from?" | `:verbose map <lhs>` · `:verbose set <opt>?` |
@@ -47,6 +48,19 @@ first line of `init.lua` (lazy.nvim alone would only do it from its bootstrap
 on). A cache entry is reused only while the file's size and modification time
 are unchanged; `:lua vim.loader.reset()` clears it if a module ever seems to
 run old code.
+
+## Working directory
+
+Opening a file sets cwd once at `VimEnter`: its nearest Git root, or its parent
+outside Git. Worktrees and submodules use their own root; symlinks use the target.
+Missing parents use the nearest existing ancestor. With several file arguments,
+the first chooses cwd. Opening a directory uses it exactly; no arguments or
+stdin keep the shell directory. Startup commands and sessions that have changed
+cwd take precedence, and later buffer switches leave it alone.
+
+Check `:pwd` (or `:verbose pwd` for global/tab/window scope) when `;f`, `;/`, a
+terminal or a runner uses an unexpected project. Use `:cd /path/to/project` to
+set it manually; `;F` and `;D` instead search from the current buffer's directory.
 
 ## Plugins
 

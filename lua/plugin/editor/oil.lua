@@ -43,6 +43,8 @@ return {
   -- `:e lua/` land in oil while an ordinary session never loads it.
   init = function()
     local function open_directory_buffer(buf, path)
+      -- VimEnter may change cwd before this scheduled open runs.
+      path = vim.fn.fnamemodify(path, ":p")
       vim.schedule(function()
         if not vim.api.nvim_buf_is_valid(buf) then return end
         -- BufNew also fires for background buffers created by :badd, session

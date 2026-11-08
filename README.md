@@ -56,6 +56,10 @@ git clone https://github.com/huiyu/nvim.git ~/.config/nvim
 nvim
 ```
 
+Opening a file (`vi path/to/file`, or `nvim`) sets cwd to its Git root, falling
+back to its directory outside Git. Opening a directory uses that directory;
+starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.md#files).
+
 ### Project Structure
 
 ```

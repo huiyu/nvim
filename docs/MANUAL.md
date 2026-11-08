@@ -295,6 +295,16 @@ Every way of reaching a file, a symbol, or a position.
 | `;a` | **Last used buffer (toggle)** — return to the previous buffer in this window. |
 | `;;` | Reopen the last search, with its results intact |
 
+When started with a file (`vi /work/project/src/main.lua`), cwd becomes its
+nearest Git root (`/work/project`), or the file's directory outside Git.
+Worktrees and submodules are supported; symlinks use the target's repository.
+For a new file whose parent does not exist, lookup starts at the nearest existing
+ancestor. Multiple arguments use the first file. A directory argument uses that
+exact directory, and no arguments or stdin keep the shell's cwd. This happens
+once at startup; switching files does not move cwd. An explicit startup command
+or restored session that changes cwd takes precedence. Use `:pwd` to check it
+and `:cd /path/to/project` to change it; `;f` and `;/` search from cwd.
+
 Nvim calls that previous buffer the **alternate buffer**. After opening A,
 then B in the same window, `;a` goes back to A; another `;a` returns to B.
 It uses the builtin `Ctrl-^` and is useful when alternating between an

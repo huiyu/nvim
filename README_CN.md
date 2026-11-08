@@ -51,6 +51,10 @@ git clone https://github.com/huiyu/nvim.git ~/.config/nvim
 nvim
 ```
 
+打开文件（`vi 路径/文件` 或 `nvim`）会把 cwd 设为 Git 根目录，非 Git 文件使用
+文件所在目录。打开目录则使用该目录；无参数启动保留 shell 的 cwd。
+详见[使用手册](docs/MANUAL_CN.md#文件)。
+
 ### 项目结构
 
 ```

@@ -133,8 +133,9 @@ The directory-scoped `;F` and `;D` mappings share this resolver, as does Oil
 when it is opened from a terminal.
 
 `recover()` repairs a deleted process cwd and returns a one-line report, or
-nil when no repair was needed. `setup()` runs it at startup and schedules any
-report after the UI has loaded.
+nil when no repair was needed. `setup()` runs it immediately, schedules any
+report after the UI has loaded, and sets the initial cwd from the first file
+or directory argument at `VimEnter`. See [Working Directory](#working-directory-utilcwd).
 
 ### 📝 Logger (`util.logger`)
 
@@ -362,6 +363,17 @@ and notifies, so none of them ends in a traceback.
 
 ## Working Directory (`util.cwd`)
 
+At `VimEnter`, `setup()` sets cwd from the first command-line argument: a file
+uses its nearest `.git` ancestor, falling back to its parent outside Git; a
+directory argument uses that exact directory. `.git` may be a directory or a
+file (worktrees/submodules), and symlinks resolve to their target first. Missing
+parents fall back to their nearest existing ancestor. The argument is captured
+as an absolute path before plugins load, and cwd changes only after startup
+has resolved all relative arguments. No argument, stdin and URI arguments leave
+cwd alone, as does a startup command or restored session that already changed
+cwd or set a window/tab-local directory. The hook runs once; buffer switches
+never move cwd. It uses Neovim's filesystem APIs without loading a plugin.
+
 A shell whose directory was deleted under it still starts Nvim, but the process
 then has no working directory: `vim.uv.cwd()` is nil, and the first thing to
 hash it -- Snacks' dashboard terminal sections, at `UIEnter` -- dies with a
@@ -379,9 +391,10 @@ local cwd = require("util.cwd")
 -- was fine.
 cwd.recover()
 
--- Startup entry: recover, and notify the report after VeryLazy, once the
--- snacks notifier is in place. At init time vim.notify is the builtin echo,
--- which the dashboard's first draw wipes.
+-- Startup entry: recover immediately, register the once-only VimEnter cwd
+-- selection, and notify any recovery report after VeryLazy, once the snacks
+-- notifier is in place. At init time vim.notify is the builtin echo, which
+-- the dashboard's first draw wipes.
 cwd.setup()
 ```
 
