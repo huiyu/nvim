@@ -701,6 +701,18 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   folds aligned. File/history panels still scroll independently. Reopen
   Diffview after reloading its configuration, or restart Nvim after updating.
   Check `:setlocal diff? scrollbind?` in the content panes if they still drift.
+- **A refactor key (`,ef`, `,ex`, `,i`, `,R`) errors with
+  `attempt to call field 'wrap'`** — refactoring.nvim needs Nvim 0.12.5 (below
+  that its keys are not mapped) and, on 0.12, the async runtime from
+  `lewis6991/async.nvim`, which `lua/plugin/editor/refactoring.lua` hands it as
+  `vim.async`. Its own fallback, `require("async")`, returns promise-async's
+  module once nvim-ufo has loaded, and that API has no `wrap`. After the first
+  refactor, `:lua =vim.async ~= nil` should print `true`; `:Lazy` should list
+  async.nvim as loaded. `,i` asks the language server for the definition and
+  references; with no server attached it changes nothing, and the warning
+  `method "textDocument/definition" is not supported` is followed by an
+  `await callback was discarded` error (`:checkhealth vim.lsp`).
+  `tests/refactoring_spec.lua` drives each key against a real file.
 - **"Working directory … no longer exists; started in … instead"** — the shell's
   directory was deleted under it (a pruned worktree, a removed temp dir). Nvim
   moved to the nearest surviving ancestor, or `~`. Without this, Snacks'

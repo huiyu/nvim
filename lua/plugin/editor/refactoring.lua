@@ -1,17 +1,37 @@
+-- The refactors are operators (expr maps returning `g@`): in Visual mode they
+-- act on the selection, in Normal mode they wait for a motion or text object
+-- (`,ef_`, `,efj`, `,exi(`). Extract Block is gone upstream; `,ef` over the
+-- block's lines replaces it.
+local function op(name)
+  return function() return require("refactoring")[name]() end
+end
+
 return {
   "ThePrimeagen/refactoring.nvim",
+  -- Upstream requires Nvim 0.12.5 and builds on 0.12-only APIs (vim.pos,
+  -- vim.range). Below that the keys are absent instead of erroring on use.
+  cond = vim.fn.has("nvim-0.12.5") == 1,
   dependencies = {
-    "nvim-lua/plenary.nvim",
-    "nvim-treesitter/nvim-treesitter",
+    {
+      "lewis6991/async.nvim",
+      -- Nvim 0.12 has no vim.async, so refactoring.nvim falls back to
+      -- `require("async")` -- a name promise-async (nvim-ufo's dependency)
+      -- also claims with an unrelated API. ufo loads on BufReadPost and wins
+      -- package.loaded, after which every refactor fails on `async.wrap`.
+      -- vim.async is the slot refactoring.nvim reads first and Nvim 0.13 fills
+      -- natively; loading async.nvim by path keeps ufo's `async` untouched.
+      config = function(plugin)
+        if vim.async == nil then vim.async = dofile(plugin.dir .. "/lua/async.lua") end
+      end,
+    },
   },
+  cmd = "Refactor",
   keys = {
-    { ",ef", function() require("refactoring").refactor("Extract Function") end,         desc = "Extract function",      mode = "x" },
-    { ",eF", function() require("refactoring").refactor("Extract Function To File") end, desc = "Extract function to file", mode = "x" },
-    { ",ex", function() require("refactoring").refactor("Extract Variable") end,         desc = "Extract variable",      mode = "x" },
-    { ",i", function() require("refactoring").refactor("Inline Variable") end,          desc = "Inline variable",       mode = { "n", "x" } },
-    { ",eb", function() require("refactoring").refactor("Extract Block") end,            desc = "Extract block" },
-    { ",eB", function() require("refactoring").refactor("Extract Block To File") end,    desc = "Extract block to file" },
-    { ",R", function() require("refactoring").select_refactor() end,                    desc = "Select refactor",       mode = { "n", "x" } },
+    { ",ef", op("extract_func"),         desc = "Extract function",         mode = { "n", "x" }, expr = true },
+    { ",eF", op("extract_func_to_file"), desc = "Extract function to file", mode = { "n", "x" }, expr = true },
+    { ",ex", op("extract_var"),          desc = "Extract variable",         mode = { "n", "x" }, expr = true },
+    { ",i",  op("inline_var"),           desc = "Inline variable",          mode = { "n", "x" }, expr = true },
+    { ",R", function() require("refactoring").select_refactor() end, desc = "Select refactor", mode = { "n", "x" } },
   },
   opts = {},
 }

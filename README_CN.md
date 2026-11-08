@@ -123,7 +123,7 @@ nvim
 | [harpoon](https://github.com/ThePrimeagen/harpoon) | 钉住的文件快速跳转（`;1`-`;9`，`;h` 打开列表） |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank 历史环 |
 | [dial](https://github.com/monaqa/dial.nvim) | 递增/递减布尔值、日期等；JS/TS 中切换 `let` / `const` |
-| [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | 提取函数/变量、内联 |
+| [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | 提取函数/变量、内联（`,e…` / `,i`；需 Nvim 0.12.5+） |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | 增强文本对象 |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | 单行/多行切换（`gS`） |
 | [mini.bracketed](https://github.com/echasnovski/mini.bracketed) | 补充 `[`/`]` 跳转，只占用本配置未使用的后缀（`x` 冲突、`i` 缩进、`j` 跳转表、`o` oldfile、`u` undo） |

@@ -146,7 +146,7 @@ local spec = {
       "  ,j ,k / ,h ,l    Move line / Dedent, Indent",
       "  ,n / ,x          Annotations / Run this file",
       "  ,i / ,R          Inline var / Select refactor",
-      "  ,e{f,F,b,B,x}    Extract fn / block / variable",
+      "  ,e{f,F,x}        Extract fn / to file / variable",
       "  ,w / ,F          Replace word / Search & replace",
       "  ,O               Code outline",
       "  Context sections (only in matching buffers):",

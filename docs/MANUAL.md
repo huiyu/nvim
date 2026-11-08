@@ -394,15 +394,22 @@ cycle `let` / `const`; this keyword rule does not apply to other filetypes.
 
 | Key | Does |
 |---|---|
-| `,ef` / `,eF` | Extract selection into a function / into a separate file |
-| `,ex` | Extract into a variable |
-| `,eb` / `,eB` | Extract a block / into a separate file |
-| `,i` | Inline a variable |
-| `,R` | Menu of all refactorings |
+| `,ef` / `,eF` | Extract into a function / into a function in another file |
+| `,ex` | Extract an expression, and its other occurrences in the buffer, into a variable |
+| `,i` | Inline the variable under the cursor into its references |
+| `,R` | Refactoring menu: extract/inline variable, extract/inline function |
 | `,w` | Find-and-replace the word under the cursor |
 | `,F` | Full search-and-replace panel |
 
-`,ef`/`,eF`/`,ex` act on a Visual selection. `,eb`/`,eB` extract a block from Normal mode.
+`,ef`/`,eF`/`,ex` act on a Visual selection. In Normal mode they are operators
+and take a motion or text object, like `d`: `,ef_` extracts the current line,
+`,efj` this line and the next, `,exi(` the inside of the parentheses. Each asks
+for a name; `,eF` asks for the target file first. `,ex` replaces every
+identical expression in the buffer, even in other functions, so review the
+result. `,i` finds references through the language server, so it needs one
+attached. `:Refactor extract_var total` runs an operation on the last Visual
+selection, with the name given as an argument. The refactorings need Nvim
+0.12.5 or newer; on older versions these keys are not mapped.
 
 
 ### Filetype and view actions
