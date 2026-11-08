@@ -54,7 +54,10 @@ local SOURCE_LABELS = {
   manual = "Manual",
 }
 
-local NONCE = uv.os_getpid() .. "-" .. uv.hrtime()
+-- Formatted as integers: hrtime is a double, and once the machine has been up
+-- for about 28 hours (1e14 ns) concatenation prints it as "1.01e+14", which
+-- drops digits.
+local NONCE = ("%d-%d"):format(uv.os_getpid(), uv.hrtime())
 
 -- agent -> { agent, buf, root, session?, dirty, reported_at?, drift_noticed? }
 local native = {}
