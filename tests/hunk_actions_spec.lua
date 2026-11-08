@@ -271,6 +271,9 @@ do
   press(right, 11, ",U")
   t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it again " .. heard())
   t.eq(index(), base, "back to the index it had")
+  -- Back in step with gitsigns for the cases below: its index watcher can
+  -- lag on a slow machine (CI), which is not what this case is about.
+  gs.refresh()
   t.ok(unstaged_count(3), "gitsigns sees it unstaged")
 end
 
