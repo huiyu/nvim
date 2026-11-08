@@ -12,6 +12,17 @@ local t = dofile("tests/helper.lua")
 -- whatever the shipped config actually registers -- not a stripped-down setup.
 local dap = require("dap")
 
+-- An adapter that runs a Mason package is only registered, and only
+-- startable, once Mason has installed that package. A fresh machine (CI)
+-- installs them in the background while the specs run, so there the checks
+-- that need one say SKIP instead, as native_attach_spec does.
+local registry = require("mason-registry")
+local function skip_without(pkg, what)
+  if registry.is_installed(pkg) then return false end
+  print(("SKIP - %s needs Mason's %s, not installed yet"):format(what, pkg))
+  return true
+end
+
 -- UC-2: one js-debug binary serves both runtimes; the launch config picks which.
 for _, name in ipairs({ "pwa-node", "pwa-chrome" }) do
   t.ok(dap.adapters[name] ~= nil, "js-debug adapter registered: " .. name)
@@ -75,12 +86,15 @@ if chrome and chrome.executable then
   -- the fork's bundle). Both must be startable, or a session dies on spawn with
   -- nothing useful to read.
   local command = chrome.executable.command
-  t.ok(command ~= nil and (vim.fn.executable(command) == 1 or vim.uv.fs_stat(command) ~= nil),
-    "the adapter command is startable: " .. tostring(command))
-  -- Whatever runs it, the bundle it is pointed at has to be on disk.
-  for _, arg in ipairs(chrome.executable.args or {}) do
-    if arg:match("%.js$") then
-      t.ok(vim.uv.fs_stat(arg) ~= nil, "the adapter bundle exists: " .. arg)
+  local from_mason = type(command) == "string" and command:find("/mason/", 1, true) ~= nil
+  if not (from_mason and skip_without("js-debug-adapter", "starting the pwa-chrome adapter")) then
+    t.ok(command ~= nil and (vim.fn.executable(command) == 1 or vim.uv.fs_stat(command) ~= nil),
+      "the adapter command is startable: " .. tostring(command))
+    -- Whatever runs it, the bundle it is pointed at has to be on disk.
+    for _, arg in ipairs(chrome.executable.args or {}) do
+      if arg:match("%.js$") then
+        t.ok(vim.uv.fs_stat(arg) ~= nil, "the adapter bundle exists: " .. arg)
+      end
     end
   end
 end
@@ -118,8 +132,11 @@ end
 
 -- UC-R1: Go, Python and C register their adapters through their own plugins.
 -- Adding the js entries must not disturb them.
-for _, name in ipairs({ "delve", "python", "codelldb" }) do
-  t.ok(dap.adapters[name] ~= nil, "pre-existing adapter still registered: " .. name)
+for _, adapter in ipairs({ { "delve", "delve" }, { "python", "debugpy" }, { "codelldb", "codelldb" } }) do
+  local name, pkg = adapter[1], adapter[2]
+  if not skip_without(pkg, "the " .. name .. " adapter") then
+    t.ok(dap.adapters[name] ~= nil, "pre-existing adapter still registered: " .. name)
+  end
 end
 
 t.done()
