@@ -5,7 +5,6 @@ return {
     "CodeCompanionActions",
     "CodeCompanionChat",
     "CodeCompanionCmd",
-    "CodeCompanionCodeReview",
     "CodeCompanionHistory",
     "CodeCompanionSummaries",
   },
@@ -90,6 +89,19 @@ return {
         cmd = {
           adapter = ai.http_adapter_spec(),
         },
+        -- CodeCompanion's own review keeps a second baseline under
+        -- refs/worktree/codecompanion/*, taken on every chat submit in the
+        -- cwd's repository. Review rounds (lua/ai/review) already cover chats,
+        -- per conversation, so this one stays off: there must not be two
+        -- baseline systems. `enabled = false` only skips its autocmds; the
+        -- command is removed in `config` below, and #{code_review} is offered
+        -- to no interaction.
+        code_review = { enabled = false },
+        shared = {
+          editor_context = {
+            code_review = { opts = { interactions = {} } },
+          },
+        },
       },
       extensions = {
         history = {
@@ -119,5 +131,11 @@ return {
         },
       },
     }
+  end,
+  config = function(_, opts)
+    require("codecompanion").setup(opts)
+    -- setup() defines :CodeCompanionCodeReview whatever `enabled` says, and its
+    -- Branch subcommand would still write refs/worktree/codecompanion/*.
+    pcall(vim.api.nvim_del_user_command, "CodeCompanionCodeReview")
   end,
 }

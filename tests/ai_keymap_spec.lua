@@ -51,6 +51,28 @@ end
 t.ok(require("lazy.core.config").plugins["codecompanion.nvim"]._.loaded == nil,
   "defining them loaded no CodeCompanion")
 
+-- Review rounds: <leader>av opens the review, <leader>aV starts a round. Normal
+-- mode only, and named for no agent: a round belongs to a conversation.
+local REVIEW = { [" av"] = "Review changes since round baseline", [" aV"] = "Start a review round" }
+for lhs, want in pairs(REVIEW) do
+  t.eq(vim.fn.maparg(lhs, "n", false, true).desc, want, "<leader>" .. lhs:sub(2) .. " is " .. want)
+  for _, mode in ipairs({ "x", "o", "i", "t" }) do
+    t.ok(not mapped(lhs, mode), "<leader>" .. lhs:sub(2) .. " is Normal-mode only (" .. mode .. ")")
+  end
+end
+for _, module in ipairs({ "ai.review", "ai.review.rounds", "util.baseline" }) do
+  t.eq(package.loaded[module], nil, "defining them loaded no " .. module)
+end
+-- The handlers require their module when pressed, not before. Stand-ins
+-- record the call, so no view opens and no git runs here.
+local review_calls = {}
+package.loaded["ai.review"] = { open = function() review_calls[#review_calls + 1] = "open" end }
+package.loaded["ai.review.rounds"] = { start = function() review_calls[#review_calls + 1] = "start" end }
+vim.fn.maparg(" av", "n", false, true).callback()
+vim.fn.maparg(" aV", "n", false, true).callback()
+package.loaded["ai.review"], package.loaded["ai.review.rounds"] = nil, nil
+t.eq(review_calls, { "open", "start" }, "<leader>av reaches ai.review.open, <leader>aV ai.review.rounds.start")
+
 -- The descriptions name what each key reaches, and follow a switch: the agent
 -- for g/G, the key profile for h/H/e.
 local c = require("ai.config")
@@ -68,6 +90,9 @@ for _, lhs in ipairs({ " ag", " aG", " ai", " at", " aT" }) do
   t.ok(desc(lhs):find(c.providers[other].label, 1, true) ~= nil, "after a switch " .. lhs .. " names " .. c.label)
 end
 t.ok(desc(" ag", "x"):find(c.providers[other].label, 1, true) ~= nil, "and so does Visual <leader>ag")
+for lhs, want in pairs(REVIEW) do
+  t.eq(desc(lhs), want, "after a switch <leader>" .. lhs:sub(2) .. " keeps its description")
+end
 if was_auto then
   t.ok(desc(" ah"):find(c.key.label, 1, true) ~= nil and desc(" aH"):find(c.key.label, 1, true) ~= nil,
     "an auto key takes <leader>ah/aH along to " .. c.key.label)
@@ -77,7 +102,7 @@ vim.notify = real_notify
 
 -- The facade must expose the methods those mappings call.
 local ai = require("ai")
-for _, method in ipairs({ "compose", "transcript", "transcript_pick" }) do
+for _, method in ipairs({ "compose", "transcript", "transcript_pick", "review", "new_round", "feed" }) do
   t.ok(type(ai[method]) == "function", "facade exposes " .. method .. "()")
 end
 

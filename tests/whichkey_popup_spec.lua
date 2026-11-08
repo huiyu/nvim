@@ -186,8 +186,16 @@ for _, case in ipairs({
   { "<leader>a", "h", "HTTP · API credits" }, { "<leader>a", "H", "HTTP · API credits" },
   { "<leader>a", "e", "HTTP · API credits" },
   { "<leader>a", "p", "companion" }, { "<leader>a", "o", "companion" },
+  { "<leader>a", "v", "review" }, { "<leader>a", "V", "review" },
 }) do
   t.eq(owner_of(case[1], case[2]), case[3], ("%s%s sits under %s"):format(case[1], case[2], case[3]))
+end
+-- Claude's diff keys exist while a Claude diff can arrive (lua/ai/init.lua);
+-- whenever they do, they have a heading of their own, apart from review.
+if next(vim.fn.maparg("<leader>aa", "n", false, true)) ~= nil then
+  for _, key in ipairs({ "a", "d" }) do
+    t.eq(owner_of("<leader>a", key), "Claude diffs", "<leader>a" .. key .. " sits under Claude diffs")
+  end
 end
 -- The two chat kinds bill differently, so their headings say how; <leader>ap is
 -- a leaf now, not the old +CodeCompanion group.

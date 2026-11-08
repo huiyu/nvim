@@ -35,18 +35,21 @@ local REVEALS = {
   select_model = true, add_buffer = true, send_selection = true, tree_add = true,
 }
 
--- One agent panel per tabpage: before the active provider's panel opens here,
--- the other provider's panel in this tabpage is hidden -- hidden, never
--- stopped, so its job and tmux client keep running. Nothing happens while the
--- active panel is already on screen in any tabpage: then the method shows or
--- hides that window where it is, and opens nothing here, so two panels placed
--- side by side by hand do not hide each other either.
-local function make_room(method)
+-- One agent panel per tabpage: before `target`'s panel opens here, the other
+-- provider's panel in this tabpage is hidden -- hidden, never stopped, so its
+-- job and tmux client keep running. Nothing happens while the target's panel
+-- is already on screen in any tabpage: then the method shows or hides that
+-- window where it is, and opens nothing here, so two panels placed side by
+-- side by hand do not hide each other either. Whichever panel is revealed
+-- decides: the active provider's for the keys, the addressee's for feed().
+---@param target string? a provider; nil means the active one
+local function make_room(method, target)
   if not REVEALS[method] then return end
-  local active = backend()
-  if active.window and active.window() then return end
+  target = target or config.provider
+  local revealed = backend(target)
+  if revealed.window and revealed.window() then return end
   for _, name in ipairs(config.names()) do
-    if name ~= config.provider then
+    if name ~= target then
       local other = backend(name)
       if other.visible and other.visible() then pcall(other.hide) end
     end
@@ -70,6 +73,29 @@ end
 
 local function invoke(method, ...)
   return invoke_on(config.provider, method, ...)
+end
+
+---Deliver to one agent by name, whichever provider is active: review feedback
+---goes to the agent whose round it is (lua/ai/review). Like invoke_on, except
+---that the room made is for that agent's panel, the one about to be revealed,
+---so a feed to the inactive agent hides the active one's panel here, not its
+---own.
+---@param provider string
+---@param method string
+function M.feed(provider, method, ...)
+  if not config.providers[provider] then
+    vim.notify(("Unknown AI provider %q"):format(tostring(provider)), vim.log.levels.WARN)
+    return
+  end
+  local fn = backend(provider)[method]
+  if type(fn) ~= "function" then
+    vim.notify(("%s does not support %s"):format(label_of(provider), method), vim.log.levels.WARN)
+    return
+  end
+  return guard(label_of(provider), method, function(...)
+    make_room(method, provider)
+    return fn(...)
+  end, ...)
 end
 
 function M.toggle() return invoke("toggle") end
@@ -129,6 +155,15 @@ function M.transcript()
 end
 function M.transcript_pick()
   return guard(config.label, "transcript_pick", function() return require("ai.transcript").pick() end)
+end
+
+-- The review loop is one for every conversation, so these name no agent. Each
+-- loads its module on first use: nothing of it is required at startup.
+function M.review()
+  return guard("AI review", "open", function() return require("ai.review").open() end)
+end
+function M.new_round()
+  return guard("AI review", "start", function() return require("ai.review.rounds").start() end)
 end
 
 ---State of both axes and of both native agents. Never loads claudecode.nvim
@@ -244,6 +279,10 @@ local KEYS = {
   { { "n", "x" }, "i", M.compose, "Edit %{agent} prompt" },
   { "n", "t", M.transcript, "Read %{agent} transcript" },
   { "n", "T", M.transcript_pick, "%{agent} session history" },
+  -- Review rounds: a round belongs to a conversation, not to the active
+  -- provider, so neither description changes on a switch.
+  { "n", "v", M.review, "Review changes since round baseline" },
+  { "n", "V", M.new_round, "Start a review round" },
   { "n", "x", function() require("ai.switch").pick() end, "Switch AI provider / API key" },
   -- Agent chat: the active provider over ACP, on the subscription.
   { "n", "g", companion_key("toggle", function() companion().toggle("acp") end, "CodeCompanionChat Toggle"),
@@ -317,6 +356,58 @@ function M.apply_keymaps()
   end
 end
 
+-- What the review loop needs to hear about from the start: agent terminals and
+-- CodeCompanion chats are where rounds come from (lua/ai/review/rounds.lua),
+-- and every CodeDiff view gets the review keys (lua/ai/review). Registering
+-- these requires none of it; a module is loaded once an event concerns it --
+-- a TermOpen only once its terminal turns out to be an agent's. A failure is a
+-- warning: it must not break the terminal or the chat that fired it.
+local function review_events()
+  local group = vim.api.nvim_create_augroup("ai_review_sources", { clear = true })
+  local function guarded(what, fn)
+    return function(ev)
+      local ok, err = xpcall(fn, debug.traceback, ev)
+      if not ok then
+        vim.notify(("Review %s failed:\n%s"):format(what, err), vim.log.levels.WARN, { title = "AI review" })
+      end
+    end
+  end
+  vim.api.nvim_create_autocmd("TermOpen", {
+    group = group,
+    callback = function(ev)
+      -- The job's directory when Snacks records none: claudecode leaves `cwd`
+      -- unset under claude_cwd = "cwd". Read now, in the terminal's window.
+      local cwd = vim.fn.getcwd()
+      vim.schedule(guarded("terminal", function()
+        if vim.api.nvim_buf_is_valid(ev.buf) and require("util.terminal").agent_of(ev.buf) then
+          require("ai.review.rounds").track_terminal(ev.buf, cwd)
+        end
+      end))
+    end,
+  })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeCompanionChatCreated",
+    callback = guarded("chat", function(ev) require("ai.review.rounds").chat_created(ev.data) end),
+  })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeCompanionChatClosed",
+    callback = guarded("chat", function(ev)
+      local rounds = package.loaded["ai.review.rounds"]
+      if rounds then rounds.chat_closed(ev.data) end
+    end),
+  })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeDiffKeys",
+    callback = guarded("keys", function(ev)
+      local view = require("ai.review")
+      if type(view.attach) == "function" then view.attach(ev.data and ev.data.tabpage) end
+    end),
+  })
+end
+
 function M.setup()
   if did_setup then return end
   did_setup = true
@@ -332,6 +423,8 @@ function M.setup()
     pattern = { "oil" },
     callback = function(event) oil_keys(event.buf) end,
   })
+
+  review_events()
 
   -- :AI and :AIInfo. Defining them loads no plugin.
   require("ai.switch").setup()

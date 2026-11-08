@@ -47,6 +47,9 @@ for lhs, modes in pairs({
   ["<leader>ae"] = { n = true, x = true },
   ["<leader>ap"] = { n = true, x = true },
   ["<leader>ao"] = { n = true },
+  -- Review rounds: opening the review and starting a round take no selection.
+  ["<leader>av"] = { n = true },
+  ["<leader>aV"] = { n = true },
 }) do
   for _, mode in ipairs({ "n", "x", "o", "i", "t" }) do
     t.eq(next(mapping(lhs, mode)) ~= nil, modes[mode] == true,
