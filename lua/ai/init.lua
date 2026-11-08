@@ -189,9 +189,40 @@ local function map(mode, lhs, rhs, desc)
   vim.keymap.set(mode, lhs, rhs, { desc = desc, silent = true })
 end
 
--- Global native keys. `%{agent}` is the active provider's label, substituted
--- whenever the keys are (re)applied, so which-key names the agent a key will
--- actually reach after a switch.
+local function companion() return require("ai.companion") end
+
+---A CodeCompanion key. lua/ai/companion.lua reaches into CodeCompanion's chat
+---internals, so an upgrade that breaks them falls back to the nearest
+---upstream command with a WARN -- or, without one, reports the error -- rather
+---than ending in a traceback.
+---@param what string
+---@param fn fun()
+---@param fallback string? an Ex command
+local function companion_key(what, fn, fallback)
+  return function()
+    local ok, err = xpcall(fn, debug.traceback)
+    if ok then return end
+    if not fallback then
+      vim.notify(("Companion %s failed:\n%s"):format(what, err), vim.log.levels.ERROR)
+      return
+    end
+    vim.notify(("Companion %s fell back to :%s\n%s"):format(what, fallback, err), vim.log.levels.WARN)
+    -- A range fallback reads '< and '>, which only mark this selection once
+    -- Visual has been left.
+    if vim.fn.mode():match("^[vV\22]") then vim.cmd("normal! \27") end
+    vim.cmd(fallback)
+  end
+end
+
+-- Global keys. `%{agent}` is the active provider's label and `%{key}` the
+-- active key profile's, substituted whenever the keys are (re)applied, so
+-- which-key names what a key will actually reach after a switch.
+--
+-- The CodeCompanion keys (g G h H e p o) are owned here rather than by its lazy
+-- spec so a switch can relabel them; they load the plugin on first use, through
+-- `require`. Normal mode goes to a chat, Visual mode takes the selection
+-- along. `<leader>ap` is a leaf -- a `<leader>ap*` mapping would make it wait
+-- out 'timeoutlen' again.
 local KEYS = {
   { "n", "c", M.toggle, "Toggle %{agent}" },
   { "n", "f", M.focus, "Focus %{agent}" },
@@ -207,6 +238,22 @@ local KEYS = {
   { "n", "t", M.transcript, "Read %{agent} transcript" },
   { "n", "T", M.transcript_pick, "%{agent} session history" },
   { "n", "x", function() require("ai.switch").pick() end, "Switch AI provider / API key" },
+  -- Agent chat: the active provider over ACP, on the subscription.
+  { "n", "g", companion_key("toggle", function() companion().toggle("acp") end, "CodeCompanionChat Toggle"),
+    "Agent chat · %{agent} (ACP)" },
+  { "x", "g", companion_key("add", function() companion().add_selection("acp") end, "'<,'>CodeCompanionChat Add"),
+    "Add selection to agent chat · %{agent}" },
+  -- "New" is CodeCompanion's public chat() already, so it has no fallback.
+  { "n", "G", companion_key("new chat", function() companion().new("acp") end), "New agent chat · %{agent} (ACP)" },
+  -- API chat: the active key profile over HTTP, on API credits.
+  { "n", "h", companion_key("toggle", function() companion().toggle("http") end, "CodeCompanionChat Toggle"),
+    "API chat · %{key} (HTTP)" },
+  { "x", "h", companion_key("add", function() companion().add_selection("http") end, "'<,'>CodeCompanionChat Add"),
+    "Add selection to API chat · %{key}" },
+  { "n", "H", companion_key("new chat", function() companion().new("http") end), "New API chat · %{key} (HTTP)" },
+  { { "n", "x" }, "p", "<cmd>CodeCompanionActions<cr>", "Companion actions" },
+  -- codecompanion-history's browser: every chat it auto-saved, either kind.
+  { "n", "o", "<cmd>CodeCompanionHistory<cr>", "Open saved Companion chat" },
 }
 
 -- oil is the only directory view in this config (no tree sidebar), so the
@@ -230,10 +277,18 @@ end
 ---claudecode.nvim has loaded. which-key rereads the keymaps each time its popup
 ---opens, so it needs no notice of the change.
 function M.apply_keymaps()
-  local subst = { agent = config.label }
+  local subst = { agent = config.label, key = config.key.label }
   for _, k in ipairs(KEYS) do
     map(k[1], "<leader>a" .. k[2], k[3], (k[4]:gsub("%%{(%w+)}", subst)))
   end
+  -- An expr mapping, so a missing key refuses before the command line opens;
+  -- not silent, so the half-typed :CodeCompanion stays visible. From Visual
+  -- mode `:` brings the '<,'> range along.
+  vim.keymap.set({ "n", "x" }, "<leader>ae", function() return companion().inline_keys() end, {
+    expr = true,
+    silent = false,
+    desc = ("Inline edit · %s (HTTP)"):format(config.key.label),
+  })
 
   -- Claude's diffs can arrive while Claude is active or, after a switch away,
   -- from a session claudecode.nvim is still connected to.

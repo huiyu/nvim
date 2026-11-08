@@ -42,22 +42,31 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   should open or refocus in terminal input mode. The facade owns those keys
   (`lua/ai/init.lua`, `apply_keymaps`) so a switch can relabel them.
   `<leader>aa`/`<leader>ad` always answer Claude's diffs and exist while Claude
-  is active or claudecode.nvim is loaded.
-- CodeCompanion Chat follows the active provider through ACP, on the
-  subscription. Inline and command prompts use the active key profile over
-  HTTP, on API credits. Keep these responsibilities distinct. A chat's adapter
-  is fixed at creation and `change_adapter` stays disabled. Switching writes
-  `interactions.*.adapter` in the live config (`switch.sync_codecompanion`),
-  never `vim.g.codecompanion_adapter` (v20 `cmd.lua` resolves it through
-  `config.adapters[name]`, which is nil, and falls back to the ACP chat
-  adapter).
+  is active or claudecode.nvim is loaded. The CodeCompanion keys are
+  facade-owned for the same reason, not in its lazy spec; they load the plugin
+  on first `require`. `<leader>ap` is a leaf: no `<leader>ap*` mapping may
+  return.
+- Two chat kinds on separate keys: agent chat (`<leader>ag`/`aG`) is the active
+  provider over ACP, on the subscription; API chat (`<leader>ah`/`aH`) is the
+  active key profile over HTTP, on API credits. Inline (`<leader>ae`) and
+  command prompts use the active key profile. Keep these responsibilities
+  distinct, and keep the billing visible: the which-key headings and the chat
+  header (`roles.llm`, "CodeCompanion (Claude Code · ACP)") name the kind.
+  `lua/ai/companion.lua` picks the chat of the asked-for kind and adapter
+  itself -- upstream's Toggle/Add only know `last_chat` -- and refuses before
+  anything starts when the profile's `NVIM_*` key is unset or the ACP bridge
+  is missing. A chat's adapter is fixed at creation and `change_adapter` stays
+  disabled. Switching writes `interactions.*.adapter` in the live config
+  (`companion.sync`), never `vim.g.codecompanion_adapter` (v20 `cmd.lua`
+  resolves it through `config.adapters[name]`, which is nil, and falls back to
+  the ACP chat adapter).
 - codecompanion-history stores the local transcript; continuing the agent's
   stateful ACP session is a separate `/resume` workflow. Preserve that
   distinction in implementation and documentation.
 - CodeCompanion's HTTP adapters read `NVIM_ANTHROPIC_API_KEY` /
   `NVIM_OPENAI_API_KEY`, never `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`: those
   are the CLIs' own and can take precedence over the subscription login, so a
-  config that asks for them moves the native agent and ACP Chat onto API
+  config that asks for them moves the native agent and agent chat onto API
   billing. Every key profile in `lua/ai/config.lua` names an `NVIM_*`
   variable, both `anthropic` and `openai` are extended with theirs (through
   `adapters.http.extend`) whichever provider started the process, and
@@ -251,13 +260,22 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   it cannot slice a single level. The `;` headings therefore come from replacing
   which-key's `View.sort` and inserting display-only rows: the popup body is a
   table whose rows *are* the items, and its render loop reads only `key`, `sep`,
-  `icon`, `desc`, `group` and `icon_hl`. This is the only place here that
-  depends on plugin internals. It is guarded (a renamed `sort` drops headings
-  and colours, ordering still works through the supported `sort` option,
-  nothing errors) and covered by `tests/whichkey_popup_spec.lua`, with real
-  contextual menus covered by `tests/context_actions_spec.lua`. It assumes
-  the single-column `helix` preset: a multi-column preset would split a heading
-  from its items.
+  `icon`, `desc`, `group` and `icon_hl`. This and `lua/ai/companion.lua` (next
+  item) are the only places here that depend on plugin internals. It is
+  guarded (a renamed `sort` drops headings and colours, ordering still works
+  through the supported `sort` option, nothing errors) and covered by
+  `tests/whichkey_popup_spec.lua`, with real contextual menus covered by
+  `tests/context_actions_spec.lua`. It assumes the single-column `helix`
+  preset: a multi-column preset would split a heading from its items.
+- `lua/ai/companion.lua` reads CodeCompanion's `chat.adapter`, `chat.ui`,
+  `chat.prompt:add`, `interactions.chat.open` and `utils.context.get`, because
+  upstream's Toggle and Add cannot be aimed at one chat kind. The facade
+  pcall-wraps toggle and add and falls back to `:CodeCompanionChat Toggle` /
+  `:'<,'>CodeCompanionChat Add` with a WARN. `tests/companion_spec.lua` covers
+  it without creating an ACP chat (that spawns the bridge) or sending a
+  request. It reuses upstream's single-slot open, so a chat shown in another
+  tabpage gives up its window there, exactly as `:CodeCompanionChat Toggle`
+  does.
 - which-key keeps description-only spec entries in its own trie, so `maparg()`
   cannot see those. Entries with an RHS are created through `vim.keymap.set`
   after which-key's scheduled loader runs; assert those with `maparg()` after

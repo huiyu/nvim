@@ -572,7 +572,7 @@ is open beside your code.
 | `<Space>d` | Debug | breakpoints, step, inspect |
 | `<Space>t` | Test | run file / nearest / debug, output panel |
 | `<Space>x` | Diagnostics | error list, quickfix, location list |
-| `<Space>a` | AI | Claude / Codex panels, prompts, transcript, switch provider / API key (`ax`) |
+| `<Space>a` | AI | Claude / Codex panels, prompts, transcript, agent and API chats (`ag` / `ah`), switch provider / API key (`ax`) |
 | `<Space>b` | Buffer | delete, pin, close others, close the hidden ones (`bh`) |
 | `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
@@ -743,6 +743,49 @@ If text from a panel is left painted over the window beside it (typically
 after scrolling through Devanagari such as Hindi strings), press `q` to return
 the panel to live output, then `<Space>ur` to make Nvim clear and repaint the
 screen.
+
+### Three ways to ask an AI
+
+The `<Space>a` menu reaches three different things. What they can do
+overlaps; where the request goes, and who pays for it, does not:
+
+| | Native panel | Agent chat | API chat |
+|---|---|---|---|
+| Keys | `<Space>ac`, `ai`, `as`, `ab` | `<Space>ag`, `aG` | `<Space>ah`, `aH`, `ae` |
+| What it is | The agent's own terminal app | The same agent in a Neovim chat buffer (CodeCompanion over ACP) | A model's API in the same kind of buffer (CodeCompanion over HTTP) |
+| Paid by | Subscription | Subscription | API credits |
+| Follows | Provider | Provider | API key profile |
+
+Pick by what you are doing:
+
+- **Hand over a task: the native panel.** It is the whole agent — it edits
+  files and runs commands, and Claude's proposed edits come back here as diffs
+  (`<Space>aa` accepts, `<Space>ad` denies). `<Space>ai` writes the prompt in
+  a real buffer.
+- **Work through something in a buffer: the agent chat.** The same agent on
+  the same subscription, but the conversation is a Markdown buffer you can
+  search, yank from and edit like any other. In Visual mode `<Space>ag` adds
+  the selection to it.
+- **Ask a model directly: the API chat.** No agent in between, billed to the
+  API key (setup: [API keys](../README.md#api-keys)). It has CodeCompanion's
+  own `@` tools, `/save` to keep a chat as a session and `/compact` for long
+  ones. `<Space>ae` is its one-shot form: an instruction for the selection,
+  or for the cursor position, typed on the command line.
+
+Inside either chat, write below the last `## Me` heading and press `Enter` in
+Normal mode (or `Ctrl-s`) to send; nothing goes out before that. The reply's
+heading says which kind you are in — `CodeCompanion (Claude Code · ACP)` or
+`CodeCompanion (Anthropic · API)` — and so do the menu headings, *ACP chat ·
+subscription* and *HTTP · API credits*.
+
+The two chats share one window. `<Space>ag` and `<Space>ah` each show or hide
+their own kind and start one when there is none; the capitals always start a
+new chat. `<Space>ao` reopens a saved chat of either kind.
+
+`<Space>ax` moves both: after switching to Codex, `<Space>ag` reaches a Codex
+agent chat; after `:AI key openai`, `<Space>ah` reaches an OpenAI one. Chats
+already open keep what they started with. If the API key is not set,
+`<Space>ah` and `<Space>ae` say so and send nothing.
 
 ---
 

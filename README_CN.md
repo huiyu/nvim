@@ -19,8 +19,8 @@
 - **[tmux](https://github.com/tmux/tmux)** — 把 Native Agent 的 TUI 包到 `:terminal` 里，避免残影和帧撕裂；自动检测（详见[终端集成](#终端集成)）
 - **[GitHub CLI](https://cli.github.com/)** — 已认证的 `gh`，供 `<leader>G` GitHub picker 与状态使用
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** 和/或 **[Codex](https://developers.openai.com/codex/cli/)** — Native coding agent；用 [`:AI`](#ai-provider-选择) 在两者间切换
-- **Node.js >= 22 + npm** — CodeCompanion ACP bridge 进程
-- `NVIM_ANTHROPIC_API_KEY` 或 `NVIM_OPENAI_API_KEY` — 可选；当前 key profile 的 CodeCompanion HTTP Inline/命令 Prompt（见 [API key](#api-key)；不是 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`）
+- **Node.js >= 22 + npm** — CodeCompanion Agent Chat 背后的 ACP bridge
+- `NVIM_ANTHROPIC_API_KEY` 或 `NVIM_OPENAI_API_KEY` — 可选；当前 key profile 的 CodeCompanion API Chat 和 Inline/命令 Prompt（见 [API key](#api-key)；不是 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`）
 - **[llama.cpp](https://github.com/ggml-org/llama.cpp)** — `llama-server` 及其 7B 代码模型（一次性下载约 8 GB），供[行内 AI 补全](#行内-ai-补全)使用
 - **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** + **lolcat** — 启动页 banner（任一个缺失都会静默跳过）
 
@@ -154,7 +154,7 @@ nvim
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua 开发（类型补全） |
 | [inc-rename](https://github.com/smjonas/inc-rename.nvim) | 带实时预览的 LSP 重命名，绑在 `,r` |
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code 集成（两种 provider 下都声明，首次使用时才加载） |
-| [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | 随 provider 选择的 ACP Chat，以及 HTTP Inline/命令 Prompt |
+| [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | 走 ACP、跟随 provider 的 [Agent Chat](#codecompanion-的两种-chat)，以及走 HTTP、跟随 key profile 的 API Chat 和 Inline/命令 Prompt |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | 自动保存、按项目感知的 CodeCompanion Chat 历史 |
 | [minuet-ai](https://github.com/milanglacier/minuet-ai.nvim) | 边输入边出现的 AI 灰色补全，模型在本机运行（[行内 AI 补全](#行内-ai-补全)） |
 
@@ -345,6 +345,29 @@ Nvim 内的 Codex 会使用 `--no-alt-screen --yolo`。YOLO 模式会绕过 Code
 审批与内置沙箱；`--no-alt-screen` 则让已完成的聊天输出进入 wrapper 的 tmux
 history。
 
+#### AI 快捷键
+
+AI 相关的键都在 `<leader>a` 下。每个键的描述写明它会发给谁——哪个 agent 或哪个
+API key——并随 [`:AI`](#ai-provider-选择) 切换而更新。
+
+| 键 | 模式 | 作用 |
+|----|------|------|
+| `ac` / `af` | n | 显示/隐藏 / 聚焦 Native Agent 面板 |
+| `ar` / `aR` | n | 恢复过去的会话（选择器）/ 接着最近一次继续 |
+| `am` | n | 选择 agent 的模型 |
+| `ab` / `as` | n / x | 把当前 buffer / 选区附加到 agent 的输入框 |
+| `ai` | n, x | [在 buffer 里编辑 agent 的 prompt](#在-buffer-里编辑-prompt) |
+| `at` / `aT` | n | [阅读 transcript](#阅读历史输出) / 选择过去的会话 |
+| `aa` / `ad` | n | 接受 / 拒绝 Claude 的 diff |
+| `aS` | n（oil） | 添加光标下的文件（Claude） |
+| `ag` / `aG` | n | [Agent Chat](#codecompanion-的两种-chat)：显示或隐藏 / 新建——ACP，走订阅 |
+| `ah` / `aH` | n | API Chat：显示或隐藏 / 新建——HTTP，按 API 额度计费 |
+| `ag` / `ah` | x | 把选区加到 Agent Chat / API Chat |
+| `ae` | n, x | Inline 编辑（`:CodeCompanion`），用 API key |
+| `ap` | n, x | CodeCompanion 操作面板 |
+| `ao` | n | 打开已保存的 CodeCompanion Chat |
+| `ax` | n | 切换 provider / API key（`:AI`） |
+
 #### 在 buffer 里编辑 prompt
 
 `<leader>ai` 把 agent 的 prompt 开在一个浮动 buffer 里，长 prompt 就能用整个编辑
@@ -433,11 +456,11 @@ transcript 是唯一对两个 provider 都成立的方案，且重启 Nvim 后�
 
 AI 请求发到哪里，由两项设置决定，两项都能在 Nvim 运行时切换：
 
-- **provider**（Claude Code 或 Codex）决定 Native Agent 面板（`<leader>a` 那组键）
-  和 CodeCompanion 的 ACP Chat。两者都走你的订阅登录。
-- **key profile** 决定 CodeCompanion 的 HTTP Inline 和命令 Prompt，这部分按
-  [API 额度](#api-key)计费。默认的 `auto` 跟随 provider：Claude 下是 Anthropic，
-  Codex 下是 OpenAI。
+- **provider**（Claude Code 或 Codex）决定 Native Agent 面板（`<leader>ac` 等键）
+  和 CodeCompanion 的 Agent Chat（`<leader>ag`）。两者都走你的订阅登录。
+- **key profile** 决定 CodeCompanion 的 API Chat（`<leader>ah`）以及 Inline 和命令
+  Prompt（`<leader>ae`），这部分按 [API 额度](#api-key)计费。默认的 `auto` 跟随
+  provider：Claude 下是 Anthropic，Codex 下是 OpenAI。
 
 当前 shell alias 决定启动时的 provider：
 
@@ -468,8 +491,8 @@ vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim
 - `<leader>a` 各键的描述随切换更新，which-key 显示的就是这个键实际会发给哪个
   agent。`<leader>aa`/`<leader>ad` 永远处理 Claude 的 diff，只要 claudecode.nvim
   已加载就一直存在，即使当前是 Codex。
-- 已打开的 CodeCompanion Chat 保留创建时的 adapter。新建的 Chat 用 provider 的 ACP
-  agent；Inline 和命令 Prompt 用 key profile。
+- 已打开的 CodeCompanion Chat 保留创建时的 adapter。新建的 Agent Chat 用 provider
+  的 ACP agent；新建的 API Chat、Inline 和命令 Prompt 用 key profile。
 - 每个 agent 面板保留自己的标签、输入规则和侧栏位置；在 prompt 浮窗里附加的图片会
   交回打开这个浮窗的 agent。
 - 只要任一设置和启动时不同，状态栏就会显示当前组合（`󰚩 Codex · 󰌆 OpenAI`），
@@ -480,20 +503,42 @@ vix                # NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim
 草稿；已修改或未命名的 buffer 则粘贴精确选区，因为 Codex 的文件引用读取
 磁盘上的已保存内容。补充完指令后再自行按 Enter。
 
-provider 同时决定 CodeCompanion Chat 用哪个 ACP agent（`claude_code` /
-`codex`）。Chat 因此使用 coding agent 的有状态协议和工具；Inline 与命令
-Prompt 仍使用较轻量的 HTTP adapter（`anthropic` / `openai`，来自 key profile），
-需要 [API key](#api-key)。无论 Nvim 以哪个 provider 启动，Codex ACP 都使用
-ChatGPT 登录。
-
-codecompanion-history 会自动保存 Chat。用 `<leader>aph`（或
-`:CodeCompanionHistory`）打开；Chat buffer 内也可按 `gh`。历史列表使用
-Snacks picker，可以手动重命名；为避免额外模型请求，自动生成标题已关闭。
-History 恢复的是 CodeCompanion 本地 transcript；要继续 agent 真正的有状态
-ACP session，请在新的 ACP Chat 中使用 `/resume`。
-
 运行 `:checkhealth config` 可检查两个 provider 的 CLI、ACP bridge，以及每个 key
 profile 的 HTTP 凭据。
+
+#### CodeCompanion 的两种 Chat
+
+CodeCompanion 在 Native 面板之外再提供一个 Chat buffer，分两种。打开后看起来差不多，
+但运行方式和计费方式都不同：
+
+| | Agent Chat · `<leader>ag` / `aG` | API Chat · `<leader>ah` / `aH` |
+|---|---|---|
+| 对接 | provider 的 agent，经它的 ACP bridge（`claude-agent-acp` / `codex-acp`） | key profile 对应的 API，直接走 HTTP（`anthropic` / `openai`） |
+| 计费 | 你的 Claude 或 ChatGPT 订阅 | [API 额度](#api-key)，用该 profile 的 `NVIM_*` key |
+| 工具 | agent 自己的工具；`\` 补全它的斜杠命令 | CodeCompanion 的 `@` 工具，以及它的 MCP server（这里没有配置） |
+| 长对话 | agent 自己管理上下文 | `/compact`，接近上下文上限时也会自动压缩 |
+| 保存 | codecompanion-history（`<leader>ao`）；`/resume` 列出 agent 自己的会话 | 同样有 codecompanion-history，另有 CodeCompanion 自己的 session：`/save` 保存，`/resume` 恢复；还有 `/fork`、`/rename` |
+| 回复标题 | `CodeCompanion (Claude Code · ACP)` | `CodeCompanion (Anthropic · API)` |
+
+- `<leader>ag` / `<leader>ah` 显示或隐藏*当前* provider 或 key profile 对应的那种
+  Chat，还没有时就新建一个。`<leader>aG` / `<leader>aH` 总是新建。执行
+  `:AI key openai` 之后，`<leader>ah` 打开的是 OpenAI 的 Chat，Anthropic 的那个不受影响。
+- Visual 模式下，`<leader>ag` / `<leader>ah` 把选区作为带围栏的代码块加进对应的
+  Chat，不会提交。
+- 两种 Chat 共用一个窗口：要显示的那个会接过另一个占着的窗口。
+- `<leader>ae` 打开 `:CodeCompanion `（在 Visual 模式下带上范围），用的是 key
+  profile；`<leader>ap` 是操作面板。
+- 缺 key 会在启动任何东西之前被发现。profile 的 `NVIM_*` key 没设置时，
+  `<leader>ah`、`aH`、`ae` 会直接提示，不新建 Chat 也不打开 Prompt，而不是发出请求
+  再收到 401；ACP bridge 不在时，`<leader>ag`、`aG` 也会给出提示。从历史恢复的
+  Chat 和手动输入的 `:CodeCompanion` 不经过这道检查。
+- 无论 Nvim 以哪个 provider 启动，Codex ACP 都使用 ChatGPT 登录。
+
+codecompanion-history 会在发送消息和回复结束时保存每个 Chat，两种都存。用
+`<leader>ao`（或 `:CodeCompanionHistory`）打开；Chat buffer 内也可按 `gh`。历史
+列表使用 Snacks picker，可以重命名；为避免额外的模型请求，自动生成标题已关闭。
+History 恢复的是 CodeCompanion 本地的 transcript；要继续 agent 真正的有状态会话，
+请在新的 Agent Chat 中使用 `/resume`。
 
 #### `Shift+Enter`（iTerm2）
 
@@ -582,9 +627,9 @@ Markdown、纯文本、提交信息和 rebase 列表不自动出建议；没有 
 
 ### API key
 
-Agent 本身不需要 key：Claude Code 和 Codex，无论是 Native 面板还是 ACP Chat，
-都用你的 Claude 或 ChatGPT 登录（订阅）。key 只给 CodeCompanion 的 HTTP Inline
-和命令 Prompt（`<leader>api`、`:CodeCompanion`）用，它们用当前的
+Agent 本身不需要 key：Claude Code 和 Codex，无论是 Native 面板还是 Agent Chat，
+都用你的 Claude 或 ChatGPT 登录（订阅）。key 只给 CodeCompanion 的 API Chat 以及
+Inline 和命令 Prompt（`<leader>ah`、`<leader>ae`、`:CodeCompanion`）用，它们用当前的
 [key profile](#ai-provider-选择) 直接调用 API：`auto` 时，Claude provider（`vi`、
 `vic`）下是 Anthropic，Codex（`vix`）下是 OpenAI；`:AI key` 可以换成别的。只使用
 当前 profile 的那一个 key。
@@ -630,9 +675,9 @@ Agent 本身不需要 key：Claude Code 和 Codex，无论是 Native 面板还�
 
 | 变量 | 说明 |
 |------|------|
-| `NVIM_AI_PROVIDER` | 启动时的 provider：`claude`（默认）或 `codex`，决定 Native Agent 和 CodeCompanion ACP Chat。运行中用 `:AI provider` 切换 |
+| `NVIM_AI_PROVIDER` | 启动时的 provider：`claude`（默认）或 `codex`，决定 Native Agent 和 CodeCompanion 的 Agent Chat。运行中用 `:AI provider` 切换 |
 | `NVIM_AI_KEY_PROFILE` | 启动时的 HTTP key profile：`auto`（默认，跟随 provider）、`anthropic`、`openai`，或 `lua/ai/config.lua` 里 `key_profiles` 的其他条目。运行中用 `:AI key` 切换 |
-| `NVIM_ANTHROPIC_API_KEY` | `anthropic` profile 的 key，供 CodeCompanion HTTP Inline/命令 Prompt 使用，见 [API key](#api-key) |
+| `NVIM_ANTHROPIC_API_KEY` | `anthropic` profile 的 key，供 CodeCompanion 的 API Chat 和 Inline/命令 Prompt 使用，见 [API key](#api-key) |
 | `NVIM_OPENAI_API_KEY` | `openai` profile 的 key |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Normal 模式使用的 macOS 输入源 ID；未设置时使用 macOS 已启用的拉丁键盘布局 |
 | `NVIM_MACISM_WAIT_TIME_MS` | 可选的 macism CJK workaround 等待时间；设为 `0` 可去掉临时焦点窗口，但可能出现首字符竞态 |

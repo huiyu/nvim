@@ -640,9 +640,9 @@ llama.log()            -- <dir>/server.log, rewritten at each server start
 ## AI Provider State (`ai.config`, `ai.switch`)
 
 Two axes, both switchable in-process and neither persisted: the **provider**
-(native agent panel and CodeCompanion ACP Chat, on the subscription) and the
-HTTP **key profile** (CodeCompanion Inline and command prompts, on API
-credits). `auto` follows the provider. Every consumer holds the one
+(native agent panel and CodeCompanion's agent chat over ACP, on the
+subscription) and the HTTP **key profile** (CodeCompanion's API chat, Inline
+and command prompts, on API credits). `auto` follows the provider. Every consumer holds the one
 `ai.config` table and reads it per call, so a switch mutates it in place.
 
 #### API Reference
@@ -675,16 +675,16 @@ switch.provider(name)       -- :AI provider [name]; nil opens the picker
 switch.key(name)            -- :AI key [name]
 switch.pick(axis)           -- vim.ui.select over "provider", "key" or both (nil)
 switch.info()               -- :AI info / :AIInfo
-switch.sync_codecompanion() -- write the live CodeCompanion defaults (no-op until loaded)
 ```
 
 A switch runs `use_*`, then `require("ai").apply_keymaps()` (relabels the
-`<leader>a` keys, adds or removes `<leader>aa`/`ad` and oil's `<leader>aS`),
-then `sync_codecompanion()`, then fires `User AIStateChanged` with
+`<leader>a` keys, CodeCompanion's included, and adds or removes
+`<leader>aa`/`ad` and oil's `<leader>aS`), then
+`require("ai.companion").sync()`, then fires `User AIStateChanged` with
 `data = { axis = "provider"|"key", from, to }` -- lualine listens to it. An
 invalid name is an error notification and changes nothing. CodeCompanion's
 `opts` is a function, so a plugin loaded after a switch starts from the
-switched state; after that only `sync_codecompanion` writes it, and never
+switched state; after that only `companion.sync` writes it, and never
 `vim.g.codecompanion_adapter`.
 
 Both native backends answer `running()`, `window()` (any tabpage),
@@ -696,6 +696,49 @@ panel in the current tabpage is hidden -- unless the active panel is already on
 screen somewhere, in which case nothing opens here and nothing yields.
 `require("ai").attach_images(paths, provider)` sends images to the agent that
 owns the prompt, not to whichever provider is active.
+
+## AI Companion Chats (`ai.companion`)
+
+CodeCompanion's two chat kinds, as the facade's `<leader>a` keys reach them:
+`acp` (agent chat: the active provider over ACP, on the subscription) and
+`http` (API chat: the active key profile over HTTP, on API credits).
+Upstream's Toggle and Add only know `last_chat`, whatever its kind, so this
+module finds the chat of the asked-for kind on the current adapter itself and
+hands it to upstream's single-slot open, which lets both kinds share one
+window. The module requires nothing from CodeCompanion at load; the first
+call that needs it does, and that is what loads the plugin.
+
+#### API Reference
+
+```lua
+local companion = require("ai.companion")
+
+companion.adapter_name(kind)   -- adapter a new chat of "acp"/"http" gets now
+companion.preflight(kind)      -- false (and an ERROR) when the profile's NVIM_* key
+                               -- is unset ("http") or the ACP bridge is missing ("acp")
+companion.find(kind)           -- chat of that kind on the current adapter, or nil:
+                               -- on screen here > upstream's last chat > most recent
+companion.new(kind, extra?)    -- preflight, then CodeCompanion.chat on that adapter
+                               -- (and the profile's pinned model); extra is merged in
+companion.toggle(kind)         -- hide it if shown here, else show it here, else new()
+companion.add_selection(kind)  -- leave Visual, add the selection as a fenced block;
+                               -- starts a chat only after preflight; never submits
+companion.inline_keys()        -- ":CodeCompanion " or "<Ignore>" (the <leader>ae expr)
+companion.sync()               -- write the live interactions.*.adapter defaults
+```
+
+`preflight` only guards what starts something: creating a chat (an agent chat
+spawns its bridge at once, an API chat already fetches the model list with the
+key) and the inline prompt. Showing, hiding or adding to an existing chat
+sends nothing. Its notification is scheduled, because `<leader>ae` asks from an
+expr mapping, under textlock.
+
+`toggle`, `find` and `add_selection` read CodeCompanion internals
+(`chat.adapter`, `chat.ui`, `chat.prompt:add`, `interactions.chat.open`,
+`utils.context.get`). The facade wraps toggle and add and, when one raises,
+runs `:CodeCompanionChat Toggle` / `:'<,'>CodeCompanionChat Add` with a WARN;
+`tests/companion_spec.lua` pins both paths. A chat shown in another tabpage
+is moved here, the way `:CodeCompanionChat Toggle` moves it.
 
 ## AI Panel Input (`ai.terminal`)
 

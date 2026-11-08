@@ -43,7 +43,6 @@ local spec = {
   { "<leader>u",     group = "Toggle/UI" },
   { "<leader>x",     group = "Diagnostics",     mode = "n" },
   { "<leader>a",     group = "AI",              mode = { "n", "v" } },
-  { "<leader>ap",    group = "CodeCompanion",   mode = { "n", "v" } },
   { "<leader>q",     group = "Quit",            mode = "n" },
   { "s",             group = "Window",          mode = "n" },
   -- Yank/paste in one place. <leader>y and <leader>Y used to mean two unrelated
@@ -484,7 +483,11 @@ local sections = {
     { "context",   icon = "󰈔 ", color = "cyan",   keys = { "b", "i", "s", "S" } },
     { "review",    icon = "󰄹 ", color = "orange", keys = { "a", "d" } },
     { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T" } },
-    -- `p` (+CodeCompanion) goes under others, without a dedicated section.
+    -- CodeCompanion. Billing is in the heading on purpose: the two chat kinds
+    -- look alike once open, and only one of them spends API credits.
+    { "ACP chat · subscription", icon = "󰭹 ", color = "blue",   keys = { "g", "G" } },
+    { "HTTP · API credits",      icon = "󰌆 ", color = "yellow", keys = { "h", "H", "e" } },
+    { "companion",               icon = "󰒓 ", color = "azure",  keys = { "p", "o" } },
   },
 
   ["<leader>m"] = {
@@ -493,7 +496,7 @@ local sections = {
     -- Runtime state and the two things you reach for when it goes wrong.
     { "runtime",  icon = "󰗟 ", color = "azure",  keys = { "i", "r", "d" } },
     { "help",     icon = "󰉹 ", color = "green",  keys = { "h", "k", "M", "C", "c" } },
-    -- `n` (+Messages) goes under others; see <leader>a above.
+    -- `n` (+Messages) goes under others, without a dedicated section.
   },
 
   ["<leader>b"] = {

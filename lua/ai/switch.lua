@@ -19,24 +19,10 @@ local function config() return require("ai.config") end
 
 local function is_set(var) return (vim.env[var] or "") ~= "" end
 
----Point CodeCompanion's defaults for new chats and requests at the current
----state. A no-op until the plugin has loaded: its `opts` read the same state
----at load time (lua/plugin/lsp/codecompanion.lua). The live config is written
----directly, never `vim.g.codecompanion_adapter`, which v20's cmd.lua resolves
----through `config.adapters[name]` -- nil -- and so falls back to the ACP chat
----adapter.
-function M.sync_codecompanion()
-  local plugin = require("lazy.core.config").plugins["codecompanion.nvim"]
-  if not (plugin and plugin._.loaded) then return end
-  local c, cc = config(), require("codecompanion.config")
-  cc.interactions.chat.adapter = c.codecompanion.acp_adapter
-  cc.interactions.inline.adapter = c.http_adapter_spec()
-  cc.interactions.cmd.adapter = c.http_adapter_spec()
-end
-
 local function changed(axis, from, to)
   require("ai").apply_keymaps()
-  M.sync_codecompanion()
+  -- CodeCompanion's live defaults; a no-op until it has loaded.
+  require("ai.companion").sync()
   vim.api.nvim_exec_autocmds("User", {
     pattern = "AIStateChanged",
     modeline = false,
@@ -75,7 +61,7 @@ function M.key(name)
   -- Still switched: the variable may be exported later, and the choice is
   -- about which key, not whether one is present yet.
   if not is_set(c.codecompanion.api_key) then
-    notify(("%s is not set — inline and command prompts cannot authenticate until it is")
+    notify(("%s is not set — API chat and inline edits refuse to start until it is")
       :format(c.codecompanion.api_key), WARN)
   end
 end

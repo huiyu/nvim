@@ -131,9 +131,9 @@ function M.check()
     end
     local acp = provider.codecompanion.acp_command
     if vim.fn.executable(acp) == 1 then
-      health.ok(("%s found — CodeCompanion Chat can use %s over ACP"):format(acp, provider.label))
+      health.ok(("%s found — agent chat (<leader>ag) can use %s over ACP"):format(acp, provider.label))
     else
-      report(("%s not found — CodeCompanion ACP Chat with %s unavailable"):format(acp, provider.label))
+      report(("%s not found — agent chat with %s refuses to start"):format(acp, provider.label))
     end
   end
 
@@ -153,9 +153,9 @@ function M.check()
   for _, name in ipairs(ai.key_names()) do
     local var = ai.key_profiles[name].api_key
     if is_set(var) then
-      health.ok(("%s found — key profile %s can run HTTP inline/command prompts"):format(var, name))
+      health.ok(("%s found — key profile %s can run API chat and inline/command prompts"):format(var, name))
     elseif name == ai.key.name then
-      health.warn(("%s not set — ACP Chat works, but HTTP inline/command prompts do not"):format(var),
+      health.warn(("%s not set — agent chat works; API chat and inline edits refuse until it is set"):format(var),
         { "See README.md, API keys" })
     else
       health.info(("%s not set — key profile %s unavailable until it is"):format(var, name))
@@ -163,7 +163,7 @@ function M.check()
   end
 
   -- An agent's own variable outranks its subscription login, so an export
-  -- meant for something else silently moves the native terminal and ACP Chat
+  -- meant for something else silently moves the native terminal and agent chat
   -- onto API billing. Both are checked: either agent can be started from here.
   for _, name in ipairs(ai.names()) do
     local provider = ai.providers[name]

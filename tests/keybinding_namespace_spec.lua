@@ -38,6 +38,15 @@ for lhs, modes in pairs({
   ["<leader>gD"] = { n = true },
   ["<leader>bh"] = { n = true },
   ["<leader>ax"] = { n = true },
+  -- CodeCompanion: Normal goes to a chat, Visual takes the selection along;
+  -- "new chat" and saved chats have nothing to take.
+  ["<leader>ag"] = { n = true, x = true },
+  ["<leader>aG"] = { n = true },
+  ["<leader>ah"] = { n = true, x = true },
+  ["<leader>aH"] = { n = true },
+  ["<leader>ae"] = { n = true, x = true },
+  ["<leader>ap"] = { n = true, x = true },
+  ["<leader>ao"] = { n = true },
 }) do
   for _, mode in ipairs({ "n", "x", "o", "i", "t" }) do
     t.eq(next(mapping(lhs, mode)) ~= nil, modes[mode] == true,

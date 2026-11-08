@@ -23,6 +23,58 @@ for _, mode in ipairs({ "x", "o", "i", "t" }) do
   t.ok(not mapped(" ax", mode), "<leader>ax is Normal-mode only (" .. mode .. ")")
 end
 
+-- CodeCompanion keys sit directly under <leader>a, owned by the facade so a
+-- switch can relabel them: g/G agent chat (ACP), h/H API chat (HTTP), e inline,
+-- p actions, o saved chats. Visual mode takes the selection along.
+for _, lhs in ipairs({ " ag", " aG", " ah", " aH", " ae", " ap", " ao", " ax" }) do
+  t.ok(mapped(lhs), "<leader>" .. lhs:sub(2) .. " exists in Normal mode")
+end
+for _, lhs in ipairs({ " ag", " ah", " ae", " ap" }) do
+  t.ok(mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " exists in Visual mode")
+end
+for _, lhs in ipairs({ " aG", " aH", " ao" }) do
+  t.ok(not mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " is Normal-mode only")
+end
+-- <leader>ap is a leaf now: the old two-level keys are gone, and nothing longer
+-- may make <leader>ap wait out 'timeoutlen'.
+for _, lhs in ipairs({ " apc", " apt", " apa", " api", " apb", " aph" }) do
+  t.ok(not mapped(lhs) and not mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " is gone")
+end
+for _, mode in ipairs({ "n", "x" }) do
+  local longer = {}
+  for _, m in ipairs(vim.api.nvim_get_keymap(mode)) do
+    local keys = vim.fn.keytrans(vim.keycode(m.lhs))
+    if keys:find("^<Space>ap.") then longer[#longer + 1] = keys end
+  end
+  t.eq(longer, {}, "no <leader>ap* mapping in " .. mode .. " mode")
+end
+t.ok(require("lazy.core.config").plugins["codecompanion.nvim"]._.loaded == nil,
+  "defining them loaded no CodeCompanion")
+
+-- The descriptions name what each key reaches, and follow a switch: the agent
+-- for g/G, the key profile for h/H/e.
+local c = require("ai.config")
+local function desc(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true).desc or "" end
+t.eq(desc(" ag"), ("Agent chat · %s (ACP)"):format(c.label), "<leader>ag names the agent")
+t.eq(desc(" ah"), ("API chat · %s (HTTP)"):format(c.key.label), "<leader>ah names the key profile")
+t.eq(desc(" ae", "x"), ("Inline edit · %s (HTTP)"):format(c.key.label), "<leader>ae names the key profile")
+local real_notify = vim.notify
+vim.notify = function() end
+local start = c.provider
+local other = start == "claude" and "codex" or "claude"
+local was_auto = c.key.auto
+require("ai.switch").provider(other)
+for _, lhs in ipairs({ " ag", " aG", " ai", " at", " aT" }) do
+  t.ok(desc(lhs):find(c.providers[other].label, 1, true) ~= nil, "after a switch " .. lhs .. " names " .. c.label)
+end
+t.ok(desc(" ag", "x"):find(c.providers[other].label, 1, true) ~= nil, "and so does Visual <leader>ag")
+if was_auto then
+  t.ok(desc(" ah"):find(c.key.label, 1, true) ~= nil and desc(" aH"):find(c.key.label, 1, true) ~= nil,
+    "an auto key takes <leader>ah/aH along to " .. c.key.label)
+end
+require("ai.switch").provider(start)
+vim.notify = real_notify
+
 -- The facade must expose the methods those mappings call.
 local ai = require("ai")
 for _, method in ipairs({ "compose", "transcript", "transcript_pick" }) do

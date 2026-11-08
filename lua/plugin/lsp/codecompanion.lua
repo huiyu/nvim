@@ -14,17 +14,14 @@ return {
     "nvim-treesitter/nvim-treesitter",
     "ravitemer/codecompanion-history.nvim",
   },
-  keys = {
-    { "<leader>apc", "<cmd>CodeCompanionChat<cr>",        desc = "New Companion chat" },
-    { "<leader>apt", "<cmd>CodeCompanionChat Toggle<cr>", desc = "Toggle Companion chat" },
-    { "<leader>apa", "<cmd>CodeCompanionActions<cr>",     desc = "Companion actions", mode = { "n", "x" } },
-    { "<leader>api", ":CodeCompanion ",                   desc = "Companion inline prompt", mode = { "n", "x" } },
-    { "<leader>apb", "<cmd>CodeCompanionChat Add<cr>",    desc = "Add selection to Companion", mode = "x" },
-    { "<leader>aph", "<cmd>CodeCompanionHistory<cr>",     desc = "Companion chat history" },
-  },
+  -- No `keys`: the <leader>a chat keys belong to the AI facade
+  -- (lua/ai/init.lua), which relabels them on every :AI switch. They still load
+  -- the plugin on first use -- through `require`, which lazy autoloads -- and
+  -- the commands above cover everything typed.
+  --
   -- A function, so the plugin starts from the state lua/ai/switch.lua left
   -- behind when it first loads; after that, switching writes the live config
-  -- (switch.sync_codecompanion).
+  -- (lua/ai/companion.lua, sync).
   opts = function()
     local ai = require("ai.config")
 
@@ -67,6 +64,14 @@ return {
           -- A chat's adapter is fixed when it is created; choosing another is
           -- :AI's job (lua/ai/switch.lua), and applies to the next chat.
           keymaps = { change_adapter = false },
+          -- Agent and API chats look alike once open, and bill differently,
+          -- so every reply's header names both the backend and the kind:
+          -- "CodeCompanion (Claude Code · ACP)", "CodeCompanion (Anthropic · API)".
+          roles = {
+            llm = function(adapter)
+              return ("CodeCompanion (%s · %s)"):format(adapter.formatted_name, adapter.type == "acp" and "ACP" or "API")
+            end,
+          },
           -- Pinned rather than auto-detected: CodeCompanion takes the first of
           -- telescope, fzf-lua and mini.pick it can require before snacks, so
           -- any plugin that ships one of those would silently swap these pickers.

@@ -19,8 +19,8 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 - **[tmux](https://github.com/tmux/tmux)** — wraps the native-agent TUIs inside `:terminal` to prevent stale or torn frames; auto-detected (see [Terminal Integration](#terminal-integration))
 - **[GitHub CLI](https://cli.github.com/)** — authenticated `gh` for `<leader>G` GitHub pickers and status
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** and/or **[Codex](https://developers.openai.com/codex/cli/)** — native coding agent; [`:AI`](#ai-provider-selection) switches between them
-- **Node.js >= 22 + npm** — CodeCompanion ACP bridge processes
-- `NVIM_ANTHROPIC_API_KEY` or `NVIM_OPENAI_API_KEY` — optional; the active key profile's CodeCompanion HTTP inline/command prompts (see [API keys](#api-keys) — not `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`)
+- **Node.js >= 22 + npm** — the ACP bridges behind CodeCompanion's agent chat
+- `NVIM_ANTHROPIC_API_KEY` or `NVIM_OPENAI_API_KEY` — optional; the active key profile's CodeCompanion API chat and inline/command prompts (see [API keys](#api-keys) — not `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`)
 - **[llama.cpp](https://github.com/ggml-org/llama.cpp)** — `llama-server` and its 7B coder model (one ~8 GB download) for [inline AI completion](#inline-ai-completion)
 - **[cowsay](https://en.wikipedia.org/wiki/Cowsay)** + **lolcat** — dashboard banner (silently skipped if either is missing)
 
@@ -160,7 +160,7 @@ snacks below.
 | [lazydev](https://github.com/folke/lazydev.nvim) | Lua development (type completion) |
 | [inc-rename](https://github.com/smjonas/inc-rename.nvim) | LSP rename with live preview, on `,r` |
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code integration (loaded on first use, under either provider) |
-| [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | Provider-aware ACP chat plus HTTP inline/command prompts |
+| [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | [Agent chat](#codecompanion-agent-chat-and-api-chat) over ACP (follows the provider) and API chat plus inline/command prompts over HTTP (follows the key profile) |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | Auto-saved, project-aware CodeCompanion chat history |
 | [minuet-ai](https://github.com/milanglacier/minuet-ai.nvim) | As-you-type AI ghost text from a local model ([inline AI completion](#inline-ai-completion)) |
 
@@ -376,6 +376,29 @@ Codex runs with `--no-alt-screen --yolo` inside Nvim. YOLO mode bypasses Codex
 approvals and its built-in sandbox, while `--no-alt-screen` lets completed chat
 output enter the wrapper tmux history.
 
+#### AI keys
+
+Everything AI lives under `<leader>a`. Descriptions name what a key reaches —
+the agent or the API key — and change with [`:AI`](#ai-provider-selection).
+
+| Key | Mode | Does |
+|-----|------|------|
+| `ac` / `af` | n | Toggle / focus the native agent panel |
+| `ar` / `aR` | n | Resume a past session (picker) / continue the latest |
+| `am` | n | Select the agent's model |
+| `ab` / `as` | n / x | Add the buffer / attach the selection to the agent's input box |
+| `ai` | n, x | [Edit the agent's prompt in a buffer](#editing-the-prompt-in-a-buffer) |
+| `at` / `aT` | n | [Read the transcript](#reading-past-output) / pick a past session |
+| `aa` / `ad` | n | Accept / deny Claude's diff |
+| `aS` | n (oil) | Add the file under the cursor (Claude) |
+| `ag` / `aG` | n | [Agent chat](#codecompanion-agent-chat-and-api-chat): show or hide / new — ACP, subscription |
+| `ah` / `aH` | n | API chat: show or hide / new — HTTP, API credits |
+| `ag` / `ah` | x | Add the selection to the agent / API chat |
+| `ae` | n, x | Inline edit (`:CodeCompanion`) on the API key |
+| `ap` | n, x | CodeCompanion action palette |
+| `ao` | n | Open a saved CodeCompanion chat |
+| `ax` | n | Switch provider / API key (`:AI`) |
+
 #### Editing the prompt in a buffer
 
 `<leader>ai` opens the agent's prompt in a floating buffer, so a long prompt is
@@ -484,12 +507,13 @@ normally be absent rather than empty.
 Two settings decide where an AI request goes, and both can change while Nvim
 runs:
 
-- The **provider** — Claude Code or Codex — drives the native agent panel (the
-  `<leader>a` keys) and CodeCompanion's ACP Chat. Both run on your
-  subscription login.
-- The **key profile** drives CodeCompanion's HTTP Inline and command prompts,
-  which bill [API credits](#api-keys). `auto`, the default, follows the
-  provider: Anthropic under Claude, OpenAI under Codex.
+- The **provider** — Claude Code or Codex — drives the native agent panel
+  (`<leader>ac` and its neighbours) and CodeCompanion's agent chat
+  (`<leader>ag`). Both run on your subscription login.
+- The **key profile** drives CodeCompanion's API chat (`<leader>ah`) and its
+  Inline and command prompts (`<leader>ae`), which bill
+  [API credits](#api-keys). `auto`, the default, follows the provider:
+  Anthropic under Claude, OpenAI under Codex.
 
 The shell aliases used by this setup pick the startup provider:
 
@@ -523,8 +547,9 @@ running:
 - The `<leader>a` key descriptions follow the switch, so which-key names the
   agent a key reaches. `<leader>aa`/`<leader>ad` always answer Claude's diffs
   and stay while claudecode.nvim is loaded, even with Codex active.
-- Open CodeCompanion chats keep the adapter they were created with. New chats
-  use the provider's ACP agent; Inline and command prompts use the key profile.
+- Open CodeCompanion chats keep the adapter they were created with. A new
+  agent chat uses the provider's ACP agent; a new API chat, Inline and command
+  prompts use the key profile.
 - Each agent panel keeps its own label, input rules and side-panel slot, and
   an image attached in a prompt float goes back to the agent that opened it.
 - Once either setting differs from how Nvim started, the statusline shows the
@@ -536,21 +561,47 @@ becomes an `@path lines X-Y` draft. For a modified or unnamed buffer, the exact
 selected text is pasted instead because Codex file mentions read the saved file.
 Add the instruction you want, then press Enter yourself.
 
-The provider also selects CodeCompanion's ACP Chat agent (`claude_code` /
-`codex`). Chat therefore uses the coding agent's stateful protocol and tools;
-Inline and command prompts remain lightweight HTTP interactions
-(`anthropic` / `openai`, from the key profile) and need an [API key](#api-keys).
-Codex ACP always uses ChatGPT authentication, whichever provider started Nvim.
-
-CodeCompanion chats are auto-saved by codecompanion-history. Open them with
-`<leader>aph` (or `:CodeCompanionHistory`); inside a chat, `gh` opens the same
-history browser. Entries use the Snacks picker and can be renamed manually;
-automatic model-generated titles are disabled to avoid an extra request.
-History restores the local CodeCompanion transcript. To continue the agent's
-actual stateful ACP session, use `/resume` from a fresh ACP chat.
-
 Run `:checkhealth config` to see missing CLIs, ACP bridges, or HTTP
 credentials, for both providers and every key profile.
+
+#### CodeCompanion: agent chat and API chat
+
+CodeCompanion adds a chat buffer beside the native panel, in two kinds that
+look alike once open but run — and bill — differently:
+
+| | Agent chat · `<leader>ag` / `aG` | API chat · `<leader>ah` / `aH` |
+|---|---|---|
+| Talks to | The provider's agent through its ACP bridge (`claude-agent-acp` / `codex-acp`) | The key profile's API, directly over HTTP (`anthropic` / `openai`) |
+| Billed to | Your Claude or ChatGPT subscription | [API credits](#api-keys), on the profile's `NVIM_*` key |
+| Tools | The agent's own; `\` completes its slash commands | CodeCompanion's `@` tools, and its MCP servers (none are configured here) |
+| Long chats | The agent manages its own context | `/compact`, and automatic compaction near the context limit |
+| Saving | codecompanion-history (`<leader>ao`); `/resume` lists the agent's own sessions | codecompanion-history too, plus CodeCompanion's own sessions: `/save` stores the chat, `/resume` restores it; `/fork`, `/rename` |
+| Reply header | `CodeCompanion (Claude Code · ACP)` | `CodeCompanion (Anthropic · API)` |
+
+- `<leader>ag` / `<leader>ah` show or hide the chat of that kind for the
+  *current* provider or key profile, and start one when there is none.
+  `<leader>aG` / `<leader>aH` always start a new one. After `:AI key openai`,
+  `<leader>ah` reaches the OpenAI chat and leaves the Anthropic one alone.
+- In Visual mode `<leader>ag` / `<leader>ah` add the selection to that chat as
+  a fenced code block, without submitting it.
+- Both kinds share one chat window: the chat being shown takes the window the
+  other one had.
+- `<leader>ae` opens `:CodeCompanion ` (with the range, from Visual mode) on
+  the key profile; `<leader>ap` is the action palette.
+- A missing key is caught before anything starts. With the profile's
+  `NVIM_*` key unset, `<leader>ah`, `aH` and `ae` say so and start no chat or
+  prompt, instead of a request that fails with 401; with the ACP bridge
+  missing, `<leader>ag` and `aG` say that instead. A chat restored from history and `:CodeCompanion` typed by
+  hand skip this check.
+- Codex ACP always uses the ChatGPT login, whichever provider started Nvim.
+
+codecompanion-history saves every chat, of either kind, when a message is
+sent and when a reply finishes. Open one with `<leader>ao` (or
+`:CodeCompanionHistory`); inside a chat, `gh` opens the same browser. Entries
+use the Snacks picker and can be renamed; model-generated titles are off to
+avoid an extra request. History restores CodeCompanion's local transcript. To
+continue the agent's actual stateful session, use `/resume` in a fresh agent
+chat.
 
 #### `Shift+Enter` (iTerm2)
 
@@ -655,10 +706,11 @@ or off for the current file buffer. Troubleshooting is in
 
 ### API keys
 
-The agents need no key: Claude Code and Codex — the native panel and ACP Chat
-alike — run on your Claude or ChatGPT login. A key is only for CodeCompanion's
-HTTP Inline and command prompts (`<leader>api`, `:CodeCompanion`), which call
-the API directly with the active [key profile](#ai-provider-selection): under
+The agents need no key: Claude Code and Codex — the native panel and agent
+chat alike — run on your Claude or ChatGPT login. A key is only for
+CodeCompanion's API chat and its Inline and command prompts (`<leader>ah`,
+`<leader>ae`, `:CodeCompanion`), which call the API directly with the active
+[key profile](#ai-provider-selection): under
 `auto`, Anthropic with the Claude provider (`vi`, `vic`) and OpenAI with Codex
 (`vix`); `:AI key` picks another. Only the active profile's key is used.
 
@@ -707,9 +759,9 @@ Set these in `init.lua` before plugins load.
 
 | Variable | Description |
 |----------|-------------|
-| `NVIM_AI_PROVIDER` | Startup provider: `claude` (default) or `codex` — the native agent and CodeCompanion ACP Chat. `:AI provider` switches it in-process |
+| `NVIM_AI_PROVIDER` | Startup provider: `claude` (default) or `codex` — the native agent and CodeCompanion's agent chat. `:AI provider` switches it in-process |
 | `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile: `auto` (default; follows the provider), `anthropic`, `openai`, or another entry of `key_profiles` in `lua/ai/config.lua`. `:AI key` switches it |
-| `NVIM_ANTHROPIC_API_KEY` | Key of the `anthropic` profile, for CodeCompanion HTTP inline/command prompts. See [API keys](#api-keys) |
+| `NVIM_ANTHROPIC_API_KEY` | Key of the `anthropic` profile, for CodeCompanion's API chat and inline/command prompts. See [API keys](#api-keys) |
 | `NVIM_OPENAI_API_KEY` | Key of the `openai` profile |
 | `NVIM_ENGLISH_INPUT_SOURCE` | macOS input-source ID used in Normal mode; falls back to an enabled keyboard layout reported by macOS, preferring a Latin one |
 | `NVIM_MACISM_WAIT_TIME_MS` | Optional macism CJK workaround wait; `0` removes the temporary focus window at the cost of possible first-character races |

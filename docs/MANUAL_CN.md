@@ -514,7 +514,7 @@ Ctrl-,                             直达编辑器，再按跳回
 | `<Space>d` | 调试 | 断点、单步、查看变量 |
 | `<Space>t` | 测试 | 跑文件 / 跑最近的 / 调试、输出面板 |
 | `<Space>x` | 诊断 | 错误列表、quickfix、location list |
-| `<Space>a` | AI | Claude / Codex 面板、prompt、transcript、切换 provider / API key（`ax`） |
+| `<Space>a` | AI | Claude / Codex 面板、prompt、transcript、Agent Chat 和 API Chat（`ag` / `ah`）、切换 provider / API key（`ax`） |
 | `<Space>b` | Buffer | 删除、固定、关其他、关掉隐藏的（`bh`） |
 | `<Space>m` | 管理 | 配置、插件源码、help、man、键位、消息、Lazy、Mason、LSP 状态 |
 | `<Space>s` | 会话 | 保存 / 恢复工作布局 |
@@ -665,6 +665,45 @@ Markdown、纯文本、提交信息和没有 filetype 的 buffer 里不会自动
 
 如果面板里的文字残留在旁边的窗口上（常见于滚动查看印地语等天城文字的历史），
 先按 `q` 回到实时输出，再按 `<Space>ur` 让 Nvim 清屏重绘。
+
+### 三种问 AI 的方式
+
+`<Space>a` 菜单通向三样不同的东西。它们能做的事有重叠，但请求发到哪里、由谁付费
+各不相同：
+
+| | Native 面板 | Agent Chat | API Chat |
+|---|---|---|---|
+| 键 | `<Space>ac`、`ai`、`as`、`ab` | `<Space>ag`、`aG` | `<Space>ah`、`aH`、`ae` |
+| 是什么 | agent 自己的终端程序 | 同一个 agent，放在 Neovim 的 Chat buffer 里（CodeCompanion 走 ACP） | 直接调用模型 API，同样是 Chat buffer（CodeCompanion 走 HTTP） |
+| 谁付费 | 订阅 | 订阅 | API 额度 |
+| 跟随 | provider | provider | API key profile |
+
+按手头的事来选：
+
+- **把任务交出去：用 Native 面板。** 它就是完整的 agent——会改文件、跑命令，
+  Claude 提出的修改以 diff 的形式回到这里（`<Space>aa` 接受，`<Space>ad` 拒绝）。
+  `<Space>ai` 可以在真正的 buffer 里写 prompt。
+- **在 buffer 里把问题理清楚：用 Agent Chat。** 同一个 agent、同一份订阅，但对话是
+  一个 Markdown buffer，可以像普通文件一样搜索、复制、修改。Visual 模式下按
+  `<Space>ag` 把选区加进去。
+- **直接问模型：用 API Chat。** 中间没有 agent，按 API key 计费（设置见
+  [API key](../README_CN.md#api-key)）。它有 CodeCompanion 自己的 `@` 工具，
+  可以用 `/save` 把对话存成 session，用 `/compact` 压缩长对话。`<Space>ae` 是它的
+  一次性用法：在命令行写一句指令，作用于选区或光标所在位置。
+
+在任一种 Chat 里，在最后一个 `## Me` 标题下面写，然后在 Normal 模式按 `Enter`
+（或 `Ctrl-s`）发送；按下之前什么都不会发出去。回复的标题会写明是哪一种——
+`CodeCompanion (Claude Code · ACP)` 或 `CodeCompanion (Anthropic · API)`——菜单里的
+分组标题 *ACP chat · subscription* 和 *HTTP · API credits* 也一样。
+
+两种 Chat 共用一个窗口。`<Space>ag` 和 `<Space>ah` 各自显示或隐藏自己那一种，
+还没有时就新建；大写的 `aG` / `aH` 总是新建。`<Space>ao` 重新打开已保存的 Chat，
+两种都可以。
+
+`<Space>ax` 会同时带动它们：切到 Codex 之后，`<Space>ag` 打开的是 Codex 的 Agent
+Chat；执行 `:AI key openai` 之后，`<Space>ah` 打开的是 OpenAI 的。已经打开的 Chat
+保持创建时的设置。API key 没设置时，`<Space>ah` 和 `<Space>ae` 会提示，并且不发出
+任何请求。
 
 ---
 

@@ -138,7 +138,7 @@ end
 local fresh = child({ NVIM_AI_PROVIDER = other }, [[
   local c = require("ai.config")
   local keys = {}
-  for _, k in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT", " aa", " ad", " ax" }) do
+  for _, k in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT", " aa", " ad", " ax", " ag", " aG", " ah", " aH", " ae" }) do
     keys[k] = vim.fn.maparg(k, "n", false, true).desc or vim.NIL
   end
   io.stdout:write(vim.json.encode({
@@ -149,7 +149,7 @@ local fresh = child({ NVIM_AI_PROVIDER = other }, [[
 ]])
 local here = state()
 here.keys = {}
-for _, k in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT", " aa", " ad", " ax" }) do
+for _, k in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT", " aa", " ad", " ax", " ag", " aG", " ah", " aH", " ae" }) do
   here.keys[k] = desc(k) or vim.NIL
 end
 t.eq(here, fresh, ("after :AI provider %s this Nvim matches one started with NVIM_AI_PROVIDER=%s"):format(other, other))
