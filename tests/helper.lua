@@ -60,6 +60,27 @@ function M.process_cleanup()
   end
 end
 
+-- Keep SIGPIPE caught until Nvim has closed its event loop.
+--
+-- Nvim stops its own signal watchers (os_exit -> event_teardown ->
+-- signal_teardown) before the loop's last iteration (loop_close), and libuv
+-- puts SIGPIPE back to its default action once no watcher is left. Callbacks
+-- scheduled during teardown still run, and LSP traffic is the usual case: a
+-- shutdown request, a reply, an init handler for a server that answered late.
+-- When the server has already gone -- several specs force-stop theirs and exit
+-- at once -- a write queued behind an earlier failed one is attempted only in
+-- that last iteration, and SIGPIPE kills Nvim after every assertion has
+-- passed. That is exit status 141, and sh prints nothing for SIGPIPE, so
+-- run.sh fails without a line to point at. A watcher of our own outlives
+-- signal_teardown; the loop closes it together with every stream, after which
+-- nothing can write. tests/exit_status_spec.lua reproduces the teardown.
+local sigpipe
+local function keep_sigpipe_caught()
+  if sigpipe or vim.fn.has("unix") == 0 then return end
+  sigpipe = vim.uv.new_signal()
+  if sigpipe then sigpipe:start("sigpipe", function() end) end
+end
+
 -- Always exit through `cquit`, never by falling through to `-c qa`.
 --
 -- Two reasons. `cquit` is the only exit that carries a status out of a headless
@@ -67,6 +88,7 @@ end
 -- unconditionally: specs leave modified scratch buffers behind, which make `:qa`
 -- raise E37 and then block forever waiting for a confirmation nobody can give.
 function M.done()
+  keep_sigpipe_caught()
   if failures > 0 then
     print(("\n%d of %d assertions failed"):format(failures, total))
     vim.cmd("cquit 1")

@@ -328,7 +328,11 @@ git diff --check
 `tests/*_spec.lua` run against the real configuration (`-u init.lua`), so they
 catch what a startup check cannot. Each spec exits through `cquit`: a plain
 `-c qa` returns 0 even after an uncaught Lua error, which would make a broken
-spec read as a passing one.
+spec read as a passing one. `helper.done()` also keeps SIGPIPE caught through
+Nvim's teardown, which resets it before the loop's last iteration: otherwise a
+late write to a pipe whose reader is gone, such as an LSP server the spec has
+just stopped, can kill a passing spec with status 141, and sh does not report
+that (`tests/exit_status_spec.lua`).
 
 For CodeCompanion changes, load it under both providers and confirm the resolved
 ACP adapter plus `:CodeCompanionHistory`. For formatting changes, trigger
