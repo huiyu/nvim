@@ -57,4 +57,31 @@ vim.cmd("normal daa")
 t.eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false), { "foo(bar)" },
   "UC-R2: daa still deletes the argument together with its comma")
 
+-- UC-R3: mini.ai's "next" variants are off, so its `an`/`in` no longer shadow
+-- Nvim 0.12's builtin node selection. On 0.11 the keys are simply unmapped.
+for _, mode in ipairs({ "x", "o" }) do
+  for _, lhs in ipairs({ "an", "in" }) do
+    local map = vim.fn.maparg(lhs, mode, false, true)
+    local src = map.callback and debug.getinfo(map.callback, "S").source or ""
+    t.ok(not src:find("mini/ai.lua", 1, true), ("UC-R3: %s %s is not mini.ai's"):format(mode, lhs))
+    if vim.fn.has("nvim-0.12") == 1 then
+      t.ok(src:find("_core/defaults", 1, true) ~= nil, ("UC-R3: %s %s is the builtin node selection"):format(mode, lhs))
+    end
+  end
+end
+
+-- UC-R4: `g[f`/`g]f` go through mini.ai's custom treesitter `f`, not its
+-- function-call default -- the reason that custom object stays even though
+-- treesitter-textobjects owns `af`/`if` (lua/whichkey_spec.lua "g]f = fn end").
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+  "local function outer(x)",
+  "  local y = call(x, 1)",
+  "  return y",
+  "end",
+})
+vim.treesitter.get_parser(buf, "lua"):parse(true)
+vim.api.nvim_win_set_cursor(0, { 2, 14 }) -- inside call(...)
+vim.cmd("normal g]f")
+t.eq(vim.api.nvim_win_get_cursor(0)[1], 4, "UC-R4: g]f lands on the function definition's end")
+
 t.done()

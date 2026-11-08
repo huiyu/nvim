@@ -110,6 +110,7 @@ nvim
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | Sticky function/class header (`<leader>uC`) |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | Modern code folding |
+| [statuscol](https://github.com/luukvbaal/statuscol.nvim) | Gutter with fixed slots for breakpoints, diagnostics and git signs; click a sign, line number or fold to act on it |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME highlights |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL and CSS variable previews; Tailwind colors in frontend files |
@@ -130,7 +131,7 @@ nvim
 | [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | Extract function/variable, inline |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | Enhanced text objects |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | Toggle single-line/multi-line (`gS`) |
-| [mini.bracketed](https://github.com/echasnovski/mini.bracketed) | Extra `[`/`]` motions on the suffixes this config leaves free (`x` conflict, `i` indent, `c` comment, `j` jump, `o` oldfile, `u` undo) |
+| [mini.bracketed](https://github.com/echasnovski/mini.bracketed) | Extra `[`/`]` motions on the suffixes this config leaves free (`x` conflict, `i` indent, `j` jump, `o` oldfile, `u` undo) |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | Surround manipulation |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | Auto-close pairs |
 | [persistence](https://github.com/folke/persistence.nvim) | Session management |
@@ -142,7 +143,7 @@ nvim
 | Plugin | Description |
 |--------|-------------|
 | [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | LSP configuration |
-| [mason](https://github.com/williamboman/mason.nvim) | LSP/DAP/linter/formatter installer |
+| [mason](https://github.com/mason-org/mason.nvim) | LSP/DAP/linter/formatter installer |
 | [blink.cmp](https://github.com/saghen/blink.cmp) | Completion engine with [friendly-snippets](https://github.com/rafamadriz/friendly-snippets) |
 | [conform](https://github.com/stevearc/conform.nvim) | Code formatting (with autoformat toggle) |
 | [nvim-lint](https://github.com/mfussenegger/nvim-lint) | Linting |

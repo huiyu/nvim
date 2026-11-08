@@ -197,9 +197,8 @@ return {
     },
     opts = {
       adapters = {
-        ["neotest-golang"] = {
-          dap_go_enabled = true,
-        },
+        -- Debugging goes through nvim-dap-go by default (`dap_mode = "dap-go"`).
+        ["neotest-golang"] = {},
       },
     }
   },

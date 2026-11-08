@@ -1,9 +1,13 @@
 return {
   "gbprod/yanky.nvim",
-  dependencies = { "kkharji/sqlite.lua" },
   opts = {
+    -- The ring persists through shada (yanky's default `ring.storage`), so it
+    -- needs no sqlite.lua.
     ring = { history_length = 100 },
-    highlight = { timer = 200 },
+    -- The yank flash is lua/autocmds.lua's vim.hl.on_yank(); yanky's own
+    -- TextYankPost handler would replace it on every yank. `timer` still
+    -- times the put flash.
+    highlight = { on_yank = false, timer = 200 },
   },
   keys = {
     { "<leader>yh", "<cmd>YankyRingHistory<cr>", desc = "Yank history" },

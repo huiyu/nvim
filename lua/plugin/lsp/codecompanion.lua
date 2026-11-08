@@ -44,6 +44,17 @@ return {
         adapter = ai.codecompanion.acp_adapter,
         -- Provider selection belongs to NVIM_AI_PROVIDER for this Nvim process.
         keymaps = { change_adapter = false },
+        -- Pinned rather than auto-detected: CodeCompanion takes the first of
+        -- telescope, fzf-lua and mini.pick it can require before snacks, so
+        -- any plugin that ships one of those would silently swap these pickers.
+        -- These five are the picker-backed commands an ACP chat offers.
+        slash_commands = {
+          ["buffer"] = { opts = { provider = "snacks" } },
+          ["file"] = { opts = { provider = "snacks" } },
+          ["help"] = { opts = { provider = "snacks" } },
+          ["symbols"] = { opts = { provider = "snacks" } },
+          ["fetch"] = { opts = { provider = "snacks" } },
+        },
       },
       inline = {
         adapter = ai.codecompanion.http_adapter,

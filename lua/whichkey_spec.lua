@@ -10,7 +10,9 @@
 -- <leader>? is the standalone keybinding-guide popup).
 local hidden = {
   { "<leader>?", hidden = true },
-  { "<leader>gB", hidden = true }, -- legacy alias; GitHub file browse is <leader>Gf
+  -- Not an alias of <leader>Gf: on a commit hash (blame or log output) it
+  -- opens that commit's page; elsewhere it opens the file like <leader>Gf.
+  { "<leader>gB", hidden = true },
   { ";1", hidden = true }, { ";2", hidden = true }, { ";3", hidden = true },
   { ";4", hidden = true }, { ";5", hidden = true }, { ";6", hidden = true },
   { ";7", hidden = true }, { ";8", hidden = true }, { ";9", hidden = true },

@@ -133,8 +133,11 @@ dif    delete the body of this function, wherever the cursor is in it     daf   
 caa    change this argument                                              vio    select the body of this if
 ```
 
-`i`/`a` also accept an `n` (next) or `l` (last) in between: `cin(` changes
-inside the **next** parentheses without moving there first.
+You do not have to be inside the object first: with the cursor before a pair,
+`ci(` changes inside the **next** parentheses. An `l` (last) in between looks
+backwards instead: `cil(` changes inside the previous ones. On Neovim 0.12+,
+Visual `an` and `in` are the builtin syntax-node selection: each `an` widens the
+selection to the enclosing node, `in` narrows it back.
 
 **which-key:** press `di` (or `da`, `vi`) and wait half a second — the popup
 lists every object.

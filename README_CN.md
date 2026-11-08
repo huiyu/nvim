@@ -105,6 +105,7 @@ nvim
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | 粘性函数/类头（`<leader>uC`） |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | 现代代码折叠 |
+| [statuscol](https://github.com/luukvbaal/statuscol.nvim) | 行号栏：断点、诊断、git 标记各占固定位置；点击标记、行号或折叠符号即可操作 |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME 高亮 |
 | [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮 |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL、CSS 变量颜色预览；前端文件支持 Tailwind 颜色 |
@@ -125,7 +126,7 @@ nvim
 | [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | 提取函数/变量、内联 |
 | [mini.ai](https://github.com/echasnovski/mini.ai) | 增强文本对象 |
 | [mini.splitjoin](https://github.com/echasnovski/mini.splitjoin) | 单行/多行切换（`gS`） |
-| [mini.bracketed](https://github.com/echasnovski/mini.bracketed) | 补充 `[`/`]` 跳转，只占用本配置未使用的后缀（`x` 冲突、`i` 缩进、`c` 注释、`j` 跳转表、`o` oldfile、`u` undo） |
+| [mini.bracketed](https://github.com/echasnovski/mini.bracketed) | 补充 `[`/`]` 跳转，只占用本配置未使用的后缀（`x` 冲突、`i` 缩进、`j` 跳转表、`o` oldfile、`u` undo） |
 | [nvim-surround](https://github.com/kylechui/nvim-surround) | 包围符号操作 |
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | 自动配对括号 |
 | [persistence](https://github.com/folke/persistence.nvim) | 会话管理 |
@@ -137,7 +138,7 @@ nvim
 | 插件 | 说明 |
 |------|------|
 | [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | LSP 配置 |
-| [mason](https://github.com/williamboman/mason.nvim) | LSP/DAP/Linter/Formatter 安装管理 |
+| [mason](https://github.com/mason-org/mason.nvim) | LSP/DAP/Linter/Formatter 安装管理 |
 | [blink.cmp](https://github.com/saghen/blink.cmp) | 补全引擎，含 [friendly-snippets](https://github.com/rafamadriz/friendly-snippets) |
 | [conform](https://github.com/stevearc/conform.nvim) | 代码格式化（支持自动格式化开关） |
 | [nvim-lint](https://github.com/mfussenegger/nvim-lint) | 代码检查 |

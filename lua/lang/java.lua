@@ -71,7 +71,7 @@ return {
     "mfussenegger/nvim-jdtls",
     ft = "java",
     dependencies = {
-      "williamboman/mason.nvim",
+      "mason-org/mason.nvim",
       "mfussenegger/nvim-dap",
     },
     config = function()
