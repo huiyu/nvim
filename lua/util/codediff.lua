@@ -21,6 +21,7 @@
 --                                   merge, source_revisions,
 --                                   stored_diff_result.changes,
 --                                   panel { name, data, view { bufnr, winid, tree } }
+--   panel tree                      get_node(line) and its node.data (panel_item)
 --   codediff.ui.explorer.actions    toggle_stage_entry, stage_all,
 --                                   unstage_all, restore_entry
 --   codediff.ui.view.actions.hunk   unstage_hunk
@@ -228,6 +229,61 @@ function M.fresh_hunk(tab, win)
     end
   end
   return nil, "the hunk changed since it was displayed"
+end
+
+---------------------------------------------------------------------------
+-- The panel entry under the cursor
+---------------------------------------------------------------------------
+
+--- The explorer or history entry on the cursor line of `win` (default: the
+--- panel's own window), as plain data, for review feedback on a file rather
+--- than a hunk (lua/ai/review/feedback.lua). Read from the panel's tree
+--- (panel.view.tree:get_node(line)), as CodeDiff's own explorer keys do.
+---
+--- `type` is "file", "directory", "group" (a status group), "commit" or
+--- "title" (history). A file has `path` (relative to the repository),
+--- `status` (M, A, D, R, ?? ...), `old_path` for a rename and, in the status
+--- view, `group` ("staged", "unstaged", "conflicts"); in history `commit` is
+--- the commit it belongs to. A history commit has `commit`, `short_hash`,
+--- `subject` and, in a single file's history, that file as `path`. nil when
+--- `win` does not show the panel or its line holds no entry.
+---@param tab? integer
+---@param win? integer
+---@return { panel: "explorer"|"history", type: string, path?: string, old_path?: string, status?: string, group?: string, commit?: string, short_hash?: string, subject?: string }?
+function M.panel_item(tab, win)
+  local s = raw_session(tab)
+  local view = s and panel_view(s)
+  local tree = view and view.tree
+  if type(tree) ~= "table" or type(tree.get_node) ~= "function" or not valid_buf(view.bufnr) then return nil end
+  if win == nil or win == 0 then win = view.winid end
+  if type(win) ~= "number" or not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_buf(win) ~= view.bufnr then
+    return nil
+  end
+  local line = vim.api.nvim_win_get_cursor(win)[1]
+  local ok, node = pcall(tree.get_node, tree, line)
+  local data = ok and type(node) == "table" and type(node.data) == "table" and node.data or nil
+  if not data then return nil end
+  local function str(v) return type(v) == "string" and v ~= "" and v or nil end
+  -- Explorer files carry no type; every other node names its own.
+  local kind = str(data.type) or (str(data.path) and "file") or nil
+  if not kind then return nil end
+  local path = str(data.path)
+  if kind == "commit" and not path then
+    -- A single file's history lists commits only; the file is the panel's.
+    local opts = type(s.panel.data) == "table" and type(s.panel.data.opts) == "table" and s.panel.data.opts or {}
+    path = str(data.file_path) or str(opts.file_path)
+  end
+  return {
+    panel = s.panel.name,
+    type = kind,
+    path = path,
+    old_path = str(data.old_path),
+    status = str(data.status),
+    group = str(data.group),
+    commit = str(data.commit_hash) or (kind == "commit" and str(data.hash)) or nil,
+    short_hash = str(data.short_hash),
+    subject = str(data.subject),
+  }
 end
 
 --- Unstage the hunk under the cursor through CodeDiff itself.

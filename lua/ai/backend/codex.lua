@@ -363,8 +363,9 @@ function M.attach_images(paths)
 end
 
 ---Ask the TUI to open its own prompt editor, seeding the input box first when
----`opts.seed` is given. Backs `<leader>ai`.
----@param opts { seed?: string }?
+---`opts.seed` is given. Backs `<leader>ai`, and review feedback (ai.feed),
+---which hears through the callbacks whether the seed reached a prompt.
+---@param opts { seed?: string, on_consumed?: fun(), on_expired?: fun(), ttl_ms?: integer }?
 function M.edit_prompt(opts)
   opts = opts or {}
 
@@ -379,7 +380,7 @@ function M.edit_prompt(opts)
     return channel and channel > 0 and channel or nil
   end
 
-  editor.stage_seed(opts.seed)
+  editor.stage_seed(opts.seed, { provider = "codex", on_consumed = opts.on_consumed, on_expired = opts.on_expired, ttl_ms = opts.ttl_ms })
 
   if running then
     local channel = channel_of()

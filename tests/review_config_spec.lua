@@ -85,6 +85,7 @@ local DEFAULTS = {
   unknown_session = "confirm",
   always_confirm = {},
   redirect = true,
+  seed_ttl_ms = 10000,
   history_limit = 100,
 }
 local function with(overrides) return vim.tbl_deep_extend("force", vim.deepcopy(DEFAULTS), overrides) end
@@ -134,6 +135,11 @@ vim.cmd([[let g:ai_review = {'retention': {'saved': 3}, 'unknown_session': 'refu
 t.eq(config.get(), with({ retention = { saved = 3 }, unknown_session = "refuse", redirect = false }),
   "a Vimscript dict with v:false works the same")
 t.eq(warnings(), {}, "valid overrides raise no warning")
+
+vim.g.ai_review = { seed_ttl_ms = 3000 }
+t.eq(config.get(), with({ seed_ttl_ms = 3000 }), "seed_ttl_ms takes a positive number of milliseconds")
+t.eq(config.overrides(), { seed_ttl_ms = true }, "and counts as an override")
+t.eq(warnings(), {}, "without a warning")
 
 -- Runtime changes --------------------------------------------------------
 
@@ -223,6 +229,18 @@ bad({
   input = { hook_wait_ms = -1 },
   want = DEFAULTS,
   mentions = "hook_wait_ms should be a non-negative integer (milliseconds), not -1",
+})
+bad({
+  what = "zero seed TTL",
+  input = { seed_ttl_ms = 0 },
+  want = DEFAULTS,
+  mentions = "seed_ttl_ms should be a positive integer (milliseconds), not 0; using 10000",
+})
+bad({
+  what = "seed TTL as a string",
+  input = { seed_ttl_ms = "10s" },
+  want = DEFAULTS,
+  mentions = 'seed_ttl_ms should be a positive integer (milliseconds), not "10s"',
 })
 bad({
   what = "true where only false or a count is allowed",
