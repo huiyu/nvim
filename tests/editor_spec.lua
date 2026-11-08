@@ -120,11 +120,24 @@ t.eq(released, { path4 .. ".a" }, "UC-7: closing still releases the original wra
 -- agent pty.
 local clipboard = require("ai.clipboard")
 local has_image = true
+-- Every file <C-v> wrote, so the assertions below look at this spec's images
+-- only and never glob the directory.
+local saved = {}
 clipboard.has_image = function() return has_image end
 clipboard.save_image = function(target)
   vim.fn.writefile({ "not really a png" }, target)
+  saved[#saved + 1] = target
   return true
 end
+
+-- The staging directory is named after the pid, and pids are reused: a new
+-- Nvim must not start out with what a dead one left there. Planted before this
+-- process's first staging_dir() call, the way that earlier Nvim would have.
+local staging = ("%s/nvim-ai-images-%d"):format(vim.fn.stdpath("cache"), vim.fn.getpid())
+vim.fn.mkdir(staging, "p")
+vim.fn.writefile({ "left by a dead Nvim" }, staging .. "/19-1.png")
+t.eq(clipboard.staging_dir(), staging, "UC-8: images are staged in this pid's directory")
+t.eq(vim.fn.readdir(staging), {}, "UC-8: a reused pid's directory starts out empty")
 
 local ai = require("ai")
 local attached
@@ -144,6 +157,7 @@ press_ctrl_v()
 attached = nil
 vim.api.nvim_feedkeys(vim.keycode("<C-d>"), "x", false)
 vim.wait(1200, function() return attached ~= nil end)
+t.eq(saved, {}, "UC-8: an empty clipboard stages no file")
 t.eq(attached, nil, "UC-8: nothing is attached when the clipboard holds no image")
 
 -- Cancelling must drop staged images: the box keeps its old text, so attaching
@@ -154,8 +168,9 @@ editor.open(path6, path6 .. ".done")
 settle()
 vim.api.nvim_set_current_win(float_win())
 press_ctrl_v()
-local staged = vim.fn.glob(require("ai.clipboard").staging_dir() .. "/*.png", false, true)
-t.ok(#staged > 0, "UC-8: <C-v> stages the clipboard image to a file")
+local staged = saved
+t.ok(#staged == 1 and vim.fn.filereadable(staged[1]) == 1, "UC-8: <C-v> stages the clipboard image to a file")
+t.ok(#staged == 1 and vim.startswith(staged[1], staging .. "/"), "UC-8: the image is staged in this pid's directory")
 -- Staging has to be visible, but as virtual text: real text would be sent to
 -- the agent alongside the CLI's own [Image #N] marker.
 local imgbuf = vim.api.nvim_get_current_buf()
@@ -171,21 +186,24 @@ attached = nil
 vim.api.nvim_feedkeys(vim.keycode("<C-c>"), "x", false)
 vim.wait(1200, function() return attached ~= nil end)
 t.eq(attached, nil, "UC-8: cancelling attaches nothing")
-for _, png in ipairs(staged) do
-  t.eq(vim.fn.filereadable(png), 0, "UC-8: cancelling deletes the staged file")
-end
+t.eq(vim.tbl_filter(function(png) return vim.fn.filereadable(png) == 1 end, staged), {},
+  "UC-8: cancelling deletes the staged file")
 
 -- Returning the prompt hands the staged images over.
 local path7 = tmpfile({ "prompt" })
 editor.open(path7, path7 .. ".done")
 settle()
 vim.api.nvim_set_current_win(float_win())
+saved = {}
 press_ctrl_v()
 press_ctrl_v()
 attached = nil
 vim.api.nvim_feedkeys(vim.keycode("<C-d>"), "x", false)
 vim.wait(2000, function() return attached ~= nil end)
-t.ok(attached ~= nil and #attached == 2, "UC-8: returning the prompt attaches both staged images")
+t.ok(#saved == 2 and vim.deep_equal(attached, saved), "UC-8: returning the prompt attaches both staged images")
+-- A backend deletes what it attached; the stub above does not, and a later
+-- Nvim given this pid would inherit the files.
+vim.fn.delete(staging, "rf")
 
 -- UC-9: readiness detection. This is the one place the rendered screen is
 -- read, and only as a trigger -- see the note on tui_ready.

@@ -152,11 +152,20 @@ function M.attach(channel, paths, done)
   step()
 end
 
+-- Whether this process has emptied its staging directory yet.
+local claimed = false
+
 ---Where composer images are staged. One directory per Nvim process so a crash
 ---leaves an obvious, self-identifying pile rather than scattered temp files.
+---The name is the pid, and pids are reused: the first call in a process
+---empties it, so a new Nvim never starts out holding a dead one's images.
 ---@return string
 function M.staging_dir()
   local dir = ("%s/nvim-ai-images-%d"):format(vim.fn.stdpath("cache"), vim.fn.getpid())
+  if not claimed then
+    claimed = true
+    vim.fn.delete(dir, "rf")
+  end
   vim.fn.mkdir(dir, "p")
   return dir
 end

@@ -862,6 +862,10 @@ clipboard.attach(chan, paths, done)            -- feed each image to a terminal 
 clipboard.staging_dir()          --> string    per-process temp directory
 ```
 
+The staging directory is named after the pid, and pids are reused, so the
+first `staging_dir()` call in a process empties it: a new Nvim never starts
+with a dead one's images.
+
 This exists because an image cannot reach the agent any other way: only the CLI
 can put image bytes into its request, and the one channel to it is the pty. So
 `attach` replays the keystroke the TUIs already bind to "read the clipboard"
