@@ -247,6 +247,33 @@ t.ok(finished("Unstaged line 11 of f.txt"), ",U unstages the hunk again " .. hea
 t.eq(index(), base, "the index is back where it was")
 t.ok(unstaged_count(3), "gitsigns sees it unstaged")
 
+-- gitsigns' own index watcher can drop its copy of the index while a stage
+-- computes its hunk; the stage then fails on an assertion and writes nothing
+-- (seen on CI: cache.lua "assertion failed!"). One such failure is retried.
+do
+  local real, failures = gs.stage_hunk, 0
+  gs.stage_hunk = function(range, opts, cb)
+    if failures == 0 then
+      failures = 1
+      return cb("...gitsigns/cache.lua:363: assertion failed!")
+    end
+    return real(range, opts, cb)
+  end
+  notices = {}
+  press(right, 11, ",u")
+  t.ok(finished("Staged line 11 of f.txt"), "a stage gitsigns fails without writing the index is retried " .. heard())
+  gs.stage_hunk = real
+  t.eq(failures, 1, "after that one failure")
+  t.eq(said("failed"), nil, "without reporting it")
+  t.eq(index(), staged_insert, "and stages the line")
+  t.ok(unstaged_count(2), "gitsigns sees it staged")
+  notices = {}
+  press(right, 11, ",U")
+  t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it again " .. heard())
+  t.eq(index(), base, "back to the index it had")
+  t.ok(unstaged_count(3), "gitsigns sees it unstaged")
+end
+
 -- From the left pane: the hunk under the cursor there (baseline lines 18-19).
 local staged_change = concat(rows(1, 14, "f line %d"), agent_change, rows(17, 20, "f line %d"))
 notices = {}

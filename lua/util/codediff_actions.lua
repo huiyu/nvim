@@ -780,6 +780,13 @@ local function stage(tab, unstage, range)
       gs.stage_hunk({ top, bot }, nil, function(stage_err)
         vim.schedule(function()
           if stage_err then
+            -- gitsigns' index watcher can also drop that copy while a stage
+            -- is computing its hunk; the stage then fails on an assertion
+            -- (cache.lua, "assertion failed!") before it writes anything.
+            -- Seen on slower machines; the same one retry covers it.
+            if attempt == 1 and index_oid(root, path) == before then
+              return vim.defer_fn(function() run(2) end, 400)
+            end
             finish(true)
             return notify(("%s %s of %s failed: %s"):format(what, span(top, bot), path, stage_err), vim.log.levels.ERROR)
           end

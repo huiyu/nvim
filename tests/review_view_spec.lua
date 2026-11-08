@@ -180,16 +180,19 @@ local function review_nothing(text)
 end
 
 ---What a tabpage's windows hold: compared before and after a review opens
----elsewhere.
+---elsewhere. Its own windows only: floats (a notification, ui2's) come and go
+---and resize on their own, which is no change to the tab's layout.
 local function layout(tab)
   local out = {}
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
-    out[#out + 1] = {
-      win = win,
-      buf = vim.api.nvim_win_get_buf(win),
-      cursor = vim.api.nvim_win_get_cursor(win),
-      size = { vim.api.nvim_win_get_width(win), vim.api.nvim_win_get_height(win) },
-    }
+    if vim.api.nvim_win_get_config(win).relative == "" then
+      out[#out + 1] = {
+        win = win,
+        buf = vim.api.nvim_win_get_buf(win),
+        cursor = vim.api.nvim_win_get_cursor(win),
+        size = { vim.api.nvim_win_get_width(win), vim.api.nvim_win_get_height(win) },
+      }
+    end
   end
   return out
 end
