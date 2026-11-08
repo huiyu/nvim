@@ -5,9 +5,9 @@
 -- the round's sha against the working tree.
 --
 --   1. root: the current buffer's conversation root (an agent terminal or a
---      chat), else the current file's repository -- in a CodeDiff panel, the
---      repository that view compares -- else the cwd's. Outside a Git
---      worktree it stops with git's reason.
+--      chat), else the current file's repository when it is in one -- in a
+--      CodeDiff panel, the repository that view compares -- else the cwd's.
+--      Outside a Git worktree it stops with git's reason.
 --   2. round: rounds.select_round -- the buffer's conversation, the active
 --      provider's session, the newest this process opened, the newest there.
 --   3. one review tab per root: a tab already showing that round is focused
@@ -16,12 +16,18 @@
 --      review tab stays the one it was opened from. Other tabpages are read
 --      (their vim.t.ai_review), never changed.
 --   4. a clean tree (CodeDiff answers it with a bare "No changes to show",
---      #582): the conversation's previous round is shown instead when it has
---      changes -- the next prompt went out, the agent has not written yet --
---      otherwise it says so and opens nothing.
+--      #582), decided as the view's listing will list it
+--      (util.codediff.listing): a tree that differs only in paths the
+--      listing leaves out is clean, and the notice names them. The
+--      conversation's previous round is shown instead when it has changes --
+--      the next prompt went out, the agent has not written yet -- otherwise
+--      it says so and opens nothing.
 --   5. the view opens with vim.t.ai_review (the round: ,C files feedback for
 --      its owner) and vim.t.codediff_baseline (for ,X), and says once what it
---      compares, when it has arrived.
+--      compares, when it has arrived. Roots open independently: another
+--      root's view, or any other CodeDiff view, opening meanwhile takes
+--      nothing of this one's (util.codediff.open); another press for a root
+--      whose view is still on its way is refused.
 --
 -- A round only proves that a change came after its baseline. Whoever made it
 -- -- the agent, the user, another agent in the same worktree -- it is listed,
@@ -35,10 +41,10 @@ local M = {}
 local api, uv = vim.api, vim.uv
 local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 
--- How long a view open() issued may take to arrive before its notice is
--- dropped and another <leader>av for that root is let through. The window
--- util.codediff gives a label: CodeDiff refuses some opens with a notice of
--- its own and no event.
+-- How long a view show() issued may take to arrive before another
+-- <leader>av for that root is let through. util.codediff ends every open
+-- within the same time (its done(nil) clears the slot); this only guards
+-- against a callback that never came.
 local PENDING_MS = 10000
 
 -- How many skipped files a notice names before it counts the rest.
@@ -47,7 +53,13 @@ local NAMED = 5
 -- Who a round's tab label names: the owner's kind, else the source's.
 local SOURCES = { claude = "Claude", codex = "Codex", ["cc-acp"] = "Agent chat", ["cc-http"] = "API chat", manual = "Manual" }
 
-local function notify(msg, level)
+-- Short lines, a clause each, with a path or git's own words on a line of
+-- their own: the snacks notifier cuts a long line off instead of wrapping it
+-- (as in rounds.lua).
+---@param lines string|string[]
+---@param level? integer
+local function notify(lines, level)
+  local msg = type(lines) == "table" and table.concat(lines, "\n") or lines
   vim.notify(msg, level or WARN, { title = "AI review" })
 end
 
@@ -77,23 +89,14 @@ local function when(time)
   return os.date("%Y-%m-%d %H:%M:%S", time)
 end
 
--- Worded as util.codediff's listing words the same limit.
-local function size_text(bytes)
-  local mib = 1024 * 1024
-  if bytes >= mib and bytes % mib == 0 then return ("%d MiB"):format(bytes / mib) end
-  return ("%d bytes"):format(bytes)
-end
-
---- The line naming the untracked files a snapshot left out for size: they are
---- in neither tree, so a change to them shows nowhere.
----@param paths? string[]
----@return string?
-local function skipped_line(paths)
-  if type(paths) ~= "table" or #paths == 0 then return nil end
-  local limit = require("ai.review.config").get().max_file_size
-  local more = #paths > NAMED and (" and %d more"):format(#paths - NAMED) or ""
-  return ("Not compared (untracked, over %s; vim.g.ai_review.max_file_size): %s%s"):format(
-    size_text(limit), table.concat(vim.list_slice(paths, 1, NAMED), ", "), more)
+--- The lines naming the paths a comparison left out, by reason, worded as
+--- the view's listing words them: untracked files over max_file_size are in
+--- neither tree, so a change to them shows nowhere, and a path the round has
+--- that is still on disk is never listed as deleted.
+---@param left_out? table<string, string[]>
+---@return string[]
+local function left_out_lines(left_out)
+  return codediff().left_out_lines(left_out or {}, NAMED)
 end
 
 ---------------------------------------------------------------------------
@@ -139,25 +142,6 @@ local KEYS = {
   { "x", "<localleader>C", press_visual, desc = DESC, on = "all" },
 }
 
--- The view open() issued last and has not seen arrive: its notice waits for
--- the view's first attach().
----@type { root: string, id: string, message: string, at: integer }?
-local pending
-
-local function announce(tab)
-  local p = pending
-  if not p then return end
-  if uv.now() - p.at > PENDING_MS then
-    pending = nil
-    return
-  end
-  local vars = vim.t[tab].ai_review
-  if type(vars) == "table" and vars.id == p.id and type(vars.root) == "string" and real(vars.root) == p.root then
-    pending = nil
-    notify(p.message, INFO)
-  end
-end
-
 ---Install ,C on the view in `tab` (0 or nil = current), in Normal and Visual
 ---mode, on every buffer it shows: every Git view kind -- status, staged,
 ---baseline or revision against the working tree, revision against revision,
@@ -175,7 +159,6 @@ function M.attach(tab)
   local s = codediff().session(tab)
   if not s then return end
   codediff().set_keys(tab, s.git_root and KEYS or {}, "review")
-  announce(tab)
 end
 
 ---------------------------------------------------------------------------
@@ -187,7 +170,10 @@ local function root_of(rounds, buf)
   local _, root, bound = rounds.conversation_of(buf)
   if bound and root then return root end
   local name = api.nvim_buf_get_name(buf)
-  if vim.bo[buf].buftype == "" and name ~= "" and not name:match("^%a[%w+.-]*://") then
+  -- Only a file inside a worktree names one. Outside, rounds.toplevel would
+  -- be the file's own directory, which is no repository; the steps below
+  -- decide instead.
+  if vim.bo[buf].buftype == "" and name ~= "" and not name:match("^%a[%w+.-]*://") and vim.fs.root(name, ".git") then
     return rounds.toplevel(name)
   end
   -- A CodeDiff panel or revision pane: the repository that view compares.
@@ -274,18 +260,22 @@ local function message(root, entry, vars, extra)
   end
   -- util.codediff's listing names the files left out for size as the view
   -- lists; only without it (a CodeDiff it was not written for) is it said here.
-  if codediff().degraded() then lines[#lines + 1] = skipped_line(extra.skipped) end
+  if codediff().degraded() then vim.list_extend(lines, left_out_lines({ size = extra.skipped })) end
   return table.concat(lines, "\n")
 end
 
--- Bumped by every <leader>av: an answer that arrives for an older press is
--- dropped, so two quick presses open one view.
-local generation = 0
+-- Bumped by every <leader>av that starts on a root: an answer that arrives
+-- for an older press there is dropped, so two quick presses open one view.
+-- Per root, so a press elsewhere never drops this one.
+local generation = {} ---@type table<string, integer>
+
+-- The review views show() issued and has not seen arrive, by root.
+local opening = {} ---@type table<string, { id: string, at: integer }>
 
 --- Step 3 and 5: show `entry` in the one review tab of `root`.
 ---@param extra { note?: string, skipped?: string[] }
 local function show(root, entry, extra, gen)
-  if gen ~= generation then return end
+  if gen ~= generation[root] then return end
   local cd = codediff()
   local tabs = review_tabs(root)
   local there = showing(tabs, entry.id)
@@ -306,7 +296,7 @@ local function show(root, entry, extra, gen)
   for _, t in ipairs(tabs) do
     -- CodeDiff asks before it drops unsaved merge results; kept is kept.
     if api.nvim_tabpage_is_valid(t.tab) and cd.session(t.tab) then
-      return notify(("The review view of %s stays open, so no second one opens"):format(tilde(root)))
+      return notify({ "The review view stays open, so no second one opens.", "Root: " .. tilde(root) })
     end
   end
   if from and api.nvim_tabpage_is_valid(from) and from ~= api.nvim_get_current_tabpage() then
@@ -314,35 +304,39 @@ local function show(root, entry, extra, gen)
   end
   local vars = require("ai.review.rounds").review_vars(entry)
   if not vars then return notify("Not a review round: " .. tostring(entry.id)) end
-  pending = { root = root, id = entry.id, message = message(root, entry, vars, extra), at = uv.now() }
-  local issued = cd.open({
+  local text = message(root, entry, vars, extra)
+  local mark = { id = entry.id, at = uv.now() }
+  opening[root] = mark
+  -- The view's own notice, once it has arrived; nothing when CodeDiff
+  -- refused it (it says why itself) or it never came.
+  local function arrived(tab)
+    if opening[root] == mark then opening[root] = nil end
+    if tab then notify(text, INFO) end
+  end
+  local ok, issued = pcall(cd.open, {
     root = root,
     -- The sha, never the ref: retention may delete the ref while the view is
     -- open. util.codediff.open adds `-C <root>`.
     args = { entry.sha },
     label = label(entry),
     tab_vars = { ai_review = vars, codediff_baseline = { sha = entry.sha, kind = "round" } },
+    -- The notice above says what the view compares.
+    quiet = true,
+    done = arrived,
   })
-  if not issued then pending = nil end
+  if not (ok and issued) then arrived(nil) end
+  if not ok then error(issued, 0) end
 end
 
---- Does the tree of `sha` differ from `tree`? `cb(true|false)`, or
---- `cb(nil, reason)` when git refused.
-local function differs(root, sha, tree, cb)
-  local function answer(r)
-    if r.code == 1 then return cb(true) end
-    if r.code == 0 then return cb(false) end
-    local why = (vim.split(vim.trim(r.stderr or ""), "\n")[1] or ""):gsub("^fatal: ", "")
-    cb(nil, why ~= "" and why or ("git exited with " .. tostring(r.code)))
-  end
-  local cmd = require("util.baseline").git_cmd({ "diff-tree", "--quiet", "-r", sha, tree, "--" })
-  local ok, err = pcall(vim.system, cmd, {
-    cwd = root,
-    text = true,
-    -- A missing object must never become a fetch from a promisor remote.
-    env = { GIT_NO_LAZY_FETCH = "1" },
-  }, function(r) vim.schedule(function() answer(r) end) end)
-  if not ok then vim.schedule(function() answer({ code = -1, stderr = tostring(err) }) end) end
+--- Would a view of `sha` against the snapshot `tree` list anything? Asked
+--- of the view's own listing rule (util.codediff.listing), so a tree whose
+--- only differences are paths that listing leaves out counts as unchanged:
+--- `cb(changed, left_out)`, or `cb(nil, nil, reason)` when git refused.
+local function differs(root, sha, tree, info, cb)
+  codediff().listing(root, sha, tree, info, nil, function(result, err)
+    if not result then return cb(nil, nil, err) end
+    cb(#result.listed > 0, result.left_out)
+  end)
 end
 
 --- The round of `entry`'s conversation before it (one with no owner: the
@@ -362,25 +356,26 @@ end
 --- Step 4, then 5: snapshot the working tree and compare it with the round.
 local function check(root, entry, gen)
   require("util.baseline").snapshot(root, guarded(function(tree, info)
-    if gen ~= generation then return end
+    if gen ~= generation[root] then return end
     -- No snapshot, no verdict: the view opens and speaks for itself.
     if not tree then return show(root, entry, {}, gen) end
     local extra = { skipped = info.skipped }
-    local function nothing()
+    -- `left_out`: what the comparison with `entry` left out.
+    local function nothing(left_out)
       local lines = { ("No changes since round %s in %s"):format(when(entry.time), tilde(root)) }
-      lines[#lines + 1] = skipped_line(extra.skipped)
+      vim.list_extend(lines, left_out_lines(left_out))
       notify(table.concat(lines, "\n"), INFO)
     end
-    differs(root, entry.sha, tree, guarded(function(changed, why)
-      if gen ~= generation then return end
+    differs(root, entry.sha, tree, info, guarded(function(changed, left_out, why)
+      if gen ~= generation[root] then return end
       if why then return notify(("Round %s cannot be compared: %s"):format(when(entry.time), why)) end
       if changed then return show(root, entry, extra, gen) end
       previous(root, entry, guarded(function(prev)
-        if gen ~= generation then return end
-        if not prev then return nothing() end
-        differs(root, prev.sha, tree, guarded(function(prev_changed)
-          if gen ~= generation then return end
-          if not prev_changed then return nothing() end
+        if gen ~= generation[root] then return end
+        if not prev then return nothing(left_out) end
+        differs(root, prev.sha, tree, info, guarded(function(prev_changed)
+          if gen ~= generation[root] then return end
+          if not prev_changed then return nothing(left_out) end
           extra.note = ("Round %s has no changes yet; showing round %s"):format(when(entry.time), when(prev.time))
           show(root, prev, extra, gen)
         end))
@@ -393,20 +388,21 @@ end
 ---steps are at the top of this file). Asynchronous: the snapshot and git run
 ---in the background, and the view opens when they are done.
 function M.open()
-  generation = generation + 1
-  local gen = generation
   local buf = api.nvim_get_current_buf()
   local rounds = require("ai.review.rounds")
   local loc, err = require("util.baseline").locate(root_of(rounds, buf))
-  if not loc then return notify(("%s; the review view needs a Git worktree"):format(tostring(err))) end
+  if not loc then return notify({ "The review view needs a Git worktree:", tostring(err) }) end
   local root = loc.toplevel
-  if pending and pending.root == root and uv.now() - pending.at <= PENDING_MS then
+  local o = opening[root]
+  if o and uv.now() - o.at <= PENDING_MS then
     return notify(("The review view of %s is still opening"):format(tilde(root)), INFO)
   end
+  generation[root] = (generation[root] or 0) + 1
+  local gen = generation[root]
   rounds.select_round(root, guarded(function(entry, why)
-    if gen ~= generation then return end
+    if gen ~= generation[root] then return end
     if not entry then
-      if why then return notify(("Could not list the review rounds in %s: %s"):format(tilde(root), why)) end
+      if why then return notify({ "Could not list the review rounds:", "Root: " .. tilde(root), why }) end
       return notify(table.concat({
         ("%s has no review round yet."):format(tilde(root)),
         "Submit a prompt to Claude, Codex or a chat,",

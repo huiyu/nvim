@@ -15,11 +15,21 @@
 --     another round replaces it -- three rounds in a row leave one tab -- and
 --     no other tabpage's windows change; the new tab opens where the old one
 --     was;
---   * a clean tree: the conversation's previous round with a notice, or just
---     "no changes" and nothing opened;
+--   * a clean tree: the conversation's previous round with a notice (never
+--     another conversation's round in between), or just "no changes" and
+--     nothing opened -- also when the only differences are paths the view's
+--     listing leaves out, which the notice names with their reasons; nothing
+--     is left waiting for a view CodeDiff would refuse;
 --   * the view's tab variables and label; one notice on open, with Late and
---     the files left out for size;
---   * the no-round and non-Git notices;
+--     the files left out for size, and no CodeDiff "Comparing" line beside it;
+--   * the no-round and non-Git notices; a file outside any repository falls
+--     back to the cwd's;
+--   * two roots opening at once, with a status view opened meanwhile: each
+--     view gets its own tab variables and notice, the status view none, and
+--     a second press for the root still opening is refused;
+--   * util.codediff.open on its own: an open CodeDiff refuses ends with
+--     done(nil), and no open's label or tab variables land on a view that
+--     is not the one it asked for;
 --   * ,C in Normal and Visual mode on every buffer of a round view, a status
 --     view, a rev-vs-rev view and a history view, handing comment() the
 --     window, buffer, mode and ordered line range; repeated CodeDiffKeys
@@ -197,8 +207,10 @@ vim.fn.mkdir(plain, "p")
 dirs[#dirs + 1] = plain
 vim.cmd.cd(vim.fn.fnameescape(plain))
 vim.cmd.enew()
-t.ok(review_nothing("the review view needs a Git worktree"), "<leader>av outside Git says so and opens nothing")
-t.ok(said("not a git repository") ~= nil, "with git's reason " .. heard())
+t.ok(review_nothing("The review view needs a Git worktree:"), "<leader>av outside Git says so and opens nothing")
+local outside = vim.split((said("Git worktree") or { msg = "" }).msg, "\n")
+t.ok(#outside == 2 and outside[2]:find("^not a git repository") ~= nil,
+  "with git's reason on a line of its own: the notifier cuts a long line " .. heard())
 t.eq(said("Git worktree").title, "AI review", "titled AI review")
 
 local empty = repo("no rounds")
@@ -210,6 +222,19 @@ t.ok(none ~= nil and none.msg:find(vim.fn.fnamemodify(empty, ":~"), 1, true) ~= 
   and none.msg:find("<leader>aV", 1, true) ~= nil and none.msg:find(":checkhealth config", 1, true) ~= nil
   and none.msg:find("<leader>gv", 1, true) ~= nil,
   "naming the root, <leader>aV, :checkhealth config and <leader>gv " .. heard())
+
+-- The rounds cannot be listed: what failed, the root and the reason, each
+-- on a line of its own.
+do
+  local real_select = rounds.select_round
+  rounds.select_round = function(_, cb) cb(nil, "spec: no listing") end
+  local refused = review_nothing("Could not list the review rounds")
+  rounds.select_round = real_select
+  t.ok(refused, "<leader>av whose rounds cannot be listed opens nothing")
+  t.eq((said("Could not list") or {}).msg,
+    ("Could not list the review rounds:\nRoot: %s\nspec: no listing"):format(vim.fn.fnamemodify(empty, ":~")),
+    "and says why, a clause a line")
+end
 
 ---------------------------------------------------------------------------
 -- The repository under review, and a bystander tabpage
@@ -261,11 +286,26 @@ t.ok(note.msg:find("Late", 1, true) == nil and note.msg:find("Not compared", 1, 
 t.eq(note.title, "AI review", "titled AI review")
 settle(500)
 t.eq(count("Changes since round"), 1, "said once")
+t.eq(count("Comparing "), 0, "with no CodeDiff 'Comparing' line beside it " .. heard())
 t.eq(vim.api.nvim_tabpage_get_number(tab), vim.api.nvim_tabpage_get_number(editor_tab) + 1,
   "the review tab opens right after the tab it was asked from")
 t.eq(layout(editor_tab), before, "the tab it was asked from keeps its windows")
 t.eq(layout(bystander), bystander_layout, "another tabpage keeps its windows")
 t.eq(package.loaded["ai.review.feedback"], nil, "installing ,C does not load ai.review.feedback")
+
+-- A file outside any repository names none: the cwd's repository is
+-- reviewed, and its round is on screen.
+vim.fn.writefile({ "notes" }, plain .. "/notes.md")
+vim.api.nvim_set_current_tabpage(editor_tab)
+vim.cmd.edit(vim.fn.fnameescape(plain .. "/notes.md"))
+notices = {}
+require("ai.review").open()
+vim.wait(5000, function() return vim.api.nvim_get_current_tabpage() == tab end, 20)
+settle(200)
+t.eq(vim.api.nvim_get_current_tabpage(), tab, "<leader>av from a file outside any repository reviews the cwd's " .. heard())
+t.eq(said("Git worktree"), nil, "instead of refusing")
+vim.api.nvim_set_current_tabpage(editor_tab)
+vim.api.nvim_set_current_buf(file_buf)
 
 -- The same round again: focused, not reopened.
 local tabs = #vim.api.nvim_list_tabpages()
@@ -501,7 +541,8 @@ for i = 1, 3 do
   edit(R2)
   notices = {}
   rounds.start({ buf = r2_buf })
-  vim.wait(10000, function() return said("started in") ~= nil end, 20)
+  t.ok(vim.wait(10000, function() return said("Review round ") ~= nil and said(" started\nRoot: ") ~= nil end, 20),
+    ("round %d starts " .. heard()):format(i))
   local newest = rounds._state().newest_here[R2]
   ids[i] = newest and newest.id
   edit(R2) -- the agent writes
@@ -526,7 +567,13 @@ t.eq(review_tabs(R), { round_tab }, "the other root's review tab stays")
 local R3 = repo("clean tree")
 local C1 = save_round(R3, { Source = "claude", Conversation = "claude:prev-test" })
 edit(R3)
+-- Another conversation's round in between, which differs from the tree as
+-- well: the fallback is the conversation's own previous round, never merely
+-- the one before.
+local X = save_round(R3, { Source = "codex", Conversation = "codex:bystander" })
+edit(R3)
 local C2 = save_round(R3, { Source = "claude", Conversation = "claude:prev-test" })
+t.ok(X.id ~= C1.id and X.id ~= C2.id, "a round of another conversation sits between the two")
 vim.api.nvim_set_current_tabpage(editor_tab)
 vim.cmd.edit(vim.fn.fnameescape(R3 .. "/a.txt"))
 tab = review(C1.id)
@@ -534,7 +581,7 @@ t.ok(tab ~= nil, "a round with no changes yet shows the conversation's previous 
 t.ok(said(("Round %s has no changes yet; showing round %s"):format(when(C2.time), when(C1.time))) ~= nil,
   "and says so " .. heard())
 t.eq(count("Changes since round"), 1, "in the one notice")
-t.eq(vim.t[tab].ai_review.id, C1.id, "the view is the previous round's")
+t.eq(tab and vim.t[tab].ai_review.id, C1.id, "the view is the previous round's, not the other conversation's")
 
 -- Nothing changed, and no earlier round of that conversation that differs.
 local R4 = repo("no changes")
@@ -580,7 +627,212 @@ t.ok((said("No changes since round") or { msg = "" }).msg:find(
   "\nNot compared (untracked, over 1024 bytes; vim.g.ai_review.max_file_size): huge.bin", 1, true) ~= nil,
   "and the notice names the file it could not compare " .. heard())
 t.eq(vim.t[tab].codediff_label, ("Review · Codex · round %s → working tree"):format(when(E.time)), "labelled Codex")
+
+---------------------------------------------------------------------------
+-- Differences the view's listing leaves out
+---------------------------------------------------------------------------
+
+--- The tabpage showing a CodeDiff view of `root` in `mode`, once it is there.
+local function view_of(root, mode)
+  local found
+  vim.wait(15000, function()
+    for _, tb in ipairs(vim.api.nvim_list_tabpages()) do
+      local v = cd.session(tb)
+      if v and v.mode == mode and v.git_root and uv.fs_realpath(v.git_root) == root and view_ready(tb) then
+        found = tb
+        return true
+      end
+    end
+    return false
+  end, 20)
+  return found
+end
+local function close_view(tb)
+  if tb and vim.api.nvim_tabpage_is_valid(tb) then
+    cd.close(tb)
+    vim.wait(3000, function() return not vim.api.nvim_tabpage_is_valid(tb) end, 20)
+  end
+  vim.api.nvim_set_current_tabpage(editor_tab)
+end
+
+-- The round captured an untracked log and a .env. The log has grown past
+-- max_file_size since, and the .env is ignored now: both are still on disk,
+-- so the view's listing lists neither as deleted, nothing else changed, and
+-- CodeDiff would answer the view with a bare "No changes to show".
+local R7 = repo("left out")
+vim.fn.writefile({ "small" }, R7 .. "/grow.log")
+vim.fn.writefile({ "TOKEN=1" }, R7 .. "/.env")
+local G = save_round(R7, { Source = "claude", Conversation = "claude:left-out" })
+vim.fn.writefile({ ("z"):rep(4096) }, R7 .. "/grow.log")
+vim.fn.mkdir(R7 .. "/.git/info", "p")
+vim.fn.writefile({ ".env" }, R7 .. "/.git/info/exclude")
+vim.api.nvim_set_current_tabpage(editor_tab)
+vim.cmd.edit(vim.fn.fnameescape(R7 .. "/a.txt"))
+local r7_tabs = #vim.api.nvim_list_tabpages()
+notices = {}
+require("ai.review").open()
+vim.wait(5000, function() return said("No changes since round") ~= nil or said("No changes to show") ~= nil end, 20)
+settle(300)
+local quiet = said("No changes since round") or { msg = "" }
+t.ok(quiet.msg:find(("No changes since round %s in %s"):format(when(G.time), vim.fn.fnamemodify(R7, ":~")), 1, true) ~= nil,
+  "a tree whose only differences the listing leaves out has no changes " .. heard())
+t.ok(quiet.msg:find("\nNot compared (untracked, over 1024 bytes; vim.g.ai_review.max_file_size): grow.log", 1, true) ~= nil
+  and quiet.msg:find("\nNot compared (ignored, still on disk): .env", 1, true) ~= nil,
+  "naming each path left out with its reason " .. heard())
+t.eq(said("No changes to show"), nil, "CodeDiff is not asked for a view it would refuse")
+t.eq(#vim.api.nvim_list_tabpages(), r7_tabs, "nothing opens")
+-- Nothing is left waiting: the next press answers the same at once.
+notices = {}
+require("ai.review").open()
+vim.wait(5000, function() return said("No changes since round") ~= nil or said("still opening") ~= nil end, 20)
+t.eq(said("still opening"), nil, "a second press is not told the view is still opening " .. heard())
+t.ok(said("No changes since round") ~= nil, "it answers no changes again " .. heard())
+-- A view opened next is a plain status view.
+vim.cmd.CodeDiff()
+local typed = view_of(R7, "status")
+t.ok(typed ~= nil, "a typed :CodeDiff opens a status view")
+if typed then
+  t.eq({ vim.t[typed].ai_review, vim.t[typed].codediff_baseline, vim.t[typed].codediff_label },
+    { nil, nil, "index/HEAD ↔ working tree" }, "with nothing of the review's")
+end
+close_view(typed)
+
+-- util.codediff.open on its own. An open CodeDiff refuses for an empty
+-- listing ends with done(nil); one it refuses with an error of its own
+-- (an unknown revision) waits out its time. Neither one's label or tab
+-- variables land on the view opened next.
+local outcome
+notices = {}
+cd.open({ root = R7, args = { G.sha }, label = "spec refused", tab_vars = { spec_var = "refused" },
+  done = function(tb, why) outcome = { tab = tb, why = why } end })
+vim.wait(5000, function() return outcome ~= nil end, 20)
+t.ok(outcome ~= nil and outcome.tab == nil and type(outcome.why) == "string",
+  "an open CodeDiff answers with no changes ends with done(nil, why) " .. vim.inspect(outcome) .. heard())
+t.ok(cd.open({ root = R7, args = { ("0"):rep(40) }, label = "spec unknown", tab_vars = { spec_var = "unknown" } }),
+  "an open of an unknown revision is issued")
+vim.wait(5000, function() return said("Invalid revision") ~= nil end, 20)
+vim.api.nvim_set_current_tabpage(editor_tab)
+vim.cmd.CodeDiff()
+typed = view_of(R7, "status")
+t.ok(typed ~= nil, "a typed :CodeDiff opens a status view after them")
+if typed then
+  t.eq({ vim.t[typed].spec_var, vim.t[typed].codediff_label }, { nil, "index/HEAD ↔ working tree" },
+    "and gets neither open's label or tab variables")
+end
+close_view(typed)
 vim.g.ai_review = nil
+
+---------------------------------------------------------------------------
+-- Two roots opening at once, and a status view meanwhile
+---------------------------------------------------------------------------
+
+local RA = repo("slow root")
+local RB = repo("fast root")
+local RG = repo("status root")
+local GA = save_round(RA, { Source = "claude", Conversation = "claude:slow" })
+local GB = save_round(RB, { Source = "codex", Conversation = "codex:fast" })
+edit(RA)
+edit(RB)
+edit(RG)
+-- RA's listing answers only when the spec lets it, so RB's review view and
+-- a status view of RG are issued, and arrive, while RA's is on its way.
+local changes = require("codediff.core.git.changes")
+local real_listing = changes.get_diff_revision
+local hold, held = true, {}
+changes.get_diff_revision = function(revision, git_root, callback, pathspec)
+  if not hold or (uv.fs_realpath(git_root) or git_root) ~= RA then
+    return real_listing(revision, git_root, callback, pathspec)
+  end
+  return real_listing(revision, git_root, function(err, result)
+    held[#held + 1] = function() callback(err, result) end
+  end, pathspec)
+end
+local function release()
+  hold = false
+  for _, answer in ipairs(held) do answer() end
+  held = {}
+end
+local issued = {}
+local real_open = cd.open
+cd.open = function(spec)
+  issued[#issued + 1] = spec
+  return real_open(spec)
+end
+local function tilde(path) return vim.fn.fnamemodify(path, ":~") end
+local function review_of(round)
+  for _, tb in ipairs(vim.api.nvim_list_tabpages()) do
+    local v = vim.t[tb].ai_review
+    if type(v) == "table" and v.id == round.id and view_ready(tb) then return tb end
+  end
+end
+
+notices = {}
+vim.api.nvim_set_current_tabpage(editor_tab)
+vim.cmd.edit(vim.fn.fnameescape(RA .. "/a.txt"))
+require("ai.review").open()
+vim.wait(10000, function() return #issued >= 1 end, 10)
+t.eq(issued[1] and issued[1].root, RA, "RA's review view is issued")
+vim.cmd.edit(vim.fn.fnameescape(RG .. "/a.txt"))
+cd.open({ args = {}, label = "spec status" })
+local status_tab = view_of(RG, "status")
+t.ok(status_tab ~= nil, "a status view opens while RA's review view is on its way")
+vim.api.nvim_set_current_tabpage(editor_tab)
+vim.cmd.edit(vim.fn.fnameescape(RB .. "/a.txt"))
+require("ai.review").open()
+local tb_b
+vim.wait(10000, function()
+  tb_b = review_of(GB)
+  return tb_b ~= nil and said("Root: " .. tilde(RB)) ~= nil
+end, 20)
+t.ok(tb_b ~= nil, "RB's review view opens while RA's is on its way " .. heard())
+t.eq(review_tabs(RA), {}, "RA's has not arrived yet")
+t.eq(said("Root: " .. tilde(RA)), nil, "and its notice waits for it")
+vim.wait(5000, function() return #held > 0 end, 20)
+t.eq(#held, 1, "RA's listing has answered and is held")
+release()
+local tb_a
+vim.wait(15000, function()
+  tb_a = review_of(GA)
+  return tb_a ~= nil and said("Root: " .. tilde(RA)) ~= nil
+end, 20)
+t.ok(tb_a ~= nil, "RA's review view arrives last " .. heard())
+local function vars(tb)
+  return tb and { vim.t[tb].ai_review, vim.t[tb].codediff_baseline, vim.t[tb].codediff_label } or {}
+end
+t.eq(vars(tb_a), { rounds.review_vars(GA), { sha = GA.sha, kind = "round" },
+  ("Review · Claude · round %s → working tree"):format(when(GA.time)) }, "with its own tab variables and label")
+t.eq(vars(tb_b), { rounds.review_vars(GB), { sha = GB.sha, kind = "round" },
+  ("Review · Codex · round %s → working tree"):format(when(GB.time)) }, "RB's view with its own")
+t.eq(vars(status_tab), { nil, nil, "spec status" }, "the status view with none of theirs")
+t.eq({ count("Root: " .. tilde(RA)), count("Root: " .. tilde(RB)) }, { 1, 1 }, "each review view says its notice once")
+t.ok(said("Comparing spec status") ~= nil and count("Comparing Review") == 0,
+  "the status view says what it compares, the review views leave it to their own notice " .. heard())
+for _, tb in ipairs({ tb_a, tb_b, status_tab }) do close_view(tb) end
+
+-- Another press for a root whose view is still on its way is refused, and
+-- says which; it issues nothing.
+edit(RA)
+notices = {}
+issued = {}
+hold = true
+vim.cmd.edit(vim.fn.fnameescape(RA .. "/a.txt"))
+require("ai.review").open()
+vim.wait(10000, function() return #issued >= 1 end, 10)
+require("ai.review").open()
+vim.wait(2000, function() return said("still opening") ~= nil end, 20)
+t.ok(said(("The review view of %s is still opening"):format(tilde(RA))) ~= nil,
+  "a second press for RA while its view is on its way waits for it " .. heard())
+vim.wait(5000, function() return #held > 0 end, 20)
+release()
+vim.wait(15000, function()
+  tb_a = review_of(GA)
+  return tb_a ~= nil and said("Root: " .. tilde(RA)) ~= nil
+end, 20)
+t.ok(tb_a ~= nil, "and the view arrives " .. heard())
+t.eq(#issued, 1, "only once")
+changes.get_diff_revision = real_listing
+cd.open = real_open
+close_view(tb_a)
 
 ---------------------------------------------------------------------------
 -- Closing hands the keys back

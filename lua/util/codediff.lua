@@ -46,12 +46,23 @@ M.VERSION = "4.0.6"
 M.PANEL_FILETYPES = { "codediff-explorer", "codediff-history" }
 
 -- How long an open() waits for its view. CodeDiff refuses some opens with a
--- notice of its own and no event, and a label must not land on whatever view
--- opens next.
+-- notice of its own and no event (an unknown revision, a git error), and
+-- what an open carries must not outlive it.
 local PENDING_MS = 10000
 
+---@class util.codediff.Pending an open() whose view has not arrived
+---@field label? string
+---@field tab_vars? table<string, any>
+---@field quiet? boolean
+---@field done? fun(tab?: integer, why?: string)
+---@field root? string realpath the view's git_root must have
+---@field mode? string the view's mode, where the arguments name one
+---@field base? string the view's base revision, where given as a full sha
+---@field target? string its target revision, likewise
+---@field at integer
+
 local degraded = false
-local pending ---@type { label?: string, tab_vars?: table, at: integer }?
+local pending = {} ---@type util.codediff.Pending[] oldest first
 local tab_vars = {} ---@type table<integer, string[]> views on_open set up, with their extra tab vars
 local queued = {} ---@type table<integer, true>
 
@@ -417,6 +428,110 @@ function M.close(tab)
   return false
 end
 
+local function real(path)
+  return type(path) == "string" and (vim.uv.fs_realpath(path) or path) or nil
+end
+
+local function full_sha(rev)
+  return type(rev) == "string" and (#rev == 40 or #rev == 64) and rev:match("^%x+$") and rev or nil
+end
+
+-- :CodeDiff's subcommands; its first argument is a revision otherwise.
+local SUBCOMMANDS = { history = true, file = true, dir = true, merge = true, pr = true, install = true }
+
+--- What the view an open() asks for will be, as far as `spec` and `args`
+--- say: the root it names; a status, staged or history view; the revisions
+--- given as full shas, which is what CodeDiff keeps once rev-parse has
+--- resolved them. A `-C` in `args` (no `root`) leaves the root open.
+---@return util.codediff.Pending
+local function expectation(spec, args)
+  local want = { root = real(spec.root) }
+  local positional, staged, i = {}, false, 1
+  while i <= #args and args[i] ~= "--" do
+    local a = args[i]
+    if a == "-C" or a == "--repo" then
+      i = i + 1
+    elseif a == "--staged" or a == "--cached" then
+      staged = true
+    elseif a:sub(1, 1) ~= "-" then
+      positional[#positional + 1] = a
+    end
+    i = i + 1
+  end
+  if positional[1] == "history" then
+    want.mode = "history"
+  elseif staged then
+    want.mode, want.base = "staged", full_sha(positional[1])
+  elseif #positional == 0 then
+    want.mode = "status"
+  elseif not SUBCOMMANDS[positional[1]] then
+    want.base, want.target = full_sha(positional[1]), full_sha(positional[2])
+  end
+  return want
+end
+
+--- Does the view `s` (M.session) fit what open `p` asked for?
+local function fits(p, s)
+  return (not p.root or real(s.git_root) == p.root)
+    and (not p.mode or s.mode == p.mode)
+    and (not p.base or s.base_revision == p.base)
+    and (not p.target or s.target_revision == p.target)
+end
+
+local function specificity(p)
+  return (p.root and 1 or 0) + (p.mode and 1 or 0) + (p.base and 1 or 0) + (p.target and 1 or 0)
+end
+
+local function unqueue(p)
+  for i, q in ipairs(pending) do
+    if q == p then
+      table.remove(pending, i)
+      return true
+    end
+  end
+  return false
+end
+
+--- End the open `p`, still pending: its view is `tab`, or nil and `why`.
+local function settle(p, tab, why)
+  if not unqueue(p) or not p.done then return end
+  local ok, err = pcall(p.done, tab, why)
+  if not ok then
+    vim.notify("CodeDiff: an open's callback failed: " .. tostring(err), vim.log.levels.WARN, { title = "CodeDiff" })
+  end
+end
+
+--- The pending open the view in `tab` answers: the one that asks for the
+--- most of what it is, the oldest of those.
+local function claim(tab)
+  local s = M.session(tab)
+  if not s then return nil end
+  local best, rank
+  local now = vim.uv.now()
+  for _, p in ipairs(pending) do
+    if now - p.at <= PENDING_MS and fits(p, s) and (not best or specificity(p) > rank) then
+      best, rank = p, specificity(p)
+    end
+  end
+  return best
+end
+
+--- CodeDiff answers an empty revision listing with "No changes to show" and
+--- no view (commands/handlers/explorer.lua): the opens waiting for a view of
+--- that root and revision end there. Not while a view of them is open: the
+--- listing may be its refresh.
+local function refused(git_root, revision)
+  local root = real(git_root)
+  for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+    local s = M.session(tab)
+    if s and s.base_revision == revision and real(s.git_root) == root then return end
+  end
+  local ended = vim.tbl_filter(function(p)
+    return p.base == revision and not p.mode and not p.target and (not p.root or p.root == root)
+  end, pending)
+  for _, p in ipairs(ended) do settle(p, nil, "CodeDiff found no changes to show") end
+end
+
 --- Open a CodeDiff view.
 ---
 --- `args` are `:CodeDiff`'s arguments, passed as a list so a path with
@@ -426,11 +541,21 @@ end
 --- reads a name like `history` as its subcommand.
 --- `label` (vim.t.codediff_label, shown in the statusline) and `tab_vars`
 --- land on the view's tabpage when it opens; CodeDiff opens asynchronously,
---- after its git commands return.
+--- after its git commands return. They land only on a view that fits the
+--- spec -- the `root` it names, a status or history view where `args` ask
+--- for one, the revisions `args` give as full shas -- so another view that
+--- opens meanwhile, from another open() or a typed :CodeDiff, never takes
+--- them. `quiet` leaves out the "Comparing <label>" notice, for a caller
+--- that says what the view compares itself.
+---
+--- `done(tab)` runs once the view has opened with them; `done(nil, why)`
+--- when it will not: CodeDiff refused it for an empty listing, or it did not
+--- open within PENDING_MS (CodeDiff refuses some opens with a notice of its
+--- own and no event). Exactly once for an open() that returned true.
 ---
 --- An empty `args` in a tabpage that already has a view is refused: a bare
 --- `:CodeDiff` there closes the view instead of opening one.
----@param spec { args?: string[], root?: string, label?: string, tab_vars?: table<string, any> }
+---@param spec { args?: string[], root?: string, label?: string, tab_vars?: table<string, any>, quiet?: boolean, done?: fun(tab?: integer, why?: string) }
 ---@return boolean issued
 function M.open(spec)
   spec = spec or {}
@@ -446,8 +571,16 @@ function M.open(spec)
     vim.notify("This tab already shows a CodeDiff view; <leader>gq closes it", vim.log.levels.WARN, { title = "CodeDiff" })
     return false
   end
-  pending = { label = spec.label, tab_vars = spec.tab_vars, at = vim.uv.now() }
-  vim.cmd.CodeDiff({ args = args })
+  local p = expectation(spec, args)
+  p.label, p.tab_vars, p.quiet, p.done, p.at = spec.label, spec.tab_vars, spec.quiet, spec.done, vim.uv.now()
+  pending[#pending + 1] = p
+  vim.defer_fn(function() settle(p, nil, "the view did not open") end, PENDING_MS)
+  local ok, err = pcall(vim.cmd.CodeDiff, { args = args })
+  if not ok then
+    -- The caller gets the error; nothing waits for a view.
+    unqueue(p)
+    error(err, 0)
+  end
   return true
 end
 
@@ -595,9 +728,7 @@ end
 
 local function on_open(tab)
   if type(tab) ~= "number" or not vim.api.nvim_tabpage_is_valid(tab) then return end
-  local p = pending
-  pending = nil
-  if p and vim.uv.now() - p.at > PENDING_MS then p = nil end
+  local p = claim(tab)
   local s = raw_session(tab)
   local label = p and p.label or (s and default_label(s))
   vim.t[tab].blocks_global_prefixes = true
@@ -608,8 +739,9 @@ local function on_open(tab)
     names[#names + 1] = name
   end
   tab_vars[tab] = names
-  if label then vim.notify("Comparing " .. label, vim.log.levels.INFO, { title = "CodeDiff" }) end
+  if label and not (p and p.quiet) then vim.notify("Comparing " .. label, vim.log.levels.INFO, { title = "CodeDiff" }) end
   schedule_install(tab)
+  if p then settle(p, tab) end
 end
 
 local function clear_vars(tab)
@@ -801,34 +933,49 @@ local function size_reason()
   return ("untracked, over %s; vim.g.ai_review.max_file_size"):format(limit)
 end
 
--- Why a path is missing from the snapshot, in the order the notice names them.
+-- Why a path is not compared, in the order every notice names them.
 local LEFT_OUT = {
   { "size", size_reason },
   { "ignored", function() return "ignored, still on disk" end },
   { "other", function() return "still on disk, so not listed as deleted" end },
 }
 
---- Paths a view cannot compare: untracked files over max_file_size, which the
---- snapshot leaves out, and paths the revision has that are still on disk
---- but not listed (listing_result). Say which, once per path per view, in one
---- notice with a line per reason.
----@param by_reason table<string, string[]>
-local function notice_left_out(key, by_reason)
-  local seen = skipped_noticed[key] or {}
-  skipped_noticed[key] = seen
+---The lines that name `left_out` (M.listing's), one per reason, in the order
+---a view's own notice gives them: "Not compared (<why>): a, b". With
+---`limit`, a line names that many paths and counts the rest.
+---@param left_out table<string, string[]>
+---@param limit? integer
+---@return string[]
+function M.left_out_lines(left_out, limit)
   local lines = {}
   for _, reason in ipairs(LEFT_OUT) do
-    local fresh = {}
-    for _, path in ipairs(by_reason[reason[1]] or {}) do
-      if not seen[path] then
-        seen[path] = true
-        fresh[#fresh + 1] = path
-      end
-    end
-    if #fresh > 0 then
-      lines[#lines + 1] = ("Not compared (%s): %s"):format(reason[2](), table.concat(fresh, ", "))
+    local paths = left_out[reason[1]] or {}
+    if #paths > 0 then
+      local named = limit and vim.list_slice(paths, 1, limit) or paths
+      local more = #paths > #named and (" and %d more"):format(#paths - #named) or ""
+      lines[#lines + 1] = ("Not compared (%s): %s%s"):format(reason[2](), table.concat(named, ", "), more)
     end
   end
+  return lines
+end
+
+--- Say which paths a view cannot compare (M.listing's left_out), once per
+--- path per view, in one notice with a line per reason.
+---@param left_out table<string, string[]>
+local function notice_left_out(key, left_out)
+  local seen = skipped_noticed[key] or {}
+  skipped_noticed[key] = seen
+  local fresh = {}
+  for reason, paths in pairs(left_out) do
+    fresh[reason] = {}
+    for _, path in ipairs(paths) do
+      if not seen[path] then
+        seen[path] = true
+        table.insert(fresh[reason], path)
+      end
+    end
+  end
+  local lines = M.left_out_lines(fresh)
   if #lines == 0 then return end
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "CodeDiff" })
 end
@@ -875,54 +1022,84 @@ local function ignored_of(toplevel, paths, cb)
   end
 end
 
---- CodeDiff's status result for `diff-tree` output: `done(result)`, or
---- `done(nil, err)` when building it failed.
----
---- A D whose path is still on disk is not listed: the snapshot left the file
---- out -- over max_file_size, ignored now (a .env a baseline captured before
---- .gitignore named it), unreadable -- or something else is there. It is
---- named instead, so it never reaches the one-sided "deleted since baseline"
---- hint (util.codediff_actions), whose `git restore` overwrites whatever is
---- at the path. Measured: it replaced a directory, untracked work in it
---- included, with the old file, and on a case-insensitive file system (macOS
---- by default) it wrote a file renamed in case only back over the new one.
-local function listing_result(revision, git_root, out, info, pathspec, done)
+--- `out`'s entries split into the listed ones, the D entries still on disk
+--- that the snapshot skipped for size, and the other D entries still on disk.
+local function sort_out(out, info)
   local skipped = {}
   for _, path in ipairs(info.skipped or {}) do skipped[path] = true end
-  local entries = parse_name_status(out)
-  local dropped, by_reason, present = {}, { size = {}, ignored = {}, other = {} }, {}
-  for _, e in ipairs(entries) do
+  local listed, size, present = {}, {}, {}
+  for _, e in ipairs(parse_name_status(out)) do
     if e.status == "D" and vim.uv.fs_lstat(info.toplevel .. "/" .. e.path) then
-      dropped[e] = true
-      if skipped[e.path] then
-        table.insert(by_reason.size, e.path)
-      else
-        present[#present + 1] = e.path
+      table.insert(skipped[e.path] and size or present, e.path)
+    else
+      listed[#listed + 1] = e
+    end
+  end
+  return listed, size, present
+end
+
+---What a view of `revision` against the working tree lists: the listing
+---patch below, which every such view goes through, and a caller that has to
+---know before it opens one whether CodeDiff will show anything -- it answers
+---an empty listing with a bare "No changes to show" and no view (#582).
+---`tree` and `info` are a util.baseline.snapshot() of the worktree at
+---`root`; `diff-tree -M <revision> <tree>` compares them.
+---
+---`done({ listed, left_out })`: `listed` is CodeDiff's status entries
+---({ status, path, old_path? }); `left_out` the paths not compared, by
+---reason: "size" (untracked over max_file_size: every file the snapshot
+---skipped, or under a pathspec the ones dropped below), "ignored" and
+---"other" (dropped below). `done(nil, err)` when git failed. Says nothing
+---itself; left_out_lines() words `left_out`.
+---
+---A D whose path is still on disk is not listed: the snapshot left the file
+---out -- over max_file_size, ignored now (a .env a baseline captured before
+---.gitignore named it), unreadable -- or something else is there. It is
+---named instead, so it never reaches the one-sided "deleted since baseline"
+---hint (util.codediff_actions), whose `git restore` overwrites whatever is
+---at the path. Measured: it replaced a directory, untracked work in it
+---included, with the old file, and on a case-insensitive file system (macOS
+---by default) it wrote a file renamed in case only back over the new one.
+---@param root string
+---@param revision string
+---@param tree string
+---@param info { toplevel: string, skipped?: string[] }
+---@param pathspec? string[]
+---@param done fun(result?: { listed: table[], left_out: table<string, string[]> }, err?: string)
+function M.listing(root, revision, tree, info, pathspec, done)
+  local baseline = require("util.baseline")
+  local args = { "-c", "core.quotePath=false", "diff-tree", "-r", "-M", "-z", "--name-status", revision, tree, "--" }
+  vim.list_extend(args, pathspec or {})
+  local spawned, err = pcall(vim.system, baseline.git_cmd(args), {
+    cwd = root,
+    -- A missing object must never become a fetch from a promisor remote.
+    env = { GIT_NO_LAZY_FETCH = "1" },
+  }, function(r)
+    vim.schedule(function()
+      if r.code ~= 0 then
+        local why = (vim.split(vim.trim(r.stderr or ""), "\n")[1] or ""):gsub("^fatal: ", "")
+        return done(nil, "git diff-tree: " .. (why ~= "" and why or ("exit " .. r.code)))
       end
-    end
-  end
-  local function finish(ignored)
-    for _, path in ipairs(present) do
-      table.insert(ignored[path] and by_reason.ignored or by_reason.other, path)
-    end
-    local kept = vim.tbl_filter(function(e) return not dropped[e] end, entries)
-    -- Scoped to a pathspec, only the dropped paths are known to be in scope.
-    if not (pathspec and #pathspec > 0) then by_reason.size = info.skipped or {} end
-    notice_left_out(view_key(git_root, revision), by_reason)
-    local ok, err = pcall(notice_unsaved, git_root, kept)
-    if not ok then warn_once("unsaved", "CodeDiff: the unsaved-buffer check failed: " .. tostring(err)) end
-    return { unstaged = kept, staged = {} }
-  end
-  if #present == 0 then return done(finish({})) end
-  ignored_of(info.toplevel, present, function(ignored)
-    local ok, result = pcall(finish, ignored)
-    if not ok then return done(nil, tostring(result)) end
-    done(result)
+      local ok, listed, size, present = pcall(sort_out, r.stdout or "", info)
+      if not ok then return done(nil, tostring(listed)) end
+      local function finish(ignored)
+        local left_out = { size = size, ignored = {}, other = {} }
+        for _, path in ipairs(present) do
+          table.insert(ignored[path] and left_out.ignored or left_out.other, path)
+        end
+        -- Scoped to a pathspec, only the dropped paths are known to be in scope.
+        if not (pathspec and #pathspec > 0) then left_out.size = vim.list_slice(info.skipped or {}) end
+        done({ listed = listed, left_out = left_out })
+      end
+      if #present == 0 then return finish({}) end
+      ignored_of(info.toplevel, present, finish)
+    end)
   end)
+  if not spawned then vim.schedule(function() done(nil, tostring(err)) end) end
 end
 
 ---@param original function upstream's get_diff_revision
-local function listing(original)
+local function patched_listing(original)
   return function(revision, git_root, callback, pathspec)
     if type(revision) ~= "string" or type(git_root) ~= "string" then
       return original(revision, git_root, callback, pathspec)
@@ -935,33 +1112,32 @@ local function listing(original)
         .. " both D and ?? (%s)"):format(reason))
       original(revision, git_root, callback, pathspec)
     end
+    local function answer(result)
+      if answered then return end
+      answered = true
+      for _, step in ipairs({
+        { "left-out", "naming the files not compared", function()
+          notice_left_out(view_key(git_root, revision), result.left_out)
+        end },
+        { "unsaved", "the unsaved-buffer check", function() notice_unsaved(git_root, result.listed) end },
+        -- Before the callback, which is where CodeDiff gives up on the view.
+        { "refused", "ending a refused open", function()
+          if #result.listed == 0 then refused(git_root, revision) end
+        end },
+      }) do
+        local ok, err = pcall(step[3])
+        if not ok then warn_once(step[1], ("CodeDiff: %s failed: %s"):format(step[2], tostring(err))) end
+      end
+      -- Outside the pcall: an error in CodeDiff's callback is its own.
+      vim.schedule(function() callback(nil, { unstaged = result.listed, staged = {} }) end)
+    end
     local ok, err = pcall(function()
-      local baseline = require("util.baseline")
-      baseline.snapshot(git_root, function(tree, info)
+      require("util.baseline").snapshot(git_root, function(tree, info)
         if not tree then return fallback(tostring(info)) end
-        local args = { "-c", "core.quotePath=false", "diff-tree", "-r", "-M", "-z", "--name-status", revision, tree, "--" }
-        vim.list_extend(args, pathspec or {})
-        local spawned, e = pcall(vim.system, baseline.git_cmd(args), {
-          cwd = git_root,
-          -- A missing object must never become a fetch from a promisor remote.
-          env = { GIT_NO_LAZY_FETCH = "1" },
-        }, function(r)
-          vim.schedule(function()
-            if r.code ~= 0 then
-              return fallback("git diff-tree: " .. (vim.split(vim.trim(r.stderr or ""), "\n")[1] or ("exit " .. r.code)))
-            end
-            local built, raised = pcall(listing_result, revision, git_root, r.stdout or "", info, pathspec,
-              function(result, why)
-                if not result then return fallback(why) end
-                if answered then return end
-                answered = true
-                -- Outside the pcall: an error in CodeDiff's callback is its own.
-                vim.schedule(function() callback(nil, result) end)
-              end)
-            if not built then fallback(tostring(raised)) end
-          end)
+        M.listing(git_root, revision, tree, info, pathspec, function(result, why)
+          if not result then return fallback(why) end
+          answer(result)
         end)
-        if not spawned then fallback(tostring(e)) end
       end)
     end)
     if not ok then fallback(tostring(err)) end
@@ -975,7 +1151,7 @@ local function patch_listing()
   local changes = internal("core.git.changes")
   if not changes or type(changes.get_diff_revision) ~= "function" or changes.nvim_config_patched then return end
   local original = changes.get_diff_revision
-  local patched = listing(original)
+  local patched = patched_listing(original)
   changes.get_diff_revision = patched
   -- core/git.lua keeps a copy on its facade; nothing calls it today.
   local git = internal("core.git")
