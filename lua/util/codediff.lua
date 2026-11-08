@@ -24,11 +24,13 @@
 --   codediff.ui.explorer.actions    toggle_stage_entry, stage_all,
 --                                   unstage_all, restore_entry
 --   codediff.ui.view.actions.hunk   unstage_hunk
+--   codediff.ui.refresh             request
 --   codediff.core.diff              compute_diff
 --   codediff.ui.view.render         diff_options
 --   codediff.ui.layout              arrange
 --   codediff.core.git.runner        run_async
---   codediff.core.git               get_commit_list
+--   codediff.core.git               get_commit_list, get_diff_revision
+--   codediff.core.git.changes       get_diff_revision (the listing patch)
 --
 -- Keys go through the session's own keymap registry (set_keys): it snapshots
 -- whatever a buffer had before, suspends the claims on real file buffers on
@@ -245,6 +247,19 @@ function M.unstage_hunk(tab)
     is_inline = s.layout == "inline",
   })
   return true
+end
+
+--- Have CodeDiff recompute the view in `tab` (0 = current) the way its file
+--- watcher does: list, read and diff again. For a guard that refused because
+--- the view is behind the files (util.codediff_actions), so that the view
+--- catches up instead of waiting for the next file event.
+---@param tab? integer
+---@return boolean requested false when `tab` has no view or CodeDiff has no refresh
+function M.refresh(tab)
+  tab = tabpage(tab)
+  local refresh = internal("ui.refresh")
+  if not raw_session(tab) or not refresh or type(refresh.request) ~= "function" then return false end
+  return (pcall(refresh.request, tab, { full = true }))
 end
 
 local TARGETS = {
@@ -615,6 +630,259 @@ local function patch_history(limit_of)
   git.nvim_config_patched = true
 end
 
+---------------------------------------------------------------------------
+-- The listing patch: what a revision-vs-working-tree view lists
+---------------------------------------------------------------------------
+
+-- Upstream lists `:CodeDiff <rev>` with `git diff --name-status <rev>` plus
+-- `ls-files --others` (core/git/changes.lua, get_diff_revision). Both read
+-- the real index, so a path the revision has and the index does not -- an
+-- untracked file a baseline captured, or one a branch tracks and this
+-- checkout leaves untracked -- was listed twice, as a D and a ??, and a plain
+-- `mv` as D + ?? instead of R. The replacement lists what the two trees
+-- differ in: util.baseline snapshots the working tree into a tree of its own
+-- (a temporary index, never the real one; untracked files included, ignored
+-- ones not, whatever explorer.untracked says) and `diff-tree -M <rev> <tree>`
+-- compares them. The right pane is still the real, editable file.
+--
+-- It replaces the function for every caller: statistics.lua looks it up on
+-- the changes table at call time, for the first listing and every refresh.
+-- That holds while explorer.line_stats is off (lua/plugin/vcs/codediff.lua);
+-- with line stats on, their numbers would still come from upstream's
+-- `git diff <rev>` (core/git.lua, get_diff_revision_with_line_stats).
+--
+-- The snapshot is the cost: one per refresh, coalesced in util.baseline's
+-- queue behind any prompt's baseline. Its temporary index lives in the
+-- gitdir, where CodeDiff's watcher does not look, so it never triggers the
+-- refresh that would take the next one.
+
+-- buf -> mtime of its file when the buffer last matched it: read, written,
+-- or a change on disk that :checktime handled. Recorded from the first
+-- CodeDiff use on; first_unsaved_change() stands in for older buffers.
+local synced = {}
+local unsaved_noticed = {} ---@type table<string, true> "buf:mtime" told about
+local skipped_noticed = {} ---@type table<string, table<string, true>> view key -> paths told about
+
+local function file_mtime(path)
+  local st = path and vim.uv.fs_stat(path)
+  if not st then return nil end
+  return st.mtime.sec + st.mtime.nsec / 1e9, ("%d.%09d"):format(st.mtime.sec, st.mtime.nsec)
+end
+
+--- Stands in for when a buffer read before the records began last matched
+--- its file: the time of its first change since it was last written (or
+--- read). That is no earlier than the match, so a file changed after it has
+--- really changed; one changed in between is missed. nil when the undo tree
+--- cannot say.
+local function first_unsaved_change(buf)
+  local ok, tree = pcall(vim.fn.undotree, buf)
+  if not ok or type(tree) ~= "table" then return nil end
+  local function walk(entries, visit)
+    for _, e in ipairs(entries or {}) do
+      visit(e)
+      walk(e.alt, visit)
+    end
+  end
+  local saved_at, first = 0, nil
+  walk(tree.entries, function(e)
+    if e.save and e.save == tree.save_last then saved_at = e.seq end
+  end)
+  walk(tree.entries, function(e)
+    if e.seq > saved_at and (not first or e.time < first) then first = e.time end
+  end)
+  return first
+end
+
+--- CodeDiff never reloads a modified buffer, so a file changed on disk under
+--- unsaved edits shows the buffer's text without a word (measured). Say it
+--- once per buffer and disk mtime, for the files this listing shows, and
+--- leave the choice to the user.
+local function notice_unsaved(git_root, entries)
+  local top = vim.uv.fs_realpath(git_root) or git_root
+  local listed = {}
+  for _, e in ipairs(entries) do
+    if e.status ~= "D" then listed[e.path] = true end
+  end
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].modified and vim.bo[buf].buftype == "" then
+      local name = vim.api.nvim_buf_get_name(buf)
+      local real = name ~= "" and not name:match("^%w+://") and vim.uv.fs_realpath(name) or nil
+      local rel = real and vim.fs.relpath(top, real)
+      if rel and listed[rel] then
+        local mtime, stamp = file_mtime(real)
+        local since = synced[buf] or first_unsaved_change(buf)
+        local key = ("%d:%s"):format(buf, tostring(stamp))
+        if mtime and since and mtime > since and not unsaved_noticed[key] then
+          unsaved_noticed[key] = true
+          vim.notify(("%s: unsaved changes here, and the file changed on disk since\n"
+            .. ":e! takes the disk's version; :w keeps yours and overwrites the disk's"):format(rel),
+            vim.log.levels.WARN, { title = "CodeDiff" })
+        end
+      end
+    end
+  end
+end
+
+local function view_key(git_root, revision)
+  return tostring(git_root) .. "\0" .. tostring(revision)
+end
+
+local function size_text(bytes)
+  local mib = 1024 * 1024
+  if bytes >= mib and bytes % mib == 0 then return ("%d MiB"):format(bytes / mib) end
+  return ("%d bytes"):format(bytes)
+end
+
+--- Untracked files over max_file_size are not in the snapshot, so a view
+--- cannot compare them. Say which, once per path per view.
+local function notice_skipped(key, paths)
+  local seen = skipped_noticed[key] or {}
+  skipped_noticed[key] = seen
+  local fresh = {}
+  for _, path in ipairs(paths) do
+    if not seen[path] then
+      seen[path] = true
+      fresh[#fresh + 1] = path
+    end
+  end
+  if #fresh == 0 then return end
+  local ok, settings = pcall(function() return require("ai.review.config").get() end)
+  local limit = ok and settings.max_file_size and size_text(settings.max_file_size) or "the size limit"
+  vim.notify(("Not compared (untracked, over %s; vim.g.ai_review.max_file_size): %s")
+    :format(limit, table.concat(fresh, ", ")), vim.log.levels.INFO, { title = "CodeDiff" })
+end
+
+--- `diff-tree -z --name-status` output as CodeDiff's status entries.
+local function parse_name_status(out)
+  local fields = vim.split(out, "\0", { plain = true })
+  local entries, i = {}, 1
+  while i <= #fields and fields[i] ~= "" do
+    local letter = fields[i]:sub(1, 1)
+    if letter == "R" or letter == "C" then
+      assert(fields[i + 2], "truncated diff-tree output")
+      entries[#entries + 1] = { status = letter, old_path = fields[i + 1], path = fields[i + 2] }
+      i = i + 3
+    else
+      assert(fields[i + 1], "truncated diff-tree output")
+      -- A type change (file <-> symlink) is shown as a modification.
+      entries[#entries + 1] = { status = letter == "T" and "M" or letter, path = fields[i + 1] }
+      i = i + 2
+    end
+  end
+  return entries
+end
+
+local function listing_result(revision, git_root, out, info, pathspec)
+  local skipped = {}
+  for _, path in ipairs(info.skipped or {}) do skipped[path] = true end
+  local entries, dropped = {}, {}
+  for _, e in ipairs(parse_name_status(out)) do
+    -- Not a deletion: the file is only too large for the snapshot.
+    if e.status == "D" and skipped[e.path] and vim.uv.fs_lstat(info.toplevel .. "/" .. e.path) then
+      dropped[#dropped + 1] = e.path
+    else
+      entries[#entries + 1] = e
+    end
+  end
+  -- Scoped to a pathspec, only the dropped paths are known to be in scope.
+  notice_skipped(view_key(git_root, revision), (pathspec and #pathspec > 0) and dropped or info.skipped or {})
+  local ok, err = pcall(notice_unsaved, git_root, entries)
+  if not ok then warn_once("unsaved", "CodeDiff: the unsaved-buffer check failed: " .. tostring(err)) end
+  return { unstaged = entries, staged = {} }
+end
+
+---@param original function upstream's get_diff_revision
+local function listing(original)
+  return function(revision, git_root, callback, pathspec)
+    if type(revision) ~= "string" or type(git_root) ~= "string" then
+      return original(revision, git_root, callback, pathspec)
+    end
+    local answered = false
+    local function fallback(reason)
+      if answered then return end
+      answered = true
+      warn_once("listing", ("CodeDiff's revision listing fell back to upstream's, which can show a path as"
+        .. " both D and ?? (%s)"):format(reason))
+      original(revision, git_root, callback, pathspec)
+    end
+    local ok, err = pcall(function()
+      local baseline = require("util.baseline")
+      baseline.snapshot(git_root, function(tree, info)
+        if not tree then return fallback(tostring(info)) end
+        local args = { "-c", "core.quotePath=false", "diff-tree", "-r", "-M", "-z", "--name-status", revision, tree, "--" }
+        vim.list_extend(args, pathspec or {})
+        local spawned, e = pcall(vim.system, baseline.git_cmd(args), {
+          cwd = git_root,
+          -- A missing object must never become a fetch from a promisor remote.
+          env = { GIT_NO_LAZY_FETCH = "1" },
+        }, function(r)
+          vim.schedule(function()
+            if r.code ~= 0 then
+              return fallback("git diff-tree: " .. (vim.split(vim.trim(r.stderr or ""), "\n")[1] or ("exit " .. r.code)))
+            end
+            local built, result = pcall(listing_result, revision, git_root, r.stdout or "", info, pathspec)
+            if not built then return fallback(tostring(result)) end
+            if answered then return end
+            answered = true
+            callback(nil, result)
+          end)
+        end)
+        if not spawned then fallback(tostring(e)) end
+      end)
+    end)
+    if not ok then fallback(tostring(err)) end
+  end
+end
+
+--- Install the listing patch, and what keeps its notices honest: the buffer
+--- records notice_unsaved() compares against, and a view's skipped-file
+--- notices starting over once no view of that revision is open.
+local function patch_listing()
+  local changes = internal("core.git.changes")
+  if not changes or type(changes.get_diff_revision) ~= "function" or changes.nvim_config_patched then return end
+  local original = changes.get_diff_revision
+  local patched = listing(original)
+  changes.get_diff_revision = patched
+  -- core/git.lua keeps a copy on its facade; nothing calls it today.
+  local git = internal("core.git")
+  if git and git.get_diff_revision == original then git.get_diff_revision = patched end
+  changes.nvim_config_patched = true
+
+  local group = vim.api.nvim_create_augroup("util_codediff_listing", { clear = true })
+  vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "FileChangedShellPost" }, {
+    group = group,
+    callback = function(ev)
+      local name = vim.api.nvim_buf_get_name(ev.buf)
+      synced[ev.buf] = name ~= "" and file_mtime(name) or nil
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = group,
+    callback = function(ev) synced[ev.buf] = nil end,
+  })
+  local function key_of(s)
+    local data = type(s.panel) == "table" and type(s.panel.data) == "table" and s.panel.data or {}
+    return data.base_revision and view_key(s.git_root, data.base_revision) or nil
+  end
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeDiffClose",
+    callback = function(ev)
+      -- Still there: CodeDiffClose fires inside the teardown.
+      local s = ev.data and type(ev.data.tabpage) == "number" and raw_session(ev.data.tabpage)
+      local key = s and key_of(s)
+      if not key then return end
+      vim.schedule(function()
+        for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+          local other = raw_session(tab)
+          if other and key_of(other) == key then return end
+        end
+        skipped_noticed[key] = nil
+      end)
+    end,
+  })
+end
+
 --- Re-install the view's keys whenever CodeDiff swaps a pane's buffer.
 ---
 --- Every path that does -- a file picked in the explorer, a refresh, the
@@ -682,10 +950,12 @@ function M.setup(opts, hooks)
   local found = version and version.VERSION
   degraded = found ~= M.VERSION
   if degraded then
-    warn_once("version", ("CodeDiff %s is not the %s this config was written against; its path fix and"
-      .. " history limit are off (lua/util/codediff.lua)"):format(tostring(found), M.VERSION))
+    warn_once("version", ("CodeDiff %s is not the %s this config was written against; its path fix,"
+      .. " revision listing and history limit are off (lua/util/codediff.lua)"):format(tostring(found), M.VERSION))
   else
     patch_runner()
+    -- After the runner: loading core.git.changes captures its run_async.
+    patch_listing()
     if hooks.history_limit then patch_history(hooks.history_limit) end
   end
 
