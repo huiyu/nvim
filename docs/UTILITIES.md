@@ -625,6 +625,9 @@ on. A server that never answered and then exited is reported once and not
 started again in that session; one that crashes after serving is restarted.
 Nothing here checks for a UI or a buffer: the minuet spec only calls
 `ensure()` where suggestions can show, so headless runs never load the model.
+Nor does anything here retry a request that `ready()` turned away; it fires
+`User LlamaReady` instead, and the minuet spec asks again for the position the
+cursor waits at.
 
 #### API Reference
 
@@ -646,6 +649,10 @@ llama.ensure()
 
 llama.ready()          -- true while /health answers; gates minuet's requests
 llama.failed()         -- true after a failed start, which is not retried
+
+-- `User LlamaReady` fires each time ready() turns true: the first answer after
+-- a start (or from a server another Nvim started), and again once a server
+-- that stopped is replaced. A recheck that finds it still answering is silent.
 llama.release()        -- unregister (runs on VimLeavePre)
 llama.url("/infill")   -- "http://127.0.0.1:8012/infill"
 llama.log()            -- <dir>/server.log, rewritten at each server start

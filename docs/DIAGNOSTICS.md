@@ -323,6 +323,11 @@ buffer that can show them, and that every Nvim shares. None of it depends on
   ~0.8 s at a new position, plus ~0.5 s for the first one after five idle
   minutes, when the server has released the model. Several Nvims share the
   one slot, so requests from two editors at once queue.
+- **Nothing until the first Insert has loaded the model.** The first Insert
+  starts the server, and requests are held back for the few seconds it takes
+  to load. Once it answers (`User LlamaReady`), the position the cursor waits
+  at gets its suggestion without another keystroke; if none appears, check
+  `:checkhealth config` as above.
 - **Memory.** Loaded, the server shows ~8 GB resident, which is mostly the
   memory-mapped model file; its own footprint is ~0.6 GB. Asleep it is ~70 MB.
 - **Lifecycle.** Each Nvim registers as `~/.local/state/nvim/llama/clients/<pid>`;

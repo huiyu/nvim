@@ -181,6 +181,77 @@ vim.api.nvim_feedkeys("i", "nx!", false)
 t.eq({ sent_from, vim.api.nvim_win_get_cursor(0), text_unless_stale({ content = "end" }) }, { "i", { 3, 0 }, " " },
   "a reply that arrives after leaving Insert at column 0 is dropped")
 
+-- Ready while the user waits in Insert -------------------------------------
+
+-- Keystrokes typed while the model loads are turned away, and minuet asks
+-- again only when the cursor moves. Once the server answers, the position the
+-- user stopped at gets its suggestion with no further keystroke. minuet's
+-- predicate holds the util.llama this spec started with, so that one is
+-- stubbed ready; util.llama's own User LlamaReady is checked further down.
+do
+  local virtualtext = require("minuet.virtualtext")
+  local port, mark = free_port(), vim.fn.tempname()
+  local server = vim.system(vim.list_extend({ vim.v.progpath }, fake_args({ "--content", "a + b",
+    "--mark", mark, "--host", "127.0.0.1", "--port", tostring(port) })))
+  t.ok(vim.wait(3000, function() return answering(port) end, 50), "the stand-in answers")
+  options.end_point = ("http://127.0.0.1:%d/infill"):format(port)
+  local ready, ensure_server = llama.ready, llama.ensure
+  local loaded = false
+  llama.ready, llama.ensure = function() return loaded end, function() end
+  -- The fake UI is up only while minuet is driven by hand, never across the
+  -- real Insert and <Esc> below: those reach util.input_method, which with a
+  -- UI runs macism and can switch the desktop's input source.
+  local function fake_ui(on)
+    vim.api.nvim_list_uis = on and function() return { { width = 80, height = 24 } } end or list_uis
+  end
+  local function became_ready()
+    loaded = true
+    vim.api.nvim_exec_autocmds("User", { pattern = "LlamaReady", modeline = false })
+  end
+  -- What a keystroke in Insert does to minuet.
+  local function typed() vim.api.nvim_exec_autocmds("CursorMovedI", { group = "MinuetVirtualText", modeline = false }) end
+
+  fake_ui(true)
+  became_ready()
+  sleep(500)
+  fake_ui(false)
+  t.eq(#marks(mark, "infill"), 0, "outside Insert, the server becoming ready asks for nothing")
+
+  -- A keystroke while it loads is turned away once its debounce runs out, and
+  -- the user then waits without typing. Whatever happens, the callback leaves
+  -- Insert: "x!" would otherwise never return.
+  loaded = false
+  vim.api.nvim_win_set_cursor(0, { 2, 0 })
+  local seen, failed = {}, nil
+  vim.defer_fn(function()
+    fake_ui(true)
+    local ok, err = pcall(function()
+      seen.mode = vim.fn.mode()
+      typed()
+      sleep(3 * minuet.config.debounce)
+      seen.turned_away = #marks(mark, "infill")
+      became_ready()
+      seen.shown = vim.wait(3000, virtualtext.action.is_visible, 20)
+      -- A server that stopped and was replaced while this suggestion showed.
+      became_ready()
+      sleep(500)
+      seen.again = { #marks(mark, "infill"), virtualtext.action.is_visible() }
+    end)
+    failed = not ok and tostring(err) or nil
+    fake_ui(false)
+    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "n", false)
+  end, 50)
+  vim.api.nvim_feedkeys("A", "nx!", false)
+  t.eq(failed, nil, "(waiting in Insert raised nothing)")
+  t.eq({ seen.mode, seen.turned_away }, { "i", 0 }, "(a keystroke while it loads asks for nothing)")
+  t.ok(seen.shown, "the server becoming ready brings the suggestion for where the cursor waits")
+  t.eq(seen.again, { 1, true }, "one already on screen is left alone")
+
+  server:kill("sigterm")
+  options.end_point = llama.url("/infill")
+  llama.ready, llama.ensure = ready, ensure_server
+end
+
 -- The shared server --------------------------------------------------------
 
 local function wait_ready(m, ms)
@@ -204,11 +275,20 @@ local function health_code(m)
     m.url("/health") }):wait().stdout
 end
 
+local readied = 0
+vim.api.nvim_create_autocmd("User", { pattern = "LlamaReady", callback = function() readied = readied + 1 end })
+
 llama = fresh_llama({ "--load-ms", "2500" })
 llama.ensure()
 t.ok(vim.wait(3000, function() return health_code(llama) == "503" end, 50), "the stand-in reports it is loading")
 t.ok(not vim.wait(700, llama.ready, 20), "the server is not ready while it loads")
+t.eq(readied, 0, "(nothing announced yet)")
 t.ok(wait_ready(llama), "it becomes ready once /health answers")
+t.eq(readied, 1, "and announces it with User LlamaReady")
+sleep(300)
+llama.ensure()
+sleep(300)
+t.eq(readied, 1, "a recheck that finds it still answering announces nothing")
 t.eq(clients(llama), { tostring(vim.fn.getpid()) }, "this Nvim registered itself")
 local owner = lock_pid(llama)
 t.ok(owner ~= nil and vim.uv.kill(owner, 0) == 0, "one supervisor holds the lock")
@@ -261,6 +341,7 @@ llama = fresh_llama({ "--mark", crashes })
 llama.ensure()
 t.ok(wait_ready(llama), "(started)")
 vim.env.LLAMA_SUPERVISE_INTERVAL = "1"
+local readied_before = readied
 local first = tonumber((marks(crashes, "start")[1] or ""):match("%d+"))
 vim.uv.kill(first, "sigkill")
 sleep(300)
@@ -268,6 +349,7 @@ llama.ensure()
 t.ok(vim.wait(3000, function() return not llama.ready() end, 20), "(noticed)")
 t.ok(wait_ready(llama), "a server that crashes after serving is brought back")
 t.eq({ #marks(crashes, "start"), failures() }, { 2, {} }, "once, and without a failure report")
+t.eq(readied, readied_before + 1, "and the replacement is announced like a first start")
 
 -- Stopping the server by hand, the way docs/DIAGNOSTICS.md says to.
 vim.uv.kill(lock_pid(llama), "sigterm")

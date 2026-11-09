@@ -703,7 +703,9 @@ nothing leaves the computer — and have nothing to do with `NVIM_AI_PROVIDER`:
 The model is downloaded once (the `llama-server` line under
 [Requirements](#requirements)) into the Hugging Face cache,
 `~/.cache/huggingface/hub`. The first Insert in a file starts one
-`llama-server` that every Nvim shares; it takes a few seconds to load, and runs with `--offline`, so
+`llama-server` that every Nvim shares; it takes a few seconds to load, and the
+suggestion for where the cursor stands then appears without another keystroke.
+It runs with `--offline`, so
 it never reaches the network or swaps in a newer model by itself. A suggestion
 takes about 0.35 s while you type along a line and 0.8 s at a new position.
 After five idle minutes the server releases the model and reloads it, in about
