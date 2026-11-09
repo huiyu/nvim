@@ -736,6 +736,11 @@ retaining keyboard focus; the file panel scrolls on its own. The view follows
 the disk as files change, so an agent's writes show up while you look; the
 cursor keeps its line number, not its place in the text.
 
+The file panel, and the files under each commit in a history panel, show as a
+directory tree. In the panel `i` toggles a flat list (for that view only),
+`zo` / `zc` open or close the directory under the cursor and `zR` / `zM` all of
+them. `,C` on a directory line asks for a file instead.
+
 `;` and `s` are disabled in every window of a view, with a notice. A `;`
 picker would open its file in the working-tree pane and the view would lose
 track of it; most `s` keys close or reshape a pane, and closing one tears the

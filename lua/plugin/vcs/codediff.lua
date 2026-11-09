@@ -455,8 +455,11 @@ return {
   opts = {
     -- The explorer lists every untracked file, as `<leader>gv`'s clean-tree
     -- check counts them. Line stats stay off, as by default: with them on, a
-    -- revision view would list its files through a second code path.
-    explorer = { untracked = "all", line_stats = { enabled = false } },
+    -- revision view would list its files through a second code path. Files
+    -- show as a directory tree (`i` toggles a flat list): a branch or a round
+    -- easily touches a hundred files across a dozen directories.
+    explorer = { untracked = "all", line_stats = { enabled = false }, view_mode = "tree" },
+    history = { view_mode = "tree" },
     keymaps = {
       view = {
         -- q only closes from the explorer and history panels

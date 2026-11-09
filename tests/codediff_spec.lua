@@ -506,12 +506,15 @@ local panel_root, pgit = repo("codediff panel")
 vim.fn.writefile({ "one" }, panel_root .. "/a.txt")
 vim.fn.writefile({ "moved" }, panel_root .. "/old.txt")
 vim.fn.writefile({ "staged move" }, panel_root .. "/b.txt")
+vim.fn.mkdir(panel_root .. "/sub", "p")
+vim.fn.writefile({ "deep" }, panel_root .. "/sub/d.txt")
 assert(pgit("add", "."))
 assert(pgit("commit", "-qm", "base"))
 assert(pgit("mv", "old.txt", "new.txt"))
 assert(pgit("commit", "-qm", "rename"))
 assert(pgit("mv", "b.txt", "c.txt"))
 vim.fn.writefile({ "two" }, panel_root .. "/a.txt")
+vim.fn.writefile({ "deeper" }, panel_root .. "/sub/d.txt")
 
 do
   --- The panel of the current tabpage's view: its raw session, its view, and the
@@ -576,6 +579,16 @@ do
   local item = item_at(pview, staged_move)
   t.eq(item and { item.panel, item.type, item.path, item.old_path, item.status, item.group },
     { "explorer", "file", "c.txt", "b.txt", "R", "staged" }, "panel_item reads the explorer entry from them")
+  -- Files show as a directory tree by default (lua/plugin/vcs/codediff.lua);
+  -- `i` toggles a flat list.
+  local options = require("codediff.config").options
+  t.eq({ options.explorer.view_mode, options.history.view_mode }, { "tree", "tree" },
+    "the explorer and history panels default to a directory tree")
+  local dir = entry_with(found, { type = "directory" })
+  t.ok(dir ~= nil and entry_with(found, { path = "sub/d.txt" }) ~= nil,
+    "a file in a subdirectory sits under a directory node")
+  item = item_at(pview, dir)
+  t.eq(item and item.type, "directory", "panel_item reports a directory node as such, so ,C asks for a file")
   close_view()
 
   vim.cmd.edit(vim.fn.fnameescape(panel_root .. "/a.txt"))
