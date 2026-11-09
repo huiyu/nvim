@@ -807,7 +807,8 @@ the left (for a file with conflicts, ours on the left and theirs on the right,
 which `<Space>gD` opens too); the same key again, or `<Space>gq`, closes it.
 Pressed in another window, `<Space>gd` moves the split there: Vim compares every
 diff window of a tabpage with every other, so two files' splits side by side
-would also compare the files. While the index side has unsaved edits it stays open:
+would also compare the files; in a buffer Git does not track it says so and leaves
+the split where it is. While the index side has unsaved edits it stays open:
 `:w` there stages them, `:e!` drops them. The statusline
 counts the buffer's changes against the index next to the branch, `+3 ~1 -2`
 for added, changed and removed lines.

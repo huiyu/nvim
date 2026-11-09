@@ -63,12 +63,23 @@ function M.close(tab)
   if #revisions == 0 then return false end
   -- The index side is editable -- :w stages it -- and gitsigns wipes its
   -- buffer once no window shows it, so closing with unsaved edits would lose
-  -- them; Nvim refuses that with E37, which would stop the loop below after
-  -- some windows were already gone. Refuse before closing any.
+  -- them. Nvim refuses that window with E37, and the loop below would close
+  -- the others around it. Refuse before closing any.
   for _, win in ipairs(revisions) do
     if vim.bo[vim.api.nvim_win_get_buf(win)].modified then
       vim.notify("The diff's index side has unsaved changes: :w stages them, :e! drops them", vim.log.levels.WARN)
       return true
+    end
+  end
+  -- Closing the current window hands the cursor to the window that takes its
+  -- space: with 'splitright', the one left of the split, often another file.
+  -- From a revision window, go back to the file's window instead (the one
+  -- the cursor came from, when it is one).
+  local back
+  if vim.list_contains(revisions, vim.api.nvim_get_current_win()) then
+    local came_from = vim.fn.win_getid(vim.fn.winnr("#"))
+    for _, win in ipairs(diff_wins(tab)) do
+      if not vim.list_contains(revisions, win) and (back == nil or win == came_from) then back = win end
     end
   end
   for _, win in ipairs(revisions) do
@@ -87,7 +98,19 @@ function M.close(tab)
   -- instead). 'diffopt' closeoff only ends diff mode in the last window left.
   -- End it in all of them, as :diffoff! would in this tabpage.
   for _, win in ipairs(diff_wins(tab)) do diffoff(win) end
+  if back and vim.api.nvim_win_is_valid(back) then vim.api.nvim_set_current_win(back) end
   return true
+end
+
+--- Whether Git lists the buffer's file as unmerged, which is when gitsigns'
+--- diffthis opens ours and theirs even for the inline view.
+---@param buf integer
+local function has_conflicts(buf)
+  local name = vim.api.nvim_buf_get_name(buf)
+  if vim.bo[buf].buftype ~= "" or name == "" then return false end
+  local result = vim.system({ "git", "--no-optional-locks", "--literal-pathspecs", "-C", vim.fs.dirname(name),
+    "ls-files", "--unmerged", "--", name }, { text = true }):wait()
+  return result.code == 0 and (result.stdout or "") ~= ""
 end
 
 --- <leader>gd (no `opts`) and <leader>gD (`{ unified = true }`): from a
@@ -101,10 +124,19 @@ function M.toggle(opts)
     M.close()
     return
   end
+  -- diffthis does nothing, and says nothing, in a buffer gitsigns has not
+  -- attached to: untracked, outside Git, not a file, or still attaching.
+  -- Say so, and leave a split elsewhere in the tabpage as it is.
+  if require("gitsigns").get_hunks(0) == nil then
+    vim.notify("No Git diff here: gitsigns has not attached to this buffer", vim.log.levels.INFO)
+    return
+  end
   -- A split elsewhere in the tabpage moves here: beside it, the new one
   -- would be compared with the other file too. Unless it stays open over
-  -- unsaved index edits. The inline view sets no diff mode and stays out.
-  if not opts.unified and M.close() and #M.revision_wins() > 0 then return end
+  -- unsaved index edits. The inline view sets no diff mode and leaves it
+  -- alone, but for a file with conflicts <leader>gD opens a split as well.
+  local splits = not opts.unified or (#M.revision_wins() > 0 and has_conflicts(0))
+  if splits and M.close() and #M.revision_wins() > 0 then return end
   -- gitsigns' diffthis ignores a window in diff mode, and one comparing
   -- nothing is common: a buffer last shown in a diff window carries diff
   -- mode into the next window that opens it (`:tabnew` of the file).

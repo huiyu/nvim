@@ -225,6 +225,43 @@ press("<leader>gq")
 closed("<leader>gq without closeoff")
 vim.opt.diffopt:append("closeoff")
 
+-- Closed from the index side, the cursor goes back to the file, not to the
+-- window left of the split that 'splitright' hands the space to.
+vim.cmd("leftabove vnew")
+local left_win = vim.api.nvim_get_current_win()
+vim.api.nvim_set_current_win(file_win)
+for _, key in ipairs({ "<leader>gq", "<leader>gd" }) do
+  t.ok(open(), "<leader>gd with another window left of the file")
+  vim.api.nvim_set_current_win(revisions()[1])
+  press(key)
+  t.eq(revisions(), {}, key .. " from the index side closes the split")
+  t.eq(vim.api.nvim_get_current_win(), file_win, key .. " puts the cursor back in the file, not the window left of it")
+end
+
+-- In a buffer gitsigns has not attached to, diffthis can open nothing:
+-- <leader>gd says so and leaves the split elsewhere in the tabpage alone.
+local untracked = dir .. "/new.txt"
+vim.fn.writefile({ "not in git yet" }, untracked)
+for _, case in ipairs({ { "a scratch buffer", left_win }, { "an untracked file", "untracked" } }) do
+  vim.api.nvim_set_current_win(file_win)
+  t.ok(open(), "<leader>gd before trying it in " .. case[1])
+  vim.api.nvim_set_current_win(left_win)
+  if case[2] == "untracked" then
+    vim.cmd.edit(vim.fn.fnameescape(untracked))
+    -- gitsigns looks at it and stays detached; give it the time it would take.
+    vim.wait(1000, function() return vim.b.gitsigns_status_dict ~= nil end, 20)
+  end
+  notices = {}
+  press("<leader>gd")
+  t.ok(said("gitsigns has not attached") ~= nil, "<leader>gd in " .. case[1] .. " says there is no diff")
+  t.eq(#revisions(), 1, "and leaves b.txt's split open")
+  t.eq(vim.wo[file_win].diff, true, "in diff mode")
+  vim.api.nvim_set_current_win(file_win)
+  press("<leader>gq")
+end
+vim.api.nvim_win_close(left_win, false)
+vim.api.nvim_set_current_win(file_win)
+
 -- Vim compares every diff window of a tabpage with every other. <leader>gd
 -- in a second file's window moves the split there instead of adding one, so
 -- the two files are never diffed with each other, nor left so afterwards.
@@ -348,6 +385,34 @@ t.ok(vim.wait(5000, function() return #revisions() == 2 end, 20), "<leader>gD op
 notices = {}
 press("<leader>gD")
 closed("a second <leader>gD over the three-way split")
+
+-- That split moves here like <leader>gd's: beside b.txt's, c.txt and b.txt
+-- would be compared with each other too.
+-- b.txt was hidden since; shown again, gitsigns rereads it, and diffthis
+-- pressed in those few milliseconds fails gitsigns' own assertion. Wait for
+-- its update (no user types that fast).
+local updated = false
+local on_update = vim.api.nvim_create_autocmd("User", {
+  pattern = "GitSignsUpdate", callback = function() updated = true end,
+})
+vim.cmd("rightbelow vsplit " .. vim.fn.fnameescape(other))
+vim.wait(2000, function() return updated end, 10)
+vim.api.nvim_del_autocmd(on_update)
+local b_win = vim.api.nvim_get_current_win()
+t.ok(open(), "<leader>gd in b.txt beside the conflicted file")
+vim.api.nvim_set_current_win(file_win)
+press("<leader>gD")
+t.ok(vim.wait(5000, function()
+  local r = revisions()
+  return #r == 2 and vim.iter(r):all(function(w)
+    return vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(w)):match("c%.txt$") ~= nil
+  end)
+end, 20), "<leader>gD on the conflicted file moves the split to ours and theirs")
+t.eq(vim.wo[b_win].diff, false, "b.txt leaves the comparison")
+press("<leader>gD")
+t.eq(#vim.tbl_filter(function(w) return vim.wo[w].diff end, layout()), 0, "a second <leader>gD ends it")
+vim.api.nvim_win_close(b_win, false)
+vim.api.nvim_set_current_win(file_win)
 
 -- With the file's window closed by hand, the last of the two is the
 -- tabpage's last split. Closing it would close the tabpage (here, the

@@ -613,9 +613,13 @@ diffsplit.revision_wins(tab)   --> integer[]
 diffsplit.close(tab)           --> boolean
 
 -- <leader>gd (opts nil) / <leader>gD ({ unified = true }). From a diff window
--- of the current tabpage's split: close(). Otherwise gitsigns' diffthis(nil,
--- opts) for the current window, after closing a split elsewhere in the
--- tabpage (not for the inline view, which sets no diff mode) and after
+-- of the current tabpage's split: close(), and the cursor goes back to the
+-- file's window. In a buffer gitsigns has not attached to (untracked, outside
+-- Git, not a file; get_hunks(0) is nil): an INFO notice, nothing else, since
+-- diffthis would silently do nothing. Otherwise gitsigns' diffthis(nil, opts)
+-- for the current window, after closing a split elsewhere in the tabpage
+-- (not for the inline view, which sets no diff mode -- unless `git ls-files
+-- --unmerged` lists the file, where gD opens ours and theirs) and after
 -- :diffoff of the current window if it is the tabpage's only diff window --
 -- diffthis ignores a window in diff mode, and a buffer last shown in one
 -- carries it into the next window that opens it.
