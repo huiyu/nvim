@@ -436,9 +436,11 @@ return {
     {
       "<leader>gq",
       -- Not a bare :CodeDiff: that only closes when this tab has a view and
-      -- opens a new one otherwise.
+      -- opens a new one otherwise. A tab without one may have <leader>gd's
+      -- split, which nothing else closes.
       function()
-        if not require("util.codediff").close(vim.api.nvim_get_current_tabpage()) then
+        local tab = vim.api.nvim_get_current_tabpage()
+        if not require("util.codediff").close(tab) and not require("util.diffsplit").close(tab) then
           vim.notify("No diff view in this tab", vim.log.levels.INFO)
         end
       end,

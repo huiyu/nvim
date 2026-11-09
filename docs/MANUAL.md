@@ -704,7 +704,7 @@ panel on the left and the two sides of the selected file beside it:
 | `<Space>gk` | **Compare two** ends: the working tree, the index, a baseline, a branch / tag / commit, or a revision you type |
 | `<Space>gK` | Save the current code as a named baseline, for `gk` and `gM` to compare against later |
 | `<Space>gV` / `<Space>gH` | This file's / the repository's history: the newest 100 non-merge commits |
-| `<Space>gq` | Close the diff view in this tab |
+| `<Space>gq` | Close the diff view in this tab, or `<Space>gd`'s split (below) |
 
 A clean working tree makes `<Space>gv` say so instead of opening an empty view,
 and pressed inside a view it points to `<Space>gq` — there it would only close
@@ -802,7 +802,13 @@ in the same window; cancelling keeps the view and layout in place.
 `<Space>gD` shows the current file's changes inside its own window: each line
 removed since the index is drawn, read-only, where it used to be, so a changed
 line has its old text right above it. `]h` / `[h` step through the changes;
-`<Space>gD` again goes back to the plain file. `<Space>gd` shows the same comparison in a split instead. The statusline
+`<Space>gD` again goes back to the plain file. `<Space>gd` shows the same comparison in a split instead, the index on
+the left (for a file with conflicts, ours on the left and theirs on the right,
+which `<Space>gD` opens too); the same key again, or `<Space>gq`, closes it.
+Pressed in another window, `<Space>gd` moves the split there: Vim compares every
+diff window of a tabpage with every other, so two files' splits side by side
+would also compare the files. While the index side has unsaved edits it stays open:
+`:w` there stages them, `:e!` drops them. The statusline
 counts the buffer's changes against the index next to the branch, `+3 ~1 -2`
 for added, changed and removed lines.
 

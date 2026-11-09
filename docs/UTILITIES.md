@@ -4,7 +4,7 @@ This document provides detailed documentation for all utility modules in the Neo
 
 ## Overview
 
-The utility modules provide focused helpers for logging, debug inspection, LSP, table manipulation, macOS input sources, terminals, windows, review baselines, the CodeDiff views, and running the current file. The AI modules follow, with the review loop's under [AI Review](#ai-review-aireview). For diagnostic and debugging workflows (health checks, profiling, LSP/treesitter inspection), see [DIAGNOSTICS.md](DIAGNOSTICS.md).
+The utility modules provide focused helpers for logging, debug inspection, LSP, table manipulation, macOS input sources, terminals, windows, gitsigns' diff split, review baselines, the CodeDiff views, and running the current file. The AI modules follow, with the review loop's under [AI Review](#ai-review-aireview). For diagnostic and debugging workflows (health checks, profiling, LSP/treesitter inspection), see [DIAGNOSTICS.md](DIAGNOSTICS.md).
 
 ## Core Utilities
 
@@ -577,6 +577,49 @@ buffer.is_hidden(buf)
 -- placeholder Snacks creates when no listed buffer remains is wiped again.
 -- Notifies how many were removed. Bound to <leader>bh.
 buffer.delete_hidden()
+```
+
+## Diff Split (`util.diffsplit`)
+
+The split `:Gitsigns diffthis` opens (`<leader>gd`, and `<leader>gD` for a
+file with conflicts): a window per revision of the file -- the index, or ours
+and theirs -- in diff mode beside the file's own window. gitsigns has no
+command that closes it. `<leader>gq` calls `close()` when the tabpage has no
+CodeDiff view; `<leader>gd` and `<leader>gD` are `toggle()`. A revision
+window is a window in diff mode whose buffer name starts with `gitsigns://`,
+the prefix gitsigns gives every buffer it reads from git
+(`tests/gitsigns_spec.lua` fails if `<leader>gd` stops opening one).
+
+Vim compares every diff window of a tabpage with every other, as one view.
+So `close()` ends diff mode in all of the tabpage's windows, not only the
+file's -- a `:split` of the file's window inherits diff mode, and 'diffopt'
+`closeoff` ends it only in the last window left -- and `toggle()` from
+outside the split moves it rather than add a second file to the comparison.
+
+#### API Reference
+
+```lua
+local diffsplit = require("util.diffsplit")
+
+-- The tabpage's split windows that show a gitsigns revision in diff mode.
+-- tab: a tabpage handle, 0 or nil for the current one.
+diffsplit.revision_wins(tab)   --> integer[]
+
+-- Close them, then :diffoff every window of `tab`. Only `tab` is touched.
+-- false when it has none. true otherwise, including when it refuses: an index
+-- side with unsaved edits (gitsigns wipes the buffer with its window, and :w
+-- there stages) closes nothing and says so. A revision that is the
+-- tabpage's last split stays, out of diff mode, rather than close the tabpage.
+diffsplit.close(tab)           --> boolean
+
+-- <leader>gd (opts nil) / <leader>gD ({ unified = true }). From a diff window
+-- of the current tabpage's split: close(). Otherwise gitsigns' diffthis(nil,
+-- opts) for the current window, after closing a split elsewhere in the
+-- tabpage (not for the inline view, which sets no diff mode) and after
+-- :diffoff of the current window if it is the tabpage's only diff window --
+-- diffthis ignores a window in diff mode, and a buffer last shown in one
+-- carries it into the next window that opens it.
+diffsplit.toggle(opts)
 ```
 
 ## Baselines (`util.baseline`)

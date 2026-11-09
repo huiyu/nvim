@@ -291,7 +291,8 @@ Diff 视图都在 `<leader>g` 下，各自开在独立的 tabpage 里（CodeDiff
 | `gV` / `gH` | 文件 / 仓库历史（最近 100 个，不含 merge） |
 | `gq` | 关闭本 tab 的 diff 视图 |
 
-`gd` / `gD` 仍是 gitsigns 对当前文件的 diff，分别以分屏和行内显示。视图里 `;` 和 `s`
+`gd` / `gD` 仍是 gitsigns 对当前文件的 diff，分别以分屏和行内显示；再按一次即关闭，
+分屏也可以用 `gq` 关闭。视图里 `;` 和 `s`
 被禁用，因为 picker 或窗口键会弄坏它的窗格；在它的文件面板里按 `q` 也能关闭视图。
 每种视图的 `,` 键做什么，见[使用手册](docs/MANUAL_CN.md#git)。
 

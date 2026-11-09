@@ -21,12 +21,17 @@ return {
       desc = "Reset selected lines", mode = "x" },
     { "<leader>gS", function() require("gitsigns").stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end,
       desc = "Stage/unstage selected lines", mode = "x" },
-    { "<leader>gd", "<cmd>Gitsigns diffthis<cr>",       desc = "Diff" },
+    -- The file against the index in a split. Pressed again from any window of
+    -- that split, it closes it, as <leader>gq does (gitsigns' own diffthis
+    -- ignores a window in diff mode); from another window it moves the split
+    -- there. util.diffsplit says why.
+    { "<leader>gd", function() require("util.diffsplit").toggle() end, desc = "Toggle diff split" },
     -- The same comparison inside this window: lines removed since the index
     -- are drawn where they were (a changed line's old text right above it),
     -- no second window. Pressing it again closes the view. A file with merge
-    -- conflicts still gets the three-way split.
-    { "<leader>gD", function() require("gitsigns").diffthis(nil, { unified = true }) end,
+    -- conflicts still gets the three-way split, which a second press closes
+    -- as <leader>gd's does.
+    { "<leader>gD", function() require("util.diffsplit").toggle({ unified = true }) end,
       desc = "Toggle inline diff" },
     { "<leader>gT", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle line blame" },
     { "<leader>gB", function() Snacks.gitbrowse() end,  desc = "Git browse (open)" },

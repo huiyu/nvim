@@ -303,7 +303,8 @@ Diff views live under `<leader>g`, each in a tabpage of its own (CodeDiff):
 | `gV` / `gH` | File / repo history (recent 100, no merges) |
 | `gq` | Close the diff view in this tab |
 
-`gd` / `gD` stay gitsigns' diff of the current file, in a split or inline.
+`gd` / `gD` stay gitsigns' diff of the current file, in a split or inline;
+either closes on a second press, and `gq` closes the split as well.
 Inside a view `;` and `s` are disabled, since a picker or a window key would
 break its panes; `q` in its file panel closes it too. The
 [manual](docs/MANUAL.md#git) has what each view's `,` keys do.
