@@ -212,8 +212,15 @@ application; terminals do nothing.
 
 In terminal-Normal mode, `gx` also joins targets enclosed in `(...)` or `<...>`
 that wrap within a table column, including a report printed as `(/tmp/` then
-`report.md)` on the next row. Quoted file paths can wrap too. The cursor can be
-on either part. Leave terminal input with `Ctrl-\` or `jk` first.
+`report.md)` on the next row. Quoted file paths can wrap too. A link longer
+than the panel, which the terminal itself wrapped so its rest starts in column
+0 of the next row, opens whole as well, enclosed or bare. The cursor can be on
+any part. Leave terminal input with `Ctrl-\` or `jk` first.
+
+Yanking from a terminal buffer copies text the terminal wrapped as the one line
+the program printed, so `yi(` or `V` plus `y` on such a link puts the whole URL
+on the clipboard, without the newline at the panel's edge. A motion that stays
+on one row, such as `yiW` or `y$`, still stops at the row's end.
 
 ### 7. Everything repeats, and everything backs out
 
