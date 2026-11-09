@@ -819,13 +819,16 @@ local function stage(tab, unstage, range)
   if gs.get_hunks(buf) == nil then
     -- gitsigns throttles attaches per buffer: one asked for while another is
     -- under way (its own, on a BufEnter or a refresh) returns at once, before
-    -- that one has attached. Poll briefly for the attach to land before the
-    -- stage concludes gitsigns does not track the file.
+    -- that one has attached. And on a busy machine (CI) an attach can come
+    -- to nothing. So poll for up to 5 s, asking again each second (a request
+    -- while one runs is merged, one after it is a no-op), before the stage
+    -- concludes gitsigns does not track the file.
     local function attached(polls)
       if gs.get_hunks(buf) ~= nil or polls <= 0 then return run(1) end
+      if polls % 20 == 0 then gs.attach({ bufnr = buf }) end
       vim.defer_fn(function() attached(polls - 1) end, 50)
     end
-    gs.attach({ bufnr = buf }, function() vim.schedule(function() attached(60) end) end)
+    gs.attach({ bufnr = buf }, function() vim.schedule(function() attached(100) end) end)
   else
     run(1)
   end

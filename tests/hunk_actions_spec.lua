@@ -202,7 +202,8 @@ t.eq(map(s.panel_bufnr, ",u"), {}, "the explorer gets none of them")
 -- (codediff_actions refuses a stage in that window). The next key waits for
 -- both, as a person would.
 local function finished(text)
-  local ok = vim.wait(5000, function() return said(text) ~= nil end, 20)
+  -- 10 s: a stage may first wait up to 5 s for gitsigns to attach.
+  local ok = vim.wait(10000, function() return said(text) ~= nil end, 20)
   settle(700)
   return ok
 end
@@ -299,6 +300,31 @@ do
   press(right, 11, ",U")
   t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it " .. heard())
   t.eq(index(), base, "back to the index it had")
+  gs.refresh()
+  t.ok(unstaged_count(3), "gitsigns sees it unstaged")
+
+  -- An attach can also come to nothing on a busy machine (CI): the stage
+  -- asks again rather than give up after the first.
+  gs.detach(buf)
+  t.ok(vim.wait(2000, function() return gs.get_hunks(buf) == nil end, 20), "gitsigns detached once more")
+  local asked = 0
+  gs.attach = function(opts, cb)
+    asked = asked + 1
+    if asked == 1 then
+      if cb then cb() end
+      return
+    end
+    return real(opts, cb)
+  end
+  notices = {}
+  press(right, 11, ",u")
+  t.ok(finished("Staged line 11 of f.txt"), "a stage whose first attach came to nothing still stages " .. heard())
+  gs.attach = real
+  t.ok(asked >= 2, "after asking gitsigns to attach again")
+  t.eq(index(), staged_insert, "the inserted line is staged")
+  notices = {}
+  press(right, 11, ",U")
+  t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it again " .. heard())
   gs.refresh()
   t.ok(unstaged_count(3), "gitsigns sees it unstaged")
 end
