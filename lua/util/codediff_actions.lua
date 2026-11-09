@@ -817,7 +817,15 @@ local function stage(tab, unstage, range)
     end
   end
   if gs.get_hunks(buf) == nil then
-    gs.attach({ bufnr = buf }, function() vim.schedule(function() run(1) end) end)
+    -- gitsigns throttles attaches per buffer: one asked for while another is
+    -- under way (its own, on a BufEnter or a refresh) returns at once, before
+    -- that one has attached. Poll briefly for the attach to land before the
+    -- stage concludes gitsigns does not track the file.
+    local function attached(polls)
+      if gs.get_hunks(buf) ~= nil or polls <= 0 then return run(1) end
+      vim.defer_fn(function() attached(polls - 1) end, 50)
+    end
+    gs.attach({ bufnr = buf }, function() vim.schedule(function() attached(60) end) end)
   else
     run(1)
   end

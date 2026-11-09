@@ -277,6 +277,32 @@ do
   t.ok(unstaged_count(3), "gitsigns sees it unstaged")
 end
 
+-- gitsigns throttles attaches per buffer: one asked for while another is
+-- under way returns at once, before that one has attached (seen on CI as
+-- "gitsigns does not track f.txt"). A stage that had to attach first waits
+-- for the attach to land.
+do
+  local real = gs.attach
+  gs.detach(buf)
+  t.ok(vim.wait(2000, function() return gs.get_hunks(buf) == nil end, 20), "gitsigns detached again")
+  gs.attach = function(opts, cb)
+    vim.defer_fn(function() real(opts) end, 300)
+    if cb then cb() end
+  end
+  notices = {}
+  press(right, 11, ",u")
+  t.ok(finished("Staged line 11 of f.txt"), "a stage whose attach returned early still stages " .. heard())
+  gs.attach = real
+  t.eq(said("does not track"), nil, "without calling the file untracked")
+  t.eq(index(), staged_insert, "the inserted line is staged")
+  notices = {}
+  press(right, 11, ",U")
+  t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it " .. heard())
+  t.eq(index(), base, "back to the index it had")
+  gs.refresh()
+  t.ok(unstaged_count(3), "gitsigns sees it unstaged")
+end
+
 -- From the left pane: the hunk under the cursor there (baseline lines 18-19).
 local staged_change = concat(rows(1, 14, "f line %d"), agent_change, rows(17, 20, "f line %d"))
 notices = {}
