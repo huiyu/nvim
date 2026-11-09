@@ -30,6 +30,13 @@ if client then
   t.ok(vim.wait(5000, function() return vim.lsp.buf_is_attached(0, client.id) end, 50), "second Java buffer attaches to the same server")
   t.ok(vim.fn.maparg(",dt", "n", false, true).buffer == 1, "Java test debug key is buffer-local")
   vim.api.nvim_set_current_buf(main)
+  -- jdtls lists the debug bundle's commands only once it has loaded the
+  -- bundles; asking before that fails with "No LSP client found that supports
+  -- vscode.java.resolveMainClass" (seen on CI, where jdtls starts slowly).
+  t.ok(vim.wait(60000, function()
+    local provider = client.server_capabilities.executeCommandProvider
+    return type(provider) == "table" and vim.tbl_contains(provider.commands or {}, "vscode.java.resolveMainClass")
+  end, 100), "jdtls offers the debug bundle's commands")
   local configs
   require("jdtls.dap").fetch_main_configs({}, function(value) configs = value end)
   t.ok(vim.wait(30000, function() return configs ~= nil end, 100), "jdtls discovers main classes")
