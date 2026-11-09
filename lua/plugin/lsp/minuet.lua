@@ -129,6 +129,22 @@ return {
       end
     end
 
+    -- The predicate turns requests away while the model loads, and minuet
+    -- asks again only when the cursor next moves: a user who stopped typing
+    -- to wait for the first suggestion never got one. Replay minuet's own
+    -- cursor handler once the server answers, so that request still goes
+    -- through its debounce and the predicate. A suggestion already on screen
+    -- (from before a server that stopped was replaced) is left alone.
+    local virtualtext = require("minuet.virtualtext")
+    vim.api.nvim_create_autocmd("User", {
+      group = vim.api.nvim_create_augroup("user_llama_ready", { clear = true }),
+      pattern = "LlamaReady",
+      callback = function()
+        if vim.fn.mode() ~= "i" or not wants_server() or virtualtext.action.is_visible() then return end
+        vim.api.nvim_exec_autocmds("CursorMovedI", { group = "MinuetVirtualText", modeline = false })
+      end,
+    })
+
     -- Start loading at Insert rather than at the first pause in typing.
     local function ensure()
       if wants_server() then llama.ensure() end

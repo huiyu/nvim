@@ -642,7 +642,8 @@ Normal 模式的布局优先读取 `NVIM_ENGLISH_INPUT_SOURCE`，未设置时回
 
 模型只需下载一次（见[环境要求](#环境要求)里的 `llama-server` 那一行），存放在
 Hugging Face 缓存 `~/.cache/huggingface/hub`。第一次在文件里进入 Insert 时会启动一个
-所有 Nvim 共用的 `llama-server`，加载需要几秒；它以 `--offline` 运行，
+所有 Nvim 共用的 `llama-server`，加载需要几秒，加载完成后不用再按键，光标处的建议
+就会出现。它以 `--offline` 运行，
 不会访问网络，也不会自行换成新版本的模型。沿着一行打字时，每条建议约 0.35 秒，
 换到新位置约 0.8 秒。空闲五分钟后，服务释放模型，下一条建议到来时再重新加载，
 约半秒；最后一个 Nvim 退出几秒后服务也会退出。Headless Nvim 不会启动它。

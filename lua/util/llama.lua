@@ -3,7 +3,9 @@
 -- ensure() registers this process, starts scripts/llama-supervise when nothing
 -- answers on the port, and polls /health until the model has loaded.
 -- Completion requests wait for ready() (minuet's enable_predicates), so the
--- seconds spent loading produce no failed requests. The supervisor stops the
+-- seconds spent loading produce no failed requests; `User LlamaReady` fires
+-- when ready() turns true, so whoever was turned away meanwhile can ask
+-- again. The supervisor stops the
 -- server once the last registered Nvim is gone, crashed ones included; see that
 -- script for how, and for the exit codes handled in exited() below.
 local M = {}
@@ -101,7 +103,15 @@ local function probe(callback)
 end
 
 local function answered()
+  local was_ready = ready
   ready, probing, answered_at = true, false, vim.uv.now()
+  -- Only on the edge: a recheck of a server that still answers is no news.
+  -- Nothing here retries a request that ready() turned away, and a caller
+  -- that waits for the next keystroke to ask again leaves a user who stopped
+  -- typing to wait for the first suggestion without one.
+  if not was_ready then
+    vim.api.nvim_exec_autocmds("User", { pattern = "LlamaReady", modeline = false })
+  end
 end
 
 local function fail(message)
