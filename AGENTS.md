@@ -76,13 +76,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   Between two chats the window is handed over in place; a terminal window
   cannot take another buffer (Snacks' fixbuf), so between a terminal and
   anything else one window closes and another opens.
-- The chat keys (`an`, `al`, `ac`, `af`, `ab`, `as`, `ai`) act on the chat on
-  the right, read off the windows: the one shown in this tabpage; from a
+- The chat keys (`ac`, `af`, `ab`, `as`, `ai`) act on the chat on the right,
+  read off the windows: the one shown in this tabpage; from a
   prefix-blocking view (CodeDiff), the one shown in the page the view came
   from (`util.window.origin_tab`, which `ai.review.feedback` uses too), which
   becomes current; otherwise they ask, listing the open chats (● here / tab
   N / hidden, with billing) and "New chat…", or the new-chat picker when none
-  is open. A chat shown in another tabpage is gone to, never moved. A
+  is open (`ac`/`af` first bring back `vim.t.ai_slot_last`, below). `an` and
+  `al` always ask -- the new-chat picker and that switcher -- from the same
+  page. A chat shown in another tabpage is gone to, never moved. A
   question cancelled from a view goes back to the view. `<leader>ac` from a
   view goes into the origin's chat as `<leader>af` would: the user never saw
   it, so hiding it would only strand them outside the view. A delivery that
@@ -653,12 +655,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   successor's buffer in the window of the tabpage that showed it: there it is
   still the chat on the right, shown in a window that is not its own, which
   `show` and `focus_prompt` use where it is and `<leader>ac` closes.
-  `ai.slot` reaches chats only through `ai.companion` (`key`, `buf`, `name`,
-  `win`, `where`, `win_here`, `hide`), which reads them in a pcall and
-  checks what it gets. A failure is reported as an error by the facade's
-  guards; nothing falls back to an upstream command, which would aim at
-  `last_chat` instead. `tests/companion_spec.lua` pins the internals without
-  creating an ACP chat (that spawns the bridge) or sending a request, and
+  `ai.slot` reaches chats only through `ai.companion` (`chats`, `chat_of`,
+  `key`, `buf`, `label`, `name`, `win`, `where`, `busy`, `hide`, `create`,
+  `focus_prompt`), which reads them in a pcall and checks what it gets. A
+  failure is reported as an error by the facade's guards; nothing falls back
+  to an upstream command, which would aim at `last_chat` instead.
+  `tests/companion_spec.lua` pins the internals without creating an ACP chat
+  (that spawns the bridge) or sending a request, and
   `tests/ai_slot_spec.lua` the slot. Review feedback goes to one exact chat
   through `add_text`, `busy` and `show_input`, which also read
   `chat.current_request` and the private

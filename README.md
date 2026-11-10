@@ -442,7 +442,8 @@ which are exactly the agent TUI's editing keys.
 | `:q!` | cancel |
 
 Whatever is already in the input box comes across, and from Visual mode the
-selection is added to it first, using the same text form `<leader>as` produces.
+selection is added to it first, in the form `<leader>as` types into Codex's box:
+`@path lines X-Y`, or the exact text, fenced, from a buffer with unsaved changes.
 Nothing is submitted — closing the buffer hands the text back to the box, and you
 still press Enter yourself.
 
@@ -451,8 +452,9 @@ Escape chord (`<C-\>`) do not leave it, and a focus change that slips past that
 is undone. While it is open
 the agent is blocked on the editor and ignores its pty, so there would be no way
 back otherwise — `<leader>ai` pressed again returns to the open prompt (adding a
-Visual selection to it) instead of sending a `ctrl+g` the TUI would swallow. Two
-agents side by side may each have a prompt open; the newer one keeps focus.
+Visual selection to it) instead of sending a `ctrl+g` the TUI would swallow.
+Claude Code and Codex may each have a prompt open at once; the newer one keeps
+focus.
 
 This is not a buffer of ours: it is the agent's own `ctrl+g` ("edit this prompt
 in `$EDITOR`"), which both Claude Code and Codex implement. `$EDITOR` points at

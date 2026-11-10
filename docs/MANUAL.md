@@ -1108,8 +1108,8 @@ typed in the other goes beside it as `<round>.conflict.md` (then
 
 `<C-d>` sends the draft, without its markers, to the conversation that owns the
 round. It first switches to the tab that shows that agent's panel or chat —
-from the review tab otherwise to the tab before it, the one it was opened
-from.
+otherwise, from a CodeDiff view, to the tab the view was opened from (the
+nearest one before it that is not a view itself).
 
 - **Native Claude or Codex.** The feedback opens in that agent's own prompt
   editor — the float `<Space>ai` opens — after whatever was already typed in

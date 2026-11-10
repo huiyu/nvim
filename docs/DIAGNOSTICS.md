@@ -417,8 +417,10 @@ labels and the listing; its header lists what it depends on.
 - **`<leader>ar`, `aR` or `am` only showed the agent.** Each native agent has
   one session per Nvim (claudecode keeps one terminal, and so does the Codex
   backend), so a running one is shown and left as it is: `Claude Code is
-  already running: use /resume in it, or exit it first` (`/model` for `am`;
-  Codex says the same). Nothing is typed into its input box, which may hold a
+  already running: use /resume in it, or exit it first` (`use /model in it`
+  for `am`, `this is its session` for `aR`; Codex: `A Codex session is
+  already active; exit it before resuming another` for `ar`, and the same
+  two for `am`/`aR`). Nothing is typed into its input box, which may hold a
   draft or an approval an Enter would answer. `<leader>an` offers that
   session too, labelled *running* or *● here*, and shows it rather than start
   a second. Use `/resume` or `/model` inside, or exit the agent and press the
@@ -743,14 +745,15 @@ from this Nvim's panel have the hooks; nothing is written to `~/.claude` or
      a source turned on after Claude's first start needs a restart.
   4. Claude: its `/hooks` menu does not list hooks given through
      `--settings` (checked with Claude Code 2.1), so ours never show there.
-     Nvim shows instead whether they run: with Claude open in this root,
-     `<leader>aV` from a file names `Conversation: Claude Code session …`
-     once the `SessionStart` hook has reported, and "No conversation yet"
-     when it has not. Not running: Claude was started with `--bare` (which
-     skips hooks), managed settings set `disableAllHooks` or
-     `allowManagedHooksOnly`, or the folder's trust prompt has not been
-     accepted — Claude holds hooks back until it is. For a log, quit Claude
-     and start it from Nvim with
+     Nvim shows instead whether they run: with Claude in this root on the
+     right of the tabpage, `<leader>aV` from a file (or in its panel) names
+     `Conversation: Claude Code session …` once the `SessionStart` hook has
+     reported, and "No conversation yet" when it has not — or when Claude is
+     hidden, since a file's round goes to the chat on the right only. Not
+     running: Claude was started with `--bare` (which skips hooks), managed
+     settings set `disableAllHooks` or `allowManagedHooksOnly`, or the
+     folder's trust prompt has not been accepted — Claude holds hooks back
+     until it is. For a log, quit Claude and start it from Nvim with
      `:ClaudeCode --debug=hooks --debug-file /tmp/claude-hooks.log`.
   5. Codex: `/hooks` → `UserPromptSubmit` lists ours with source *Session
      flags* and trust *Trusted*. Listed as needing review ("hooks need review

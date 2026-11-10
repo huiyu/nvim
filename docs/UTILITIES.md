@@ -1222,10 +1222,11 @@ slot.state(item)          -- the owner's window: "here", "elsewhere" or "hidden"
 slot.target(cb, opts?)    -- cb(item, from); else asks: the switcher, or the
                           -- new-chat picker when none is open. A cancel calls
                           -- nothing and goes back to the tabpage it came from.
-slot.target_now()         -- the one shown here, without asking; nil otherwise
+slot.target_now()         -- the one shown here (of several, the current
+                          -- window's), without asking; nil otherwise
 slot.shown_here()         -- also from a view, without asking or moving (the
                           -- review loop's owner fallbacks)
-slot.native_target(cb)    -- the native agent on the right, else asks which
+slot.native_target(cb, opts?) -- the native agent on the right, else asks which
                           -- (the default first; none asked with one installed)
 
 -- Asking.

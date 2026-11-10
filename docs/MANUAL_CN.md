@@ -966,7 +966,8 @@ Conversation: Claude Code session 7f0c1a2b…
 ### `<C-d>`：投递
 
 `<C-d>` 把草稿（去掉标记行）发给拥有这一轮的对话。它先切到显示那个 agent 面板或 Chat
-的 tab；没有的话，从审阅 tab 切到它前面那个 tab，也就是打开它的地方。
+的 tab；没有的话，从 CodeDiff 视图切到打开该视图的那个 tab（它前面最近的一个不是
+视图的 tab）。
 
 - **Native Claude 或 Codex。** 反馈开在那个 agent 自己的 prompt 编辑器里——就是
   `<Space>ai` 打开的那个浮窗——接在输入框里已有的内容后面。读一遍，在那里按 `<C-d>`

@@ -406,16 +406,17 @@ buffer 里，长 prompt 就能用整个编辑器来写，而不是挤在 TUI 的
 | `:wq` / `ZZ` | 交回 prompt |
 | `:q!` | 取消 |
 
-输入框里**已有的内容会带过来**；从 Visual 模式调用则先把选区加进去，文本形式与
-`<leader>as` 一致。全程不提交——关闭 buffer 只是把文本交回输入框，回车仍然由你自
+输入框里**已有的内容会带过来**；从 Visual 模式调用则先把选区加进去，形式与
+`<leader>as` 键入 Codex 输入框的相同：`@path lines X-Y`，buffer 有未保存修改时则是
+带围栏的精确文本。全程不提交——关闭 buffer 只是把文本交回输入框，回车仍然由你自
 己按。
 
 浮窗是**模态**的：窗口导航键（`<C-h/j/k/l>`、`<C-w>`）和相邻的退出按键
 （`<C-\>`）都不会离开它，绕过这一层的焦点变化也会被拉回来。浮窗开着时 agent
 正阻塞在编辑器上、不读 pty，否则一旦
 出去就再也回不来——再按一次 `<leader>ai` 会回到已打开的 prompt（Visual 选区会追加
-进去），而不是发一个会被 TUI 吞掉的 `ctrl+g`。两个 agent 并排各开一个 prompt 也可
-以，焦点归较新的那个。
+进去），而不是发一个会被 TUI 吞掉的 `ctrl+g`。Claude Code 和 Codex 可以同时各开
+一个 prompt，焦点归较新的那个。
 
 这不是我们自建的 buffer，而是 agent 自带的 `ctrl+g`（「在 `$EDITOR` 里编辑当前
 prompt」），Claude Code 和 Codex 都实现了它。`$EDITOR` 指向
