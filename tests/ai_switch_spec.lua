@@ -79,7 +79,12 @@ t.eq(vim.fn.exists(":AIInfo"), 2, ":AIInfo is kept as an alias")
 t.eq(desc(" ax"), "Switch API key profile", "<leader>ax picks the API key profile")
 
 -- Bare :AI is the switcher; with nothing open it is the new-chat picker.
+-- The picker lists available backends only, and CI has no agent CLI, no ACP
+-- bridge and no key: a key makes the API backend available, so the picker
+-- opens wherever the spec runs. Nothing is picked, so nothing is sent.
 local real_select = vim.ui.select
+local real_key = vim.env.NVIM_ANTHROPIC_API_KEY
+vim.env.NVIM_ANTHROPIC_API_KEY = "spec-placeholder"
 local prompts = {}
 vim.ui.select = function(_, opts, on_choice)
   prompts[#prompts + 1] = opts.prompt
@@ -88,6 +93,7 @@ end
 vim.cmd("AI")
 vim.cmd("AI new")
 vim.ui.select = real_select
+vim.env.NVIM_ANTHROPIC_API_KEY = real_key
 t.eq(prompts, { "New AI chat", "New AI chat" }, ":AI asks which chat (none open: the new-chat picker), :AI new too")
 
 -- Invalid input changes nothing and says so once.
