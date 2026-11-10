@@ -318,6 +318,56 @@ pause(150)
 t.ok(released and #submits == before, "and by native_event: released, no submit")
 t.eq({ native.claude.session, native.codex.session }, { "s1", "c1" }, "neither changed a session")
 
+-- Claude waking itself when a background task finishes goes on with the turn.
+local NOTIFICATION = "<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>"
+before = #submits
+local rounds_before = #rounds_in(R1)
+edit()
+local asked_before = os.time()
+-- Only the notification can set these back.
+rounds._state().prompted["claude:s1"] = nil
+native.claude.session, native.claude.dirty = "s-other", true
+local _, _, notify_done = hook_event("claude", "submit", { session_id = "s1", cwd = R1, prompt = NOTIFICATION })
+vim.wait(3000, function() return uv.fs_stat(notify_done) ~= nil end, 10)
+pause(150)
+t.ok(uv.fs_stat(notify_done) ~= nil, "a background task's notification releases the hook at once")
+t.eq({ #submits, #rounds_in(R1) }, { before, rounds_before }, "and opens no round, though the tree changed")
+t.ok((rounds.prompted_at("claude:s1") or 0) >= asked_before, "but marks the session prompted")
+t.eq({ native.claude.session, native.claude.dirty }, { "s1", false }, "and still reports its session")
+-- A background agent's hand-back, idle (framed) or queued during a turn (bare).
+local HANDBACK = '<agent-message from="a51adc1b9a1fa2e89">\n[Subagent hand-back] The text below is the final report.'
+for _, prompt in ipairs({
+  "Another Claude session sent a message:\n" .. HANDBACK,
+  "Another Claude session sent a message while you were working:\n" .. HANDBACK,
+  HANDBACK,
+}) do
+  n = claude_submit({ prompt = prompt })
+  pause(150)
+  t.eq(#submits, before, "a background agent's hand-back opens no round: " .. prompt:sub(1, 40):gsub("\n", " "))
+end
+for _, prompt in ipairs({
+  'Another Claude session sent a message:\n<agent-message from="teammate">\nPlease review the parser.',
+  '<cross-session-message from="x">\n[Subagent hand-back] quoted</cross-session-message>',
+  'please explain [Subagent hand-back] and <agent-message>',
+}) do
+  edit()
+  rec = settled(claude_submit({ prompt = prompt }), true)
+  t.ok(rec.round ~= nil and not rec.reused, "a request opens its round: " .. prompt:sub(1, 40):gsub("\n", " "))
+  before = #submits
+end
+n = claude_submit({ prompt = "  " .. NOTIFICATION })
+pause(150)
+t.eq(#submits, before, "leading blanks do not hide one")
+t.eq({ rounds._continues_turn(nil), rounds._continues_turn(42) }, { false, false }, "no prompt is no wake-up")
+edit()
+n = claude_submit({ prompt = "explain <task-notification> to me" })
+rec = settled(n, true)
+t.ok(rec.round ~= nil and not rec.reused, "a prompt that only mentions it opens a round as any other")
+count = #rounds_in(R1)
+edit()
+rec = settled(codex_submit("t-notify", { prompt = NOTIFICATION }), true)
+t.ok(rec.round ~= nil and not rec.reused, "Codex has no such prompt: its submits open rounds whatever they say")
+
 -- Late: the script stopped waiting before the tree was written.
 edit()
 n = claude_submit(nil, true)

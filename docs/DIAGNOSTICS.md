@@ -645,9 +645,10 @@ from this Nvim's panel have the hooks; nothing is written to `~/.claude` or
   `hook_wait_ms`, or add what needs no comparing to `.gitignore`.
 - **`Missed a Claude Code prompt submit (Nvim was busy)`** (or Codex) — Nvim's
   main loop was blocked for the whole wait, the hook gave up, and the prompt
-  went ahead without a baseline. It may also pass unreported: once the hook has
-  given up, Nvim may never see the request. Either way no late baseline is
-  taken; `<leader>aV` takes one now.
+  went ahead without a baseline. If it was Claude waking itself (a finished
+  background task or agent), no baseline was due. It may also pass
+  unreported: once the hook has given up, Nvim may never see the request.
+  Either way no late baseline is taken; `<leader>aV` takes one now.
 - **`No review baseline for this <source> prompt:`** — the snapshot failed;
   git's reason is on the next line.
 - **`Agent hook receiver failed`** / **`Review round for a chat failed`** — an

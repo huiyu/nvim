@@ -1481,7 +1481,9 @@ local rounds = require("ai.review.rounds")
 
 -- Every source opens rounds here.
 rounds.submit(ev)        -- { source, conversation?, root, turn?, gave_up?, done?, force?, on_round? }
-rounds.native_event(ev)  -- from ai.review.hook: { agent, event, payload, done, gave_up }
+rounds.native_event(ev)  -- from ai.review.hook: { agent, event, payload, done, gave_up };
+                         -- Claude waking itself (a task notification, an agent's
+                         -- hand-back) opens no round
 rounds.start(opts)       -- <leader>aV; opts.buf (default: the current buffer)
 
 -- The registry (this Nvim only, in memory), fed from ai.setup()'s autocmds.

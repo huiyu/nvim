@@ -977,6 +977,12 @@ Edits the agent makes outside that repository are not part of any round.
   this Nvim keeps that round instead of starting a twin.
 - Subagents (Claude's Task agents, Codex's spawned threads) start nothing:
   their prompts are part of the parent's turn.
+- Neither does Claude waking itself to go on with your work: when a
+  background task it started (a long Bash command, a workflow) finishes, or
+  a background agent it started hands its result back. What it changes, and
+  where that work ends, belong to the conversation's newest round — your
+  prompt's, unless you sent another prompt in the meantime. A wake-up Claude
+  scheduled (`ScheduleWakeup`, `/loop`) is a prompt like any other.
 - Outside Git nothing starts.
 
 A snapshot holds the untracked files too, except those `.gitignore` excludes
@@ -1223,12 +1229,13 @@ before refactor: Saved 11-09 23:08                    a saved baseline
   before its next round began. A prompt that changed nothing since the last
   round keeps that round, so the end can come from a later prompt, and a turn
   that ran past the next prompt leaves its round with no end.
-- **`…`** means the session is at work on this round: it was prompted after
-  its last turn ended, and it is alive — its terminal runs in this Nvim, or
-  its records were written in the last 30 minutes. A session killed mid-turn
-  therefore drops the `…`, and so does one working in another Nvim on a step
-  that writes nothing for 30 minutes. A manual round (`<Space>aV`) is no
-  prompt, so it shows `…` only once its session is prompted again.
+- **`…`** means the session is at work on this round: it was prompted (or
+  woken by a background task) after its last turn ended, and it is alive — its
+  terminal runs in this Nvim, or its records were written in the last 30
+  minutes. A session killed mid-turn therefore drops the `…`, and so does one
+  working in another Nvim on a step that writes nothing for 30 minutes. A
+  manual round (`<Space>aV`) is no prompt, so it shows `…` only once its
+  session is prompted again.
 - A chat, a manual round with no owner, or a session whose records are not
   on this machine shows its source and start alone. Codex compresses a
   rollout it has not touched for about ten days (`.jsonl.zst`); its turns are

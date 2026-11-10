@@ -614,11 +614,30 @@ function M.submit(ev)
   end
 end
 
+---Whether a Claude prompt is Claude going on with the user's work rather than
+---a request: it is woken when a background task it started (a Bash command,
+---a workflow) finishes -- "<task-notification>" -- or when a background agent
+---it started hands its result back, as "<agent-message ...>\n[Subagent
+---hand-back]", alone when queued during a turn or framed by "Another Claude
+---session sent a message...:" when Claude was idle. Another session's message,
+---or an agent's that is not a hand-back, is a request of its own. Both fire
+---UserPromptSubmit like a prompt typed by the user.
+---@param prompt any
+---@return boolean
+local function continues_turn(prompt)
+  if type(prompt) ~= "string" then return false end
+  if prompt:match("^%s*<task%-notification>") then return true end
+  local body = prompt:gsub("^%s*Another Claude session sent a message[^\n]*:[ \t]*\n", "", 1)
+  return body:match("^%s*<agent%-message[^>]*>%s*%[Subagent hand%-back%]") ~= nil
+end
+M._continues_turn = continues_turn
+
 ---A native hook event, handed over by ai.review.hook (which has already
 ---dropped subagent events, disabled sources and missed submits, and released
----session events). A submit reports the session and opens a round; Claude's
----SessionStart only reports the session, for the sources that change the
----foreground one.
+---session events). A submit reports the session and opens a round -- except
+---Claude waking itself to go on with the work (continues_turn), which only
+---marks the session prompted; Claude's SessionStart only reports the session,
+---for the sources that change the foreground one.
 ---@param ev ai.review.NativeEvent
 function M.native_event(ev)
   local release = once(ev.done)
@@ -639,6 +658,10 @@ function M.native_event(ev)
     local sec, usec = uv.gettimeofday()
     prompted[agent .. ":" .. session] = sec + usec / 1e6
   end
+  -- Claude waking itself to go on with the work opens no round (continues_turn):
+  -- what it changes, and where that work ends, belong to the session's newest
+  -- round. But the session is at work again.
+  if agent == "claude" and continues_turn(payload.prompt) then return release() end
   local root = entry and entry.root or M.toplevel(payload.cwd)
   -- Claude's Bash can `cd` into another repository; the session's root stays
   -- the one it started in, and saying so once is enough.

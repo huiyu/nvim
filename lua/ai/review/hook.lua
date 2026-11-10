@@ -216,7 +216,8 @@ function M.event(agent, event, payload_path, done_path)
     if event == "submit" then
       local label = require("ai.config").providers[agent].label
       vim.schedule(function()
-        vim.notify(("Missed a %s prompt submit (Nvim was busy): that prompt has no review baseline"):format(label),
+        vim.notify(("Missed a %s prompt submit (Nvim was busy): if it was a prompt of yours, it has no review baseline")
+          :format(label),
           vim.log.levels.WARN, { title = "AI review" })
       end)
     end

@@ -254,6 +254,14 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `on_before_submit` for agent and API chats (attached on
   `User CodeCompanionChatCreated`), and `<leader>aV` (`rounds.start`).
   `<leader>gK`'s saved baselines are no round and belong to no conversation.
+  Claude waking itself to go on with the work opens no round
+  (`continues_turn` in `rounds.lua`): a `<task-notification>` when a
+  background task it started finishes, and a background agent's
+  `[Subagent hand-back]` message. Their changes and their turn end belong to
+  the session's newest round -- the prompt that started the task, unless the
+  user prompted again in between. They still report the session and count as
+  a prompt for `rounds.prompted_at`. A scheduled wake-up (ScheduleWakeup,
+  `/loop`, cron) is a prompt like any other.
 - Conversation ids are `claude:<session_id>`, `codex:<session_id>` and
   `cc:<nonce>:<chat.id>`, with a nonce made once per process: CodeCompanion's
   `chat.id` comes from an unseeded `math.random`, so two Nvims, or one before
