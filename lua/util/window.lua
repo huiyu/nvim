@@ -305,6 +305,18 @@ local function pick_editor_win(file_target)
   return best
 end
 
+--- The editor window of the current tabpage, without moving to it: the
+--- current window when it is one, else the one the cursor last left, else the
+--- widest. `focus_editor` is the key, and it toggles -- pressed inside the
+--- editor it jumps back out, usually to a side panel -- so code that needs
+--- "the edited file's window" asks here instead.
+---@return integer|nil win
+function M.editor_win()
+  local cur = vim.api.nvim_get_current_win()
+  if is_editor_win(cur) then return cur end
+  return pick_editor_win(false)
+end
+
 --- Guarantee a window a file can be opened into, and return it.
 ---
 --- snacks' picker picks its target window in snacks/picker/core/main.lua. That
@@ -364,6 +376,23 @@ function M.blocks_global_prefixes(tabpage)
     if vim.list_contains(PREFIX_BLOCKING_FILETYPES, ft) then return true end
   end
   return false
+end
+
+--- The tabpage a prefix-blocking view was opened from: the nearest one before
+--- `tabpage` that is not such a view itself. Views open right after the page
+--- they come from (`tab split`), so walking back -- rather than taking the
+--- page numbered one less -- also finds it behind a second view opened from
+--- the first. protect_first_tab keeps tabpage 1 an ordinary page, so there is
+--- normally one; nil when there is not, or when `tabpage` is no view at all.
+---@param tabpage integer
+---@return integer|nil
+function M.origin_tab(tabpage)
+  if not M.blocks_global_prefixes(tabpage) then return nil end
+  local tabs = vim.api.nvim_list_tabpages()
+  for i = vim.api.nvim_tabpage_get_number(tabpage) - 1, 1, -1 do
+    if not M.blocks_global_prefixes(tabs[i]) then return tabs[i] end
+  end
+  return nil
 end
 
 --- Keep the first tabpage a page the global prefixes still work in.

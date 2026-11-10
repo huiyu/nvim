@@ -1333,12 +1333,12 @@ local function shown(win, buf)
 end
 
 --- Go to the tabpage that shows the target's terminal or chat; else, from a
---- CodeDiff view, to the tab before it (where the view was opened from). Only
---- which tabpage is current changes.
+--- CodeDiff view, to the page it was opened from -- the rule the AI slot's
+--- keys use too (util.window.origin_tab). Only which tabpage is current
+--- changes.
 local function switch_tab(target)
   local current = api.nvim_get_current_tabpage()
-  local tabs = api.nvim_list_tabpages()
-  for _, tab in ipairs(tabs) do
+  for _, tab in ipairs(api.nvim_list_tabpages()) do
     for _, win in ipairs(api.nvim_tabpage_list_wins(tab)) do
       if shown(win, target.buf) then
         if tab ~= current then api.nvim_set_current_tabpage(tab) end
@@ -1346,10 +1346,8 @@ local function switch_tab(target)
       end
     end
   end
-  if package.loaded["util.codediff"] and codediff().session(current) then
-    local nr = api.nvim_tabpage_get_number(current)
-    if nr > 1 then api.nvim_set_current_tabpage(tabs[nr - 1]) end
-  end
+  local origin = require("util.window").origin_tab(current)
+  if origin then api.nvim_set_current_tabpage(origin) end
 end
 
 --- Into the agent's terminal, in Terminal mode, when this tabpage shows it.
