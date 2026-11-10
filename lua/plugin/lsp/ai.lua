@@ -318,7 +318,10 @@ return {
         cwd_provider = claude_cwd,
         snacks_win_opts = {
           width = ai_config.panel.width,
-          wo = { winfixwidth = true },
+          -- No winbar: Snacks titles every split terminal "<n>: <term
+          -- title>" unless told otherwise, a line of the panel that only
+          -- repeats the command it runs. The agent draws its own header.
+          wo = { winfixwidth = true, winbar = "" },
           -- Claude reads a quick double Esc itself; Snacks' own <esc>
           -- double-tap would swallow it. lua/ai/terminal.lua puts Esc back on
           -- the wire and keeps `jk` / <C-]> / <C-\> as the way out of Terminal-mode.

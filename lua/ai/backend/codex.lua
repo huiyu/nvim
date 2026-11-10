@@ -158,7 +158,9 @@ local function terminal_opts(root)
     win = {
       position = "right",
       width = ai_config.panel.width,
-      wo = { winfixwidth = true },
+      -- No winbar: Snacks titles every split terminal "<n>: <term title>"
+      -- unless told otherwise (as lua/plugin/lsp/ai.lua does for Claude).
+      wo = { winfixwidth = true, winbar = "" },
       -- Codex reads a quick double Esc itself; Snacks' own <esc> double-tap
       -- would swallow it. lua/ai/terminal.lua puts Esc back on the wire and
       -- keeps `jk` / <C-]> / <C-\> as the way out of Terminal-mode.
@@ -166,6 +168,7 @@ local function terminal_opts(root)
     },
   }
 end
+M._terminal_opts = terminal_opts
 
 -- Keep the transcript in the wrapper tmux pane history and run Codex without
 -- approvals or its built-in sandbox. These flags apply equally to new,

@@ -505,6 +505,28 @@ else
   vim.cmd("silent! tabonly")
 end
 
+-- Neither agent panel carries Snacks' "<n>: <term title>" winbar: Claude's
+-- through claudecode's snacks_win_opts, Codex's through its terminal opts,
+-- opened here as a real Snacks terminal running `cat`.
+t.eq(vim.tbl_get(claude_spec, "opts", "terminal", "snacks_win_opts", "wo", "winbar"), "",
+  "the Claude panel has no winbar")
+do
+  local opts = require("ai.backend.codex")._terminal_opts(vim.fn.getcwd())
+  t.eq(opts.win.wo.winbar, "", "the Codex panel asks for no winbar")
+  local term = Snacks.terminal.open({ "cat" }, opts)
+  t.ok(term and term:win_valid() and vim.wo[term.win].winbar == "",
+    "and a split terminal opened with its options has none (" .. tostring(term and vim.wo[term.win].winbar) .. ")")
+  local plain = Snacks.terminal.open({ "cat" }, { win = { position = "right" } })
+  t.ok(plain and plain:win_valid() and vim.wo[plain.win].winbar ~= "",
+    "while Snacks gives one to a split terminal by default (" .. tostring(plain and vim.wo[plain.win].winbar) .. ")")
+  for _, tm in ipairs({ term, plain }) do
+    if tm then
+      pcall(vim.fn.jobstop, vim.bo[tm.buf].channel)
+      pcall(function() tm:close() end)
+    end
+  end
+end
+
 vim.fn.jobstop(vim.bo[claude_term.buf].channel)
 pcall(vim.api.nvim_buf_delete, claude_term.buf, { force = true })
 package.loaded["claudecode"], package.loaded["claudecode.terminal"] = saved.cc, saved.cc_terminal
