@@ -222,10 +222,14 @@ function M.tree_add() return invoke("tree_add") end
 ---that exists. It runs after the prompt buffer closes because the agent drops
 ---pty input while it is blocked on the editor.
 ---@param paths string[]
----@param provider string? the agent whose prompt the images belong to; the
----active provider when nil
+---@param provider string the agent whose prompt the images belong to
 function M.attach_images(paths, provider)
-  return invoke_on(provider or config.provider, "attach_images", paths)
+  if not config.providers[provider] then
+    -- No agent to guess at: an image sent to the wrong one is worse than none.
+    for _, png in ipairs(paths or {}) do vim.fn.delete(png) end
+    return notify("The images belong to no known agent's prompt: nothing was attached", vim.log.levels.WARN)
+  end
+  return invoke_on(provider, "attach_images", paths)
 end
 
 local function visual() return vim.fn.mode():sub(1, 1):match("[vVsS\22\19]") ~= nil end
@@ -253,9 +257,9 @@ function M.compose()
     local seed = cap and cap.draft
     local editor = require("ai.editor")
     -- A prompt already open here means that TUI is blocked on it and would
-    -- swallow the key; the useful thing is to get back into that buffer.
-    local owner = editor.open_here()
-    if owner and editor.focus_open(seed, owner) then return end
+    -- swallow the key; the useful thing is to get back into that buffer --
+    -- whoever's it is, one whose path names no agent too.
+    if editor.open_here() and editor.focus_open(seed) then return end
     slot().target(on_item("compose", function(item)
       if item.kind == "chat" then
         if cap then

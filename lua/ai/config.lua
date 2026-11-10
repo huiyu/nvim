@@ -304,16 +304,17 @@ function M.is_native_command(cmd)
   return M.provider_of_command(cmd) ~= nil
 end
 
----Which agent handed over a prompt file, from the temp path its CLI chose.
----Falls back to the active provider, which is what every prompt meant before
----switching existed.
+---Which agent handed over a prompt file, from the temp path its CLI chose;
+---nil for a path neither CLI uses (an agent's pane running `git commit`, say).
+---Such a prompt has no owner: it takes no seed and attaches no image, since
+---either would go to an agent guessed at.
 ---@param path string
----@return string provider
+---@return string|nil provider
 function M.provider_of_prompt(path)
   for _, name in ipairs(M.names()) do
     if type(path) == "string" and path:find(providers[name].native.prompt_pattern) then return name end
   end
-  return M.provider
+  return nil
 end
 
 return M

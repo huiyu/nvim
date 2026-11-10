@@ -381,7 +381,7 @@ end
 
 t.eq(config.provider_of_prompt("/tmp/claude-501/claude-prompt-1a2b-3c4d.md"), "claude", "a claude-prompt-*.md is Claude's")
 t.eq(config.provider_of_prompt(vim.env.HOME .. "/.codex/editor/0193.md"), "codex", "an editor/*.md under CODEX_HOME is Codex's")
-t.eq(config.provider_of_prompt("/tmp/somewhere/else.md"), config.provider, "anything else falls back to the active provider")
+t.eq(config.provider_of_prompt("/tmp/somewhere/else.md"), nil, "anything else belongs to no agent")
 
 t.eq(config.provider_of_command({ "codex", "--no-alt-screen", "--yolo" }), "codex", "a Codex command is recognised")
 t.eq(config.provider_of_command(Config.spec.plugins["claudecode.nvim"].opts.terminal_cmd), "claude",

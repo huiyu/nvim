@@ -95,18 +95,22 @@ local function take(provider)
   return slot
 end
 
----Stage text for the next prompt buffer `opts.provider` opens (the active
----provider when nil). Nil or "" stages nothing and only clears that slot.
+---Stage text for the next prompt buffer `opts.provider` opens. Nil or ""
+---stages nothing and only clears that slot.
 ---
----Whatever the slot held before is dropped with its on_expired, never its
----on_consumed. Without `ttl_ms` the seed waits for that provider's next
----prompt, as a <leader>ai selection always has; with it, a seed not taken in
----time is dropped through on_expired.
+---The provider is required: a seed has an addressee, and no agent is the one
+---a seed goes to by default. Whatever the slot held before is dropped with
+---its on_expired, never its on_consumed. Without `ttl_ms` the seed waits for
+---that provider's next prompt, as a <leader>ai selection always has; with it,
+---a seed not taken in time is dropped through on_expired.
 ---@param text string?
----@param opts? { provider?: string, on_consumed?: fun(), on_expired?: fun(), ttl_ms?: integer }
+---@param opts { provider: string, on_consumed?: fun(), on_expired?: fun(), ttl_ms?: integer }
 function M.stage_seed(text, opts)
   opts = opts or {}
-  local provider = opts.provider or config.provider
+  local provider = opts.provider
+  if type(provider) ~= "string" or not config.providers[provider] then
+    error(("stage_seed needs the agent the seed is for, not %s"):format(vim.inspect(provider)), 2)
+  end
   local old = take(provider)
   if old then notify_stager(old.on_expired) end
   if text == nil or text == "" then return end
@@ -241,9 +245,11 @@ M._release = function(sentinel)
 end
 
 -- Prompts currently open, keyed by the temp file the agent handed over, each
--- `{ win, owner }`. Two agents in one Nvim (Claude and Codex side by side) can
--- legitimately have one each, so this is a table rather than a single slot.
+-- `{ win, owner, seq }` -- owner nil when the path names no agent, seq the
+-- order they opened in. Two agents in one Nvim can legitimately have one each,
+-- so this is a table rather than a single slot.
 local state = { open = {} }
+local opened = 0
 
 -- Each open gets its own augroup. Naming it after the buffer looked natural but
 -- is a trap: `clear = true` means a second open of the SAME file silently
@@ -267,9 +273,11 @@ local function present(path, sentinel, slot)
   -- The float is entered from a :terminal window sitting in Terminal-mode.
   if vim.fn.mode() == "t" then vim.cmd("stopinsert") end
 
-  -- Whose prompt this is, from the temp path the CLI chose. After a switch the
-  -- active provider is not necessarily the agent that handed this over, and
-  -- images staged here must go back to the agent that is waiting for them.
+  -- Whose prompt this is, from the temp path the CLI chose: both agents can
+  -- run in one Nvim, and images staged here must go back to the agent that is
+  -- waiting for them. Nil when the path tells nothing (a `git commit` run in
+  -- an agent's pane): that prompt is edited like any other, but attaches no
+  -- image, since it would go to an agent guessed at.
   local owner = config.provider_of_prompt(path)
 
   -- Images staged by <C-v>, and whether the prompt was actually returned.
@@ -378,6 +386,11 @@ local function present(path, sentinel, slot)
   -- (it is plain markdown), and the CLI writes its own `[Image #N]` marker when
   -- the attach finally happens. Adding our own would leave a duplicate behind.
   vim.keymap.set({ "n", "i" }, "<C-v>", function()
+    if not owner then
+      vim.notify("No agent is known to have handed over this prompt, so an image has nowhere to go",
+        vim.log.levels.WARN, { title = "AI" })
+      return
+    end
     local clipboard = require("ai.clipboard")
     if not clipboard.has_image() then
       vim.notify("No image on the clipboard", vim.log.levels.INFO)
@@ -405,11 +418,12 @@ local function present(path, sentinel, slot)
     col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
     border = "rounded",
-    title = (" Prompt · %s "):format(config.providers[owner].label),
+    title = owner and (" Prompt · %s "):format(config.providers[owner].label) or " Prompt ",
     title_pos = "center",
   })
 
-  state.open[path] = { win = win, owner = owner }
+  opened = opened + 1
+  state.open[path] = { win = win, owner = owner, seq = opened }
 
   -- Modal: focus stays here until the prompt is returned or cancelled.
   --
@@ -463,16 +477,18 @@ function M.is_prompt_win(win)
   return false
 end
 
----Whose prompt float is open in the current tabpage, if one is. That agent's
----TUI is blocked on it, so it is where <leader>ai goes back to first.
----@return string|nil owner
+---Is a prompt float open in the current tabpage, and whose? The TUI that
+---handed it over is blocked on it, so it is where <leader>ai goes back to
+---first. The owner is nil when the prompt's path names no agent.
+---@return boolean open, string|nil owner
 function M.open_here()
   local tab = vim.api.nvim_get_current_tabpage()
   for _, open in pairs(state.open) do
     if vim.api.nvim_win_is_valid(open.win) and vim.api.nvim_win_get_tabpage(open.win) == tab then
-      return open.owner
+      return true, open.owner
     end
   end
+  return false, nil
 end
 
 ---Bring an already-open prompt float back into focus.
@@ -483,8 +499,9 @@ end
 ---open, so <leader>ai checks here first. A Visual selection made in the
 ---meantime is appended to the prompt the way a seed would have been.
 ---
----The active provider's prompt wins when both agents have one open; the
----other agent's is still preferred over sending a key nobody reads.
+---Without `provider`, the prompt open in the current tabpage wins, else the
+---one opened last: no agent outranks the other, and any open prompt is
+---preferred over sending a key nobody reads.
 ---
 ---With `provider`, only that agent's prompt counts: text addressed to one
 ---agent (review feedback) must not land in the other's prompt, so false then
@@ -493,14 +510,18 @@ end
 ---@param provider string? the only agent whose prompt may be used
 ---@return boolean focused false when no (such) prompt is open
 function M.focus_open(text, provider)
-  local chosen
+  local tab = vim.api.nvim_get_current_tabpage()
+  local chosen, rank
   for path, open in pairs(state.open) do
     if not vim.api.nvim_win_is_valid(open.win) then
       state.open[path] = nil
     elseif provider then
       if open.owner == provider then chosen = open end
-    elseif not chosen or (open.owner == config.provider and chosen.owner ~= config.provider) then
-      chosen = open
+    else
+      local here = vim.api.nvim_win_get_tabpage(open.win) == tab and 1 or 0
+      if not rank or here > rank[1] or (here == rank[1] and open.seq > rank[2]) then
+        chosen, rank = open, { here, open.seq }
+      end
     end
   end
   if not chosen then return false end
@@ -551,8 +572,10 @@ function M.open(path, sentinel)
     -- Only this agent's seed, and taken unconditionally, so a seed staged for
     -- a request that never arrived cannot leak into an unrelated ctrl+g later
     -- on. present() reports it consumed once the float is up; a prompt that
-    -- fails to open never shows it, which its stager hears as expired.
-    local slot = take(config.provider_of_prompt(path))
+    -- fails to open never shows it, which its stager hears as expired. A
+    -- prompt whose path names no agent takes no seed: every seed is for one.
+    local owner = config.provider_of_prompt(path)
+    local slot = owner and take(owner) or nil
     local ok, err = pcall(present, path, sentinel, slot)
     if not ok then
       release(sentinel)

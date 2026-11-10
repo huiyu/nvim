@@ -93,7 +93,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   room for the round's agent, active or not; a panel already on screen in any
   tabpage makes nothing yield there. Per-buffer behaviour (terminal input
   rules, edgy slot, statusline label, image hand-back, the feedback a review
-  round delivers) follows the buffer's own agent.
+  round delivers) follows the buffer's own agent. A prompt float whose path
+  names no agent (`ai.config.provider_of_prompt` answers nil: a `git commit`
+  run in an agent's pane) has no owner: it takes no seed, `<C-v>` refuses,
+  and its title is " Prompt "; nothing falls back to a default agent.
 - The key profile is `auto` unless pinned: `auto` follows the provider
   (claude -> anthropic, codex -> openai), `:AI key <name>` pins one so a later
   provider switch leaves it alone. So switching a process to a provider leaves
@@ -335,7 +338,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   an owner that is gone is refused, with an offer (unless `redirect = false`)
   to pick a current session of the same root and confirm the change once.
   The registry it checks is in memory, per Nvim.
-- Seeds are per provider (`ai.editor.stage_seed`): feedback staged for
+- Seeds are per provider (`ai.editor.stage_seed`, whose provider is
+  required): feedback staged for
   Claude is never taken by a Codex prompt, or the other way round, and
   exactly one of `on_consumed` / `on_expired` fires. A draft is copied to
   `<id>.last-sent.md` and emptied only once its text arrived -- that agent's
