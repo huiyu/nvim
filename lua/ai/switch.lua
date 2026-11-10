@@ -154,8 +154,8 @@ function M.setup()
     -- The chat pickers of <leader>al / <leader>an (lua/ai/slot.lua).
     if not sub then return require("ai").switch_chat() end
     if sub == "provider" then
-      return notify(":AI provider is gone: :AI new (<leader>an) picks the backend of each new chat;"
-        .. " the default is set at startup (vi --claude / vi --codex)", ERROR)
+      return notify(":AI provider is gone: :AI new (<leader>an) picks each chat's backend;"
+        .. "\nthe default is set at startup (vi --claude / vi --codex)", ERROR)
     end
     if #o.fargs <= 2 then
       if sub == "key" then return M.key(arg) end

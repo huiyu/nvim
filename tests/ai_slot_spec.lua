@@ -1127,10 +1127,19 @@ vim.cmd("vsplit")
 api.nvim_win_set_buf(0, claude.buf())
 settle()
 t.eq(shown_ids(diff_tab), { "native:claude" }, "Claude's copy in a diff tabpage is the chat on the right there")
+-- claudecode diffthis'es the proposal's panes; a copy beside no diff is only
+-- a window the slot cannot hide, and is not called a diff tabpage.
+notes = {}
+ai.toggle()
+t.eq(#wins(), 2, "<leader>ac cannot hide a copy")
+t.ok(noted("diff tabpage") == nil and noted("in a window it cannot hide") ~= nil,
+  "beside no diff, it is not called Claude's diff tabpage")
+vim.wo[diff_file_win].diff = true
 notes = {}
 ai.toggle()
 t.eq(#wins(), 2, "<leader>ac cannot hide it")
 t.ok(noted("answer it with <leader>aa / <leader>ad") ~= nil, "and says what to do instead")
+vim.wo[diff_file_win].diff = false
 -- Everything that reaches Claude there goes to that copy: claudecode's own
 -- open judges by its own window, and would split a second Claude beside it.
 local function claude_wins()

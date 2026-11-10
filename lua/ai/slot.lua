@@ -694,7 +694,11 @@ function M.toggle()
   if M.cover() > 0 then return end
   if close_copies(shown) > 0 then return end
   local item = shown[1]
-  if item.kind == "native" and item.agent == "claude" then
+  -- claudecode's proposal tabpage: a copy of Claude's terminal beside the
+  -- diffthis'd panes. Any other window here that cannot be hidden (a manual
+  -- :sbuffer of the terminal) gets the plain message below.
+  local diffing = vim.iter(api.nvim_tabpage_list_wins(0)):any(function(w) return vim.wo[w].diff end)
+  if item.kind == "native" and item.agent == "claude" and diffing then
     return notify("This is Claude Code's diff tabpage: answer it with <leader>aa / <leader>ad")
   end
   notify(("%s is shown here in a window it cannot hide"):format(name(item)))

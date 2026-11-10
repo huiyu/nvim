@@ -23,8 +23,8 @@
 -- (is_visible / is_visible_non_curtab / open / hide / winnr), `chat.title`,
 -- `chat.bufnr`, `chat.id`, `chat.prompt:add`, `interactions.chat.open`, the
 -- `hidden` chat argument and buf_get_chat()'s entries. This module is the one
--- reader: the slot asks it (key, buf, name, win, where, win_here, hide) rather
--- than reading a chat itself, and the facade reports any failure as an error
+-- reader: the slot asks it (chats, chat_of, key, buf, label, name, win, where,
+-- busy, hide, create, focus_prompt) rather than reading a chat itself, and the facade reports any failure as an error
 -- rather than falling back to an upstream command aimed at some other chat.
 -- tests/companion_spec.lua pins the behaviour. Text goes to one exact chat
 -- through add_text (review feedback, a captured selection), which also reads

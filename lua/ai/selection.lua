@@ -1,11 +1,12 @@
 -- Turns the current visual selection into text an agent can consume.
 --
--- This lives outside the backends because the two providers attach selections
+-- This lives outside the backends because the destinations take a selection
 -- through different channels. Codex has no editor-selection API, so its
--- <leader>as pastes text. Claude's <leader>as goes over the IDE WebSocket
--- (:ClaudeCodeSend) and produces no text at all. <leader>ai needs text under
--- both providers to seed the agent's input box, so the text form has exactly one
--- producer: this module.
+-- <leader>as pastes text. Claude's <leader>as is a mention of the captured
+-- lines over the IDE WebSocket (claudecode's send_at_mention) and produces no
+-- text at all; a CodeCompanion chat gets a fenced block (ai.companion
+-- add_capture). <leader>ai needs text for either native agent to seed its
+-- input box, so the text form has exactly one producer: this module.
 --
 -- Nothing here notifies. The caller owns how a failure or a fallback is shown,
 -- because <leader>as and <leader>ai surface them differently.

@@ -433,8 +433,8 @@ local function present(path, sentinel, slot)
   -- windows underneath (dashboard, agent panel) have nothing to do while the
   -- prompt is open. So leaving is treated as a slip and undone. Deferred
   -- because the leave has not happened yet when WinLeave fires, and skipped
-  -- when the destination is another prompt float -- two agents side by side
-  -- may each have one open, and bouncing between them would never settle.
+  -- when the destination is another prompt float -- each native agent may
+  -- have one open, and bouncing between them would never settle.
   vim.api.nvim_create_autocmd("WinLeave", {
     group = group,
     buffer = buf,

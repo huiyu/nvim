@@ -220,7 +220,7 @@ function M.add_buffer()
     local path, modified = vim.api.nvim_buf_get_name(buf), vim.bo[buf].modified
     slot().target(on_item("add_buffer", function(item, from)
       if item.kind == "chat" then
-        return notify("A chat takes a selection (<leader>as), or #{buffer} or /buffer in its own prompt")
+        return notify("A chat takes a selection (<leader>as),\nor #{buffer} / /buffer in its own prompt")
       end
       if path == "" then return notify("Current buffer has no file path", vim.log.levels.WARN) end
       local room = slot().make_room(item, { quiet = true })
@@ -343,7 +343,7 @@ end
 ---<leader>an / :AI new: start a chat on any available backend, and show it.
 ---From Visual mode the selection goes to it.
 M.new_chat = pick_with("new")
----<leader>al / :AI chats: show another open chat. From Visual mode the
+---<leader>al / :AI: show another open chat. From Visual mode the
 ---selection goes to it.
 M.switch_chat = pick_with("switch")
 
