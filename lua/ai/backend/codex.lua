@@ -334,7 +334,7 @@ M.reveal = M.focus
 function M.resume()
   if active() then
     show_and_focus(current)
-    vim.notify("A Codex session is already active; exit it before resuming another", vim.log.levels.INFO)
+    vim.notify("A Codex session is already active; exit it before resuming another", vim.log.levels.INFO, { title = "AI" })
     return
   end
   local path = vim.api.nvim_buf_get_name(0)
@@ -344,7 +344,7 @@ end
 function M.continue()
   if active() then
     show_and_focus(current)
-    vim.notify("Codex is already running: this is its session", vim.log.levels.INFO)
+    vim.notify("Codex is already running: this is its session", vim.log.levels.INFO, { title = "AI" })
     return
   end
   local path = vim.api.nvim_buf_get_name(0)
@@ -420,7 +420,16 @@ function M.edit_prompt(opts)
   )
 end
 
+---The TUI's own model menu. A session it starts gets "/model" submitted into
+---its empty box; a running one is only shown: the box may hold a half-typed
+---prompt, which the Enter would submit with "/model" glued to it, or the TUI
+---may be asking for an approval, which the Enter would answer.
 function M.select_model()
+  if active() then
+    show_and_focus(current)
+    vim.notify("Codex is already running: use /model in it", vim.log.levels.INFO, { title = "AI" })
+    return
+  end
   send("/model", { raw = true, submit = true })
 end
 

@@ -142,10 +142,13 @@ local function deliver_capture(item, cap, from)
       return notify("This buffer has no file, and Claude Code takes a selection as a file mention: save it, or <leader>ai",
         vim.log.levels.WARN)
     end
-    if not slot().make_room(item) then return end
-    local claude = backend("claude")
-    if not (claude.running() and claude.window()) then claude.reveal() end
-    claude.send_range(cap.path, cap.l1, cap.l2)
+    -- Shown somewhere already (here, a diff tabpage's copy included, or in the
+    -- tabpage make_room went to), the mention goes to it as it is: claudecode's
+    -- own open would put a second window beside a copy.
+    local room = slot().make_room(item)
+    if not room then return end
+    if room == "room" then backend("claude").reveal() end
+    backend("claude").send_range(cap.path, cap.l1, cap.l2)
   else
     if not cap.draft then return notify(cap.err or "No selection", vim.log.levels.WARN) end
     if cap.notice then notify(cap.notice) end
@@ -182,7 +185,9 @@ function M.send_selection()
 end
 
 ---<leader>ab: the current buffer, as a file mention, to the native agent on
----the right. A chat takes a selection or its own #{buffer} instead.
+---the right. A chat takes a selection or its own #{buffer} instead -- so a
+---question offers the native agents alone: a chat picked or created there
+---would only be refused.
 function M.add_buffer()
   return guard("AI chat", "add_buffer", function()
     local buf = vim.api.nvim_get_current_buf()
@@ -192,16 +197,16 @@ function M.add_buffer()
         return notify("A chat takes a selection (<leader>as), or #{buffer} or /buffer in its own prompt")
       end
       if path == "" then return notify("Current buffer has no file path", vim.log.levels.WARN) end
-      if not slot().make_room(item) then return end
+      local room = slot().make_room(item)
+      if not room then return end
       if item.agent == "claude" then
-        local claude = backend("claude")
-        if not (claude.running() and claude.window()) then claude.reveal() end
-        claude.add_path(path)
+        if room == "room" then backend("claude").reveal() end
+        backend("claude").add_path(path)
       else
         backend(item.agent).add_path(path, modified)
       end
       slot().went(item, from)
-    end), { prompt = "Add buffer to" })
+    end), { prompt = "Add buffer to", native_only = true })
   end)
 end
 
@@ -268,9 +273,10 @@ end
 
 ---After a chat was picked: show it, or give it the selection captured before
 ---the question.
-local function picked(cap)
+---@param from integer the tabpage the key was pressed in
+local function picked(cap, from)
   return on_item("open", function(item)
-    if cap then return deliver_capture(item, cap) end
+    if cap then return deliver_capture(item, cap, from) end
     slot().reveal(item)
   end)
 end
@@ -289,9 +295,14 @@ local function pick_with(what)
         cap, err = require("ai.selection").capture()
         if not cap then return notify(err, vim.log.levels.WARN) end
       end
-      -- From a CodeDiff view, the chat picked opens in the page it came from.
-      slot().home()
-      if what == "new" then slot().pick_new(picked(cap)) else slot().switch(picked(cap)) end
+      -- From a CodeDiff view, the chat picked opens in the page it came from;
+      -- a cancel goes back to the view.
+      local _, from = slot().home()
+      if what == "new" then
+        slot().pick_new(picked(cap, from), { back = from })
+      else
+        slot().switch(picked(cap, from), { back = from })
+      end
     end)
   end
 end

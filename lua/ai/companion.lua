@@ -21,8 +21,10 @@
 --
 -- That reaches into CodeCompanion's chat internals: `chat.adapter`, `chat.ui`
 -- (is_visible / is_visible_non_curtab / open / hide / winnr), `chat.title`,
--- `chat.prompt:add`, `interactions.chat.open`, the `hidden` chat argument and
--- buf_get_chat()'s entries. The facade pcall-wraps toggle and add and falls
+-- `chat.bufnr`, `chat.id`, `chat.prompt:add`, `interactions.chat.open`, the
+-- `hidden` chat argument and buf_get_chat()'s entries. This module is the one
+-- reader: the slot asks it (key, buf, name, win, where, win_here, hide) rather
+-- than reading a chat itself. The facade pcall-wraps toggle and add and falls
 -- back to the upstream commands with a WARN, and tests/companion_spec.lua pins
 -- the behaviour. Text goes to one exact chat through add_text (review
 -- feedback, a captured selection), which also reads `chat.current_request`
@@ -96,9 +98,82 @@ function M.preflight(what)
   return problem == nil
 end
 
----Is the chat on screen in this tabpage?
+local function nonfloat(win)
+  return vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_config(win).relative == ""
+end
+
+---The chat's own window -- `chat.ui.winnr`, while it still shows the chat --
+---in whichever tabpage; nil while it is hidden. Read in a pcall and checked,
+---so a chat whose ui has changed shape upstream counts as hidden.
+---@param chat table a CodeCompanion.Chat
+---@return integer|nil
+function M.win(chat)
+  local ok, win = pcall(function() return chat.ui.winnr end)
+  if not (ok and type(win) == "number" and vim.api.nvim_win_is_valid(win)) then return nil end
+  if not valid_buf(chat.bufnr) or vim.api.nvim_win_get_buf(win) ~= chat.bufnr then return nil end
+  return win
+end
+
+---Where the chat's own window is: in this tabpage, in another one, or nowhere,
+---as upstream's ui:is_visible() and ui:is_visible_non_curtab() say -- never
+---raising.
+---@param chat table
+---@return "here"|"elsewhere"|"hidden"
+function M.where(chat)
+  local ok, visible, other = pcall(function() return chat.ui:is_visible(), chat.ui:is_visible_non_curtab() end)
+  if not (ok and visible) then return "hidden" end
+  return other and "elsewhere" or "here"
+end
+
+---A window of this tabpage showing the chat: its own, else another one.
+---<C-c> shows its successor in the closed chat's window, which becomes the
+---successor's own, and leaves the successor's buffer in the window that
+---showed it before -- in another tabpage, a window that is not its own.
+---@param chat table
+---@return integer|nil
+function M.win_here(chat)
+  if M.where(chat) == "here" and M.win(chat) then return M.win(chat) end
+  if not valid_buf(chat.bufnr) then return nil end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if nonfloat(win) and vim.api.nvim_win_get_buf(win) == chat.bufnr then return win end
+  end
+end
+
+---Is the chat on screen in this tabpage, in its own window?
 local function here(chat)
-  return chat.ui:is_visible() and not chat.ui:is_visible_non_curtab()
+  return M.where(chat) == "here"
+end
+
+---Hide the chat's own window through its ui (ui:hide), never raising.
+---@param chat table
+---@param opts? { keep_window?: boolean } leave the window for the next chat
+---@return boolean ok, any err
+function M.hide(chat, opts)
+  return pcall(function() chat.ui:hide(opts) end)
+end
+
+---The slot's id for a chat: its buffer and its chat id, since a buffer number
+---alone can be reused by a later chat.
+---@param chat table
+---@return string
+function M.key(chat)
+  return ("cc:%s:%s"):format(tostring(chat.bufnr), tostring(chat.id))
+end
+
+---The chat's buffer, while it is still this chat's (see live).
+---@param chat table
+---@return integer|nil
+function M.buf(chat)
+  local live = M.live(chat)
+  return live and live.bufnr or nil
+end
+
+---The chat's adapter as a sentence names it.
+---@param chat table
+---@return string
+function M.name(chat)
+  local adapter = type(chat) == "table" and type(chat.adapter) == "table" and chat.adapter or {}
+  return adapter.formatted_name or adapter.name or "The chat"
 end
 
 ---Compare two rank tuples, most significant field first.
@@ -151,7 +226,11 @@ function M.label(chat, entry)
   if not name and entry and entry.description and entry.description ~= "[No messages]" then name = entry.description end
   if not name and valid_buf(chat.bufnr) then
     local bufname = vim.fs.basename(vim.api.nvim_buf_get_name(chat.bufnr))
-    if bufname ~= "" and not bufname:match("^%[CodeCompanion%] %d+$") then name = bufname end
+    -- Upstream's own "[CodeCompanion] <n>", which codecompanion-history
+    -- renames "✨ [CodeCompanion] <id>" until it has a title, names nothing.
+    -- History pads it with a non-ASCII space, which %s does not match.
+    local bare = bufname:gsub("^✨%s*", "")
+    if bufname ~= "" and not bare:match("^%[CodeCompanion%]%D*%d+$") then name = bufname end
   end
   return ("%s · %s · %s"):format(adapter.formatted_name or adapter.name or "?", kind, name or ("#" .. chat.bufnr))
 end
@@ -180,28 +259,27 @@ function M.find(kind)
 end
 
 local function focus(chat)
-  local win = chat and chat.ui.winnr
-  if win and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage() then
-    vim.api.nvim_set_current_win(win)
-  end
+  local win = chat and M.win_here(chat)
+  if win then vim.api.nvim_set_current_win(win) end
 end
 
----Put exactly `chat` on screen. Shown in another tabpage: go there, nothing
----moves. Else in this tabpage, the slot's way (lua/ai/slot.lua): a chat window
----here hands itself over, or the AI windows here make way for a new one.
+---Put exactly `chat` on screen. Shown in this tabpage already, in any window:
+---there. Else shown in another tabpage: go there, nothing moves. Else in this
+---tabpage, the slot's way (lua/ai/slot.lua): a chat window here hands itself
+---over, or the AI windows here make way for a new one.
 ---@param chat table a CodeCompanion.Chat
 ---@param opts? { focus?: boolean, toggled?: boolean } focus defaults to true; toggled keeps the cursor where it was left
 ---@return boolean shown, "jumped"? how
 function M.show(chat, opts)
   opts = opts or {}
   local ui = chat.ui
-  if here(chat) then
+  if here(chat) or M.win_here(chat) then
     if opts.focus ~= false then focus(chat) end
     return true
   end
   local slot = require("ai.slot")
   local item = slot.chat_item(chat)
-  if ui:is_visible_non_curtab() then
+  if M.where(chat) == "elsewhere" then
     slot.jump(item, { focus = opts.focus ~= false })
     return true, "jumped"
   end
@@ -259,7 +337,7 @@ function M.toggle(kind)
   local chat = M.find(kind)
   if not chat then return M.new(kind) end
   if here(chat) then
-    chat.ui:hide()
+    M.hide(chat)
     return chat
   end
   M.show(chat, { toggled = true })
@@ -371,11 +449,9 @@ end
 ---@param chat table a CodeCompanion.Chat
 ---@param insert boolean?
 function M.focus_prompt(chat, insert)
-  if not here(chat) then M.show(chat) end
-  local win = chat.ui.winnr
-  if not (win and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage()) then
-    return
-  end
+  if not (here(chat) or M.win_here(chat)) then M.show(chat) end
+  local win = M.win_here(chat)
+  if not win then return end
   vim.api.nvim_set_current_win(win)
   vim.api.nvim_win_set_cursor(win, { vim.api.nvim_buf_line_count(chat.bufnr), 0 })
   if not insert then return end

@@ -72,12 +72,15 @@ for _, name in ipairs({ "claude", "codex" }) do
   vim.fn.writefile({ "#!/bin/sh", "exec cat" }, stand_ins .. "/" .. name)
   vim.fn.setfperm(stand_ins .. "/" .. name, "rwx------")
 end
+-- The stand-in select stays until the end: a question nothing answers would
+-- otherwise reach the real one, which waits for input forever in a headless
+-- run. Until UC-3 is done it answers with the first entry; after, it cancels.
 local real_path, real_select = vim.env.PATH, vim.ui.select
 vim.env.PATH = stand_ins .. ":" .. real_path
-local asked = {}
+local asked, answering = {}, true
 vim.ui.select = function(items, opts, on_choice)
   asked[#asked + 1] = { prompt = opts.prompt, first = opts.format_item(items[1]) }
-  on_choice(items[1])
+  on_choice(answering and items[1] or nil)
 end
 
 local seen = {}
@@ -100,8 +103,7 @@ vim.api.nvim_win_set_cursor(0, { 1, 0 })
 vim.cmd("normal! Vj")
 ai.compose()
 t.eq(#seen, 1, "UC-3: compose reaches the backend once from Visual mode")
-vim.ui.select, vim.env.PATH = real_select, real_path
-vim.fn.delete(stand_ins, "rf")
+answering = false
 t.ok(seen[1].seed ~= nil and seen[1].seed ~= "", "UC-3: a Visual selection seeds the prompt")
 -- The composer this replaced left Visual by opening a buffer; sending bytes to a
 -- terminal does not, so the mode has to be dropped explicitly.
@@ -139,8 +141,10 @@ vim.api.nvim_buf_set_lines(0, 0, -1, false, { "one", "two" })
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
 vim.cmd("normal! Vj")
 seen = {}
+local asked_before = #asked
 ai.compose()
 t.eq(#seen, 0, "UC-4: compose does not reach the backend while a prompt is open")
+t.eq(#asked, asked_before, "UC-4: nor asks where to go")
 t.eq(vim.api.nvim_get_current_win(), prompt_win, "UC-4: compose refocuses the open prompt")
 local lines = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(prompt_win), 0, -1, false)
 t.ok(#lines > 1 and lines[1] == "half written", "UC-4: the selection is appended to the open prompt")
@@ -364,5 +368,7 @@ end
 
 config.use_provider(saved_provider)
 vim.fn.delete(dir, "rf")
+vim.ui.select, vim.env.PATH = real_select, real_path
+vim.fn.delete(stand_ins, "rf")
 
 t.done()

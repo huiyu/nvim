@@ -1502,6 +1502,9 @@ end
 
 M._parse_header = parse_header
 
+---Where delivery goes before it reveals anything (see switch_tab). For the spec.
+M._switch_tab = switch_tab
+
 ---What delivering a draft whose file holds `lines` would send. For the spec.
 ---@param lines string[]
 ---@return string

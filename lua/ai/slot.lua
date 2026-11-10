@@ -13,9 +13,13 @@
 -- edgy's hide or close (they drop a non-pinned window for good), never a
 -- stop, close or wipe, never another tabpage. A window its owner cannot hide
 -- is left alone: claudecode's copy of its terminal in a diff tabpage, a chat
--- buffer shown in a second window. Hiding comes first and showing second, so
--- a terminal is not squeezed and redrawn for nothing; when the windows to
--- hide are all the tabpage has, the order turns round (E444).
+-- buffer shown in a second window. Such a copy still counts as shown here:
+-- a key delivers to it where it is and opens nothing beside it. Only
+-- <leader>ac closes one, a chat's whose own window is in another tabpage
+-- (the successor <C-c> leaves there), since the chat stays on screen. Hiding
+-- comes first and showing second, so a terminal is not squeezed and redrawn
+-- for nothing; when the windows to hide are all the tabpage has, the order
+-- turns round (E444).
 --
 -- Between two chats the window is handed over in place (lua/ai/companion.lua,
 -- show). Between a terminal and anything else it cannot be: Snacks' fixbuf
@@ -38,7 +42,8 @@
 -- so a running Claude still sees the editor's selection while it is hidden.
 --
 -- Nothing here loads claudecode.nvim or CodeCompanion to answer: a native
--- agent is asked through its backend, chats only once CodeCompanion has loaded.
+-- agent is asked through its backend, chats only once CodeCompanion has loaded
+-- and only through lua/ai/companion.lua, which reads a chat's internals.
 
 local config = require("ai.config")
 
@@ -82,7 +87,7 @@ function M.native_item(agent) return { id = "native:" .. agent, kind = "native",
 ---@param chat table
 ---@return ai.SlotItem
 function M.chat_item(chat)
-  return { id = ("cc:%d:%s"):format(chat.bufnr, tostring(chat.id)), kind = "chat", chat = chat }
+  return { id = companion().key(chat), kind = "chat", chat = chat }
 end
 
 ---The buffer `item` shows in; nil once it is gone.
@@ -90,8 +95,7 @@ end
 ---@return integer|nil
 function M.buf_of(item)
   if item.kind == "native" then return ask(backend(item.agent).buf) end
-  local live = companion().live(item.chat)
-  return live and live.bufnr or nil
+  return companion().buf(item.chat)
 end
 
 ---Every open chat: the native agents that run, then every live CodeCompanion
@@ -130,9 +134,9 @@ local function resolve(id)
   if agent then
     return config.providers[agent] and ask(backend(agent).running) and M.native_item(agent) or nil
   end
-  local buf, chat_id = id:match("^cc:(%d+):(.+)$")
+  local buf = id:match("^cc:(%d+):")
   local chat = buf and companion().chat_of(tonumber(buf))
-  return chat and tostring(chat.id) == chat_id and M.chat_item(chat) or nil
+  return chat and companion().key(chat) == id and M.chat_item(chat) or nil
 end
 
 ---What `item` is called in a picker or a notice, its billing included.
@@ -146,7 +150,7 @@ end
 ---The agent's or the chat's short name, for a sentence.
 local function name(item)
   if item.kind == "native" then return config.providers[item.agent].label end
-  return (item.chat.adapter or {}).formatted_name or "The chat"
+  return companion().name(item.chat)
 end
 
 ---------------------------------------------------------------------------
@@ -192,8 +196,8 @@ local function tab_showing(item)
 end
 
 ---Where `item`'s owner shows it: in its own window here, in its own window in
----another tabpage, or nowhere. The owner's window only -- a copy elsewhere
----(Claude's in a diff tabpage) is neither, so revealing still opens one here.
+---another tabpage, or nowhere. The owner's window only -- a copy (Claude's in
+---a diff tabpage) is neither; make_room and reveal look at copies here first.
 ---@param item ai.SlotItem
 ---@return "here"|"elsewhere"|"hidden"
 function M.state(item)
@@ -202,18 +206,13 @@ function M.state(item)
     if ask(b.visible) then return "here" end
     return ask(b.window) and "elsewhere" or "hidden"
   end
-  local ui = item.chat.ui
-  if ui:is_visible() then return ui:is_visible_non_curtab() and "elsewhere" or "here" end
-  return "hidden"
+  return companion().where(item.chat)
 end
 
 ---The owner's window for a chat, when it is in this tabpage.
 local function chat_win_here(chat)
-  local win = chat.ui and chat.ui.winnr
-  if win and api.nvim_win_is_valid(win) and api.nvim_win_get_buf(win) == chat.bufnr
-    and api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage() then
-    return win
-  end
+  local win = companion().win(chat)
+  if win and api.nvim_win_get_tabpage(win) == api.nvim_get_current_tabpage() then return win end
 end
 
 ---The AI windows in this tabpage an owner can hide, except `keep`'s.
@@ -272,7 +271,7 @@ function M.hide(item, opts)
       notify(("%s is still working (replying or waiting for an approval) — hidden; <leader>al brings it back")
         :format(M.label(item)))
     end
-    ok, err = pcall(item.chat.ui.hide, item.chat.ui, opts)
+    ok, err = companion().hide(item.chat, opts)
   end
   if not ok then require("util.vim_error").notify(err) end
 end
@@ -313,7 +312,7 @@ end
 function M.jump(item, opts)
   opts = opts or {}
   local win
-  if item.kind == "native" then win = ask(backend(item.agent).window) else win = item.chat.ui.winnr end
+  if item.kind == "native" then win = ask(backend(item.agent).window) else win = companion().win(item.chat) end
   if not (win and api.nvim_win_is_valid(win)) then return false end
   local tab = api.nvim_win_get_tabpage(win)
   if tab ~= api.nvim_get_current_tabpage() then
@@ -342,14 +341,19 @@ end
 
 ---Make room for `item`, which a backend method is about to show or start:
 ---go to the tabpage showing it, or hide the other AI windows here. The method
----itself shows it. When the windows to hide are all this tabpage has, they
----stay until it does, and the guard hides them then. Nil when refused: a
----native agent to start with no editor window to start it from.
+---itself shows it -- only on "room": on "here" and "elsewhere" a window shows
+---it already. When the windows to hide are all this tabpage has, they stay
+---until it does, and the guard hides them then. Nil when refused: a native
+---agent to start with no editor window to start it from.
 ---@param item ai.SlotItem
 ---@param opts? { jump?: boolean, editor?: boolean } jump to another tabpage (default true); start from the editor window (default true)
 ---@return "here"|"elsewhere"|"room"|nil
 function M.make_room(item, opts)
   opts = opts or {}
+  -- On screen here in any window -- claudecode's copy of its terminal in a
+  -- diff tabpage too, while its own window is hidden or in another tabpage:
+  -- what is delivered goes there, and nothing opens or moves.
+  if tab_showing(item) == api.nvim_get_current_tabpage() then return "here" end
   local state = M.state(item)
   if state == "here" then return "here" end
   if state == "elsewhere" then
@@ -379,7 +383,7 @@ function M.reveal(item)
       if item.kind == "native" then
         vim.cmd("startinsert")
       else
-        api.nvim_win_set_cursor(win, { api.nvim_buf_line_count(item.chat.bufnr), 0 })
+        api.nvim_win_set_cursor(win, { api.nvim_buf_line_count(buf), 0 })
       end
       M.remember(item)
       return true
@@ -402,10 +406,22 @@ end
 -- Asking
 ---------------------------------------------------------------------------
 
+---Back to the tabpage a key was pressed in, when it asked from another one
+---(home: the page a CodeDiff view came from) and then delivered nothing.
+---@param tab integer?
+local function back_to(tab)
+  if tab and api.nvim_tabpage_is_valid(tab) and tab ~= api.nvim_get_current_tabpage() then
+    api.nvim_set_current_tabpage(tab)
+  end
+end
+
 ---vim.ui.select, with the choice handled under a guard: it arrives later,
----outside the mapping that asked, where an error would be a traceback.
-local function select(items, opts, on_choice)
+---outside the mapping that asked, where an error would be a traceback. A
+---cancel calls nothing and goes `back` (see back_to).
+---@param back integer? the tabpage the key was pressed in
+local function select(items, opts, on_choice, back)
   vim.ui.select(items, opts, function(choice)
+    if choice == nil then return back_to(back) end
     local ok, err = xpcall(on_choice, debug.traceback, choice)
     if not ok then notify("AI: " .. tostring(err), ERROR) end
   end)
@@ -428,14 +444,19 @@ end
 ---Ask for a backend and start a chat on it; `cb` gets the chat. A native
 ---agent's entry stands for its one session: a running one is offered as it
 ---is, and `cb` gets it without starting it -- the caller's reveal or delivery
----starts what is not running. A CodeCompanion chat is created here, hidden.
+---starts what is not running, and a session that started is announced. A
+---CodeCompanion chat is created here, hidden, and announces itself.
 ---@param cb fun(item: ai.SlotItem)
----@param opts? { prompt?: string }
+---@param opts? { prompt?: string, native_only?: boolean, back?: integer } native_only: the terminals alone, for a key a chat cannot take; back: see back_to
 function M.pick_new(cb, opts)
   opts = opts or {}
-  local entries = vim.tbl_filter(function(b) return b.available end, config.backends())
+  local entries = vim.tbl_filter(function(b)
+    return b.available and (not opts.native_only or b.kind == "native")
+  end, config.backends())
   if #entries == 0 then
-    return notify("No AI backend is available here — see :checkhealth config", WARN)
+    back_to(opts.back)
+    return notify(opts.native_only and "No native agent is installed (claude, codex)"
+      or "No AI backend is available here — see :checkhealth config", WARN)
   end
   local here = api.nvim_get_current_tabpage()
   select(entries, {
@@ -452,20 +473,32 @@ function M.pick_new(cb, opts)
       return b.label .. state .. (b.warn and (" · ⚠ " .. b.warn) or "")
     end,
   }, function(b)
-    if not b then return end
-    if b.kind == "native" then return cb(M.native_item(b.agent)) end
+    if b.kind == "native" then
+      local was = ask(backend(b.agent).running)
+      cb(M.native_item(b.agent))
+      -- Only a session that did start: a cold start can be refused (no
+      -- editor window to start it from).
+      if not was and ask(backend(b.agent).running) then notify("New chat: " .. b.label) end
+      return
+    end
     local chat = companion().create(b)
     if chat then cb(M.chat_item(chat)) end
-  end)
+  end, opts.back)
 end
 
 ---Ask which open chat: the ones shown here first, then the most recently used.
 ---The last entry starts a new one; with none open, that is all there is to ask.
 ---@param cb fun(item: ai.SlotItem)
----@param opts? { prompt?: string, items?: ai.SlotItem[], new?: boolean }
+---@param opts? { prompt?: string, items?: ai.SlotItem[], new?: boolean, native_only?: boolean, back?: integer } see pick_new
 function M.switch(cb, opts)
   opts = opts or {}
   local items = opts.items or M.list()
+  if opts.native_only then
+    local natives = vim.tbl_filter(function(item) return item.kind == "native" end, items)
+    -- Choosing among the chats shown here, none of them native: those are
+    -- what there is, and the caller says what a chat takes instead.
+    if #natives > 0 or opts.new ~= false then items = natives end
+  end
   if #items == 0 then return M.pick_new(cb, opts) end
   local rank = {}
   for _, item in ipairs(items) do
@@ -490,10 +523,9 @@ function M.switch(cb, opts)
       return ("%s · %s%s"):format(M.label(entry), where(entry), busy)
     end,
   }, function(entry)
-    if not entry then return end
     if entry.new then return M.pick_new(cb, opts) end
     cb(entry)
-  end)
+  end, opts.back)
 end
 
 ---The chats on the right of the tabpage the keys act in: this one, or, from a
@@ -534,20 +566,23 @@ end
 ---Resolve the chat on the right, then call `cb` with it: the one shown here
 ---(see home); of several, the current window's, else the one picked among
 ---them; with none, the one picked among every open chat, or a new one. A
----cancelled question calls nothing.
+---cancelled question calls nothing, and goes back to the tabpage the key
+---was pressed in. `native_only` asks among the native agents alone, for a key
+---only they take: a chat would be shown or created for nothing.
 ---@param cb fun(item: ai.SlotItem, from: integer)
----@param opts? { prompt?: string }
+---@param opts? { prompt?: string, native_only?: boolean }
 function M.target(cb, opts)
   opts = opts or {}
   local shown, from = home()
   local function done(item) cb(item, from) end
   if #shown == 1 then return done(shown[1]) end
+  local ask_opts = { prompt = opts.prompt, native_only = opts.native_only, back = from }
   if #shown > 1 then
     local item = current_of(shown)
     if item then return done(item) end
-    return M.switch(done, { prompt = opts.prompt, items = shown, new = false })
+    return M.switch(done, vim.tbl_extend("force", ask_opts, { items = shown, new = false }))
   end
-  return M.switch(done, { prompt = opts.prompt })
+  return M.switch(done, ask_opts)
 end
 
 ---Say where a delivery went when that was not the tabpage the key was
@@ -567,19 +602,54 @@ end
 
 ---With nothing on the right: the last chat this tabpage showed, when it is
 ---alive and not shown in another one; else the only open chat; else ask.
-local function bring_back(cb)
+---@param back integer? see back_to
+local function bring_back(cb, back)
   local last = resolve(vim.t.ai_slot_last)
   if last and M.state(last) ~= "elsewhere" then return cb(last) end
   local items = M.list()
   if #items == 1 then return cb(items[1]) end
-  return M.switch(cb)
+  return M.switch(cb, { back = back })
+end
+
+---Close this tabpage's copies of chats whose own window is in another
+---tabpage: <C-c> shows its successor in the closed chat's window, which
+---becomes the successor's own, and leaves the successor's buffer in the
+---window that showed it before. The chat stays on screen in its own window,
+---so nothing is hidden, stopped or wiped; never the last window here.
+---@param shown ai.SlotItem[]
+---@return integer closed
+local function close_copies(shown)
+  local closed = 0
+  for _, item in ipairs(shown) do
+    if item.kind == "chat" and M.state(item) == "elsewhere" then
+      local buf = M.buf_of(item)
+      for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+        if nonfloat(win) and api.nvim_win_get_buf(win) == buf then
+          local others = vim.tbl_filter(function(w) return w ~= win and nonfloat(w) end, api.nvim_tabpage_list_wins(0))
+          if #others > 0 then
+            api.nvim_win_close(win, false)
+            closed = closed + 1
+          end
+        end
+      end
+    end
+  end
+  return closed
 end
 
 ---<leader>ac: hide what is on the right, or bring a chat back.
 function M.toggle()
-  local shown = home()
-  if #shown == 0 then return bring_back(M.reveal) end
+  local shown, from = home()
+  if #shown == 0 then return bring_back(M.reveal, from) end
+  local victims = M.victims()
+  -- Each owner would answer differently -- CodeCompanion's :hide closes the
+  -- tabpage, Snacks leaves an empty window, claudecode none -- so none does.
+  if would_empty(victims) then
+    return notify(("%s is this tabpage's only window: <leader>ac would leave nothing in its place")
+      :format(name(victims[1].item)))
+  end
   if M.cover() > 0 then return end
+  if close_copies(shown) > 0 then return end
   local item = shown[1]
   if item.kind == "native" and item.agent == "claude" then
     return notify("This is Claude Code's diff tabpage: answer it with <leader>aa / <leader>ad")
@@ -590,11 +660,11 @@ end
 ---<leader>af: into the chat on the right, never hiding it; with none, the
 ---way <leader>ac brings one back.
 function M.focus()
-  local shown = home()
-  if #shown == 0 then return bring_back(M.reveal) end
+  local shown, from = home()
+  if #shown == 0 then return bring_back(M.reveal, from) end
   local item = #shown == 1 and shown[1] or current_of(shown)
   if item then return M.reveal(item) end
-  return M.switch(M.reveal, { items = shown, new = false })
+  return M.switch(M.reveal, { items = shown, new = false, back = from })
 end
 
 ---The native agent on the right, else the one asked for -- the installed
@@ -604,7 +674,7 @@ end
 ---@param opts? { prompt?: string }
 function M.native_target(cb, opts)
   opts = opts or {}
-  local shown = home()
+  local shown, from = home()
   local natives = vim.tbl_filter(function(item) return item.kind == "native" end, shown)
   if #natives == 1 then return cb(natives[1].agent) end
   local current = #natives > 1 and current_of(natives)
@@ -613,15 +683,16 @@ function M.native_target(cb, opts)
   for _, b in ipairs(config.backends()) do
     if b.kind == "native" and b.available then agents[#agents + 1] = b.agent end
   end
-  if #agents == 0 then return notify("No native agent is installed (claude, codex)", WARN) end
+  if #agents == 0 then
+    back_to(from)
+    return notify("No native agent is installed (claude, codex)", WARN)
+  end
   if #agents == 1 then return cb(agents[1]) end
   select(agents, {
     prompt = opts.prompt or "Which native agent?",
     kind = "ai_slot_agent",
     format_item = function(agent) return config.providers[agent].label end,
-  }, function(agent)
-    if agent then cb(agent) end
-  end)
+  }, cb, from)
 end
 
 ---------------------------------------------------------------------------
@@ -672,7 +743,7 @@ end
 ---A chat asks for a tool approval while no tabpage shows it.
 local function on_approval(ev)
   local chat = companion().chat_of(ev.data and ev.data.bufnr or -1)
-  if not chat or chat.ui:is_visible() then return end
+  if not chat or companion().where(chat) ~= "hidden" then return end
   notify(("%s is waiting for a tool approval — <leader>al shows it"):format(M.label(M.chat_item(chat))))
 end
 

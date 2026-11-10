@@ -387,6 +387,30 @@ do
   end
 end
 
+-- lua/ai/backend/claude.lua drives claudecode through a few of its module
+-- functions (AGENTS.md lists them with the other internals readers), which
+-- tests/ai_slot_spec.lua stands in for so the plugin never loads. Pin them
+-- against the pinned plugin's source -- read, not required: a require would
+-- load claudecode.nvim, its WebSocket server and lockfile.
+do
+  local dir = require("lazy.core.config").plugins["claudecode.nvim"].dir
+  local function source(rel)
+    local ok, lines = pcall(vim.fn.readfile, dir .. "/lua/claudecode/" .. rel)
+    return ok and table.concat(lines, "\n") or ""
+  end
+  local terminal, init = source("terminal.lua"), source("init.lua")
+  for _, want in ipairs({
+    { terminal, "function M.open(opts_override, cmd_args)" },
+    { terminal, "function M.ensure_visible(" },
+    { terminal, "function M.get_active_terminal_bufnr()" },
+    { init, "function M.send_at_mention(file_path, start_line, end_line, context)" },
+    { init, '"ClaudeCodeOpen"' },
+  }) do
+    t.ok(want[1]:find(want[2], 1, true) ~= nil, "claudecode still has " .. want[2])
+  end
+  t.ok(not require("lazy.core.config").plugins["claudecode.nvim"]._.loaded, "and reading it loaded nothing")
+end
+
 vim.fn.jobstop(vim.bo[claude_term.buf].channel)
 pcall(vim.api.nvim_buf_delete, claude_term.buf, { force = true })
 vim.fn.delete(agents_dir, "rf")

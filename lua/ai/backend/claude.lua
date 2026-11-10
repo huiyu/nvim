@@ -1,6 +1,6 @@
 local M = {}
 
-local INFO = vim.log.levels.INFO
+local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 
 local function command(cmd)
   vim.cmd(cmd)
@@ -38,14 +38,34 @@ function M.buf()
   return term and term.buf or nil
 end
 
----Show the session here and focus it, starting it when none runs. This is
----claudecode's open, not its toggles: it reuses the one terminal (cc_show) and
----never hides it, and it judges "shown" by the terminal's own window, so a
----copy claudecode put in a diff tabpage does not stop it opening here. Through
----the command until the plugin has loaded -- the command is what loads it --
----and the module function after, which is also what a spec stands in for.
+---A window of the current tabpage that shows the session: its own, else
+---the copy claudecode puts beside a proposed diff in a tabpage of its own.
+---@return integer|nil
+function M.window_here()
+  local buf = M.buf()
+  if not buf then return nil end
+  if M.visible() then return M.window() end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(win).relative == "" and vim.api.nvim_win_get_buf(win) == buf then return win end
+  end
+end
+
+---Show the session here and focus it, starting it when none runs. Shown here
+---already -- in its own window, or in the copy of a diff tabpage -- it is
+---focused where it is. Else this is claudecode's open, not its toggles: it
+---reuses the one terminal (cc_show) and never hides it, and it judges "shown"
+---by the terminal's own window, so it would open a second one beside a copy.
+---Through the command until the plugin has loaded -- the command is what
+---loads it -- and the module function after, which is also what a spec
+---stands in for.
 ---@param args string? CLI arguments for a session it starts; a running one ignores them
 function M.reveal(args)
+  local here = M.window_here()
+  if here then
+    vim.api.nvim_set_current_win(here)
+    vim.cmd("startinsert")
+    return
+  end
   if package.loaded["claudecode"] then
     require("claudecode.terminal").open({}, args)
   else
@@ -77,17 +97,28 @@ end
 function M.select_model()
   if M.running() then
     M.reveal()
-    -- The TUI's own model menu, as Codex's /model.
-    if not require("claudecode.terminal").send_to_terminal("/model") then already("use /model in it") end
-    return
+    -- Nothing is typed for it: "/model" would land after a half-typed prompt
+    -- -- no command there -- and its Enter would submit that prompt, or answer
+    -- a permission dialog the TUI is showing.
+    return already("use /model in it")
   end
   command("ClaudeCodeSelectModel")
 end
 
----Mention a file, as <leader>ab does for the current buffer.
+---Mention a file, as <leader>ab does for the current buffer: claudecode's
+---public send_at_mention, which queues the mention while the TUI connects.
+---Not :ClaudeCodeAdd, which splits its argument on whitespace and keeps the
+---backslashes fnameescape adds, so "a repo/x.lua", "[id]/page.tsx" or
+---"$post.tsx" never arrived.
 ---@param path string
 function M.add_path(path)
-  command("ClaudeCodeAdd " .. vim.fn.fnameescape(path))
+  if vim.fn.filereadable(path) == 0 and vim.fn.isdirectory(path) == 0 then
+    return vim.notify("Claude Code reads files from disk, and this one is not saved: " .. path, WARN, { title = "AI" })
+  end
+  local ok, err = require("claudecode").send_at_mention(path, nil, nil, "ClaudeCodeAdd")
+  if not ok then
+    vim.notify("Claude Code did not take the file: " .. tostring(err), WARN, { title = "AI" })
+  end
 end
 
 ---Mention lines `l1`..`l2` (1-based) of `path`: what :ClaudeCodeSend makes of
@@ -176,14 +207,13 @@ function M.edit_prompt(opts)
 
   editor.stage_seed(opts.seed, { provider = "claude", on_consumed = opts.on_consumed, on_expired = opts.on_expired, ttl_ms = opts.ttl_ms })
 
-  -- ensure_visible counts any window on the terminal as shown, the copy in a
-  -- diff tabpage too, and would then open nothing here: the slot just made
-  -- room for this panel (lua/ai/slot.lua), and the prompt would go to a
-  -- terminal in another tabpage. A hidden session is shown through open().
-  if M.running() and not M.window() then
-    terminal.open()
-  else
-    terminal.ensure_visible()
+  -- Shown here already, in its own window or the copy of a diff tabpage: it
+  -- stays as it is -- open() would put a second window beside a copy. A
+  -- hidden session is shown through open(): ensure_visible counts any window
+  -- on the terminal as shown, a copy in another tabpage too, and would open
+  -- nothing here, where the slot just made room for it (lua/ai/slot.lua).
+  if not M.window_here() then
+    if M.running() and not M.window() then terminal.open() else terminal.ensure_visible() end
   end
 
   if running then
