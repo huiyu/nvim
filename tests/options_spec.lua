@@ -113,14 +113,28 @@ for _, name in ipairs({ "probe.json", "probe.jsonc", "probe.json5" }) do
 end
 vim.cmd.edit(vim.fn.fnameescape(file("probe.tex", { "\\documentclass{article}", "\\begin{document}", "$\\alpha$", "\\end{document}" })))
 t.eq(vim.wo.conceallevel, 2, "a .tex file opened in the same window keeps conceal for VimTeX")
--- diffview's path: the filetype is detected inside nvim_buf_call, away from
--- the window that later shows the buffer.
+-- A filetype detected inside nvim_buf_call, away from the window that later
+-- shows the buffer.
 local hidden = vim.api.nvim_create_buf(true, true)
 vim.api.nvim_buf_call(hidden, function() vim.bo.filetype = "json" end)
 vim.cmd("enew")
 t.eq(vim.wo.conceallevel, 2, "an ordinary window starts from the global level")
 vim.api.nvim_win_set_buf(0, hidden)
 t.eq(vim.wo.conceallevel, 0, "and a JSON buffer it is handed later still shows quotes")
+-- CodeDiff's revision buffers have no filetype at all (it starts Tree-sitter
+-- on them directly), so the name decides.
+local function revision(name)
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_name(buf, "codediff:///tmp/repo///0123abcd/" .. name)
+  vim.cmd("enew")
+  vim.api.nvim_win_set_buf(0, buf)
+  return buf
+end
+local json_revision = revision("probe.json")
+t.eq(vim.bo[json_revision].filetype, "", "the revision buffer stand-in has no filetype, as CodeDiff's do")
+t.eq(vim.wo.conceallevel, 0, "a JSON revision shows its quotes")
+revision("probe.lua")
+t.eq(vim.wo.conceallevel, 2, "any other revision keeps the global level")
 
 -- Diff filler is a hatch, and appending it kept the rest of 'fillchars'.
 t.eq(vim.opt.fillchars:get().diff, "╱", "diff filler lines are drawn with ╱")

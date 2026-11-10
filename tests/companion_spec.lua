@@ -8,6 +8,9 @@
 -- chat window; a missing key or ACP bridge refuses before anything starts; and
 -- an upgrade that breaks the internals falls back to the upstream commands.
 --
+-- CodeCompanion's own code review is off: review rounds (lua/ai/review)
+-- replace it, and two baseline systems must not run side by side.
+--
 -- Nothing is sent. No ACP chat is ever created -- that would spawn the bridge
 -- -- so the ACP side runs on its refusal path and on stubbed chat lists. HTTP
 -- chats are created with fake NVIM_* values set here, are never submitted
@@ -120,6 +123,19 @@ Curl.request_sync = function(opts)
   return nil, { message = "stubbed by companion_spec" }
 end
 local Chats = require("codecompanion.interactions.chat")
+
+-- CodeCompanion's own code review keeps a second baseline system of its own
+-- (refs/worktree/codecompanion/*); review rounds replace it, so it is off, its
+-- command is gone and its editor context is offered nowhere.
+local cc_config = require("codecompanion.config")
+t.eq(cc_config.interactions.code_review.enabled, false, "CodeCompanion's code review is disabled")
+t.eq(vim.fn.exists(":CodeCompanionCodeReview"), 0, ":CodeCompanionCodeReview does not exist once CodeCompanion loads")
+t.ok(not pcall(vim.api.nvim_get_autocmds, { group = "codecompanion.code_review" }),
+  "and its codecompanion.code_review augroup was never created")
+t.ok(not vim.tbl_contains(Config.plugins["codecompanion.nvim"].cmd or {}, "CodeCompanionCodeReview"),
+  "nor does the lazy spec list it as a trigger")
+local contexts = require("codecompanion.interactions.shared.editor_context").new("chat").editor_context
+t.ok(contexts.code_review == nil and contexts.buffer ~= nil, "#{code_review} is not offered in a chat; #{buffer} still is")
 
 local editor_win = vim.api.nvim_get_current_win()
 vim.cmd.enew()

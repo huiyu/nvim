@@ -40,8 +40,8 @@ local ATTACH_DELAY_MS = 750
 -- on-screen hint reads "ctrl+g to edit in <$EDITOR>".
 M.EDIT_KEY = "\7"
 
--- Text to add to the next prompt this Nvim is handed, consumed by the first
--- open() that follows.
+-- Text to add to the next prompt an agent hands this Nvim, one slot per
+-- provider, consumed by the first open() of that provider's prompt.
 --
 -- Seeding used to be a bracketed paste sent just ahead of the edit key, on the
 -- reasoning that one channel write fixes their order. The bytes do arrive in
@@ -49,12 +49,87 @@ M.EDIT_KEY = "\7"
 -- so the editor opened on the pre-paste box -- measured: the float came up
 -- empty with a Visual selection staged. Handing the text to the buffer instead
 -- has no ordering to lose, and needs no paste sanitising.
-local pending_seed = nil
+--
+-- Per provider because a seed has an addressee: review feedback staged for
+-- Claude (lua/ai/review/feedback.lua) must never land in a prompt Codex opens
+-- meanwhile, and the other way round. The callbacks tell the stager whether
+-- its text arrived: on_consumed once it is in a prompt buffer, on_expired when
+-- it never will -- replaced by a newer seed, cleared, or not taken within
+-- ttl_ms. Exactly one of them fires, at most once.
+---@class ai.editor.Seed
+---@field text string
+---@field on_consumed? fun()
+---@field on_expired? fun()
+---@field timer? uv.uv_timer_t
 
----Stage text for the next prompt buffer. Pass nil to stage nothing.
+---@type table<string, ai.editor.Seed>
+local pending = {}
+
+local function stop_timer(slot)
+  local timer = slot.timer
+  slot.timer = nil
+  if timer and not timer:is_closing() then
+    timer:stop()
+    timer:close()
+  end
+end
+
+---Run a stager's callback. Its failure is reported, never raised: the callers
+---are a prompt being opened and a seed being replaced.
+local function notify_stager(fn)
+  if type(fn) ~= "function" then return end
+  local ok, err = pcall(fn)
+  if not ok then
+    vim.notify(("A staged prompt seed's callback failed: %s"):format(err), vim.log.levels.ERROR)
+  end
+end
+
+---Empty `provider`'s slot and hand back what was in it, with its timer
+---stopped. Its callbacks are the caller's to fire.
+---@param provider string
+---@return ai.editor.Seed?
+local function take(provider)
+  local slot = pending[provider]
+  pending[provider] = nil
+  if slot then stop_timer(slot) end
+  return slot
+end
+
+---Stage text for the next prompt buffer `opts.provider` opens (the active
+---provider when nil). Nil or "" stages nothing and only clears that slot.
+---
+---Whatever the slot held before is dropped with its on_expired, never its
+---on_consumed. Without `ttl_ms` the seed waits for that provider's next
+---prompt, as a <leader>ai selection always has; with it, a seed not taken in
+---time is dropped through on_expired.
 ---@param text string?
-function M.stage_seed(text)
-  pending_seed = (text ~= nil and text ~= "") and text or nil
+---@param opts? { provider?: string, on_consumed?: fun(), on_expired?: fun(), ttl_ms?: integer }
+function M.stage_seed(text, opts)
+  opts = opts or {}
+  local provider = opts.provider or config.provider
+  local old = take(provider)
+  if old then notify_stager(old.on_expired) end
+  if text == nil or text == "" then return end
+
+  local slot = { text = text, on_consumed = opts.on_consumed, on_expired = opts.on_expired }
+  pending[provider] = slot
+  if type(opts.ttl_ms) == "number" and opts.ttl_ms > 0 then
+    local timer = assert(vim.uv.new_timer())
+    slot.timer = timer
+    timer:start(opts.ttl_ms, 0, vim.schedule_wrap(function()
+      -- A slot taken or replaced meanwhile has had its answer already.
+      if pending[provider] ~= slot then return end
+      take(provider)
+      notify_stager(slot.on_expired)
+    end))
+  end
+end
+
+---Is a seed waiting for `provider`'s next prompt? For the specs.
+---@param provider string
+---@return boolean
+function M._seed_pending(provider)
+  return pending[provider] ~= nil
 end
 
 -- Waiting for a freshly started CLI to reach its input box.
@@ -187,7 +262,8 @@ end
 
 ---@param path string
 ---@param sentinel string
-local function present(path, sentinel)
+---@param slot ai.editor.Seed? the seed open() took for this prompt's agent
+local function present(path, sentinel, slot)
   -- The float is entered from a :terminal window sitting in Terminal-mode.
   if vim.fn.mode() == "t" then vim.cmd("stopinsert") end
 
@@ -205,10 +281,8 @@ local function present(path, sentinel)
   local buf = vim.fn.bufadd(path)
   vim.fn.bufload(buf)
 
-  -- Consumed unconditionally, so a seed staged for a request that never arrived
-  -- cannot leak into an unrelated ctrl+g later on.
-  local seed, existing = pending_seed, vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  pending_seed = nil
+  local existing = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local seed = slot and slot.text
   if seed then
     local lines = vim.split(seed, "\n", { plain = true })
     -- Appended after whatever was already typed in the box, which is where a
@@ -373,6 +447,10 @@ local function present(path, sentinel)
   if #lines <= 1 and vim.trim(lines[1] or "") == "" then
     vim.cmd("startinsert!")
   end
+
+  -- The seed is in a prompt on screen: from here on it is the user's to return
+  -- or cancel, and its stager may let go of its own copy.
+  if slot then notify_stager(slot.on_consumed) end
 end
 
 ---Is `win` one of the prompt floats currently open?
@@ -395,13 +473,20 @@ end
 ---
 ---The active provider's prompt wins when both agents have one open; the
 ---other agent's is still preferred over sending a key nobody reads.
+---
+---With `provider`, only that agent's prompt counts: text addressed to one
+---agent (review feedback) must not land in the other's prompt, so false then
+---means "this agent has none open", whatever the other one has.
 ---@param text string? lines to append to the prompt
----@return boolean focused false when no prompt is open
-function M.focus_open(text)
+---@param provider string? the only agent whose prompt may be used
+---@return boolean focused false when no (such) prompt is open
+function M.focus_open(text, provider)
   local chosen
   for path, open in pairs(state.open) do
     if not vim.api.nvim_win_is_valid(open.win) then
       state.open[path] = nil
+    elseif provider then
+      if open.owner == provider then chosen = open end
     elseif not chosen or (open.owner == config.provider and chosen.owner ~= config.provider) then
       chosen = open
     end
@@ -451,9 +536,15 @@ function M.open(path, sentinel)
   -- which is not safe to do while nvim is blocked reading input in the terminal
   -- window the request came from.
   vim.schedule(function()
-    local ok, err = pcall(present, path, sentinel)
+    -- Only this agent's seed, and taken unconditionally, so a seed staged for
+    -- a request that never arrived cannot leak into an unrelated ctrl+g later
+    -- on. present() reports it consumed once the float is up; a prompt that
+    -- fails to open never shows it, which its stager hears as expired.
+    local slot = take(config.provider_of_prompt(path))
+    local ok, err = pcall(present, path, sentinel, slot)
     if not ok then
       release(sentinel)
+      if slot then notify_stager(slot.on_expired) end
       vim.notify(
         ("Could not open the agent prompt: %s"):format(err),
         vim.log.levels.ERROR

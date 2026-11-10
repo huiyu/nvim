@@ -189,6 +189,23 @@ return {
     -- The presets *plugin* below is unrelated: it documents built-in keys and
     -- creates no mappings of its own.
     preset = "helix",
+    -- Merged over the preset, which keeps the rest. Bottom-left, not helix's
+    -- bottom-right: the AI panels own the right edge, so there the popup sat
+    -- on the agent's input box, while the left edge is free but for the DAP
+    -- panels. A hint glanced at mid-keystroke stays in one fixed corner
+    -- rather than mid-screen, where it would cover the code being operated
+    -- on and, with `no_overlap`, jump below the cursor whenever it met it.
+    -- Up to 80 columns so descriptions are not cut, with room either side.
+    win = {
+      col = 0,
+      width = { max = 80 },
+      padding = { 0, 2 },
+    },
+    -- One column, always: which-key fits floor(width / (column + 3)) columns,
+    -- and helix's 30-column minimum let two share an 80-column popup, so a
+    -- short-rowed popup like <leader>'s split a heading from its items. A
+    -- column of at least 40 leaves room for one.
+    layout = { width = { min = 40 } },
     -- which-key's automatic triggers refuse every bare lowercase letter except
     -- `g` and `z` (`which-key/buf.lua`, `is_safe`): putting one on a letter
     -- makes that letter wait out 'timeoutlen' before its builtin can run. `s`

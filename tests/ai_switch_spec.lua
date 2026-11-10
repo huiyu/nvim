@@ -124,6 +124,10 @@ for _, lhs in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT" })
 end
 t.ok((desc(" as", "x") or ""):find(label(other), 1, true) ~= nil, "Visual <leader>as is relabelled too")
 t.ok((desc(" ai", "x") or ""):find(label(other), 1, true) ~= nil, "and Visual <leader>ai")
+-- A review round belongs to a conversation, not to the active provider: the
+-- review keys are re-applied with the rest and keep naming no agent.
+t.eq({ desc(" av"), desc(" aV") }, { "Review changes since round baseline", "Start a review round" },
+  "<leader>av/aV survive the switch unchanged")
 
 -- Diffs are Claude's: the keys exist while Claude is active, or once
 -- claudecode.nvim is loaded and a diff could still come from it.
@@ -138,7 +142,7 @@ end
 local fresh = child({ NVIM_AI_PROVIDER = other }, [[
   local c = require("ai.config")
   local keys = {}
-  for _, k in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT", " aa", " ad", " ax", " ag", " aG", " ah", " aH", " ae" }) do
+  for _, k in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT", " aa", " ad", " ax", " ag", " aG", " ah", " aH", " ae", " av", " aV" }) do
     keys[k] = vim.fn.maparg(k, "n", false, true).desc or vim.NIL
   end
   io.stdout:write(vim.json.encode({
@@ -149,7 +153,7 @@ local fresh = child({ NVIM_AI_PROVIDER = other }, [[
 ]])
 local here = state()
 here.keys = {}
-for _, k in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT", " aa", " ad", " ax", " ag", " aG", " ah", " aH", " ae" }) do
+for _, k in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT", " aa", " ad", " ax", " ag", " aG", " ah", " aH", " ae", " av", " aV" }) do
   here.keys[k] = desc(k) or vim.NIL
 end
 t.eq(here, fresh, ("after :AI provider %s this Nvim matches one started with NVIM_AI_PROVIDER=%s"):format(other, other))

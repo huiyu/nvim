@@ -186,8 +186,16 @@ for _, case in ipairs({
   { "<leader>a", "h", "HTTP · API credits" }, { "<leader>a", "H", "HTTP · API credits" },
   { "<leader>a", "e", "HTTP · API credits" },
   { "<leader>a", "p", "companion" }, { "<leader>a", "o", "companion" },
+  { "<leader>a", "v", "review" }, { "<leader>a", "V", "review" },
 }) do
   t.eq(owner_of(case[1], case[2]), case[3], ("%s%s sits under %s"):format(case[1], case[2], case[3]))
+end
+-- Claude's diff keys exist while a Claude diff can arrive (lua/ai/init.lua);
+-- whenever they do, they have a heading of their own, apart from review.
+if next(vim.fn.maparg("<leader>aa", "n", false, true)) ~= nil then
+  for _, key in ipairs({ "a", "d" }) do
+    t.eq(owner_of("<leader>a", key), "Claude diffs", "<leader>a" .. key .. " sits under Claude diffs")
+  end
 end
 -- The two chat kinds bill differently, so their headings say how; <leader>ap is
 -- a leaf now, not the old +CodeCompanion group.
@@ -269,6 +277,30 @@ local rendered = table.concat(vim.api.nvim_buf_get_lines(View.view.buf, 0, -1, f
 local others_at = rendered:find("── others", 1, true)
 local file_at = rendered:find("Go to file under cursor", 1, true)
 t.ok(others_at and file_at and others_at < file_at, "rendered g popup puts others before the unclassified builtins")
+-- Bottom-left: the AI panels own the right edge, where helix would put it.
+local win = View.view and View.view.win
+local pos = win and vim.api.nvim_win_get_position(win)
+local width = win and vim.api.nvim_win_get_width(win)
+t.eq(pos and pos[2], 0, "the popup sits at the left edge")
+t.ok(pos and pos[1] + vim.api.nvim_win_get_height(win) + 2 >= vim.o.lines - vim.o.cmdheight - 1,
+  "along the bottom (row " .. tostring(pos and pos[1]) .. ")")
+t.ok(width and width <= 80, ("no wider than 80 columns (%s)"):format(tostring(width)))
+t.eq({ Config.options.win.width.max, Config.options.win.width.min, Config.options.win.padding },
+  { 80, 30, { 0, 2 } }, "which may grow to 80 columns (helix stops at 60), keeping helix's minimum, with padding")
+State.stop()
+
+-- Still one column where rows are short: which-key fits as many columns as
+-- the width allows, and <leader>'s rows once let two share 80 columns.
+local leader = mode.tree:find(vim.g.mapleader == " " and "<Space>" or vim.g.mapleader)
+t.ok(leader ~= nil, "the <leader> node exists")
+State.state = { mode = mode, node = leader, filter = {}, show = true, started = vim.uv.hrtime() }
+View.show()
+local widest = 0
+for _, l in ipairs(vim.api.nvim_buf_get_lines(View.view.buf, 0, -1, false)) do
+  local _, rows = l:gsub("➜", "")
+  widest = math.max(widest, rows)
+end
+t.eq(widest, 1, "the <leader> popup lays its rows out in one column")
 State.stop()
 
 -- which-key's automatic triggers skip every bare lowercase letter but `g` and

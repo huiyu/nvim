@@ -336,19 +336,29 @@ function M.ensure_editor_win()
   return created
 end
 
---- Views that own a whole tabpage *and* disable the global prefixes inside it.
+--- Panels of views that own a whole tabpage *and* disable the global prefixes
+--- inside it: CodeDiff's explorer and history lists.
 ---
---- The test has to name the view rather than inspect the windows. diffview's
---- diff windows hold ordinary file buffers, so every window-level check says
---- its tabpage is perfectly editable -- while `;f` and the rest are mapped to a
---- disabled hint throughout it. Its panel filetypes are what identify the
---- tabpage. The debug view is deliberately absent: its keys stay global and it
---- carries a file window, so it is a fine first page.
-local PREFIX_BLOCKING_FILETYPES = { 'DiffviewFiles', 'DiffviewFileHistory' }
+--- The test has to name the view rather than inspect the windows. CodeDiff's
+--- diff panes hold ordinary file buffers, so every window-level check says its
+--- tabpage is perfectly editable -- while `;f` and the rest are mapped to a
+--- disabled hint throughout it. The debug view is deliberately absent: its
+--- keys stay global and it carries a file window, so it is a fine first page.
+local PREFIX_BLOCKING_FILETYPES = { 'codediff-explorer', 'codediff-history' }
 
+--- Whether `tabpage` is such a view.
+---
+--- The view says so itself: util.codediff sets `vim.t.blocks_global_prefixes`
+--- while CodeDiff has a session there, and a new prefix-blocking view has to
+--- set it too. The panel filetypes remain a second test, for a tabpage CodeDiff
+--- has let go of while its panel is still on screen (util.codediff then closes
+--- it). A single-file `:CodeDiff file` has no panel at all, which is why the
+--- variable comes first.
 ---@param tabpage integer
-local function blocks_global_prefixes(tabpage)
+---@return boolean
+function M.blocks_global_prefixes(tabpage)
   if not vim.api.nvim_tabpage_is_valid(tabpage) then return false end
+  if vim.t[tabpage].blocks_global_prefixes then return true end
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tabpage)) do
     local ft = vim.bo[vim.api.nvim_win_get_buf(win)].filetype
     if vim.list_contains(PREFIX_BLOCKING_FILETYPES, ft) then return true end
@@ -359,7 +369,7 @@ end
 --- Keep the first tabpage a page the global prefixes still work in.
 ---
 --- Views open after it already: `tab split` inserts after the current tabpage,
---- so diffview and the debug view both land on tabpage 2 from a standing start.
+--- so CodeDiff and the debug view both land on tabpage 2 from a standing start.
 --- The invariant breaks only when the pages in front of a view go away, and
 --- then there is nowhere left to run `;f` from at all. Rather than enumerate
 --- the routes into that state, restore the invariant whenever it holds false:
@@ -367,7 +377,7 @@ end
 --- is something found later rather than something that interrupts.
 function M.protect_first_tab()
   local first = vim.api.nvim_list_tabpages()[1]
-  if not first or not blocks_global_prefixes(first) then return end
+  if not first or not M.blocks_global_prefixes(first) then return end
   local current = vim.api.nvim_get_current_tabpage()
   -- `0tabnew` inserts before every existing tabpage. noautocmd so the new page
   -- cannot re-enter this guard while the layout is still settling.

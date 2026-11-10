@@ -18,7 +18,9 @@ t.eq(editor.EDIT_KEY, "\7", "UC-1: the edit key is 0x07 (ctrl+g)")
 -- paste racing the key. A staged seed lands in the file the agent hands over.
 local seeded = vim.fn.tempname() .. ".md"
 vim.fn.writefile({ "" }, seeded)
-editor.stage_seed("picked lines")
+-- A temp name neither CLI uses belongs to the active provider, whose slot the
+-- backends stage into.
+editor.stage_seed("picked lines", { provider = config.provider })
 editor.open(seeded, seeded .. ".done")
 vim.wait(200, function() return false end)
 local shown
@@ -60,6 +62,7 @@ vim.wait(200, function() return false end)
 
 -- UC-1/UC-3: the facade hands the backend a seed only when there is a selection.
 local seen = {}
+local real_edit_prompt = backend.edit_prompt
 backend.edit_prompt = function(opts) seen[#seen + 1] = opts end
 
 ai.compose()
@@ -192,6 +195,149 @@ vim.cmd("noautocmd wincmd t")
 editor.focus_open()
 t.eq(vim.api.nvim_get_current_win(), codex_again, "and follows a switch (Codex)")
 close_floats()
+config.use_provider(saved_provider)
+
+---------------------------------------------------------------------------
+-- Seeds have an addressee: one slot per provider (review feedback)
+---------------------------------------------------------------------------
+
+local function settle(ms) vim.wait(ms or 150, function() return false end, 10) end
+local function prompt_lines(path)
+  local tail = "/" .. vim.fs.basename(path)
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    local b = vim.api.nvim_win_get_buf(w)
+    if vim.api.nvim_win_get_config(w).relative == "editor" and vim.api.nvim_buf_get_name(b):sub(-#tail) == tail then
+      return vim.api.nvim_buf_get_lines(b, 0, -1, false)
+    end
+  end
+end
+local function prompt_file(name, lines)
+  local path = name == "codex" and (dir .. "/editor/" .. vim.fn.rand() .. ".md")
+    or (dir .. "/claude-prompt-" .. vim.fn.rand() .. ".md")
+  vim.fn.writefile(lines, path)
+  return path
+end
+
+local calls = {}
+local function stager(tag)
+  return {
+    on_consumed = function() calls[#calls + 1] = tag .. ":consumed" end,
+    on_expired = function() calls[#calls + 1] = tag .. ":expired" end,
+  }
+end
+local function staged(text, provider, tag, ttl)
+  local opts = stager(tag)
+  opts.provider, opts.ttl_ms = provider, ttl
+  editor.stage_seed(text, opts)
+end
+
+-- Staged for Claude, the active provider being Codex: a Codex prompt opening
+-- first does not take it, and Claude's next one does.
+config.use_provider("codex")
+calls = {}
+local claude_file = prompt_file("claude", { "typed first" })
+-- on_consumed runs once the text is in the buffer.
+local seen_in_buffer
+editor.stage_seed("for claude only", {
+  provider = "claude",
+  on_consumed = function()
+    seen_in_buffer = prompt_lines(claude_file)
+    calls[#calls + 1] = "a:consumed"
+  end,
+  on_expired = function() calls[#calls + 1] = "a:expired" end,
+})
+local codex_file = prompt_file("codex", { "codex box" })
+editor.open(codex_file, codex_file .. ".done")
+settle()
+t.eq(prompt_lines(codex_file), { "codex box" }, "a seed staged for Claude stays out of a prompt Codex opens")
+t.eq(calls, {}, "and nobody is told anything")
+t.ok(editor._seed_pending("claude"), "the Claude seed is still waiting")
+close_floats()
+editor.open(claude_file, claude_file .. ".done")
+settle()
+t.eq(prompt_lines(claude_file), { "typed first", "for claude only" }, "Claude's prompt gets it, after what was typed")
+t.eq(calls, { "a:consumed" }, "on_consumed fires once, on_expired never")
+t.eq(seen_in_buffer, { "typed first", "for claude only" }, "on_consumed runs with the text already in the buffer")
+t.eq(editor._seed_pending("claude"), false, "the slot is empty afterwards")
+close_floats()
+
+-- A newer seed replaces an older one: the older one hears on_expired only.
+calls = {}
+staged("first", "claude", "old")
+staged("second", "claude", "new")
+t.eq(calls, { "old:expired" }, "a replaced seed fires its on_expired, never on_consumed")
+-- Clearing one slot leaves the other.
+staged("codex text", "codex", "cx")
+editor.stage_seed(nil, { provider = "claude" })
+t.eq(calls, { "old:expired", "new:expired" }, "stage_seed(nil) clears that slot, with its on_expired")
+t.ok(editor._seed_pending("codex") and not editor._seed_pending("claude"), "and only that slot")
+editor.stage_seed(nil, { provider = "codex" })
+
+-- A TTL drops a seed nobody took in time.
+calls = {}
+staged("in time?", "claude", "ttl", 100)
+vim.wait(1000, function() return #calls > 0 end, 10)
+t.eq(calls, { "ttl:expired" }, "a seed not taken within ttl_ms expires")
+t.eq(editor._seed_pending("claude"), false, "and is no longer staged")
+local late = prompt_file("claude", { "" })
+editor.open(late, late .. ".done")
+settle()
+t.eq(prompt_lines(late), { "" }, "a prompt opened after the TTL gets nothing")
+close_floats()
+-- Without a TTL a seed waits, as a <leader>ai selection always has.
+calls = {}
+staged("no rush", "claude", "wait")
+settle(300)
+t.ok(editor._seed_pending("claude") and #calls == 0, "a seed without ttl_ms keeps waiting")
+editor.stage_seed(nil, { provider = "claude" })
+
+-- focus_open with a provider takes only that agent's prompt.
+config.use_provider("claude")
+local codex_open = prompt_file("codex", { "codex prompt" })
+editor.open(codex_open, codex_open .. ".done")
+settle()
+vim.cmd("noautocmd wincmd t")
+t.eq(editor.focus_open("feedback", "claude"), false, "focus_open(text, \"claude\") ignores Codex's open prompt")
+t.eq(prompt_lines(codex_open), { "codex prompt" }, "and leaves it untouched")
+t.eq(editor.focus_open("feedback", "codex"), true, "focus_open(text, \"codex\") uses it")
+t.eq(prompt_lines(codex_open), { "codex prompt", "feedback" }, "appending the text")
+close_floats()
+
+-- The backends stage into their own slot, passing the callbacks along. The
+-- Claude backend runs for real against a stand-in terminal module: a `cat`
+-- job takes the edit key.
+backend.edit_prompt = real_edit_prompt
+local term_buf = vim.api.nvim_create_buf(false, true)
+local cat
+vim.api.nvim_buf_call(term_buf, function() cat = vim.fn.jobstart({ "cat" }, { term = true }) end)
+local saved_terminal = package.loaded["claudecode.terminal"]
+package.loaded["claudecode.terminal"] = {
+  get_active_terminal_bufnr = function() return term_buf end,
+  ensure_visible = function() end,
+}
+calls = {}
+local opts = stager("backend")
+opts.seed, opts.ttl_ms = "from the backend", 5000
+require("ai.backend.claude").edit_prompt(opts)
+package.loaded["claudecode.terminal"] = saved_terminal
+t.ok(editor._seed_pending("claude") and not editor._seed_pending("codex"), "Claude's edit_prompt stages into Claude's slot")
+local via_backend = prompt_file("claude", { "" })
+editor.open(via_backend, via_backend .. ".done")
+settle()
+t.eq({ prompt_lines(via_backend), calls }, { { "from the backend" }, { "backend:consumed" } },
+  "with the stager's callbacks attached")
+close_floats()
+pcall(vim.fn.jobstop, cat)
+-- Codex's backend starts a real terminal, so its line is checked as written.
+for _, name in ipairs({ "claude", "codex" }) do
+  local source = table.concat(vim.fn.readfile("lua/ai/backend/" .. name .. ".lua"), "\n")
+  local body = source:match("function M%.edit_prompt%(opts%)(.-)\nend\n") or ""
+  local call = body:match("editor%.stage_seed%((.-)%)\n") or ""
+  t.ok(call:find(('provider = "%s"'):format(name), 1, true) ~= nil and call:find("on_consumed = opts.on_consumed", 1, true) ~= nil
+    and call:find("on_expired = opts.on_expired", 1, true) ~= nil and call:find("ttl_ms = opts.ttl_ms", 1, true) ~= nil,
+    name .. "'s edit_prompt stages its seed for itself, with the callbacks and the TTL")
+end
+
 config.use_provider(saved_provider)
 vim.fn.delete(dir, "rf")
 

@@ -1,0 +1,101 @@
+#!/bin/sh
+# Prompt hook for the native agent terminals.
+#
+#   agent-hook <agent> <event> [<wait-ms>]
+#
+# Claude Code and Codex run this on UserPromptSubmit (Claude also on
+# SessionStart) with the event's JSON payload on stdin. Both are injected per
+# process by lua/ai/review/hook.lua, which also passes <wait-ms>: this script
+# cannot read the Lua settings, so hook_wait_ms travels in argv. The payload goes
+# to the Nvim that started the agent ($NVIM, as for scripts/agent-editor), and a
+# submit is held -- bounded -- until Nvim reports that the review baseline has
+# been taken, so the baseline is in place before the agent's first write.
+#
+# Never prints and always exits 0. Both CLIs feed a hook's stdout to the model
+# as context, report any other status as a hook error in the transcript, and
+# exit 2 blocks the prompt outright. Every failure here -- no Nvim, a dead
+# socket, a receiver that raised, a busy Nvim -- therefore degrades to "this
+# prompt has no baseline", never to a changed or held-up prompt.
+
+set -u
+
+agent=${1:-}
+event=${2:-}
+wait_ms=${3:-2500}
+
+exec >/dev/null 2>&1
+
+# Drain stdin on every early exit: the CLI is still writing the payload.
+case $agent:$event in
+claude:submit | claude:session | codex:submit) ;;
+*) cat; exit 0 ;;
+esac
+# Digits only, and no leading zero: $((...)) reads 08 as bad octal and a failed
+# expansion would end this script with a non-zero status.
+case $wait_ms in
+'' | *[!0-9]* | 0?*) wait_ms=2500 ;;
+esac
+[ -n "${NVIM:-}" ] || { cat; exit 0; }
+
+payload=$(mktemp "${TMPDIR:-/tmp}/nvim-agent-hook.XXXXXX") || { cat; exit 0; }
+cat >"$payload"
+# The paths are interpolated into a Lua string literal below, as in
+# scripts/agent-editor; refuse what that literal cannot hold.
+case $payload in
+*\'* | *\\* | *'
+'*) rm -f "$payload"; exit 0 ;;
+esac
+done_file=$payload.done
+
+rpc='' limit='' deliver=''
+cleanup() {
+  for pid in $rpc $limit $deliver; do kill "$pid"; done
+  # Removing the payload is the signal: an Nvim that only gets to the request
+  # now, or only takes the baseline now, finds it gone and knows it is late.
+  rm -f "$payload" "$done_file"
+}
+trap 'cleanup; exit 0' HUP INT TERM
+
+# In the background, because the call itself needs a deadline: an Nvim whose
+# main loop is blocked accepts the connection and then never answers.
+nvim --server "$NVIM" --remote-expr \
+  "luaeval('require(\"ai.review.hook\").event(_A[1], _A[2], _A[3], _A[4])', ['$agent', '$event', '$payload', '$done_file'])" &
+rpc=$!
+
+# Two deadlines, kept by background sleeps rather than by counting polls: each
+# poll forks a `sleep` of its own, which stretched a counted 2.5 s to ~3.4 s.
+# `limit` bounds the wait for the baseline once the request is delivered;
+# `deliver` bounds the delivery itself and never drops below half a second, so
+# a zero wait still hands the event over instead of killing the client before it
+# connects.
+seconds() { printf '%d.%03d' $(($1 / 1000)) $(($1 % 1000)); }
+deliver_ms=$wait_ms
+[ "$deliver_ms" -ge 500 ] || deliver_ms=500
+sleep "$(seconds "$wait_ms")" &
+limit=$!
+sleep "$(seconds "$deliver_ms")" &
+deliver=$!
+
+# A client that fails (no socket, a raising receiver) ends the wait at once
+# instead of burning the budget.
+rc=
+while [ ! -e "$done_file" ]; do
+  if [ -z "$rc" ] && ! kill -0 "$rpc"; then
+    # Once only: a second `wait` on a reaped pid answers 127.
+    wait "$rpc"
+    rc=$?
+    rpc=
+    [ "$rc" -eq 0 ] || break
+    # Delivered is all a session event needs.
+    [ "$event" = submit ] || break
+  fi
+  if [ -n "$rc" ]; then
+    kill -0 "$limit" || break
+  else
+    kill -0 "$deliver" || break
+  fi
+  sleep 0.02
+done
+
+cleanup
+exit 0

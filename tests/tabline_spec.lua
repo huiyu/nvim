@@ -3,7 +3,7 @@
 -- Left to itself bufferline hides the whole tabline whenever it has at most one
 -- buffer to show, and its count never looks at tabpages. Opening a diff with no
 -- files loaded therefore hid the far-right `1`/`2` tabpage indicators along
--- with the buffer list -- at the one moment they matter most, since diffview
+-- with the buffer list -- at the one moment they matter most, since CodeDiff
 -- disables the global prefixes inside its tabpage and knowing another one
 -- exists is the way out.
 local t = dofile("tests/helper.lua")
@@ -56,11 +56,11 @@ vim.cmd("doautocmd BufAdd")
 settle()
 t.eq(vim.o.showtabline, 2, "a single buffer keeps it shown")
 
--- The filter that keeps diffview's buffers out of the bufferline still applies;
--- it just no longer decides whether the tabline exists.
-vim.cmd("badd diffview://null/a.lua")
+-- The filter that keeps CodeDiff's revision buffers out of the bufferline
+-- still applies; it just no longer decides whether the tabline exists.
+vim.cmd("badd codediff:////tmp/repo///0123abcd/a.lua")
 settle()
-t.ok(rendered():match("diffview") == nil, "diffview's internal buffers stay out of the list")
+t.ok(rendered():match("a%.lua") == nil, "CodeDiff's revision buffers stay out of the list")
 
 -- The permanent tabline must not draw a band across the top when it is empty.
 -- The colorscheme runs with `transparent`, which clears Normal but leaves

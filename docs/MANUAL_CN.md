@@ -18,6 +18,7 @@
 - [窗口：`s`](#窗口s)
 - [其余：`<leader>`](#其余leader)
 - [工作流](#工作流)
+- [审阅一轮 agent 修改](#审阅一轮-agent-修改)
 - [忘了键位怎么办](#忘了键位怎么办)
 
 ---
@@ -411,14 +412,17 @@ Dart 热重载/重启需要兼容且正在运行的 DAP 会话。菜单列出的
 | 搜索替换面板 | 替换 / 同步 / 结果 / 历史 | `,S…` 面板操作；`g?` 帮助 |
 | LaTeX | 编译 | `,b` 连续编译开关 · `,s` 停止 · `,K` 清理辅助文件 · `,E` 错误 |
 | LaTeX | 预览 / 工具 | `,v` 看 PDF · `,t` 目录开关 · `,L…` VimTeX 完整命令集 |
-| Diffview | 文件面板 | `,P` 聚焦 · `,B` 开关 |
-| Diffview | 冲突处理 | `,go` 我方 · `,gt` 对方 · `,gb` 基础版本 · `,ga` 全部；末字母大写（`,gO`、`,gT`、`,gB`、`,gA`）作用于整个文件 |
+| CodeDiff | 面板 / 布局 | `,P` 聚焦文件面板 · `,B` 显示 / 隐藏文件面板 · `,z` 折叠未改动的行 · `,I` 行内 / 并排 |
+| CodeDiff | 冲突处理 | `,go` 我方 · `,gt` 对方 · `,gb` 基础版本（两边都丢弃） · `,ga` 两边都要；末字母大写（`,gO`、`,gT`、`,gB`、`,gA`）作用于整个文件 |
+| CodeDiff | 审阅 | `,C` 对 hunk / 选区 / 文件写反馈 · `,u` / `,U` 暂存 / 取消暂存这个 hunk · `,X` 把这个 hunk 恢复成基线的样子 |
 | 终端 | 会话 | Normal 模式下 `,1`–`,9` 选择终端 1–9（先按 `jk`） |
 
-Diffview 是叠加在文件类型之上的视图：Markdown 差异文件保留 `,p`/`,m`，
-同时增加 `,P`/`,B`/`,g…`。文件/历史面板同样使用这组面板键；文件面板支持整文件
-冲突处理，当前冲突块的选择在差异窗口内使用。关闭视图后撤掉视图键，保留语言键。
-终端数字键不会出现在普通文件中，也不会拦截 shell 输入。
+CodeDiff 是叠加在文件类型之上的视图：Markdown 差异文件保留 `,p`/`,m`，同时加上
+它自己的分区。`,z` 和 `,I` 在每个视图的每个窗口里都可用，文件面板和历史面板也一样；
+`,P` 和 `,B` 只出现在有文件面板的视图里（状态视图和 revision 对比），历史视图里没有。
+Git 仓库的视图里，`,C` 在每个窗口都可用。`,u`、`,U` 和 `,X` 只出现在视图能安全
+执行它们的地方——见 [Git](#git) 一节的表格。关闭视图后所有键原样还回，语言键保持
+不变。终端数字键不会出现在普通文件中，也不会拦截 shell 输入。
 
 通用编辑键保持原样：`,h`/`,l` 减少/增加缩进，`,k` 上移，`,r` 重命名，`,c` 运行 codelens，
 `,e…` 提取重构。文件类型的大写键、`,L…` 与 `,S…` 避免给这些短键增加前缀等待。
@@ -525,12 +529,12 @@ Ctrl-,                             直达编辑器，再按跳回
 
 | 键 | 分组 | 内容 |
 |---|---|---|
-| `<Space>g` | Git | 状态、blame、hunk、行内 diff（`gD`）、lazygit（`gg`）、diffview |
+| `<Space>g` | Git | 状态、blame、hunk、行内 diff（`gD`）、lazygit（`gg`）、diff 与历史视图（`gv`、`gm`、`gk`、`gH`）、保存的基线（`gK`） |
 | `<Space>G` | GitHub | PR、issue、review |
 | `<Space>d` | 调试 | 断点、单步、查看变量 |
 | `<Space>t` | 测试 | 跑文件 / 跑最近的 / 调试、输出面板 |
 | `<Space>x` | 诊断 | 错误列表、quickfix、location list |
-| `<Space>a` | AI | Claude / Codex 面板、prompt、transcript、Agent Chat 和 API Chat（`ag` / `ah`）、切换 provider / API key（`ax`） |
+| `<Space>a` | AI | Claude / Codex 面板、prompt、transcript、Agent Chat 和 API Chat（`ag` / `ah`）、审阅轮次（`av` / `aV`）、切换 provider / API key（`ax`） |
 | `<Space>b` | Buffer | 删除、固定、关其他、关掉隐藏的（`bh`） |
 | `<Space>m` | 管理 | 配置、插件源码、help、man、键位、消息、Lazy、Mason、LSP 状态 |
 | `<Space>s` | 会话 | 保存 / 恢复工作布局 |
@@ -625,18 +629,104 @@ dd                    → 删除
 ### Git
 
 `<Space>gg` 打开 lazygit——暂存、提交、历史都在一处。
+`<Space>gf` 打开当前文件的历史。两者都会聚焦浮动终端并进入输入状态：`j`/`k`
+直接交给 lazygit，快速连按也不会退出，`q` 退出 lazygit。lazygit 本身没有 Vim 式的
+Normal/Insert 模式；`Ctrl-]` 可以主动退出 Neovim 的终端输入状态，`i` 恢复输入。
 `;c` 跳到仓库里任意一处改动的 hunk（见[位置](#位置)）。
-`<Space>gv` 打开 diffview 做分支 review。在 diffview 内部，`,` 菜单包含它自己的视图操作，
-`<Space>gq` 关闭。某一侧缺少的行用 `╱` 斜线填充。
-鼠标滚轮放在任一对比窗口上，上下滚动都会让各侧保持同步，包括新增/删除行的
-填充区域和折叠区域；键盘焦点保持原处。文件列表和历史面板独立滚动。
+
+Diff 视图由 CodeDiff 提供。每个视图开在自己的 tabpage 里，左边是文件面板，旁边是
+所选文件的两侧：
+
+| 键 | 显示 |
+|---|---|
+| `<Space>gv` | **Diff 视图**——状态视图：Staged、Changes、Conflicts 三组，包括未跟踪的文件。index 对比 HEAD，工作区对比 index |
+| `<Space>gm` | 工作区对比 `main`（没有就用 `master`，再没有就用 `HEAD`）——对比的是分支本身，不是它的 merge base |
+| `<Space>gM` | 工作区对比你选的分支、tag、最近的 commit 或基线 |
+| `<Space>gk` | **任选两端对比**：工作区、index、基线、分支 / tag / commit，或你输入的 revision |
+| `<Space>gK` | 把当前代码存为一个有名字的基线，供以后 `gk` 和 `gM` 对比 |
+| `<Space>gV` / `<Space>gH` | 当前文件 / 整个仓库的历史：最新的 100 个非 merge commit |
+| `<Space>gq` | 关闭本 tab 的 diff 视图，或 `<Space>gd` 的分屏（见下文） |
+
+工作区干净时，`<Space>gv` 直接提示，不打开空视图；在视图里按它会提示改用
+`<Space>gq`——在那里它只会把视图关掉。名字先解析成 commit，只有标签里保留名字，
+所以叫 `docs` 或 `history` 的分支也能和别的分支一样对比；不是 commit 的名字会被
+拒绝。超过 100 个 commit 的历史用范围来看：`:CodeDiff history origin/main..HEAD`
+（或者设置 `history_limit`，见[设置](#设置vimgai_review)）。
+
+`<Space>gk` 会问两次：先 *Compare from*，再 *Compare … with*。CodeDiff 总把"活"的
+一端——工作区，其次是 index——放在右边，所以先选了它会对调两边，并提示一声；
+index 对比工作区就是状态视图，看它的 Changes 组即可。两端相同会被拒绝。
+*Type a revision…* 接受任意 revision，作为第一端时也接受一个自成一体的范围：
+`main...feature` 是 `feature` 对比它与 `main` 的 merge base，`main...` 是工作区对比
+`main` 与 `HEAD` 的 merge base。两端内容相同时提示 "no differences"，什么也不打开
+——除非工作区里有大到无法对比的未跟踪文件（见下文），它们可能有看不到的差别：
+这时视图照常打开，并列出这些文件。
+
+视图里，`]c` / `[c` 在改动之间跳，`]f` / `[f` 在文件之间跳，`do` / `dp` 像 vimdiff
+一样取来或推过去一处改动，`gf` 在上一个 tab 里打开这个文件，`g?` 列出 CodeDiff
+的键。其余的都在 `,` 菜单里（[文件类型与视图操作](#文件类型与视图操作)）。状态栏写明
+视图在对比什么（`main → working tree`）。某一侧缺少的行用 `╱` 斜线填充。鼠标滚轮
+放在任一对比窗口上，上下滚动都会让两侧保持同步，包括填充区域和折叠区域；键盘焦点
+保持原处，文件面板独立滚动。视图跟着磁盘上的文件变化，所以 agent 写下的内容会在
+你看的时候出现；光标保持行号不变，而不是跟着原来那段文字走。
+
+文件面板，以及历史面板里每个 commit 下的文件，都按目录树显示。在面板里按 `i` 切换成
+平铺列表（只对当前视图有效），`zo` / `zc` 展开或折叠光标所在的目录，`zR` / `zM` 展开或
+折叠全部。在目录行上按 `,C` 会提示你把光标放到文件上。
+
+视图的每个窗口里 `;` 和 `s` 都被禁用，并给出提示。`;` 的 picker 会把文件开在工作区
+那一侧的窗格里，视图就跟丢了它；大多数 `s` 键会关闭或改变一个窗格，而关掉一个窗格
+整个视图就散了。`<C-w>` 仍可在窗口之间移动，`gf` 在别处打开文件，`<Space>` 键照常
+可用。`q` 只在文件面板或历史面板里关闭视图；在对比窗格里它照常录制宏。状态视图的
+文件面板里，`-` 暂存或取消暂存一个文件，`S` / `U` 暂存 / 取消暂存全部，`X` 丢弃一个
+文件的改动；其他视图都没有这四个键。
+
+一个视图有哪些 `,` 审阅键，取决于它在对比什么：
+
+| 视图 | `,u` | `,U` | `,X` |
+|---|---|---|---|
+| 状态视图，Changes 组（index → 工作区） | 暂存 | — | — |
+| 状态视图，Staged 组（HEAD → index） | — | 取消暂存，整个 hunk | — |
+| 基线 → 工作区（`<Space>av`，或在 `gk` / `gM` 里选的基线） | 暂存 | 取消暂存 | 恢复这个 hunk |
+| 同上，但文件是基线之后新增或删除的 | — | — | 告诉你怎么撤销 |
+| 其他 revision → 工作区（`gm`、`gM`、`gk`） | 暂存 | 取消暂存 | — |
+| revision → revision、→ index、历史、冲突 | — | — | — |
+
+`,C`（反馈）在所有这些视图里都有，见[审阅一轮 agent 修改](#审阅一轮-agent-修改)。
+
+`,u` 和 `,U` 通过 gitsigns 修改真正的 index，暂存的正好是屏幕上的那处改动。如果在
+这几行附近，index（对 `,U` 来说是 HEAD）和视图左侧不一样——agent 的 hunk 旁边有一处
+未暂存的修改、hunk 里有一行已经暂存过、`gm` 的 hunk 里夹着分支自己的 commit——
+"只暂存这个 hunk"就会带上视图之外的内容，所以它们拒绝执行，并提示去 `<Space>gv`，
+那里直接和 index 对比。Visual 模式下它们作用于右侧窗格里选中的行。
+
+`,X` 把工作区文件里的一个 hunk 恢复成基线里的样子，并写入这个文件。它跳过格式化和
+其他所有写入前的 hook，所以只有这个 hunk 会变；index 不受影响，`u` 再 `:w` 即可撤销。
+Visual 模式下它作用于选区碰到的每个 hunk，其中有 hunk 只被选中一部分时拒绝执行。它
+只处理 hunk：对基线之后被删除的文件，它打印一条可以粘贴执行的 `git restore` 命令；
+新文件请自己删除。
+
+三个键都宁可拒绝，也不去操作屏幕上看到的以外的东西：右侧窗格有未保存的修改（先 `:w`
+或 `:e!`）、文件画出来之后又在磁盘上变了、hunk 重新计算后对不上了、符号链接、子模块、
+有冲突的文件，或带 `filter` 属性的文件（如 Git LFS）。提示会说明原因，什么都不改。
+
+对比 revision 的视图只列出真正不同的东西：revision 跟踪而你的 index 没有跟踪的文件
+显示为修改，用普通 `mv` 移动的文件显示为重命名，非 ASCII 文件名也能正确显示。被忽略
+的文件永远不会出现，仍在磁盘上的路径也不会被列为删除；这些路径，以及超过 10 MiB 的
+未跟踪文件，每个视图会用一条 "Not compared" 提示列出一次。buffer 有未保存的修改、
+而它的文件在磁盘上又被改了时，视图会提示一次——`:e!` 采用磁盘上的版本，`:w` 保留你的。
 
 GitHub issue/PR buffer 是阅读视图，隐藏行号和折叠栏。视图没有待保存的改动时，
 `;f` 会在同一窗口打开选中的文件；取消选择则保留原来的视图和布局。
 
 `<Space>gD` 在当前窗口里直接显示这个文件的改动：相对 index 删掉的每一行都以只读
 形式画回原来的位置，所以改过的行上方紧挨着它的旧内容。`]h` / `[h` 在改动之间跳；
-再按一次 `<Space>gD` 回到普通视图。`<Space>gd` 则是在分屏里显示同样的对比。状态栏
+再按一次 `<Space>gD` 回到普通视图。`<Space>gd` 则是在分屏里显示同样的对比，左边是 index
+（有冲突的文件则是左边 ours、右边 theirs，`<Space>gD` 也会打开这个分屏）；再按一次同一个键，
+或按 `<Space>gq`，关闭分屏。在别的窗口按 `<Space>gd` 会把分屏移到那里：Vim 会把一个
+tabpage 里所有 diff 窗口两两对比，两个文件的分屏并排时，两个文件之间也会被对比；在 Git
+不跟踪的 buffer 里按，只会提示一声，分屏留在原处。
+index 那一侧有未保存的修改时不会关闭：在那里 `:w` 会暂存这些修改，`:e!` 会丢弃。状态栏
 在分支名旁边显示当前 buffer 相对 index 的改动行数，例如 `+3 ~1 -2` 分别是新增、
 修改、删除的行。
 
@@ -656,6 +746,7 @@ Ctrl-/       切换终端
 ,1 … ,9      在终端 buffer 中选择第 1-9 个终端（先按 jk）
 <Space>ac    打开 AI 面板
 <Space>ai    在真正的 Neovim buffer 里写 prompt
+<Space>av    审阅自上一条 prompt 以来的改动
 <Space>ax    在 Claude Code 和 Codex 之间切换（或切换 API key）
 Ctrl-l       （Insert）接受灰色的 AI 建议
 ```
@@ -700,8 +791,9 @@ Markdown、纯文本、提交信息和没有 filetype 的 buffer 里不会自动
 按手头的事来选：
 
 - **把任务交出去：用 Native 面板。** 它就是完整的 agent——会改文件、跑命令，
-  Claude 提出的修改以 diff 的形式回到这里（`<Space>aa` 接受，`<Space>ad` 拒绝）。
-  `<Space>ai` 可以在真正的 buffer 里写 prompt。
+  Claude 提出的修改以 diff 的形式回来，开在独立的 tabpage 里（`<Space>aa` 接受，
+  `<Space>ad` 拒绝；Claude 拿到答复后这个 tab 就关闭）。`<Space>ai` 可以在真正的
+  buffer 里写 prompt。
 - **在 buffer 里把问题理清楚：用 Agent Chat。** 同一个 agent、同一份订阅，但对话是
   一个 Markdown buffer，可以像普通文件一样搜索、复制、修改。Visual 模式下按
   `<Space>ag` 把选区加进去。
@@ -723,6 +815,334 @@ Markdown、纯文本、提交信息和没有 filetype 的 buffer 里不会自动
 Chat；执行 `:AI key openai` 之后，`<Space>ah` 打开的是 OpenAI 的。已经打开的 Chat
 保持创建时的设置。API key 没设置时，`<Space>ah` 和 `<Space>ae` 会提示，并且不发出
 任何请求。
+
+批准一处修改和审阅修改是两回事。`<Space>aa` / `<Space>ad` 回答的是 Claude *提出*
+的一处修改，在它写到磁盘之前；只有 Native Claude 会问（Codex 带 `--yolo` 运行，什么
+都不问；两种 Chat 有 CodeCompanion 自己的工具批准）。审阅则是事后去看自你发出 prompt
+以来磁盘上变了的一切，不管是三者中的哪一个改的：`<Space>av` 把它显示出来，你可以在
+那里写反馈、暂存，或把一个 hunk 恢复原样。下一章从头讲一遍。
+
+---
+
+## 审阅一轮 agent 修改
+
+agent 会自己改文件，一条 prompt 往往改好几个。审阅就是把你提问之后改动过的所有东西
+看一遍，再告诉 agent 你怎么看。你每提交一条 prompt，就开始一个**轮次**：在 agent 动手
+之前给工作区拍一张快照，存成一个隐藏的 Git commit，这就是这一轮的*基线*。`<Space>av`
+显示自基线以来的改动，`,C` 对你看到的内容写反馈，`<C-d>` 把反馈交回这一轮所属的对话。
+
+```
+（发送 prompt）    轮次 11:22:33 开始：基线就是当时的代码
+<Space>av          自这个基线以来的改动，开在审阅 tab 里
+,C                 对光标下的 hunk / 选区 / 文件写一条评论
+,C …               更多评论，收在同一份草稿里
+<C-d>              草稿进入 agent 的输入框，由你来发送
+（发送它）         轮次 11:40:02 开始
+<Space>av          新的一轮，还在同一个审阅 tab 里
+```
+
+### 轮次从哪里来
+
+每种对话开启轮次的方式都一样：
+
+| 对话 | 轮次开始于 |
+|---|---|
+| Native Claude 或 Codex（`<Space>ac`） | 你在面板里提交一条 prompt |
+| Agent Chat（`<Space>ag`）或 API Chat（`<Space>ah`） | 你发送一条消息，或重新生成回复 |
+| 不属于任何对话 | 你按下 `<Space>aV` |
+
+prompt 会等它的快照，最多 2.5 秒；在普通仓库里，快照只要其中一小部分时间。快照用时
+更长时，prompt 先发出去，这一轮标为 **Late**：它的基线里可能已经有 agent 的头几处修改，
+审阅视图会提示这一点。除此之外没有任何东西会拖住 prompt，也不会往 prompt 里加任何
+内容——这里出了问题，丢的是这一轮，不是 prompt。
+
+一个轮次只覆盖一个仓库，即对话的*根*：agent 工作目录所在的 Git 根目录，在对话开始时
+确定。Native Claude 和 Codex 从当前文件所在的仓库启动，Chat 从 Nvim 的工作目录启动。
+agent 在这个仓库之外做的修改不属于任何轮次。
+
+- 每条 Claude prompt 开始一轮。Codex 的一个回合还在运行时发出的消息属于这个回合的
+  轮次，Chat 的一次工具循环算一轮：只有你自己发出去的才算。
+- 一条 prompt 发现自这个对话在本 Nvim 里的上一轮以来什么都没变，就沿用那一轮，而不是
+  再开一个一模一样的。
+- 子 agent（Claude 的 Task agent、Codex 派生的线程）不开轮次：它们的 prompt 属于父
+  对话的回合。
+- Claude 为了继续你的工作而自己醒来时，也不开轮次：它启动的后台任务（长时间运行的
+  Bash 命令、workflow）完成时，或它启动的后台 agent 交回结果时。这时带来的改动，以及
+  这些工作结束的时间，都算在这个对话最新的一轮里——通常就是你那条 prompt 的轮次，除非
+  你在这期间又发了 prompt。Claude 自己定时的唤醒（`ScheduleWakeup`、`/loop`）和普通
+  prompt 一样。
+- 不在 Git 里时什么都不开。
+
+快照也包含未跟踪的文件，但不包括当时被 `.gitignore` 排除的文件，以及超过 10 MiB 的
+未跟踪文件——后者根本不会被读取。所以 agent 改了 `.env` 或 `node_modules` 时，什么也
+不会显示。
+
+轮次只能证明一处改动发生在基线*之后*。你自己在同一个 worktree 里的修改，或另一个
+agent 的修改，也一样会出现——所以每条消息都写 "changes since round 11:22:33"，从不说
+"agent 的改动"。
+
+轮次在重启后仍然保留。每个 worktree 保留最新的 20 轮；草稿里还有反馈的轮次不受这个
+数量限制。
+
+### `<Space>av`：审阅视图
+
+`<Space>av` 在一个独立的 CodeDiff tab 里打开这一轮的基线对比工作区。哪个仓库：在 agent
+面板或 Chat 里按时，是对话的根；否则是当前文件所在的仓库（在 CodeDiff 视图里，就是它
+正在对比的仓库），再否则是工作目录所在的仓库。哪一轮，取下面第一个存在的：
+
+1. 当前面板或 Chat 所属对话的最新一轮；
+2. 当前 provider 的 agent 会话的最新一轮；
+3. 本 Nvim 在这个仓库里开启的最新一轮；
+4. 这个仓库里的最新一轮，不论是谁开的。
+
+每个仓库只有一个审阅 tab。`<Space>av` 要显示的正是它已经显示的那一轮时，聚焦它的文件
+面板；是另一轮时，旧的审阅 tab 关闭，新的在原来的位置打开。其他 tab 都不受影响。视图
+出现后，一条提示说明它在对比什么：
+
+```
+Changes since round 11:22:33 (baseline → working tree)
+Root: ~/proj
+Conversation: Claude Code session 7f0c1a2b…
+```
+
+状态栏显示 `Review · Claude · round 11:22:33 → working tree`。
+
+- **还没有任何改动。** 如果这个对话的上一轮有改动——你已经发出下一条 prompt，agent 还
+  没写任何东西——就改为打开上一轮："Round 11:40:02 has no changes yet; showing round
+  11:22:33"。否则提示 "No changes since round 11:22:33 in ~/proj"，什么也不打开。视图
+  无法对比的路径不算改动；提示里会列出它们。
+- **一个轮次都没有。** 提示会说明这一点，建议按 `<Space>aV`；如果你确实发过 prompt，
+  它指向 `:checkhealth config`（[排错](DIAGNOSTICS.md#review-rounds-and-agent-hooks)）。
+
+视图本身就是一个普通的 [CodeDiff 视图](#git)，对比基线和工作区：`,u` / `,U` 暂存和取消
+暂存，`,X` 把一个 hunk 恢复成基线的样子。`<Space>gq`，或在它的文件面板里按 `q`，关闭
+这个 tab；agent 照常运行。
+
+### `,C`：反馈
+
+`,C` 在 Normal 和 Visual 模式下可用，覆盖 Git 仓库的每个 CodeDiff 视图的每个窗口，
+不只是审阅视图。每按一次往草稿里加一条：
+
+| 在哪里按 | 这一条引用 |
+|---|---|
+| 对比窗格里的一个 hunk | 这个 hunk，写成两侧的 diff，带三行上下文：`## src/parser.lua:42-47 (working tree) · was 40-43 at the baseline` |
+| 对比窗格里，不在任何 hunk 上 | 光标所在行 |
+| 右侧窗格里的选区 | 选中的行；文件有未保存的修改时标为 `unsaved buffer` |
+| 左侧窗格里的选区 | 基线里的这几行，标为 `(baseline side, not on disk)` |
+| 文件面板里的一个文件 | 只有路径和状态：`## src/new.lua (R src/old.lua→src/new.lua)` |
+| 历史里某个 commit 下的一个文件 | 文件、它的状态和 commit：`## src/new.lua (M in 1a2b3c4d)` |
+| 单个文件历史（`<Space>gV`）里的一个 commit | 这个文件和 commit：`## src/new.lua (changed in 1a2b3c4d "Fix the parser")` |
+
+仓库历史（`<Space>gH`）里的 commit 行不对应任何一个文件，在那里按 `,C` 会提示改到
+列表里的某个文件上。路径都是相对仓库的真实路径。左侧的行号在磁盘上的任何文件里都
+不存在，所以一条评论引用的是代码本身，而不是指向行号。对比两个 revision 的视图会把
+两者都写上。
+
+草稿开在一个浮窗里，光标停在新条目的 `> ` 行上，处于 Insert 模式，直接写评论即可。
+浮窗标题写明是哪一轮，顶部一行写明 `<C-d>` 会投递到哪里：
+
+| 键 | 在草稿里 |
+|---|---|
+| `<C-d>` | 投递（Normal 或 Insert 模式） |
+| `q` | 隐藏浮窗；草稿保留 |
+
+其余部分就是普通的 Markdown buffer：可以随意改写或删除条目，`@` 补全仓库里的文件。
+不管以什么方式离开浮窗都会保存，下一次 `,C` 追加到同一份草稿并重新显示它。
+`<!-- nvim-review … -->` 这些行属于草稿自身：它们为下文的过期检查记下每一条对应的
+文件，永远不会被发送。删掉其中一行，它那一条就并入上面一条，那一条的文件也不再检查。
+
+草稿是文件，所有 Nvim 共用：每个轮次一份，不属于任何轮次的视图（`gv`、`gm`、没有
+轮次的 `gk`）每个仓库一份，都在 `~/.local/state/nvim/ai-review/` 下。两个 Nvim 添加的
+评论会合并，同一条里改了不同的行也会合并。两边改了同一条里的同一些行，或者一个 Nvim
+在另一个已经投递或删掉的条目里写了字时，草稿保留先保存的版本，另一边写的内容放在
+旁边，名为 `<round>.conflict.md`（这个名字已被占用时依次是 `.conflict-2.md`、……），
+并有一条警告指出它。
+
+### `<C-d>`：投递
+
+`<C-d>` 把草稿（去掉标记行）发给拥有这一轮的对话。它先切到显示那个 agent 面板或 Chat
+的 tab；没有的话，从审阅 tab 切到它前面那个 tab，也就是打开它的地方。
+
+- **Native Claude 或 Codex。** 反馈开在那个 agent 自己的 prompt 编辑器里——就是
+  `<Space>ai` 打开的那个浮窗——接在输入框里已有的内容后面。读一遍，在那里按 `<C-d>`
+  把它放进输入框，回车发送。如果那个 agent 的 prompt 编辑器已经开着，反馈直接加进去。
+- **Chat。** 加到那一个 Chat 的消息里，接在你已经输入的内容下面；Chat 会显示出来，
+  光标停在末尾，处于 Insert 模式。照常发送即可。
+
+只有文字确实送到之后草稿才会清空，同时留一份副本 `<round>.last-sent.md`（每次投递都会
+覆盖）。如果 agent 在 10 秒内没有打开 prompt 编辑器——通常是因为它正在一个回合当中——
+这次投递就算失败："Claude Code did not open its prompt editor (busy?)"，草稿保持原样。
+投递还在等待时，对同一个 agent 按 `<Space>ai` 也会同样取消它。发给 Claude 的反馈永远
+不会被 Codex 的 prompt 编辑器拿走，反之亦然。
+
+**过期的条目。** 每一条都记得你评论时它的文件是什么样。`<C-d>` 会重新检查这些文件；
+文件此后变了（或不在了）的条目，标题里会加上 `⚠ changed since this comment`，并问你：
+*Deliver anyway* 还是 *Edit first*。检查以文件为单位，所以可能标出 hunk 其实没变的
+条目；真正变了的则一条也不会漏。
+
+### 谁会收到
+
+一个轮次属于开启它的那个对话，`<C-d>` 在发送任何东西之前，先确认反馈仍然送得到那个
+对话。每次拒绝都会保留草稿并说明原因。
+
+1. **同一个仓库。** 草稿的仓库、视图的仓库和目标会话的仓库必须是同一个目录——linked
+   worktree 算另一个目录。没有任何办法绕过这一条，也不会询问。
+2. **同一个对话。** Native agent 必须在本 Nvim 里运行，并且处在这一轮的会话里。如果它
+   上次报告会话之后你又在它的终端里打过字（可能是 `/new`、`/resume` 或 `/fork`），或者
+   它还没报告过会话，会先给一条说明，再问你 "… Deliver anyway?"。Chat 必须在本 Nvim
+   里开着；重启之前的 Chat 已经不在了。
+3. **没在忙。** Chat 还在回复，或处在工具循环的两步之间时会拒绝：等它完成再投递。
+   Native agent 是否在忙从这里看不出来，由那 10 秒的等待兜底。
+
+| 提示开头 | 原因 | 接下来 |
+|---|---|---|
+| `Claude Code is not running in this Nvim.` | 这一轮所属的 agent 没有运行 | `<Space>ar` 恢复会话，再按一次 `<C-d>` |
+| `Codex is not running in this Nvim.` | 同上 | `<Space>ar`（`codex resume`）；Codex 要到你的第一条 prompt 才报告会话，所以下一次 `<C-d>` 会先询问 |
+| `Claude Code is in another session now.` | 面板里运行的是另一个对话 | 在 TUI 里 `/resume` 这一轮的会话 |
+| `Claude Code runs in another root now:` | agent 从另一个仓库重新启动了 | 退出它，从这一轮所在仓库里的某个文件恢复会话 |
+| `That chat is closed or belongs to an earlier Nvim.` | 这个 Chat 已经不在了 | 发给当前的某个会话（见下） |
+| `Refused: the target session is in another root.` | 这一轮自己的会话在另一个仓库里运行 | 从这一轮所在仓库里的某个文件恢复它；没有任何办法绕过 |
+| `The chat is replying.` | Chat 正在一个回合当中 | 等一等，再按 `<C-d>` |
+| `No session to deliver to.` | 这个仓库里没有运行任何 agent 或 Chat | 在那里启动一个 |
+
+所属对话不在了时——前五行——拒绝的同时还会提供 **Send to a current session…**：先列出
+同一仓库里正在运行的会话，再确认一次，把两边都写明（"This round belongs to Claude Code
+session 7f0c1a2b…"、*Send to Codex · session 3e9a5d10…*）。它只改变这一次投递的去向；
+这一轮的所属不变。完全没有所属的草稿——没有绑定任何对话的 `<Space>aV` 轮次，或 `gv`、
+`gm` 视图——会直接打开这个列表；选中就算确认。
+
+### 各 agent 的局限
+
+| | Native Claude | Native Codex | Agent Chat（ACP） | API Chat（HTTP） |
+|---|---|---|---|---|
+| 基线 | prompt 运行前拍下；prompt 最多等 2.5 秒 | 同左 | 消息发出前拍下；最多等 2.5 秒 | 同左 |
+| Nvim 何时得知会话 | 启动、`/clear`、`/resume`、`/compact` 以及每条 prompt | 只在 prompt 时：`/new`、`/clear`、`/fork`、`/resume` 或以 `codex resume` 启动之后，要等到下一条 | Chat 打开时 | 同左 |
+| `<C-d>` 何时先询问 | 你在它的终端里打过字之后 | 第一条 prompt 之前，或你打过字之后 | 从不 | 从不 |
+| 重启 Nvim 之后 | `<Space>ar` 恢复同一个会话，投递照常 | `<Space>ar`，然后确认投递（或先发一条 prompt） | 旧 Chat 不在了：发给当前的某个会话 | 同左 |
+| 什么会让它不开轮次 | `--bare`、关闭 hook 的托管设置、信任提示还没确认的目录 | 改变 hook 信任方式的 Codex 更新 | — | — |
+| 写入前的批准 | `<Space>aa` / `<Space>ad` | 没有（`--yolo`） | Chat 自己的工具批准 | 同左 |
+
+Native agent 是通过 hook 得知 prompt 的：这些 hook 由本 Nvim 加给它启动的 agent，也只加
+给这些 agent——Claude 用 `--settings`，Codex 用 `-c`。不会往 `~/.claude` 或 `~/.codex`
+写任何东西，在普通 shell 里启动的 Claude 或 Codex 不会开轮次；hook 也从不输出任何内容，
+所以模型看不到它。Chat 不需要 hook；Nvim 能看到它们的消息发出。
+
+Codex 只在一个线程的第一个回合开始时运行它的 session-start hook。所以 `/new`、`/fork`
+或 `/resume`，以及用 `codex resume` 启动的 Codex，切换线程时不会通知 Nvim，要等你下一次
+提交 prompt；在此期间，谁也说不清它的输入框属于哪个对话。这就是投递给 Codex 时会询问
+而不是拒绝的原因：如果拒绝，每次 Codex 重启后都得先等一条 prompt。
+
+Codex 还会在运行一个 hook 之前要你审核它（"hooks need review before they can run"）；
+这个 hook 从不询问。它的信任记录随它一起放在同一个 `-c` 选项里，所以 Codex 把它当作
+已审核，而不往 `~/.codex/config.toml` 写任何东西。`--dangerously-bypass-hook-trust`
+也能跳过这个询问，但对所有 hook 都生效，包括任何项目自己的 `.codex/hooks.json`。
+这个 `-c` 有一个看得见的代价：Codex 启动时会提示它在 "without the shared background server"
+下运行，因为只要带 `-c`，它就自己起一个服务；`sources.codex = false` 会同时去掉 hook 和这条提示。
+
+Native Claude 和 Codex 一样从当前文件的 Git 根目录启动，所以两个 agent 的轮次都属于
+你正在工作的项目；`claude_cwd = "cwd"` 改回 Nvim 的工作目录。`cd` 到另一个仓库的
+Claude 仍然把轮次记在它启动的地方，并提示一次。
+
+### 手动轮次、保存的基线与任选两端
+
+- `<Space>aV`（*Start a review round*）不用 prompt，立即开一轮——比如在你动手改之前，
+  或在以别的方式开始一个任务之前。它属于你按下它时所在面板或 Chat 的对话；否则属于
+  当前 provider 的 agent（前提是它在这个仓库里运行，并且已经报告了会话）；再否则不
+  属于任何对话，`<C-d>` 会问你反馈发到哪里。如果自那个对话的上一轮以来什么都没变，
+  它会提示那一轮已经就是当前状态。
+- `<Space>gK`（*Save current code as a baseline*）保存一个有名字的快照，不属于任何
+  对话——比如 "before refactor"。它会预填这个仓库里正在工作的 agent 会话的名字（当前
+  provider 的优先）；可以改，清空则用当时的时间。每个 worktree 保留最新的 10 个，删掉
+  的会在提示里列出。
+- `<Space>gk`（*Compare two*）对比任意两端。选一个更早轮次的基线对比工作区，就能一次
+  看到自更早某条 prompt 以来、跨越好几轮的全部改动：这个视图算作那一轮的审阅 tab，
+  `,C` 的反馈归那一轮的所属对话。任何基线对比工作区的视图也有 `,X`。`<Space>gM`
+  同样会列出这些基线。
+
+两个 picker 都用会话、来源和时间来标一轮：
+
+```text
+修复 scanner 报错: Claude 11:16:38 - 11:43:18    今天的一轮
+整理 parser: Claude 11-09 20:36 - 21:39          其他日期的一轮
+对比配置差异: Codex 07:48:39 - …                 会话还在做这一轮
+Agent chat 09:03:20                             没有会话记录可读
+before refactor: Saved 11-09 23:08              手动保存的基线
+```
+
+- **名字**是会话最初的名字——Claude Code 自动生成的标题（`/resume` 里列的那个），或
+  在它之前用 `/rename` 起的名字；Codex 则是 thread 的名字。它从 agent 自己的会话记录
+  里读出，之后再改名也不变。超过 40 列会截断并加 `…`。
+- **开始时间**是这一轮的基线拍下的时间，也就是 prompt 发出的那一刻。
+- **结束时间**是这个会话的下一轮开始之前，它最后一次答完（或被打断）的时间。如果一条
+  prompt 之后代码自上一轮以来没有变化，就沿用上一轮，所以结束时间可能来自之后的
+  prompt；一轮答到下一条 prompt 发出之后才结束的，就没有结束时间。
+- **`…`** 表示会话正在做这一轮：它在最后一次答完之后又收到了 prompt（或被后台任务唤
+  醒），而且还活着——
+  它的终端在这个 Nvim 里运行，或者它的会话记录在最近 30 分钟内有写入。所以答到一半被
+  杀掉的会话不会一直显示 `…`；在另一个 Nvim 里、某一步 30 分钟没有写记录的会话也会暂
+  时不显示。手动轮次（`<Space>aV`）不是 prompt，要等它的会话再收到 prompt 才显示 `…`。
+- Chat、没有所属对话的手动轮次，或会话记录不在这台机器上的，只显示来源和开始时间。
+  Codex 会把大约十天没动过的 rollout 压缩成 `.jsonl.zst`；装了 `zstd` 时照样读取它的
+  轮次，否则这样的一轮只显示名字和开始时间。
+
+选中一个基线打开的视图只标开始时间，比如 `修复 scanner 报错: Claude 11:16:38 → working
+tree`：它显示的是从那时到现在的全部改动，和结束时间无关。
+
+要和一个对话重新开始，发送下一条 prompt 或按 `<Space>aV`；`<Space>av` 总是选最新的
+一轮。
+
+### 每个动作改变什么
+
+| 动作 | 键 | 改变 | 不动 |
+|---|---|---|---|
+| 反馈 | `,C`，然后 `<C-d>` | 仓库里什么都不变：文字出现在 agent 的输入框或 Chat 里，由你发送 | 一切 |
+| 暂存 / 取消暂存 | `,u` / `,U` | 真正的 index——下一次 `git commit` 提交的内容 | 工作区、基线 |
+| 恢复 | `,X` | 工作区文件里的一个 hunk，写入磁盘 | index、基线、文件的其余部分 |
+| Claude 的批准 | `<Space>aa` / `<Space>ad` | Claude 提出的一处修改，在它写入*之前* | 审阅视图：两者无关 |
+
+它们没有一个叫*接受*或*批准*，因为没有一个会告诉 agent 任何事：暂存是你和 Git 之间的
+事，只有反馈会送进对话，而且要你亲自发送。
+
+### 设置：`vim.g.ai_review`
+
+默认值适合大多数情况。要改其中几项，在 `init.lua` 里只写这几个键：
+
+```lua
+vim.g.ai_review = { retention = { rounds = 30 }, claude_cwd = "cwd" }
+```
+
+要整表赋值：`vim.g` 给出的是副本，所以 `vim.g.ai_review.retention.rounds = 30` 什么也
+改不了。不是设置项的键，或类型、取值范围不对的值，会警告一次并使用默认值；表里其余
+部分照常生效。每项设置都在用到时才读取，所以 Nvim 运行中做的修改从下一次使用起生效，
+下文另有说明的除外。`:checkhealth config` 列出当前生效的值。
+
+| 键 | 默认值 | 含义 |
+|---|---|---|
+| `retention.rounds` | `20` | 每个 worktree 保留的轮次数，从最新的算起。草稿里还有反馈的轮次永远不会被删除 |
+| `retention.saved` | `10` | 每个 worktree 保留的已保存基线（`<Space>gK`）数 |
+| `max_file_size` | `10485760`（10 MiB） | 大于这个字节数的未跟踪文件不进入任何快照，也从不读取 |
+| `sources.claude` | `true` | `false`：Native Claude 不注入 hook，它的 prompt 不开轮次 |
+| `sources.codex` | `true` | Native Codex 同上 |
+| `sources.codecompanion_acp` | `true` | `false`：Agent Chat 不开轮次 |
+| `sources.codecompanion_http` | `true` | `false`：API Chat 不开轮次 |
+| `hook_wait_ms` | `2500` | prompt 等待基线的最长时间，超时就带着一个 Late 轮次先发出去；`0` 表示从不等待 |
+| `claude_cwd` | `"git_root"` | Native Claude 从哪里启动：`"git_root"` 是当前文件的 Git 根目录，`"cwd"` 是 Nvim 的工作目录 |
+| `unknown_session` | `"confirm"` | `<C-d>` 无法确认的 native 会话：`"confirm"` 询问，`"refuse"` 拒绝 |
+| `always_confirm` | `{}` | 即使会话已确认、投递时也总要询问的 agent：`"claude"`、`"codex"` |
+| `redirect` | `true` | `false`：所属对话不在了时直接拒绝，不提供 *Send to a current session…* |
+| `seed_ttl_ms` | `10000` | Native agent 为一次投递打开 prompt 编辑器的时限 |
+| `history_limit` | `100` | `<Space>gH` 和 `<Space>gV` 列出的 commit 数；`false` 列出全部 |
+
+修改何时生效：
+
+- Claude 的 hook 是它启动命令的一部分，在 claudecode.nvim 加载时（第一次按 Claude 的键
+  时）确定。之后打开 `sources.claude`，或改 `hook_wait_ms`，要重启才生效；关闭则立即
+  生效，因为事件会被丢弃。
+- Codex 的命令每次启动时重新生成，所以它的 sources 和等待时间从下一次启动起生效，关闭
+  则立即生效。
+- 来源关闭期间打开的 Chat，之后即使再打开来源也不会开轮次；关闭来源立即生效。
+- `<Space>gH` / `<Space>gV` 的描述在插件 spec 加载时写定，所以要在 `init.lua` 里
+  `require("bootstrap")` 之前设置 `history_limit`；列表本身随设置变化。
 
 ---
 

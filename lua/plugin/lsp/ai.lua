@@ -46,6 +46,15 @@ local function build_terminal_cmd()
     end
   end
   if should_use_chrome() then claude_args[#claude_args + 1] = "--chrome" end
+  -- The review baseline's prompt hooks (lua/ai/review/hook.lua). Claude merges
+  -- --settings hooks with the user's own instead of replacing them, so nothing
+  -- is written to ~/.claude. One shell word after `claude`: provider_of_command
+  -- still finds the agent in front of it, and claudecode's appended --resume /
+  -- --continue still land after it, through "$@" under tmux.
+  if require("ai.review.config").get().sources.claude then
+    claude_args[#claude_args + 1] = "--settings"
+    claude_args[#claude_args + 1] = vim.fn.shellescape(require("ai.review.hook").claude_settings())
+  end
   local claude_cmd = table.concat(claude_args, " ")
 
   -- nvim defaults TERM=xterm-256color for :terminal children, but xterm-256color
@@ -251,6 +260,16 @@ local function ensure_watchdog()
   vim.fn.jobstart({ "sh", "-c", script }, { detach = true })
 end
 
+-- Where Claude starts. "git_root" (the default) is the rule Codex uses: the
+-- current file's Git root (ai.config.project_root), so both agents' sessions --
+-- and the review rounds their prompts open -- belong to the same project.
+-- "cwd" answers nil, which leaves claudecode's own default: Nvim's working
+-- directory, as before. Read on every launch.
+local function claude_cwd(ctx)
+  if require("ai.review.config").get().claude_cwd ~= "git_root" then return nil end
+  return ai_config.project_root(ctx.file)
+end
+
 -- A Claude-started Nvim keeps its startup sweep of stale servers.
 if ai_config.is("claude") then
   vim.api.nvim_create_autocmd("VimEnter", {
@@ -266,6 +285,11 @@ return {
     dependencies = { "folke/snacks.nvim" },
     config = function(_, opts)
       ensure_watchdog()
+      -- Built again now, not only when bootstrap evaluated this spec, so a
+      -- vim.g.ai_review set anywhere in init.lua (sources.claude, hook_wait_ms)
+      -- still reaches the first launch. From here on the command is fixed;
+      -- switching sources.claude off later still drops the events (ai.review.hook).
+      opts.terminal_cmd = build_terminal_cmd()
       require("claudecode").setup(opts)
       -- <leader>aa/ad exist once a Claude diff can arrive, whichever provider
       -- is active (lua/ai/init.lua).
@@ -287,6 +311,7 @@ return {
         auto_insert = true,
         split_side = "right",
         provider = "snacks",
+        cwd_provider = claude_cwd,
         snacks_win_opts = {
           width = ai_config.panel.width,
           wo = { winfixwidth = true },
@@ -303,6 +328,12 @@ return {
       diff_opts = {
         auto_close_on_accept = true,
         vertical_split = true,
+        -- A proposed edit opens in a tabpage of its own. In the current one,
+        -- claudecode picks its target by skipping 'diff' windows
+        -- (claudecode/diff.lua find_main_editor_window), and CodeDiff's panes
+        -- never set 'diff': its working-tree pane is an ordinary file window,
+        -- so a proposal could land inside a review view.
+        open_in_new_tab = true,
       },
     },
   },

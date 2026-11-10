@@ -22,7 +22,7 @@ function M.port(default)
   return port
 end
 
--- The debug view owns a tabpage of its own, the way diffview does: starting a
+-- The debug view owns a tabpage of its own, the way CodeDiff does: starting a
 -- session should not rearrange the windows you were editing in, and ending one
 -- should hand that layout back untouched.
 --

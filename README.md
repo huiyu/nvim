@@ -8,7 +8,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 
 **Required:**
 - **Neovim** >= 0.12.5 (refactoring.nvim's minimum; nvim-treesitter's `main` branch needs 0.12)
-- **Git**
+- **Git** (2.26 or later for the [review rounds](docs/MANUAL.md#reviewing-a-round-of-agent-changes))
 - A [Nerd Font](https://www.nerdfonts.com/) for icon display
 - **ripgrep** (`rg`) — powers `Snacks.picker.grep` / `live_grep` / `:grep`
 - **fd** — file finder (used by `venv-selector` and some pickers)
@@ -73,7 +73,7 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 │   ├── whichkey_spec.lua     # which-key groups, popup sections, spec keymaps (data)
 │   ├── autocmds.lua          # Autocommands
 │   ├── bootstrap.lua         # lazy.nvim setup
-│   ├── ai/                    # Provider config + native Claude/Codex facade
+│   ├── ai/                    # Provider config + native Claude/Codex facade, review rounds (ai/review/)
 │   ├── config/
 │   │   └── health.lua        # `:checkhealth config` provider
 │   ├── lang/                 # Language-specific configs
@@ -173,7 +173,7 @@ snacks below.
 | Plugin | Description |
 |--------|-------------|
 | [gitsigns](https://github.com/lewis6991/gitsigns.nvim) | Git signs, hunk actions, blame, inline diff of the current file (`<leader>gD`) |
-| [diffview](https://github.com/sindrets/diffview.nvim) | Diff and file history viewer |
+| [CodeDiff](https://github.com/esmuellert/codediff.nvim) | Diff, history and [review](docs/MANUAL.md#reviewing-a-round-of-agent-changes) views (`<leader>g`, `<leader>av`). Diffs through a native library it downloads from its GitHub release on first use, with a file watcher beside it; `:CodeDiff install!` reinstalls ([troubleshooting](docs/DIAGNOSTICS.md#diff-views-codediff)) |
 
 ### Language Support
 
@@ -269,7 +269,9 @@ Press any prefix and wait — which-key lists the current mappings.
 
 The `,` menu separates general editing from the current language's operations
 (imports/environment, compilation/preview, test debugging) and view actions.
-Diffview adds its own section alongside the source file's language section.
+A CodeDiff view adds two sections alongside the source file's language section:
+its panel, layout and conflict keys, and the review keys (`,C` feedback, `,u`
+/ `,U` stage / unstage a hunk, `,X` put a hunk back to the baseline).
 The search-and-replace panel keeps its actions under `,S…`.
 See the [filetype and view actions](docs/MANUAL.md#filetype-and-view-actions) for the full key list.
 The local leader shares the comma menu; it is not a fifth prefix. Restart Nvim
@@ -288,7 +290,24 @@ Unprefixed keys worth knowing:
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
 | `g` · `[` / `]` · `z` | Goto+LSP (from the symbol under the cursor) · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
-| `jk` · `<C-]>` / `<C-\>` | Input-safe Escape; in Normal, use its input source |
+| `jk` (except lazygit) · `<C-]>` / `<C-\>` | Input-safe Escape; in Normal, use its input source |
+
+Diff views live under `<leader>g`, each in a tabpage of its own (CodeDiff):
+
+| Key | Opens |
+|-----|-------|
+| `gv` | Diff view: the status view (staged, unstaged, untracked, conflicts) |
+| `gm` / `gM` | Diff against main branch / against a picked commit, branch, tag or baseline |
+| `gk` | Compare two: worktree / index / baseline / ref |
+| `gK` | Save current code as a baseline, for `gk` and `gM` |
+| `gV` / `gH` | File / repo history (recent 100, no merges) |
+| `gq` | Close the diff view in this tab |
+
+`gd` / `gD` stay gitsigns' diff of the current file, in a split or inline;
+either closes on a second press, and `gq` closes the split as well.
+Inside a view `;` and `s` are disabled, since a picker or a window key would
+break its panes; `q` in its file panel closes it too. The
+[manual](docs/MANUAL.md#git) has what each view's `,` keys do.
 
 **→ [docs/MANUAL.md](docs/MANUAL.md) walks through all of it**, starting with the
 composition rules the keys are built on.
@@ -393,6 +412,7 @@ the agent or the API key — and change with [`:AI`](#ai-provider-selection).
 | `ab` / `as` | n / x | Add the buffer / attach the selection to the agent's input box |
 | `ai` | n, x | [Edit the agent's prompt in a buffer](#editing-the-prompt-in-a-buffer) |
 | `at` / `aT` | n | [Read the transcript](#reading-past-output) / pick a past session |
+| `av` / `aV` | n | [Review the changes since the round's baseline](docs/MANUAL.md#reviewing-a-round-of-agent-changes) / start a round now; every prompt starts one |
 | `aa` / `ad` | n | Accept / deny Claude's diff |
 | `aS` | n (oil) | Add the file under the cursor (Claude) |
 | `ag` / `aG` | n | [Agent chat](#codecompanion-agent-chat-and-api-chat): show or hide / new — ACP, subscription |
@@ -768,6 +788,7 @@ Set these in `init.lua` before plugins load.
 | Option | Description |
 |--------|-------------|
 | `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where numbered terminals open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
+| `vim.g.ai_review` | The review loop and the diff views: how many rounds and baselines to keep, which conversations open rounds, how delivery confirms, where native Claude starts, how much history `<leader>gH` lists. Name only the keys you change, e.g. `{ retention = { rounds = 30 } }`; every key and default is in the [manual](docs/MANUAL.md#settings-vimgai_review). |
 
 ### Environment Variables
 

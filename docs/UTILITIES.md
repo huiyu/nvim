@@ -4,7 +4,7 @@ This document provides detailed documentation for all utility modules in the Neo
 
 ## Overview
 
-The utility modules provide focused helpers for logging, debug inspection, LSP, table manipulation, macOS input sources, terminals, windows, and running the current file. For diagnostic and debugging workflows (health checks, profiling, LSP/treesitter inspection), see [DIAGNOSTICS.md](DIAGNOSTICS.md).
+The utility modules provide focused helpers for logging, debug inspection, LSP, table manipulation, macOS input sources, terminals, windows, gitsigns' diff split, review baselines, the CodeDiff views, and running the current file. The AI modules follow, with the review loop's under [AI Review](#ai-review-aireview). For diagnostic and debugging workflows (health checks, profiling, LSP/treesitter inspection), see [DIAGNOSTICS.md](DIAGNOSTICS.md).
 
 ## Core Utilities
 
@@ -32,9 +32,10 @@ Headings add no keystrokes, register no mappings, and load no plugins. Only keys
 already present in the source buffer appear. Unclassified rows use
 `fallback_section` in a sectioned popup.
 
-View sections can appear alongside language sections. Diffview's `P`/`B`/`g`
-are distinct from Markdown's `p`/`m` and LaTeX's `b`/`v`, so the same source
-buffer can show both. Terminal `1`–`9` mappings are installed by `TermOpen`
+View sections can appear alongside language sections. CodeDiff's
+`P`/`B`/`g`/`z`/`I` and the review keys `C`/`u`/`U`/`X` are distinct from
+Markdown's `p`/`m` and LaTeX's `b`/`v`, so the same source buffer can show
+both. Terminal `1`–`9` mappings are installed by `TermOpen`
 in Normal mode; they never intercept terminal input. `<localleader>` is `,`
 and uses this same action menu.
 grug-far overrides its localleader defaults with `,S…` to preserve general
@@ -43,7 +44,7 @@ controls. Its implicit `S` group is labeled alongside `,F`/`,w` in the comma men
 
 `tests/whichkey_popup_spec.lua` checks section ordering and rendering;
 `tests/context_actions_spec.lua` checks real contextual menus and unchanged
-general keys; `tests/diffview_spec.lua` checks combined language/view actions
+general keys; `tests/codediff_spec.lua` checks combined language/view actions
 and cleanup. Keep labels and categories in the data file when extending the menu.
 
 ### Debugger actions (`util.dap`)
@@ -471,12 +472,22 @@ window.resize(dim, delta)
 -- window from its edgebar outright and only pinned views can be reopened.
 window.toggle_zoom()
 
--- Keep the first tabpage one the global prefixes still work in. diffview
--- disables `;`, `,` and the rest inside its own tabpage, so a layout where
--- its page is the first one leaves `;f` with nowhere to run. Inserts a fresh
--- page in front when that happens, without moving the cursor. Driven by
--- TabClosed and SessionLoadPost; views never open as the first tabpage on
--- their own, since `tab split` inserts after the current one.
+-- Whether `tabpage` holds a view that disables the global prefixes: its
+-- vim.t.blocks_global_prefixes is set (util.codediff sets it while CodeDiff
+-- has a session there; a new prefix-blocking view sets it too), or one of its
+-- windows shows a CodeDiff panel (codediff-explorer, codediff-history), for a
+-- tabpage CodeDiff let go of with its panel still on screen. It names the
+-- view rather than inspecting windows: the working-tree pane is an ordinary
+-- file window, and a single-file `:CodeDiff file` has no panel at all.
+window.blocks_global_prefixes(tabpage)
+
+-- Keep the first tabpage one the global prefixes still work in. CodeDiff
+-- disables `;` and `s` inside its own tabpage, so a layout where its page is
+-- the first one leaves `;f` with nowhere to run. Inserts a fresh page in
+-- front (`noautocmd 0tabnew`) when blocks_global_prefixes() says so of the
+-- first page, without moving the cursor. Driven by TabClosed and
+-- SessionLoadPost; views never open as the first tabpage on their own, since
+-- `tab split` inserts after the current one.
 window.protect_first_tab()
 
 -- Quit Nvim, including from inside a Snacks terminal window. Backs <leader>qq
@@ -597,7 +608,7 @@ Housekeeping for listed buffers that bufferline and Snacks do not cover.
 local buffer = require("util.buffer")
 
 -- True for a listed, plain file buffer whose file no longer exists on disk.
--- Terminals, URI-scheme buffers (oil://, diffview://) and unnamed scratch
+-- Terminals, URI-scheme buffers (oil://, codediff://) and unnamed scratch
 -- buffers have no file to be missing and always return false.
 buffer.is_missing_file(buf)
 
@@ -609,7 +620,7 @@ buffer.delete_missing()
 
 -- True for a listed buffer with an empty buftype that no window shows, in any
 -- tabpage (floats included). Unlike Snacks.bufdelete.invisible(), which only
--- checks the current tabpage, a file shown in a diffview or debug tabpage is
+-- checks the current tabpage, a file shown in a CodeDiff or debug tabpage is
 -- still in use.
 buffer.is_hidden(buf)
 
@@ -619,6 +630,318 @@ buffer.is_hidden(buf)
 -- Notifies how many were removed. Bound to <leader>bh.
 buffer.delete_hidden()
 ```
+
+## Diff Split (`util.diffsplit`)
+
+The split `:Gitsigns diffthis` opens (`<leader>gd`, and `<leader>gD` for a
+file with conflicts): a window per revision of the file -- the index, or ours
+and theirs -- in diff mode beside the file's own window. gitsigns has no
+command that closes it. `<leader>gq` calls `close()` when the tabpage has no
+CodeDiff view; `<leader>gd` and `<leader>gD` are `toggle()`. A revision
+window is a window in diff mode whose buffer name starts with `gitsigns://`,
+the prefix gitsigns gives every buffer it reads from git
+(`tests/gitsigns_spec.lua` fails if `<leader>gd` stops opening one).
+
+Vim compares every diff window of a tabpage with every other, as one view.
+So `close()` ends diff mode in all of the tabpage's windows, not only the
+file's -- a `:split` of the file's window inherits diff mode, and 'diffopt'
+`closeoff` ends it only in the last window left -- and `toggle()` from
+outside the split moves it rather than add a second file to the comparison.
+
+#### API Reference
+
+```lua
+local diffsplit = require("util.diffsplit")
+
+-- The tabpage's split windows that show a gitsigns revision in diff mode.
+-- tab: a tabpage handle, 0 or nil for the current one.
+diffsplit.revision_wins(tab)   --> integer[]
+
+-- Close them, then :diffoff every window of `tab`. Only `tab` is touched.
+-- false when it has none. true otherwise, including when it refuses: an index
+-- side with unsaved edits (gitsigns wipes the buffer with its window, and :w
+-- there stages) closes nothing and says so. A revision that is the
+-- tabpage's last split stays, out of diff mode, rather than close the tabpage.
+diffsplit.close(tab)           --> boolean
+
+-- <leader>gd (opts nil) / <leader>gD ({ unified = true }). From a diff window
+-- of the current tabpage's split: close(), and the cursor goes back to the
+-- file's window. In a buffer gitsigns has not attached to (untracked, outside
+-- Git, not a file; get_hunks(0) is nil): an INFO notice, nothing else, since
+-- diffthis would silently do nothing. Otherwise gitsigns' diffthis(nil, opts)
+-- for the current window, after closing a split elsewhere in the tabpage
+-- (not for the inline view, which sets no diff mode -- unless `git ls-files
+-- --unmerged` lists the file, where gD opens ours and theirs) and after
+-- :diffoff of the current window if it is the tabpage's only diff window --
+-- diffthis ignores a window in diff mode, and a buffer last shown in one
+-- carries it into the next window that opens it.
+diffsplit.toggle(opts)
+```
+
+## Baselines (`util.baseline`)
+
+Immutable snapshots of a worktree, kept as commits with no parent under
+`refs/nvim-review/<wtid>/{round,saved}/<id>`: the review loop's rounds and
+`<leader>gK`'s saved baselines, which `<leader>gk`/`<leader>gM` compare
+against. A snapshot never writes the user's state: it copies the real index
+to a temporary file of its own (`<gitdir>/nvim-review-index.XXXXXX`, mtime
+kept), adds the worktree to that copy and writes its tree, so HEAD, the real
+index, branches and stash stay as they were. AGENTS.md ("Review Baselines")
+gives the reason for each step. Trailers are opaque key/value pairs here;
+what `Source` or `Conversation` mean belongs to `ai.review.rounds`.
+Retention counts and the size cut-off come from `ai.review.config`, read on
+each use.
+
+#### API Reference
+
+```lua
+local baseline = require("util.baseline")
+
+baseline.NAMESPACE  -- "refs/nvim-review"
+baseline.KINDS      -- { round = "rounds", saved = "saved" }: kind -> its retention key
+
+-- A git argv with the prefix every call here carries: --no-optional-locks
+-- -c core.hooksPath=/dev/null -c core.splitIndex=false. util.codediff's
+-- listing, util.codediff_actions and ai.review run theirs through it too.
+baseline.git_cmd(args)            --> string[]
+
+-- The worktree that contains `path` (default: the cwd): { toplevel, gitdir,
+-- wtid }, realpaths, wtid the first 12 hex digits of sha256(gitdir). Synchronous,
+-- cached per directory, main loop only. nil and a reason outside Git, for a
+-- bare repository, and while GIT_DIR or GIT_WORK_TREE is set.
+baseline.locate(path)             --> loc | nil, err
+
+-- Snapshot the worktree: cb(tree, info), or cb(nil, err). One snapshot at a
+-- time per gitdir, and all requests waiting share the next one;
+-- opts.priority puts a request ahead of the rest (a prompt's baseline before
+-- a listing refresh). (root, opts, cb) works too.
+baseline.snapshot(root, cb, opts)
+
+-- Snapshot (or take meta.tree), commit it without a parent under the fixed
+-- identity, create refs/nvim-review/<wtid>/<kind>/<id>, then prune that kind.
+-- cb(entry, info), or cb(nil, err).
+baseline.save(root, kind, meta, cb)
+
+-- This worktree's baselines of `kind` (nil: both), newest first: cb(entries),
+-- or cb({}, err). A ref whose commit is gone is deleted, with one warning.
+-- (root, cb) lists both kinds.
+baseline.list(root, kind, cb)
+
+-- When an entry was taken, to the millisecond its id holds: entry.time plus
+-- that fraction, or entry.time for an id that is not one of ours.
+baseline.time_of(entry)
+
+-- Delete refs compare-and-swap, each only if it still points at its `sha`:
+-- cb(deleted, skipped). A ref that moved, is gone or lies outside
+-- refs/nvim-review/ is skipped, never an error.
+baseline.delete(root, entries, cb)
+
+-- Keep the newest retention.rounds / retention.saved of `kind`, delete the
+-- rest unless exempt (set_exempt, or opts.exempt): cb(deleted), or
+-- cb({}, err). Deleted saved baselines are named in a notice unless
+-- opts.quiet. Objects are left to git's own gc.
+baseline.prune(root, kind, opts, cb)
+
+-- The retention exemption, fn(entry) -> boolean; nil clears it.
+-- ai.review.rounds installs "this round's draft is a non-empty file". A
+-- predicate that raises keeps the entry and warns once.
+baseline.set_exempt(fn)
+```
+
+`kind` is `"round"` or `"saved"`. `meta` (save): `subject` is the message's
+first line, the display text (default `nvim review <kind> HH:MM:SS`); every key
+that starts with an uppercase letter becomes a trailer after `Nvim-Review: 1`,
+sorted (`true` is written `1`; `false` and nil are left out); `tree` skips the
+snapshot; `prune = false` skips retention; `exempt` goes to prune.
+
+`info` (snapshot, save): `skipped` (untracked paths over `max_file_size`, left
+out of the tree and never hashed), `untracked` (how many untracked, non-ignored
+files there were), `unreadable` (git's complaint, when `add --ignore-errors`
+passed over a file or a nested repository), `toplevel`, `gitdir`, `wtid`.
+
+An entry (save, list): `{ kind, id, ref, sha, oid, tree, time, subject,
+trailers, root, wtid }`. `id` is `YYYYMMDDTHHMMSS-xxxx` in UTC and sorts by
+creation time to the millisecond; `oid` equals `sha`; `time` is the committer
+time; `root` the worktree's toplevel.
+
+Every callback runs on the main loop, scheduled, and a call from a fast event
+reschedules itself. More than 5000 untracked files warn once per gitdir: every
+snapshot hashes them again. `tests/baseline_spec.lua` covers the user's state,
+ignored and large files, racy git, gc, linked worktrees, signing and hooks.
+
+## CodeDiff Views (`util.codediff`, `util.codediff_actions`)
+
+`util.codediff` is the one module that reads CodeDiff's internals:
+codediff.nvim has no API for its session, its hunks or its keymaps (upstream
+#577). Its header lists each internal, and AGENTS.md says how they are
+guarded. Everything else -- `util.codediff_actions`, `ai.review`, the
+`<leader>g` spec -- goes through the functions below. The one exception is
+`:checkhealth config` (`lua/config/health.lua`), which asks two things only
+CodeDiff knows: the native library's version, through `codediff.core.diff`'s
+`get_version`, once the library file is there and with
+`VSCODE_DIFF_NO_AUTO_INSTALL` held at 1 for the require; and the watcher
+release it wants, `codediff.core.installer.watcher`'s `VERSION`, once CodeDiff
+is loaded. Both are pcall'd, and nothing else reads them.
+
+`setup(opts, hooks)` runs from the lazy spec's `config`, at first use: it
+compares `codediff.version` with `VERSION`, patches CodeDiff's git runner
+(`-c core.quotePath=false`, so non-ASCII paths survive revision and history
+views), its revision listing (`listing` below, for every
+revision-vs-working-tree view) and its history limit (`hooks.history_limit()`,
+the `history_limit` setting), and then runs CodeDiff's own setup, which loads
+its native library. A version mismatch warns once and leaves those three patches off.
+
+#### API Reference
+
+```lua
+local cd = require("util.codediff")
+
+cd.VERSION            -- "4.0.6", the release the hooks were written against
+cd.PANEL_FILETYPES    -- { "codediff-explorer", "codediff-history" }
+cd.setup(opts, hooks) -- hooks: { history_limit?: fun(): integer|false }
+cd.degraded()         --> true when the installed CodeDiff is not cd.VERSION
+
+-- Open a view: :CodeDiff with `args` as a list, so a path with spaces stays
+-- one argument. `root` adds `-C <root>`, escaped for the expand() CodeDiff
+-- runs on it; a `-C` already in `args` goes as given, so escape that one
+-- yourself. Pass revisions as shas: CodeDiff reads a name like `history` or
+-- `file` as its subcommand.
+cd.open({ args = {...}, root = ..., label = ..., tab_vars = {...}, quiet = bool, done = fn })
+--> true once issued; false (with a WARN) for empty args in a tabpage that
+--  already has a view, where a bare :CodeDiff would close it. Raises what
+--  :CodeDiff raised.
+
+cd.close(tab)          --> true when it closed a view, or an orphaned tabpage
+cd.session(tab)        --> a plain copy of the view's session, or nil
+cd.hunk_at_cursor(tab, win)  --> { index, side, original, modified } | nil
+cd.fresh_hunk(tab, win)      --> that hunk | nil, reason
+cd.panel_item(tab, win)      --> the explorer or history entry on the cursor line | nil
+cd.unstage_hunk(tab)         --> ran: CodeDiff's own unstage (the Staged group only)
+cd.refresh(tab)              --> requested: list, read and diff again
+cd.set_keys(tab, specs, scope)  --> false when `tab` has no view
+cd.listing(root, revision, tree, info, pathspec, done)
+cd.left_out_lines(left_out, limit)  --> string[]
+```
+
+`tab` is a tabpage handle, 0 or nil for the current one; `win` defaults to the
+current window (`panel_item`: the panel's own).
+
+`open`: `label` (`vim.t.codediff_label`, shown in the statusline) and
+`tab_vars` land on the view's tabpage when it opens -- CodeDiff opens
+asynchronously, after its git commands -- and only on a view that fits the
+spec: the `root` it names, a status, staged or history mode where `args` name
+one, the revisions `args` give as full shas. Another view opening meanwhile,
+from another `open()` or a typed `:CodeDiff`, never takes them, and several
+opens can be in flight at once. `quiet` leaves out the `Comparing <label>`
+notice, for a caller that says what the view compares itself. `done(tab)`
+runs once the view has opened; `done(nil, why)` when CodeDiff refused it for
+an empty listing or it did not open within 10 s; exactly once for an `open()`
+that returned true.
+
+`session`: `mode` (`"status"` for `:CodeDiff` with its Staged / Changes /
+Conflicts groups, `"revision"` rev vs working tree, `"revisions"` rev vs rev,
+`"staged"` rev vs index, `"history"`, `"dir"`, `"file"`), `git_root`,
+`original`/`modified` as `{ relative, absolute }` real paths -- `""` on the
+missing side of an added or deleted file, never a `codediff://` name --,
+`original_revision`/`modified_revision` (nil is the working tree, `":0"` the
+index), `base_revision`/`target_revision`, `source_revisions`, `selection`,
+the `*_bufnr`/`*_win` of both panes and a conflict's `result`, `layout`,
+`single_side`, `conflict`, `panel` (`"explorer"`, `"history"` or nil) with
+`panel_bufnr`/`panel_win`, and `tabpage`.
+
+`hunk_at_cursor`: the displayed hunk under the cursor of a pane, by CodeDiff's
+own rule -- `original`/`modified` are `{ start_line, end_line }`, 1-based with
+`end_line` exclusive, and an empty range matches at its start line; `side` is
+the pane the cursor is in. `fresh_hunk` recomputes the diff from both
+buffers' current text with CodeDiff's own engine and options and returns the
+hunk only when the fresh result has the same ranges: a view behind an edit or
+a write answers nil and why, so nothing acts on stale ranges.
+
+`panel_item`: `{ panel, type, path?, old_path?, status?, group?, commit?,
+short_hash?, subject? }`, `type` one of `"file"`, `"directory"`, `"group"`,
+`"commit"`, `"title"`. A file has `path` (relative to the repository),
+`status` (`M`, `A`, `D`, `R`, `??` ...), `old_path` for a rename and, in the
+status view, `group` (`"staged"`, `"unstaged"`, `"conflicts"`); in a history,
+the `commit` it belongs to. A history commit row has `commit`, `short_hash`
+and `subject`, and no `status` or `old_path`: it claims no rename. In a single
+file's history its `path` is that file as the working tree names it; in any
+other history, the file CodeDiff lists for the commit, if any, with a verbatim
+`old => new` reduced to the new name.
+
+`set_keys`: each spec is `{ mode(s), lhs, rhs, desc = ..., on = ..., opts = {...} }`,
+where `on` is `"all"` (the default), `"panes"`, `"panel"`, `"original"`,
+`"modified"` or `"result"` and `opts` adds `vim.keymap.set` options. The keys
+go through CodeDiff's own keymap registry, which snapshots what a buffer had,
+suspends the claims on the real file buffers a view borrows while another
+tabpage is current, and hands every key back when the file leaves the view or
+the view closes; panel keys stay installed throughout. Call it again on every
+`User CodeDiffKeys`: a file switch or a refresh swaps the pane buffers, and
+the new ones start without these keys. With a `scope`, a claim the previous
+pass of that scope made and this one does not repeat is released.
+
+`listing`: what a view of `revision` against the working tree lists, by the
+same rule the listing patch applies to every such view, for a caller that has
+to know before it opens one whether CodeDiff will show anything (an empty
+listing gets a bare "No changes to show" and no view, #582). `tree` and
+`info` are a `util.baseline.snapshot()` of the worktree, and
+`diff-tree -r -M -z <revision> <tree>` compares them. `done({ listed,
+left_out })`, or `done(nil, err)` when git failed. `listed` holds CodeDiff's
+status entries, `{ status, path, old_path? }`, a type change reading `M`;
+`left_out` the paths not compared, by reason: `size` (untracked, over
+`max_file_size`), `ignored` (ignored now, still on disk) and `other` (still on
+disk, so not listed as deleted). It says nothing itself: `left_out_lines`
+words `left_out` the way a view's own notice does, one
+`Not compared (<why>): a, b` line per reason, with `limit` paths each and a
+count of the rest.
+
+What every view gets on its own, from each key pass: `;` and `s` blocked on
+every buffer (`nowait`, a notice, and the next key swallowed when it comes
+within 'timeoutlen'); wheel scrolling that moves both panes, hovered or
+focused; `q` closing the view from the explorer and history panels; in the
+status view, the explorer's `-`/`S`/`U`/`X`; and a buffer-local which-key
+group `Conflict` where `,go` exists. Each pass then fires
+`User CodeDiffKeys` with `data.tabpage`, on which
+`util.codediff_actions.attach` (from the plugin spec) and `ai.review.attach`
+(from `ai.setup()`) install theirs. A pass runs after `CodeDiffOpen`,
+`CodeDiffFileSelect` and every pane buffer swap (a file picked, a refresh, a
+layout toggle).
+
+Tab variables, set when a view opens and cleared when it closes:
+
+| Variable | Set by | Read by |
+|---|---|---|
+| `blocks_global_prefixes` | util.codediff, on every view | `util.window.blocks_global_prefixes` |
+| `codediff_label` | `open()`'s label, else a default (`index/HEAD ↔ working tree`, `<rev> → working tree`, ...) | the statusline |
+| `codediff_baseline` = `{ sha, kind }` | `<leader>av`, and `<leader>gk`/`<leader>gM` comparing a baseline with the working tree (`tab_vars`) | `util.codediff_actions` (`,X`), `ai.review.feedback` |
+| `ai_review` = `{ id, sha, conversation?, source?, root, late }` | the same, when that baseline is a round's (`rounds.review_vars`) | `ai.review` (one review tab per root), `ai.review.feedback` (which draft) |
+
+It also closes an orphaned tabpage -- one CodeDiff let go of with its panel
+still on screen, after `:e` in a revision pane, a closed pane, or a pane's
+buffer wiped while the tabpage was hidden -- after `CodeDiffClose`, `TabEnter`
+and the wipeout of a `codediff://` buffer; unlists `codediff://` buffers;
+evens out the two panes when the tabpage gains or loses a window; and, from
+the listing, names the files left out (once per view) and a listed file with
+unsaved edits whose disk copy changed since (once per change on disk).
+
+`util.codediff_actions.attach(tab)` installs the hunk keys for the view's
+kind, under its own `"actions"` scope, on every `User CodeDiffKeys`. It
+reaches CodeDiff only through `util.codediff` and gitsigns only through its
+public API.
+
+| View | Keys |
+|---|---|
+| status, Changes group (index → working tree) | `,u`; no `,U`, every hunk there is unstaged |
+| status, Staged group (HEAD → index) | `,U`, CodeDiff's own |
+| baseline → working tree | `,u` `,U` `,X` |
+| the same, a file on one side only | `,X`, which only says what would do it |
+| any other revision → working tree | `,u` `,U` |
+
+Revision-vs-revision, `--staged`, history, conflict and single-file views get
+none. Before any of them acts it checks that it acts on what is on screen (no
+unsaved edits, the disk still holding the buffer's bytes, `fresh_hunk`, a
+regular file on both ends with no filter attribute); its header has the
+details. `,u`/`,U` change only the real index, `,X` only that one buffer,
+written once.
 
 ## Move (`util.move`)
 
@@ -773,6 +1096,26 @@ stops short (no file name, a cancelled model picker) has still hidden it.
 `require("ai").attach_images(paths, provider)` sends images to the agent that
 owns the prompt, not to whichever provider is active.
 
+```lua
+local ai = require("ai")
+
+-- Call one agent's backend method by name, whichever provider is active, and
+-- make room for *that* agent's panel: the revealed panel decides, so a feed
+-- to the inactive agent hides the active one's panel in this tabpage (unless
+-- its own is on screen somewhere already). Review feedback reaches the
+-- round's agent this way. An unknown provider or a
+-- method its backend lacks is a WARN; a method that raises, an ERROR.
+ai.feed(provider, method, ...)
+
+-- What review feedback sends: the backend stages `seed` for that provider
+-- (ai.editor.stage_seed) and presses the TUI's own ctrl+g.
+ai.feed("claude", "edit_prompt", { seed = text, on_consumed = fn, on_expired = fn, ttl_ms = 10000 })
+```
+
+Both backends' `edit_prompt(opts)` take `{ seed?, on_consumed?, on_expired?,
+ttl_ms? }` and pass them to `stage_seed` with their own provider; `<leader>ai`
+passes only `seed`.
+
 ## AI Companion Chats (`ai.companion`)
 
 CodeCompanion's two chat kinds, as the facade's `<leader>a` keys reach them:
@@ -801,7 +1144,22 @@ companion.add_selection(kind)  -- leave Visual, add the selection as a fenced bl
                                -- starts a chat only after preflight; never submits
 companion.inline_keys()        -- ":CodeCompanion " or "<Ignore>" (the <leader>ae expr)
 companion.sync()               -- write the live interactions.*.adapter defaults
+
+-- For review feedback, aimed at one exact chat rather than a kind:
+companion.busy(chat)           -- mid-turn: a request in flight, a tool loop between
+                               -- two steps, or a buffer that is not modifiable
+companion.add_text(chat, text) --> true | false, "gone"|"busy"|"failed", err?
+                               -- append to that chat's prompt; never submits
+companion.show_input(chat)     -- show it in this tabpage, cursor at the end of
+                               -- its prompt, in Insert mode
 ```
+
+`add_text` writes to the chat CodeCompanion still keeps for `chat.bufnr`
+with the same `chat.id` -- never `find(kind)`'s pick, never a newer chat that
+reuses the buffer -- and refuses, changing nothing, while that chat is busy
+or gone. `prompt:add` writes at the buffer's last column, so text that is to
+follow what the user already typed starts with `"\n"`; review feedback always
+does. A chat whose buffer is gone is not busy, it is gone.
 
 `preflight` only guards what starts something: creating a chat (an agent chat
 spawns its bridge at once, an API chat already fetches the model list with the
@@ -814,7 +1172,12 @@ expr mapping, under textlock.
 `utils.context.get`). The facade wraps toggle and add and, when one raises,
 runs `:CodeCompanionChat Toggle` / `:'<,'>CodeCompanionChat Add` with a WARN;
 `tests/companion_spec.lua` pins both paths. A chat shown in another tabpage
-is moved here, the way `:CodeCompanionChat Toggle` moves it.
+is moved here, the way `:CodeCompanionChat Toggle` moves it. `busy`,
+`add_text` and `show_input` read `chat.current_request`, `chat.ui` and the
+private `chat._turn_in_progress`: between two steps of a tool loop
+`current_request` is already nil and the buffer editable again, and only that
+flag is still set. It is read in a pcall, so a rename upstream loses that one
+signal; `tests/review_feedback_spec.lua` pins the mid-loop refusal.
 
 ## AI Panel Input (`ai.terminal`)
 
@@ -957,11 +1320,19 @@ local editor = require("ai.editor")
 
 ---@return string status  "opened", "focused", or "error: <reason>"
 editor.open(path, sentinel)  -- open the agent's temp prompt file in a float
-editor.wrapper()             -- absolute path to scripts/agent-editor
 editor.EDIT_KEY              -- the byte both TUIs bind to "edit in $EDITOR" (0x07)
-editor.stage_seed(text)      -- text to add to the next prompt this Nvim is handed
 editor.tui_ready(buf)        -- has the agent TUI in buf drawn its input prompt?
 editor.when_ready(get_buf, action, on_timeout)
+
+-- Text to add to the next prompt `opts.provider` (default: the active one)
+-- hands this Nvim. One slot per provider; nil or "" only clears that slot.
+editor.stage_seed(text, { provider = ..., on_consumed = fn, on_expired = fn, ttl_ms = ... })
+
+-- Bring an already-open prompt float back into focus, appending `text`.
+-- With `provider`, only that agent's prompt counts; without, the active
+-- provider's wins over the other's. false when no (such) prompt is open.
+editor.focus_open(text, provider)  --> boolean
+editor.is_prompt_win(win)          -- is `win` one of the open prompt floats?
 
 -- Absolute paths to the shell helpers the agent terminals need.
 editor.wrapper()  -- scripts/agent-editor, the agents' $EDITOR for ctrl+g
@@ -992,9 +1363,20 @@ pty. Seeding used to be a bracketed paste sent just ahead of the edit key, on
 the reasoning that a single channel write fixes their order. The bytes do arrive
 in order, but the TUI applies a paste asynchronously and acts on the key first —
 measured: the float came up empty with a selection staged. Handing the text to
-the buffer instead has no ordering to lose, and needs no paste sanitising. The
-stage is consumed by the first `open` that follows, so an unanswered request
-cannot leak its seed into a later `ctrl+g`.
+the buffer instead has no ordering to lose, and needs no paste sanitising.
+
+A seed has an addressee, so each provider has a slot of its own, taken
+unconditionally by the first `open` of that provider's prompt
+(`config.provider_of_prompt`): an unanswered request cannot leak its seed
+into a later `ctrl+g`, and review feedback staged for Claude never lands in a
+prompt Codex opens meanwhile, or the other way round. The stager hears what
+happened through exactly one callback, at most once: `on_consumed` once the
+text is in a prompt on screen; `on_expired` when it never will be -- replaced
+by a newer seed, cleared, not taken within `ttl_ms`, or handed to a prompt
+that failed to open. Without `ttl_ms` a seed waits for that provider's next
+prompt, as a `<leader>ai` selection always has. A plain `<leader>ai` stages
+into the same slot, so it replaces a pending feedback seed, which then
+expires and keeps its draft.
 
 ### Images
 
@@ -1070,6 +1452,229 @@ server it kills, so the script hands the work to a detached copy of itself; the
 watchdog uses the synchronous `--wait` form and only removes the socket file
 afterwards.
 
+## AI Review (`ai.review.*`)
+
+The review loop's modules, as other modules call them: a round is a baseline
+(`util.baseline`, kind `"round"`) plus the conversation that owns it and the
+root it was taken in; `<leader>av` shows what changed since, and `,C` /
+`<C-d>` send feedback back to that conversation. AGENTS.md ("Agent Hooks",
+"One Round Model") has the invariants and docs/MANUAL.md the workflow.
+Nothing here is loaded at startup but `ai.review.config` and
+`ai.review.hook`, which load no plugin and run no git.
+
+### Settings (`ai.review.config`)
+
+```lua
+local cfg = require("ai.review.config")
+
+cfg.get()        -- the effective settings: vim.g.ai_review merged over the defaults
+cfg.defaults()   -- the defaults alone, a deep copy
+cfg.overrides()  -- { ["retention.rounds"] = true, ... }: what vim.g.ai_review set
+```
+
+`get()` merges again on every call and returns a fresh table, so a change
+applies from the next use and a caller may keep or change what it got. Assign
+`vim.g.ai_review` as a whole table: `vim.g` hands out copies, so
+`vim.g.ai_review.retention.rounds = 30` is lost. A key that is not a setting,
+a value of the wrong type and one outside its domain each warn once (title
+"AI review") and fall back to the default; the rest of the table still
+applies, and a bad entry of `always_confirm` is dropped on its own. The
+warnings are scheduled, so `get()` also works in a `vim.system` callback. A
+rejected value is not in `overrides()`.
+
+| Key | Default | Read by |
+|---|---|---|
+| `retention.rounds`, `retention.saved` | `20`, `10` | `util.baseline.prune` |
+| `max_file_size` | `10485760` (10 MiB) | `util.baseline.snapshot`, util.codediff's notices |
+| `sources.claude`, `sources.codex` | `true` | the hook injection, `ai.review.hook.event` |
+| `sources.codecompanion_acp`, `sources.codecompanion_http` | `true` | `rounds.attach_chat`, every chat submit |
+| `hook_wait_ms` | `2500` (`0`: never wait) | `scripts/agent-hook` (argv), the chat callback |
+| `claude_cwd` | `"git_root"` (or `"cwd"`) | claudecode's `cwd_provider` |
+| `unknown_session` | `"confirm"` (or `"refuse"`) | `rounds.resolve_sink` |
+| `always_confirm` | `{}` (entries `"claude"`, `"codex"`) | `rounds.resolve_sink` |
+| `redirect` | `true` | `rounds.resolve_sink` |
+| `seed_ttl_ms` | `10000` | `ai.review.feedback`, native delivery |
+| `history_limit` | `100` (`false`: no limit) | the `<leader>gH`/`gV` desc, util.codediff's history patch |
+
+### Native hooks (`ai.review.hook`)
+
+```lua
+local hook = require("ai.review.hook")
+
+hook.script()           -- absolute path of scripts/agent-hook
+hook.claude_settings()  -- Claude's --settings JSON: UserPromptSubmit, async SessionStart
+hook.codex_override()   -- Codex's -c value: hooks={UserPromptSubmit=[...],state={...}}
+hook.codex_trust_hash(event_key, command, timeout)  --> "sha256:<hex>"
+hook.CODEX_TRUST_KEY    -- "/<session-flags>/config.toml:user_prompt_submit:0:0"
+
+-- The RPC receiver scripts/agent-hook calls.
+hook.event(agent, event, payload_path, done_path)  --> status
+```
+
+`claude_settings` and `codex_override` read `hook_wait_ms` when called, put
+it into the script's argv, and give the hook a timeout of
+`max(10, ceil(wait / 1000) + 5)` seconds. `codex_trust_hash` is sha256 over
+the sorted, compact JSON of the normalized handler, as Codex computes it;
+`codex_override` embeds the hash of exactly the command it injects.
+
+`event` answers at once: `"ok"`; `"ignored"` for an event that carries
+`agent_id`; `"disabled"` when that agent's source is off; `"missed"` when the
+script had already given up (a submit then may notify that its prompt has no
+baseline); `"error:usage"` / `"error:payload"`. An accepted event goes to
+`rounds.native_event` on the next tick. A submit is held until that handler
+calls `done` (once the baseline's tree is written) or the script stops
+waiting, which deletes the payload -- `gave_up()` reads that; a session event
+is released at once.
+
+### Rounds and delivery checks (`ai.review.rounds`)
+
+```lua
+local rounds = require("ai.review.rounds")
+
+-- Every source opens rounds here.
+rounds.submit(ev)        -- { source, conversation?, root, turn?, gave_up?, done?, force?, on_round? }
+rounds.native_event(ev)  -- from ai.review.hook: { agent, event, payload, done, gave_up };
+                         -- Claude waking itself (a task notification, an agent's
+                         -- hand-back) opens no round
+rounds.start(opts)       -- <leader>aV; opts.buf (default: the current buffer)
+
+-- The registry (this Nvim only, in memory), fed from ai.setup()'s autocmds.
+rounds.track_terminal(buf, cwd)  -- TermOpen; agent terminals only, root fixed now
+rounds.chat_created(data)        -- User CodeCompanionChatCreated
+rounds.chat_closed(data)         -- User CodeCompanionChatClosed
+rounds.attach_chat(chat)         -- register a chat, hook its on_before_submit
+
+-- Asking.
+rounds.select_round(root, cb, opts)  -- cb(entry, why) | cb(nil, err?)
+rounds.review_vars(entry)        --> vim.t.ai_review for a round entry, else nil
+rounds.conversation_of(buf)      --> conversation?, root?, bound
+rounds.live_conversations(root)  --> the sessions this Nvim could deliver to there
+rounds.label(conversation)       --> "Claude Code session 7f0c1a2b…", and the like
+rounds.toplevel(path)            --> realpath of the Git toplevel, no git run
+rounds.source_label(source)      --> "Claude" for a Source trailer's "claude", nil for none
+rounds.prompted_at(conversation) --> when a native session was last prompted here
+                                 --  (epoch seconds, fraction kept), or nil
+rounds.running(conversation)     --> true while an agent terminal here runs that session
+rounds.nonce()                   --> this process's nonce in cc: ids
+rounds.draft_path(root, id)      --> stdpath("state")/ai-review/<12 hex>/<id>.md
+
+-- Delivering.
+rounds.resolve_sink(conversation, root, cb)  -- cb(target) | cb(nil, reason)
+```
+
+`submit(ev)`: `source` is `"claude"`, `"codex"`, `"cc-acp"`, `"cc-http"` or
+`"manual"`; `conversation` is the owner (`claude:<session>`,
+`codex:<session>`, `cc:<nonce>:<chat.id>`; none for an unbound
+`<leader>aV`); `turn` a Codex turn id. The round rules: a root outside Git
+opens nothing; the same conversation's same Codex turn, or a repeat within a
+second, opens nothing (`force` skips this); the snapshot goes first in its
+queue and `done` fires once its tree is written, the round being Late when
+`gave_up()` is true by then; a tree equal to the conversation's last round in
+this process keeps that round; otherwise a round is saved with
+`Source`/`Conversation`/`Root`/`Late` trailers and retention runs. `done` is
+always called, exactly once, also when the submit is dropped; `on_round(round,
+reused)` hears the round opened or kept.
+
+`select_round`: the newest round of the current buffer's conversation, then of
+the active provider's terminal session, then the newest this process opened in
+`root`, then the newest there at all; `why` is `"buffer"`, `"active"`,
+`"process"` or `"latest"`. `conversation_of` answers an agent terminal's
+current session or a chat's id, `bound` being true for such a buffer even
+before its terminal reported a session. `live_conversations` lists running
+agent terminals (the active provider's first) and open chats in `root`: `{
+kind = "native"|"cc", conversation?, agent?, chat?, buf, root, label,
+session_known?, dirty? }`. `toplevel` takes the nearest ancestor holding a
+`.git` directory or file, or the directory itself outside Git.
+
+`resolve_sink(conversation, root, cb)`: `root` may be a list (the view's and
+the draft header's) whose realpaths must agree. It checks, in order, the
+root, the conversation, that a chat is not busy, and an owner that is gone
+(AGENTS.md, "One Round Model"), sending its own notices (WARN, title "AI
+review") and asking through `vim.ui.select`; with no owner it opens the
+same-root picker at once. `cb(target)` with `{ kind = "native"|"cc",
+conversation?, agent?, chat?, buf, root, label, owner?, redirected }`, or
+`cb(nil, reason)` with `"root"`, `"owner-gone"`, `"unknown-session"`,
+`"busy"`, `"cancelled"`, `"no-session"` or `"unknown"`. Asynchronous whenever
+anything is asked.
+
+### Baseline labels (`ai.review.labels`)
+
+```lua
+local labels = require("ai.review.labels")
+
+labels.describe(entries, cb, opts)    -- cb(labels): labels[i] = { label, display } or nil
+labels.current_name(root, cb, opts)   -- cb(name|nil): the session at work in root (<leader>gK)
+labels.stamp(t, now)                  --> "11:16:38" today, "11-09 23:08", "2025-12-31 23:50"
+labels.span(start, ended, open, now)  --> "11:16:38 - 11:43:18", "11-09 23:50 - 11-10 00:20",
+                                      --  "11:39:25 - …"
+labels.shorten(name, width)           --> one line, cut to `width` columns (NAME_WIDTH, 40)
+```
+
+`describe` labels `util.baseline.list` entries for the `<leader>g` pickers:
+`display` is the picker's line -- `"<session>: <Source> <start> - <end>"` for
+a round, `"<name>: Saved <time>"` for a saved baseline -- and `label` the
+view's, with the start alone, since a view shows everything since the start.
+`labels[i]` is nil where the caller keeps its own (a round with no `Source`,
+an unknown kind). A round's session is its `Conversation`; its name is the
+first title its records hold and its end the last turn end at or after its
+start and before the session's next round, both from `ai.transcript.marks`,
+compared to the millisecond (`util.baseline.time_of`). `…` marks a session's
+newest round when the session was prompted after its last turn end -- by
+this round's own prompt (a non-Late round whose `Source` is the agent) or a
+later one `rounds.prompted_at` heard -- and is alive: `rounds.running`, or
+records written within `LIVE_SECONDS` (30 minutes). It reads each session
+twice, once for the name alone, so a name is there even when the turns miss
+the budget; it waits up to `opts.budget_ms` (`BUDGET_MS`, 300) and labels
+without what is still being read; `cb` runs once, on the main loop.
+`current_name` takes the first native session `rounds.live_conversations(root)`
+lists, reads its name alone, loads nothing when `ai.review.rounds` was never
+loaded, and answers nil past the same budget. `opts.now` is the clock for the
+formatting and the liveness check.
+
+### The view and its feedback (`ai.review`, `ai.review.feedback`)
+
+```lua
+local review = require("ai.review")
+review.open()       -- <leader>av: the round's baseline against the working tree
+review.attach(tab)  -- ,C on every buffer of a Git CodeDiff view (User CodeDiffKeys)
+
+local feedback = require("ai.review.feedback")  -- loaded by the first ,C
+feedback.comment({ tab = ..., win = ..., buf = ..., mode = "n"|"v",
+  range = { first = <line>, last = <line> } })  -- range: 1-based, inclusive, read only with mode = "v"
+feedback.deliver(buf)  -- <C-d> in the draft float
+feedback.hide(buf)     -- q: hide the float in this tabpage; the draft stays
+```
+
+`open` is asynchronous: it picks a root and a round, snapshots, and opens the
+view through `util.codediff.open` with `vim.t.ai_review` and
+`vim.t.codediff_baseline` once git has answered, or says why not. `attach`
+only hands `,C` to `util.codediff.set_keys` under its own `"review"` scope,
+so `util.codediff_actions`' keys on the same buffers stay alone; a directory
+or file diff without a repository gets none. `comment` and `deliver` never
+raise: every failure is a warning, and a refused or cancelled delivery keeps
+the draft.
+
+Drafts are markdown files at `rounds.draft_path(root, id)` -- `<round-id>.md`,
+or `unowned.md` for a view that is no round's, with `<id>.last-sent.md`, the
+last delivery, beside it -- read and written by every Nvim. Line 1 is the
+header, `<!-- nvim-review n=<nonce> round=<id> sha=<sha> conversation=<id>
+root="<path>" -->` (an unowned draft has neither sha nor conversation),
+written again from the draft's metadata at every save; delivery checks
+against it alone, so a draft still delivers after retention pruned its
+round's ref. Each intro and each entry opens with a marker line,
+`<!-- nvim-review-intro n=<nonce> id=<id> -->` or
+`<!-- nvim-review-item n=<nonce> id=<id> path="..." side="new|old|file"
+digest="sha256:<hex>|none" -->`; only a marker carrying the draft's own nonce
+is structure, so quoted code and typed text -- another draft's header and
+markers included -- stay text. Delivery sends everything but the header and
+those markers. Two Nvims' versions merge block by block, by id, and a block
+both changed line by line against the version both started from; where both
+changed the same lines of a block, or this Nvim edited a block that was
+delivered or deleted elsewhere, the file keeps its version and this Nvim's
+goes to `<id>.conflict.md` (then `.conflict-2.md`, ...), with a warning. A
+draft with no feedback left is an empty file, which no longer spares its
+round from retention.
+
 ## AI Transcript (`ai.transcript`)
 
 Renders the active provider's recorded sessions into a read-only buffer.
@@ -1087,7 +1692,46 @@ transcript.refresh(buf)    -- re-read and re-render in place (`R` in the buffer)
 Provider knowledge lives in `ai.transcript.claude` and `ai.transcript.codex`,
 which share one `Adapter` contract: `sessions(root)` and `parse(path, cap)`.
 `ai.transcript.render` turns their common `Entry` list into lines plus a parallel
-fold-level array, and never learns which provider produced them.
+fold-level array, and never learns which provider produced them. Both read
+`$CLAUDE_CONFIG_DIR` / `$CODEX_HOME` when set, as the CLIs do, else
+`~/.claude` / `~/.codex`.
+
+#### Session marks (`ai.transcript.marks`)
+
+```lua
+local marks = require("ai.transcript.marks")
+-- agent "claude" or "codex": cb({ title?, ends, turns, mtime? }) | cb(nil)
+marks.read(agent, id, cb, opts)
+
+local time = require("ai.transcript.time")
+time.epoch("2026-11-10T03:43:18.085Z")  --> 1794282198.085 (UTC by arithmetic, offsets applied)
+time.hhmm(timestamp)                    --> local "HH:MM"
+```
+
+A session's name and the ends of its turns, for `ai.review.labels`. The
+adapters say where and what: `sources(id)` lists `{ path, patterns, mark,
+turns?, titles?, decompress? }` -- Claude's transcript, found as
+`projects/*/<id>.jsonl`; Codex's `session_index.jsonl` (names, `turns =
+false`) and its rollout (`titles = false`), looked for first under the day
+its UUIDv7 id was created, and read through `zstd -dc` (`decompress`) when
+Codex has compressed it to `.jsonl.zst` and zstd is installed. Both remember
+a path they found (checked with one stat) and a miss for `MISS_TTL` (60 s).
+`mark(record)` turns a decoded record into `{ title }`, `{ id, title }` (the
+index) or `{ ended }`: Claude's `ai-title` and `custom-title`, its
+`turn_duration` and an interrupted turn's user record (never a sidechain's);
+Codex's `task_complete` and `turn_aborted`.
+
+`read` decodes only lines holding one of `patterns`, reads on libuv's thread
+pool `SLICE` bytes per job in `CHUNK`-sized blocks (collecting each block's
+garbage in the worker), keeps the offset it reached so a later call reads
+only what was appended (a file that shrank, was replaced or now starts
+differently is read again; a compressed one is read whole, again only when
+it changes), skips any line over `MAX_LINE`, and keeps a session's first
+title. `title` is that name, `ends` every turn end ascending (epoch seconds),
+`turns` whether a file of turns was read, `mtime` when the newest of those was
+last written; nil when the records say nothing of the session. With
+`opts.titles` only the name is wanted: files without names are not read, and
+it answers as soon as the name is found. `cb` runs once, on the main loop.
 
 ## Best Practices
 

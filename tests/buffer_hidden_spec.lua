@@ -1,6 +1,6 @@
 -- `<leader>bh` deletes the listed file buffers that no window shows. "No
 -- window" spans every tabpage: a file open only in another tabpage -- the
--- shape of a diffview or debug tabpage -- is in use and must survive, which is
+-- shape of a CodeDiff or debug tabpage -- is in use and must survive, which is
 -- exactly what Snacks.bufdelete.invisible() (current tabpage only) gets wrong.
 local t = dofile("tests/helper.lua")
 require("lazy").load({ plugins = { "bufferline.nvim", "snacks.nvim" } })

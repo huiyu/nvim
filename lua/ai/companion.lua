@@ -13,7 +13,10 @@
 -- (is_visible / is_visible_non_curtab / hide / winnr), `chat.prompt:add`,
 -- `interactions.chat.open` and `utils.context.get`. The facade pcall-wraps
 -- toggle and add and falls back to the upstream commands with a WARN, and
--- tests/companion_spec.lua pins the behaviour.
+-- tests/companion_spec.lua pins the behaviour. Review feedback
+-- (lua/ai/review/feedback.lua) goes to one exact chat through add_text, which
+-- also reads `chat.current_request` and the private `chat._turn_in_progress`
+-- (busy), and refuses rather than raise when they have changed.
 --
 -- Nothing here requires CodeCompanion at the top level. The first call that
 -- needs it does, and lazy's module autoload loads the plugin then -- so the
@@ -180,6 +183,76 @@ function M.add_selection(kind)
   })
   if here(chat) then focus(chat) else show(chat) end
   return chat
+end
+
+local function valid_buf(buf)
+  return type(buf) == "number" and vim.api.nvim_buf_is_valid(buf)
+end
+
+---Is `chat` in the middle of a turn, where text added to its prompt would land
+---inside the reply? A request in flight, or a tool loop between two of its
+---steps: there Chat:done has already cleared `current_request` and the next
+---step's ready_for_input made the buffer editable again, and only the private
+---`_turn_in_progress` is still set (interactions/chat/init.lua, done and
+---ready_for_input). A buffer that is not modifiable is mid-turn too. A chat
+---whose buffer is gone is not busy; it is gone.
+---@param chat table a CodeCompanion.Chat
+---@return boolean
+function M.busy(chat)
+  if type(chat) ~= "table" then return false end
+  if chat.current_request ~= nil then return true end
+  -- Private: read defensively, so a rename upstream drops this signal only.
+  local ok, in_turn = pcall(function() return chat._turn_in_progress end)
+  if ok and in_turn == true then return true end
+  return valid_buf(chat.bufnr) and not vim.bo[chat.bufnr].modifiable
+end
+
+---The live chat `chat` still is: its buffer valid and, once CodeCompanion has
+---loaded, the chat CodeCompanion keeps for that buffer, with the same id. No
+---other chat stands in for it -- not find(kind)'s pick, not a newer chat that
+---reuses the buffer.
+---@param chat table
+---@return table|nil
+local function exact(chat)
+  if type(chat) ~= "table" or chat.id == nil or not valid_buf(chat.bufnr) then return nil end
+  if not loaded() then return chat end
+  local ok, live = pcall(function() return require("codecompanion").buf_get_chat(chat.bufnr) end)
+  if ok and type(live) == "table" and live.id == chat.id and live.bufnr == chat.bufnr then return live end
+  return nil
+end
+
+---Append `text` to the prompt of exactly `chat`, without submitting it.
+---prompt:add writes at the buffer's last column, so text that is to follow
+---what the user already typed should start with "\n" -- without it, a second
+---add glued itself to the end of the half-typed line. At the start of a new
+---user block the newline is dropped by prompt:add itself.
+---
+---Refused while the chat is busy (mid-turn, see busy) or gone; nothing has
+---changed then.
+---@param chat table a CodeCompanion.Chat
+---@param text string
+---@return boolean ok, "gone"|"busy"|"failed"|nil why, string? err
+function M.add_text(chat, text)
+  local live = exact(chat)
+  if not live then return false, "gone" end
+  if M.busy(live) then return false, "busy" end
+  local ok, err = pcall(function() live.prompt:add({ content = text }) end)
+  if not ok then return false, "failed", tostring(err) end
+  return true
+end
+
+---Put `chat` on screen in this tabpage, the cursor at the end of its prompt,
+---in Insert mode: where text add_text appended is to be read and finished.
+---@param chat table a CodeCompanion.Chat
+function M.show_input(chat)
+  if not here(chat) then show(chat) end
+  local win = chat.ui.winnr
+  if not (win and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage()) then
+    return
+  end
+  vim.api.nvim_set_current_win(win)
+  vim.api.nvim_win_set_cursor(win, { vim.api.nvim_buf_line_count(chat.bufnr), 0 })
+  vim.cmd("startinsert!")
 end
 
 ---Keys for <leader>ae: the inline prompt's command line, or nothing when the

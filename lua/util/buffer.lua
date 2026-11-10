@@ -3,7 +3,7 @@ local M = {}
 
 --- Whether `buf` is a listed file buffer whose file no longer exists on disk.
 ---
---- Only plain file buffers qualify: a terminal, oil/diffview URI, help page or
+--- Only plain file buffers qualify: a terminal, oil/codediff URI, help page or
 --- unnamed scratch buffer has no file to be missing. A modified buffer is
 --- still reported -- after an agent deletes a file the user may want to save
 --- it back -- and Snacks' save prompt decides that case.
@@ -33,10 +33,10 @@ end
 
 --- Whether `buf` is a listed, plain buffer that no window shows.
 ---
---- Every tabpage counts, floats included: a file open in a diffview or debug
+--- Every tabpage counts, floats included: a file open in a CodeDiff or debug
 --- tabpage is in use there even while this tabpage cannot see it. That is the
 --- difference from Snacks.bufdelete.invisible(), which asks bufwinnr() and so
---- only looks at the current tabpage. Terminals, help, oil and diffview's own
+--- only looks at the current tabpage. Terminals, help, oil and CodeDiff's own
 --- buffers carry a buftype and never qualify.
 ---@param buf integer
 ---@return boolean

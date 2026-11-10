@@ -212,6 +212,26 @@ local function target_lines()
   return first, last
 end
 
+local function lazygit(cmd)
+  return Snacks.terminal(cmd, {
+    cwd = Snacks.git.get_root(),
+    interactive = true,
+    win = {
+      style = "float", width = 0.9, height = 0.9,
+      on_buf = function(win)
+        -- j must be immediate; an already-buffered jk must pass through too.
+        -- nowait alone cannot beat a complete global chord in the typeahead;
+        -- define j last so it is found before the local jk partial match.
+        for _, key in ipairs({ "jk", "j" }) do
+          vim.keymap.set("t", key, key, {
+            buffer = win.buf, nowait = true, desc = "Send " .. key .. " to lazygit",
+          })
+        end
+      end,
+    },
+  })
+end
+
 return {
   "folke/snacks.nvim",
   lazy = false,
@@ -359,8 +379,7 @@ return {
     {
       "<leader>gg",
       function()
-        Snacks.terminal("lazygit",
-          { cwd = Snacks.git.get_root(), interactive = true, win = { style = "float", width = 0.9, height = 0.9 } })
+        lazygit("lazygit")
       end,
       desc = "Lazygit",
       mode = { "n" }
@@ -368,8 +387,7 @@ return {
     {
       "<leader>gf",
       function()
-        Snacks.terminal({ "lazygit", "log", "--filter", vim.api.nvim_buf_get_name(0) },
-          { cwd = Snacks.git.get_root(), interactive = true, win = { style = "float", width = 0.9, height = 0.9 } })
+        lazygit({ "lazygit", "log", "--filter", vim.api.nvim_buf_get_name(0) })
       end,
       desc = "Lazygit file history",
       mode = { "n" }

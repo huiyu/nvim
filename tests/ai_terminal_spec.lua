@@ -95,8 +95,11 @@ if vim.fn.executable("tmux") == 1 then
     return vim.trim(tmux("display-message", "-p", "-t", "main:", "#{pane_in_mode}").stdout or "")
   end
 
+  -- The session answers before its pane does: on tmux 3.4 (CI) copy-mode
+  -- failed and #{pane_in_mode} was empty for ~25 ms after #{session_name}
+  -- was there. Wait for the pane, and the client, the next steps use.
   t.ok(vim.wait(2000, function()
-    return tmux("display-message", "-p", "-t", "main:", "#{session_name}").code == 0
+    return pane_in_mode() == "0" and vim.trim(tmux("list-clients", "-t", "main").stdout or "") ~= ""
   end, 10), "the wrapped tmux server is ready")
   t.eq(tmux("copy-mode", "-u", "-t", "main:").code, 0,
     "the wrapped panel can enter tmux copy-mode")
@@ -184,6 +187,76 @@ do
   local cmd = spec and spec.opts and spec.opts.terminal_cmd or ""
   if cmd:find("tmux", 1, true) then
     t.ok(cmd:find(runner, 1, true) ~= nil, "the Claude wrapper runs the pane through agent-run")
+  end
+end
+
+-- The review hooks ride in the agent's own argv (lua/ai/review/hook.lua). They
+-- must not move the agent word, which is how every panel rule identifies the
+-- agent, nor the point where claudecode appends --resume / --continue.
+-- tests/agent_hook_spec.lua runs both commands and checks the argv byte for
+-- byte; this checks the shape of what is declared.
+do
+  local hook = require("ai.review.hook")
+  local cmd = claude_spec and claude_spec.opts and claude_spec.opts.terminal_cmd or ""
+  local settings = "--settings " .. vim.fn.shellescape(hook.claude_settings())
+  t.eq(config.provider_of_command(cmd), "claude", "the Claude command with its hooks still reads as Claude")
+  if cmd:find("tmux", 1, true) then
+    -- Inside the wrapper's own `sh -c '...'`, so every quote is re-quoted.
+    local inner = settings:gsub("'", "'\\''")
+    local at = cmd:find(inner .. ' "$@"', 1, true)
+    t.ok(at ~= nil and cmd:find(" claude ", 1, true) < at,
+      "under tmux, --settings follows `claude` and precedes the appended \"$@\"")
+  else
+    t.ok(vim.endswith(cmd, " " .. settings), "unwrapped, --settings ends the command, so appended arguments follow it")
+  end
+
+  local codex_backend = require("ai.backend.codex")
+  local codex_cmd = codex_backend._codex_command({ "resume" })
+  t.eq(vim.list_slice(codex_cmd, 1, 5), { "codex", "--no-alt-screen", "--yolo", "-c", hook.codex_override() },
+    "Codex keeps its flags and gets the hook override before its arguments")
+  t.eq(codex_cmd[6], "resume", "and resume / resume --last still follow")
+  if config.is("codex") and vim.fn.executable("tmux") == 1 then
+    local saved_wrap = vim.env.CODEX_WRAP_TMUX
+    vim.env.CODEX_WRAP_TMUX = "1"
+    local wrapped = codex_backend._terminal_command(codex_cmd)
+    vim.env.CODEX_WRAP_TMUX = saved_wrap
+    local at = vim.fn.index(wrapped, runner)
+    t.eq(vim.list_slice(wrapped, at + 2, at + 1 + #codex_cmd), codex_cmd,
+      "the Codex wrapper hands the whole command to agent-run")
+    t.eq(config.provider_of_command(wrapped), "codex", "and the wrapped command still reads as Codex")
+  end
+end
+
+-- D7: a proposed Claude edit opens in a tabpage of its own, because CodeDiff's
+-- panes never set 'diff' and claudecode would otherwise take one for the main
+-- editor window. The Claude panel still comes along, for comparison.
+do
+  local diff_opts = claude_spec and claude_spec.opts and claude_spec.opts.diff_opts or {}
+  t.eq(diff_opts.open_in_new_tab, true, "claudecode opens a proposed diff in a new tabpage")
+  t.ok(diff_opts.hide_terminal_in_new_tab ~= true, "and keeps the Claude panel in that tabpage")
+end
+
+-- Claude starts where Codex does: the current file's Git root, the session
+-- root every review round is filed under. claude_cwd = "cwd" hands the choice
+-- back to claudecode, which then uses Nvim's working directory as before.
+do
+  local provider = claude_spec and claude_spec.opts and claude_spec.opts.terminal
+    and claude_spec.opts.terminal.cwd_provider
+  t.eq(type(provider), "function", "claudecode is given a cwd_provider")
+  if type(provider) == "function" then
+    local repo = vim.fn.tempname() .. "/repo"
+    vim.fn.mkdir(repo .. "/.git", "p")
+    vim.fn.mkdir(repo .. "/src", "p")
+    local file = repo .. "/src/main.lua"
+    t.eq(provider({ file = file, cwd = "/" }), config.project_root(file),
+      "git_root (the default): the current file's Git root, by the same rule as Codex")
+    t.eq(provider({ file = file, cwd = "/" }), repo, "which is the repository, not Nvim's directory")
+    t.eq(provider({ cwd = "/" }), config.project_root(nil), "with no file, the working directory's root")
+    local saved_review = vim.g.ai_review
+    vim.g.ai_review = { claude_cwd = "cwd" }
+    t.eq(provider({ file = file, cwd = "/" }), nil, "claude_cwd = \"cwd\": no answer, so Nvim's directory as before")
+    vim.g.ai_review = saved_review
+    vim.fn.delete(vim.fs.dirname(repo), "rf")
   end
 end
 

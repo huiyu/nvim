@@ -78,8 +78,8 @@ t.eq(last() and last().level, vim.log.levels.WARN, "it warns")
 t.ok(said("No LSP client"), "that there is nothing to restart")
 
 -- <leader>gm and <leader>gM outside a git repository.
-local function diffview_key(lhs)
-  for _, key in ipairs(require("lazy.core.config").plugins["diffview.nvim"].keys) do
+local function codediff_key(lhs)
+  for _, key in ipairs(require("lazy.core.config").plugins["codediff.nvim"].keys) do
     if key[1] == lhs then return key[2] end
   end
 end
@@ -89,14 +89,20 @@ local cwd = vim.fn.getcwd()
 vim.cmd("lcd " .. vim.fn.fnameescape(outside))
 local tabs = #vim.api.nvim_list_tabpages()
 reset()
-ok = pcall(diffview_key("<leader>gm"))
+ok = pcall(codediff_key("<leader>gm"))
 t.ok(ok, "<leader>gm outside a repository does not raise")
 t.ok(said("not a git repository"), "it reports git's own reason")
 t.eq(#vim.api.nvim_list_tabpages(), tabs, "and opens no diff view")
 reset()
-ok = pcall(diffview_key("<leader>gM"))
+ok = pcall(codediff_key("<leader>gM"))
 t.ok(ok, "<leader>gM outside a repository does not raise")
 t.ok(said("not a git repository"), "it reports git's own reason as well")
+for _, lhs in ipairs({ "<leader>gv", "<leader>gH" }) do
+  reset()
+  ok = pcall(codediff_key(lhs))
+  t.ok(ok and said("not a git repository"), lhs .. " outside a repository reports git's reason")
+end
+t.eq(#vim.api.nvim_list_tabpages(), tabs, "and none of them opens a view")
 vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 
 -- <leader>at when the transcript view fails.
