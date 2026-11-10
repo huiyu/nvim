@@ -363,6 +363,11 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `desc`. A which-key popup on `g` mixes LSP jumps with lexical motions like
   `gf` and `ge`; the prefix is what tells a reader which ones stop working when
   no server is attached.
+- AI mappings belong under `<leader>a`, whose heading already says AI. One
+  that sits in any other prefix's popup carries an `[AI]` prefix in its `desc`
+  -- today `,C` (review feedback) in the Git views' comma menu. Keys local to
+  an AI buffer (the prompt editor's `<C-d>`, the agent panel's terminal keys)
+  and Insert-mode `<C-l>` (ghost text) open no popup and need none.
 - The buffer-local `gr` (References) sets `nowait`. Nvim 0.11's default
   `grr`/`gri`/`grt`/`gra`/`grn`/`grx` are longer candidates, so without it every
   `gr` press waits out `timeoutlen` before firing. The cost is that `gr*` takes
