@@ -1248,6 +1248,24 @@ slot.cover(keep?)         -- hide every AI window here an owner can hide, but ke
 slot.jump(item, opts?)    -- to the tabpage showing it; says so unless quiet
 slot.went(item, from)     -- "Sent to X (tab N)" when a delivery changed tabpage
 slot.toggle(), slot.focus()  -- <leader>ac / <leader>af
+
+-- The pieces the facade (ai) and ai.companion build on.
+slot.native_item(agent), slot.chat_item(chat)  -- an item for one agent / chat
+slot.buf_of(item)         -- its buffer; nil once it is gone
+slot.item_of_buf(buf)     -- the item `buf` shows, if it is an AI buffer
+slot.home()               --> shown, from: the items on the right of the tabpage
+                          -- the keys act in (this one, or a view's origin,
+                          -- which becomes current) and the tabpage pressed in
+slot.victims(keep?)       -- { item, win? } for each AI window here an owner
+                          -- can hide, but keep's
+slot.chat_window_here(item) -- another chat's window here, for `item` (a chat)
+                          -- to take over in place
+slot.hide(item, opts?)    -- through its owner; a chat mid-turn says so.
+                          -- opts.keep_window: leave a chat's window for the next
+slot.around(keep, open)   -- run open() with the rest hidden: before it, or after
+                          -- it when they are all this tabpage has (E444)
+slot.remember(item)       -- vim.t.ai_slot_last = item.id
+slot.setup()              -- the BufWinEnter guard and the approval notice
 ```
 
 `vim.t.ai_slot_last` remembers the last chat a tabpage showed, for
@@ -1392,10 +1410,12 @@ bottom. This used to live in `ai.backend.codex`, so Claude never had it.
 ## AI Selection (`ai.selection`)
 
 Builds agent-ready text from the live visual selection. It sits outside the
-backends because the two providers attach selections through different channels:
-Codex pastes text, while Claude's `<leader>as` goes over the IDE WebSocket and
-produces no text at all. `<leader>ai` needs text under both providers to seed the
-agent's input box, so the text form has exactly one producer.
+backends because the two agents attach selections through different channels:
+Codex pastes text, while Claude's `<leader>as` goes over the IDE WebSocket as a
+mention of the lines and produces no text at all. `<leader>ai` needs text for
+both agents to seed the input box, so the text form has exactly one producer.
+`capture()` takes the selection whole, once, for every route it may take
+after a question: Claude's lines, Codex's draft, a chat's fenced block.
 
 #### API Reference
 

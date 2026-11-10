@@ -68,7 +68,7 @@ nvim
 │   ├── whichkey_spec.lua     # which-key 分组、弹窗分区、spec 键位（数据）
 │   ├── autocmds.lua          # 自动命令
 │   ├── bootstrap.lua         # lazy.nvim 初始化
-│   ├── ai/                    # Provider 配置 + Native Claude/Codex facade、审阅轮次（ai/review/）
+│   ├── ai/                    # AI 状态、Chat 槽位、Native Claude/Codex 后端、CodeCompanion Chat、审阅轮次（ai/review/）
 │   ├── config/
 │   │   └── health.lua        # `:checkhealth config` 提供者
 │   ├── lang/                 # 语言专属配置
@@ -90,7 +90,7 @@ nvim
 │   │   ├── ui/               # 界面和主题插件
 │   │   └── vcs/              # Git 集成
 │   └── util/                 # 工具模块
-├── .github/workflows/       # CI：spec 套件 + 两个 provider 启动检查
+├── .github/workflows/       # CI：spec 套件 + 两种默认后端各一次启动检查
 ├── scripts/                 # Agent TUI 辅助脚本、共享 llama-server 的守护脚本
 ├── tests/                   # Headless spec 套件（tests/run.sh）
 └── docs/                     # MANUAL.md, DIAGNOSTICS.md, UTILITIES.md
@@ -351,7 +351,7 @@ agent 启动失败时，面板会保留、把它自己的报错留在屏幕上�
 两个 wrapper 的 tmux 收尾都会向 Nvim 报告成功（无论 agent 怎么退出的），所以在此
 之前面板会静默关闭，报错随 tmux 服务器一起消失，`:messages` 里也什么都不剩。
 
-两个 provider 的翻历史方式完全一致：两个 wrapper 的 tmux 都启用了 `mouse on` 和
+两个 agent 的翻历史方式完全一致：两个 wrapper 的 tmux 都启用了 `mouse on` 和
 50000 行 history。真实 transcript 归 tmux 所有，Nvim 的终端 buffer 里只有 tmux
 最后合成的那一屏，所以滚动要走 tmux。保持 terminal-input 状态，以鼠标滚轮或
 `<PageUp>` 进入 tmux copy-mode；用滚轮或 `<PageDown>` 向下查看，按 `q` 或
@@ -517,9 +517,11 @@ transcript 是唯一对两个 agent 都成立的方案，且重启 Nvim 后依�
   显示什么无关。
 
 `<leader>ar`、`aR`、`am`、`at`、`aT` 属于 Native Agent：右侧的那个，否则由你选择
-（默认后端排在前面）。agent 已在运行时，它们只把它显示出来，并提示在里面怎么做
+（默认后端排在前面；只装了一个 agent 时就是它）。每个 Native Agent 在一个 Nvim 里只有
+一个会话，所以 agent 已在运行时，`ar`、`aR`、`am` 只把它显示出来，并提示在里面怎么做
 （`/resume`、`/model`），而不是再开一个会话；也不会往它的输入框里打字，因为那里可能
-有草稿。由它们启动的会话会弹出提示。
+有草稿。由它们启动的会话会弹出提示。`at`、`aT` 从磁盘读取 agent 的记录，不管它是否
+在运行。
 
 **默认后端**在 Nvim 启动时确定，只决定默认值：`<leader>an` 的第一项、Native 类键询问
 时排第一的 agent、`auto` key profile，以及 CodeCompanion 自己的命令在没有指定

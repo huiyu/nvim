@@ -852,7 +852,7 @@ agent 会自己改文件，一条 prompt 往往改好几个。审阅就是把你
 
 | 对话 | 轮次开始于 |
 |---|---|
-| Native Claude 或 Codex（`<Space>ac`） | 你在面板里提交一条 prompt |
+| Native Claude 或 Codex（`<Space>an`） | 你在面板里提交一条 prompt |
 | Agent Chat 或 API Chat（`<Space>an`） | 你发送一条消息，或重新生成回复 |
 | 不属于任何对话 | 你按下 `<Space>aV` |
 

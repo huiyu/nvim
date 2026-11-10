@@ -25,6 +25,7 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | No / wrong highlight | `:checkhealth nvim-treesitter` · `:checkhealth config` (tree-sitter CLI) · `:InspectTree` · `:Inspect` |
 | Formatting does nothing | `:ConformInfo` · then `:checkhealth conform` |
 | CodeCompanion chat refuses or fails | `:AI info` · `:checkhealth config` · `<leader>mnh` (notification history) |
+| `<leader>an` lists no backend, or an AI key acts somewhere unexpected | `:AI info` (open chats and where they are) · `:checkhealth config` (AI backends) · [AI and CodeCompanion](#ai-and-codecompanion) |
 | No grey AI suggestions | `:checkhealth config` (inline completion) · `~/.local/state/nvim/llama/server.log` |
 | GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `<leader>mnh` (notification history) |
 | A diff view (`<leader>gv`, `gm`, `gk`, …) errors or never opens | `:checkhealth config` (CodeDiff) · `:CodeDiff install!` · [Diff views](#diff-views-codediff) |
@@ -361,12 +362,71 @@ labels and the listing; its header lists what it depends on.
   palette (`<leader>ap`), `<leader>ao`, `}`/`{` in a chat — open a chat
   without naming a window, and CodeCompanion then closes its last chat
   wherever it is shown, another tabpage included. Nothing is lost (`:AI info`
-  lists it as *hidden*); `<leader>al` shows it again. The `<leader>a` keys
-  never take that path.
-- **A key asked "Which native agent?" or "Switch AI chat" instead of acting.**
-  Nothing is on the right of this tabpage (or, from a CodeDiff view, of the
-  page the view came from), and nothing is ever delivered to a hidden chat or
-  another tabpage's without asking. Cancel delivers nothing.
+  lists it as *hidden*); `<leader>al` shows it again. The chat keys (`an`,
+  `al`, `ac`, `af`, `ab`, `as`, `ai`) never take that path; `<leader>ap` and
+  `<leader>ao` are upstream's own, and do.
+- **Two AI windows on the right of one tabpage.** Showing a chat hides the
+  others through their owners, and a `BufWinEnter` guard does the same for
+  paths that never come through the facade. Neither touches a window its owner
+  cannot hide, and the guard gives up when another tabpage is current by the
+  time it runs. What `<leader>ac` says tells which case it is:
+  - *This is Claude Code's diff tabpage* — a window on Claude Code's
+    terminal that is not the terminal's own. Usually claudecode's copy beside
+    a proposed diff, in a tabpage of its own: answer the diff (`<leader>aa` /
+    `<leader>ad`) and the tabpage closes. A `:split` of the terminal says the
+    same; close that window (`sd`).
+  - *… is shown here in a window it cannot hide* — the same for Codex or a
+    chat: a second window on its buffer, typically a `:split` of it. Close
+    that window (`sd`).
+  - *… is this tabpage's only window* — `<leader>ac` refuses to leave the
+    tabpage with nothing in it. Open a file beside it first.
+  - Otherwise `<leader>ac` hides every AI window here, and pressed again
+    brings back the last one this tabpage showed: one window again.
+  `<C-c>` in a chat shows the next chat in its window, and CodeCompanion may
+  leave that chat's buffer in a window of another tabpage too; `<leader>ac`
+  there closes the copy (the chat stays on screen where it is its own).
+  `AI slot guard failed:` with a traceback means the guard itself raised
+  (usually a CodeCompanion update; see *A key fails* below).
+- **A key asked instead of acting** — "Add selection to", "Add buffer to",
+  "Edit prompt for", "Switch AI chat", "Which native agent?", "Whose
+  transcript?". Nothing is on the right of this tabpage (or, from a CodeDiff
+  view, of the page the view came from), or several AI windows are there and
+  the current window is none of them. Nothing is ever delivered to a hidden
+  chat, another tabpage's or the default backend without asking. Cancel
+  delivers nothing and, from a CodeDiff view, goes back to it.
+- **Where did the selection (or the buffer) go?** To the chat on the right of
+  the tabpage the key was pressed in — from a CodeDiff view, of the page the
+  view came from, which becomes current. When that meant going to another
+  tabpage the notice says so: `Sent to Codex (tab 2)`. Nothing is submitted:
+  - Claude Code gets a file mention of the selected lines (`<leader>as`) or
+    of the file (`<leader>ab`), through claudecode as `:ClaudeCodeSend` and
+    `:ClaudeCodeAdd` would. It reads the saved file: a buffer with unsaved
+    changes is sent with a warning, a buffer with no file is refused
+    (`<leader>ai` takes the selected text itself).
+  - Codex gets `@path lines X-Y ` (or `@path ` for `<leader>ab`) typed into
+    its input box; from a buffer with no file or with unsaved changes
+    `<leader>as` types the exact selection instead, fenced (saying so for the
+    unsaved changes), and `<leader>ab` warns that Codex reads the saved file.
+  - A chat gets the selection as a fenced block at the end of its prompt.
+    `The chat is replying: nothing was added` while it is mid-turn (a tool
+    loop included). `<leader>ab` sends a chat nothing: it takes a selection,
+    or `#{buffer}` in its own prompt.
+  A Visual selection in oil goes only to Claude Code on the right, and
+  nowhere when anything else is there: a listing's selection cannot wait for
+  a question.
+- **`<leader>ar`, `aR` or `am` only showed the agent.** Each native agent has
+  one session per Nvim (claudecode keeps one terminal, and so does the Codex
+  backend), so a running one is shown and left as it is: `Claude Code is
+  already running: use /resume in it, or exit it first` (`/model` for `am`;
+  Codex says the same). Nothing is typed into its input box, which may hold a
+  draft or an approval an Enter would answer. `<leader>an` offers that
+  session too, labelled *running* or *● here*, and shows it rather than start
+  a second. Use `/resume` or `/model` inside, or exit the agent and press the
+  key again. A session these keys or `<leader>an` start is announced (`Started
+  Codex · terminal · subscription to resume a session`, `New chat: …`). A cold
+  start begins from the editor window, so the agent's root is the edited
+  file's; with none in this tabpage it refuses: `No editor window in this tab
+  to start the agent from`.
 - **The agent session is alive, but its panel disappeared after clicking a file
   tab.** bufferline's default `:buffer` ran in the focused panel; Snacks' window
   protection could close that window when no ordinary file window was available
@@ -394,6 +454,18 @@ labels and the listing; its header lists what it depends on.
   gone too: `<leader>an` starts either kind.
 - History restores the local transcript; use `/resume` in a fresh agent chat
   to reload a stateful agent session.
+- **`<leader>an` shows no backend (`No AI backend is available here`), or
+  leaves one out.** The picker lists only what can start here, read from
+  this Nvim's `PATH` and environment each time it opens, and loads nothing to
+  decide: a native terminal needs its CLI (`claude`, `codex`), an ACP chat its
+  bridge, an API chat its profile's `NVIM_*` variable. `:checkhealth config`,
+  *AI backends*, names each one missing. A CLI installed later is found at
+  the next press; a variable exported in another shell is not, until Nvim is
+  started from a shell that has it. The keys that take only a native agent
+  (`<leader>ab`, `ar`, `aR`, `am`, `at`, `aT`) say `No native agent is
+  installed (claude, codex)` instead. An entry ending in `⚠ ANTHROPIC_API_KEY
+  is set — it may bill the API` (or `OPENAI_API_KEY`) is listed, but its
+  "subscription" may not hold: see *The agent bills the API* below.
 - **An API chat is missing from `<leader>an`, or `<leader>ae` says
   `NVIM_… is not set`.** The picker lists only backends that can start, and
   an API chat needs its profile's variable; `<leader>ae` refuses before the
@@ -417,9 +489,14 @@ labels and the listing; its header lists what it depends on.
   `lua/ai/companion.lua` reaches into CodeCompanion's chat internals, and an
   update changed one. Nothing falls back to an upstream command, which would
   aim at its last chat instead; the error names what to fix.
-- **Claude Code still sees the selection while it is hidden.** claudecode's
-  selection tracking stays on whatever the right shows, as it does for a
-  shown panel: a running Claude follows the editor's selection hidden or not.
+- **Claude Code still sees the selection while it is hidden.** Expected.
+  claudecode's selection tracking (its `track_selection`, on by default and
+  not changed here) reports the editor's selection to a running Claude over
+  its IDE connection whatever the right shows, as it does for a shown panel,
+  so a prompt sent to Claude may refer to it. That is Claude's own editor
+  context, not a delivery: nothing is typed into its input box, and with
+  Codex or a chat on the right the `<leader>a` keys never send it to Claude.
+  Only a Claude session that runs has it; quitting Claude ends it.
 - **Nvim refuses to start: `AI key profile "…" must read an NVIM_* variable`.**
   A `key_profiles` entry in `lua/ai/config.lua` names a CLI's own variable (or
   something not `NVIM_*`). Give it an `NVIM_*` variable of its own.
@@ -609,9 +686,21 @@ rather than a broken viewer.
   Code: across the same edit its pane went 17 non-blank lines → 0 → 17, while
   Codex held at 18 → 18 → 18 and kept its TUI on screen throughout.
 - **`<leader>ai` appears to do nothing** — the agent was not running. It starts
-  the CLI and notifies instead of firing the keystroke, because a `ctrl+g` aimed
-  at a TUI that is still booting is swallowed silently. Press `<leader>ai` again
-  once the prompt appears.
+  the CLI and waits, up to 45 s, for its input box before sending `ctrl+g`,
+  because a `ctrl+g` aimed at a TUI that is still booting is swallowed
+  silently. A box that never shows (a trust or login prompt still waiting for
+  an answer) ends in `… did not reach its prompt — press <leader>ai again`.
+  With nothing on the right it asks first (*Edit prompt for*); on a
+  CodeCompanion chat it opens no float at all and puts the cursor in the
+  chat's own prompt, in Insert mode unless the chat is replying (`The chat is
+  replying: type once it is done`).
+- **The float's title is just ` Prompt `, and `<C-v>` refuses** (`No agent is
+  known to have handed over this prompt`). The file's path names neither
+  agent — Claude Code's are `claude-prompt-*.md`, Codex's
+  `$CODEX_HOME/editor/*.md` — typically a `git commit` run in an agent's pane,
+  which uses the same `$EDITOR`. It is edited and returned like any other, but
+  takes no staged text (a `<leader>ai` selection, review feedback) and
+  attaches no image: either would go to an agent guessed at.
 - **The prompt opens in a second Nvim inside the terminal** — the `$EDITOR`
   handoff did not reach the pane, so the CLI fell back to running `nvim` itself.
   Check `:checkhealth config` for the wrapper, then inside the agent terminal:

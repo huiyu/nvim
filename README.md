@@ -73,7 +73,7 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 │   ├── whichkey_spec.lua     # which-key groups, popup sections, spec keymaps (data)
 │   ├── autocmds.lua          # Autocommands
 │   ├── bootstrap.lua         # lazy.nvim setup
-│   ├── ai/                    # Provider config + native Claude/Codex facade, review rounds (ai/review/)
+│   ├── ai/                    # AI state, the chat slot, native Claude/Codex backends, CodeCompanion chats, review rounds (ai/review/)
 │   ├── config/
 │   │   └── health.lua        # `:checkhealth config` provider
 │   ├── lang/                 # Language-specific configs
@@ -95,7 +95,7 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 │   │   ├── ui/               # UI and theme plugins
 │   │   └── vcs/              # Git integration
 │   └── util/                 # Utility modules
-├── .github/workflows/       # CI: spec suite + both provider startups
+├── .github/workflows/       # CI: spec suite + a startup with each default backend
 ├── scripts/                 # Agent TUI helpers, shared llama-server supervisor
 ├── tests/                   # Headless spec suite (tests/run.sh)
 └── docs/                     # MANUAL.md, DIAGNOSTICS.md, UTILITIES.md
@@ -381,7 +381,7 @@ that reports success to Nvim however the agent exited, so without this the panel
 closed silently and the message went with the tmux server -- nothing reached
 `:messages` either.
 
-Scrollback works the same way under both providers, because both wrappers run
+Scrollback works the same way under both agents, because both wrappers run
 tmux with `mouse on` and a 50000-line history. tmux owns the real transcript;
 Nvim's terminal buffer only holds the screenful tmux last composed, so scrolling
 goes through tmux. Stay in terminal-input mode and use the mouse wheel or
@@ -578,10 +578,12 @@ tabpages are left alone.
   claudecode's selection tracking stays on, whatever the right shows.
 
 `<leader>ar`, `aR`, `am`, `at` and `aT` belong to a native agent: the one on
-the right, else the one you pick (the default backend first). On an agent that
-is already running they show it and say how to do it there (`/resume`,
-`/model`) instead of starting a second session; nothing is typed into its box,
-which may hold a draft. A session they start is announced.
+the right, else the one you pick (the default backend first; with one agent
+installed, that one). Each native agent has one session per Nvim, so on an
+agent that is already running `ar`, `aR` and `am` show it and say how to do it
+there (`/resume`, `/model`) instead of starting a second session; nothing is
+typed into its box, which may hold a draft. A session they start is
+announced. `at` and `aT` read the agent's records from disk, running or not.
 
 The **default backend** is fixed when Nvim starts and only sets defaults: the
 first entry of `<leader>an`, the agent a native key offers first, the `auto`

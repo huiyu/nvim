@@ -973,7 +973,7 @@ Every kind of conversation starts rounds the same way:
 
 | Conversation | A round starts when |
 |---|---|
-| Native Claude or Codex (`<Space>ac`) | you submit a prompt in the panel |
+| Native Claude or Codex (`<Space>an`) | you submit a prompt in the panel |
 | Agent chat or API chat (`<Space>an`) | you send a message, or regenerate a reply |
 | None in particular | you press `<Space>aV` |
 

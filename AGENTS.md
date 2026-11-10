@@ -93,9 +93,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   selection is captured with plain Neovim API before any question
   (`ai.selection.capture`): vim.ui.select is asynchronous, and Visual mode is
   gone by its answer. `ar`/`aR`/`am` and `at`/`aT` act on the native agent
-  on the right, else ask which (the default first); a running session is
-  shown and left as it is, saying so, instead of being toggled away with its
-  arguments dropped. oil's `<leader>aS` is in every oil buffer and refuses
+  on the right, else ask which (the default first; with one installed, that
+  one). Each native agent keeps one session per Nvim: `ar`/`aR`/`am` show a
+  running one and leave it as it is, saying so, instead of toggling it away
+  with their arguments dropped, and the new-chat picker's native entry is
+  that session ("running", "● here"), never a second; `at`/`aT` only read
+  its records. oil's `<leader>aS` is in every oil buffer and refuses
   unless Claude Code is on the right: it reads the listing's cursor where it
   is, so it asks nothing, as a listing's Visual `as` does not.
   Nothing is typed into a running agent's box for `am`: it may hold a draft
@@ -697,8 +700,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - `docs/MANUAL.md` / `docs/MANUAL_CN.md` is the long-form guide for someone new
   to Vim or to this config: the prefix model, then each workflow end to end.
   Detail belongs there rather than growing the README.
-- Update `docs/DIAGNOSTICS.md` when dependency, health, provider, formatter, or
-  troubleshooting behavior changes.
+- Update `docs/DIAGNOSTICS.md` when dependency, health, AI backend,
+  formatter, or troubleshooting behavior changes.
 - Update `docs/UTILITIES.md` when a public utility contract changes.
 - Document actual mappings and dependencies, not planned behavior.
 
