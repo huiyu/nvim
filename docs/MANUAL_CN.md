@@ -535,7 +535,7 @@ Ctrl-,                             直达编辑器，再按跳回
 | `<Space>d` | 调试 | 断点、单步、查看变量 |
 | `<Space>t` | 测试 | 跑文件 / 跑最近的 / 调试、输出面板 |
 | `<Space>x` | 诊断 | 错误列表、quickfix、location list |
-| `<Space>a` | AI | Claude / Codex 面板、prompt、transcript、Agent Chat 和 API Chat（`ag` / `ah`）、审阅轮次（`av` / `aV`）、切换 provider / API key（`ax`） |
+| `<Space>a` | AI | 右侧的 Chat——Claude / Codex 面板和 CodeCompanion Chat（`an` 新建、`al` 切换、`ac` / `af`）、prompt、transcript、审阅轮次（`av` / `aV`）、API key（`ax`） |
 | `<Space>b` | Buffer | 删除、固定、关其他、关掉隐藏的（`bh`） |
 | `<Space>m` | 管理 | 配置、插件源码、help、man、键位、消息、Lazy、Mason、LSP 状态 |
 | `<Space>s` | 会话 | 保存 / 恢复工作布局 |
@@ -745,21 +745,27 @@ index 那一侧有未保存的修改时不会关闭：在那里 `:w` 会暂存�
 Ctrl-/       切换终端
 3<Ctrl-/>    从文件直接打开终端 3（Normal 模式）
 ,1 … ,9      在终端 buffer 中选择第 1-9 个终端（先按 jk）
-<Space>ac    打开 AI 面板
+<Space>an    新建 AI Chat：Claude Code、Codex 或 CodeCompanion Chat
+<Space>al    切换到另一个已打开的 Chat
+<Space>ac    隐藏右侧的 Chat，或把它找回来
 <Space>ai    在真正的 Neovim buffer 里写 prompt
 <Space>av    审阅自上一条 prompt 以来的改动
-<Space>ax    在 Claude Code 和 Codex 之间切换（或切换 API key）
 Ctrl-l       （Insert）接受灰色的 AI 建议
 ```
 
 `Ctrl-]` 退出终端输入但不打扰里面运行的程序——因为 `Esc` 属于 AI CLI 自己。
 
-用哪个 agent 由启动选项决定（`vi --claude` 是 Claude Code，`vi --codex` 是 Codex），
-`<Space>ax`（`:AI`）可以不重启就换过去。切换只改变 `<Space>a` 这组键接下来发给谁
-——which-key 菜单里会显示新的名字——不会停掉任何东西。离开的那个 agent 继续运行；
-打开新 agent 的面板时，同一 tabpage 里旧的面板会让出位置，切回去再按 `<Space>ac`
-就能把它找回来。`:AI info` 会列出哪些 agent 在运行，以及 HTTP prompt 会用哪个
-API key。详见 [AI provider 选择](../README_CN.md#ai-provider-选择)。
+一个 tabpage 的右侧只放一个 AI 窗口——*右侧的 Chat*：Claude Code 或 Codex 的终端，
+或一个 CodeCompanion Chat。`<Space>an` 在你已有的任一后端上新建一个（列表里写明各自
+怎么计费），`<Space>al` 切换到另一个已打开的，而 `<Space>a` 下那些往外发东西的键
+——`as`、`ab`、`ai`——发给右侧显示的那个。显示一个会隐藏同一 tabpage 里的其他几个，
+但不会停掉它们：agent 隐藏时照样在干活，`<Space>al`（或 `<Space>ac`，找回这个
+tabpage 上次显示的那个）就能把它找回来。右侧什么都没有时，键会先问发到哪里；它从不
+自作主张发给隐藏的 Chat。在 CodeDiff 视图里，这些键作用于打开该视图的那个页面。
+
+启动选项（`vi --claude`、`vi --codex`）只决定*默认后端*：`<Space>an` 的第一项，以及
+键需要询问时排在第一的 agent。`:AI info` 列出每个已打开的 Chat 和它在哪里，以及 Inline
+prompt 会用哪个 API key。详见 [AI Chat 与默认后端](../README_CN.md#ai-chat-与默认后端)。
 
 要让 agent 看某段代码，`<Space>yl` 复制相对仓库根目录的 `path:12`（Visual 模式下是
 选中几行的 `path:12-18`）。agent 的 prompt 认这种写法，`gF` 和终端里的链接也认。
@@ -779,15 +785,17 @@ Markdown、纯文本、提交信息和没有 filetype 的 buffer 里不会自动
 
 ### 三种问 AI 的方式
 
-`<Space>a` 菜单通向三样不同的东西。它们能做的事有重叠，但请求发到哪里、由谁付费
+`<Space>an` 提供三样不同的东西。它们能做的事有重叠，但请求发到哪里、由谁付费
 各不相同：
 
 | | Native 面板 | Agent Chat | API Chat |
 |---|---|---|---|
-| 键 | `<Space>ac`、`ai`、`as`、`ab` | `<Space>ag`、`aG` | `<Space>ah`、`aH`、`ae` |
+| `<Space>an` 里的条目 | `Claude Code · terminal · subscription` | `Claude Code · CodeCompanion ACP · subscription` | `Anthropic · CodeCompanion API · API credits` |
 | 是什么 | agent 自己的终端程序 | 同一个 agent，放在 Neovim 的 Chat buffer 里（CodeCompanion 走 ACP） | 直接调用模型 API，同样是 Chat buffer（CodeCompanion 走 HTTP） |
 | 谁付费 | 订阅 | 订阅 | API 额度 |
-| 跟随 | provider | provider | API key profile |
+
+每一种都有对应的 Codex 或 OpenAI 版本。开起来之后三者的用法一样：轮流占用右侧，
+`as`、`ai`、`ac`、`af` 作用于右侧显示的那个。
 
 按手头的事来选：
 
@@ -797,25 +805,21 @@ Markdown、纯文本、提交信息和没有 filetype 的 buffer 里不会自动
   buffer 里写 prompt。
 - **在 buffer 里把问题理清楚：用 Agent Chat。** 同一个 agent、同一份订阅，但对话是
   一个 Markdown buffer，可以像普通文件一样搜索、复制、修改。Visual 模式下按
-  `<Space>ag` 把选区加进去。
+  `<Space>as` 把选区加进去。
 - **直接问模型：用 API Chat。** 中间没有 agent，按 API key 计费（设置见
   [API key](../README_CN.md#api-key)）。它有 CodeCompanion 自己的 `@` 工具，
   可以用 `/save` 把对话存成 session，用 `/compact` 压缩长对话。`<Space>ae` 是它的
-  一次性用法：在命令行写一句指令，作用于选区或光标所在位置。
+  一次性用法：在命令行写一句指令，作用于选区或光标所在位置，按 `<Space>ax` 选的 key
+  profile 计费。
 
 在任一种 Chat 里，在最后一个 `## Me` 标题下面写，然后在 Normal 模式按 `Enter`
 （或 `Ctrl-s`）发送；按下之前什么都不会发出去。回复的标题会写明是哪一种——
-`CodeCompanion (Claude Code · ACP)` 或 `CodeCompanion (Anthropic · API)`——菜单里的
-分组标题 *ACP chat · subscription* 和 *HTTP · API credits* 也一样。
+`CodeCompanion (Claude Code · ACP)` 或 `CodeCompanion (Anthropic · API)`——`<Space>al`
+里的标签也一样。会花 API 额度的键放在菜单分组 *HTTP · API credits* 下。
 
-两种 Chat 共用一个窗口。`<Space>ag` 和 `<Space>ah` 各自显示或隐藏自己那一种，
-还没有时就新建；大写的 `aG` / `aH` 总是新建。`<Space>ao` 重新打开已保存的 Chat，
-两种都可以。
-
-`<Space>ax` 会同时带动它们：切到 Codex 之后，`<Space>ag` 打开的是 Codex 的 Agent
-Chat；执行 `:AI key openai` 之后，`<Space>ah` 打开的是 OpenAI 的。已经打开的 Chat
-保持创建时的设置。API key 没设置时，`<Space>ah` 和 `<Space>ae` 会提示，并且不发出
-任何请求。
+两个 Chat 之间切换时，右侧的窗口原地交接。Chat 保留创建时的后端；换后端就是另一个
+Chat，从 `<Space>an` 新建。`<Space>ao` 重新打开已保存的 Chat，两种都可以。key 没设置
+的 API Chat 不会出现在列表里，`<Space>ae` 会提示，并且不发出任何请求。
 
 批准一处修改和审阅修改是两回事。`<Space>aa` / `<Space>ad` 回答的是 Claude *提出*
 的一处修改，在它写到磁盘之前；只有 Native Claude 会问（Codex 带 `--yolo` 运行，什么
@@ -849,7 +853,7 @@ agent 会自己改文件，一条 prompt 往往改好几个。审阅就是把你
 | 对话 | 轮次开始于 |
 |---|---|
 | Native Claude 或 Codex（`<Space>ac`） | 你在面板里提交一条 prompt |
-| Agent Chat（`<Space>ag`）或 API Chat（`<Space>ah`） | 你发送一条消息，或重新生成回复 |
+| Agent Chat 或 API Chat（`<Space>an`） | 你发送一条消息，或重新生成回复 |
 | 不属于任何对话 | 你按下 `<Space>aV` |
 
 prompt 会等它的快照，最多 2.5 秒；在普通仓库里，快照只要其中一小部分时间。快照用时
@@ -892,7 +896,7 @@ agent 的修改，也一样会出现——所以每条消息都写 "changes sinc
 正在对比的仓库），再否则是工作目录所在的仓库。哪一轮，取下面第一个存在的：
 
 1. 当前面板或 Chat 所属对话的最新一轮；
-2. 当前 provider 的 agent 会话的最新一轮；
+2. 右侧 Chat 的最新一轮（在 CodeDiff 视图里，是打开该视图的那个页面右侧的 Chat）；
 3. 本 Nvim 在这个仓库里开启的最新一轮；
 4. 这个仓库里的最新一轮，不论是谁开的。
 
@@ -1048,12 +1052,12 @@ Claude 仍然把轮次记在它启动的地方，并提示一次。
 
 - `<Space>aV`（*Start a review round*）不用 prompt，立即开一轮——比如在你动手改之前，
   或在以别的方式开始一个任务之前。它属于你按下它时所在面板或 Chat 的对话；否则属于
-  当前 provider 的 agent（前提是它在这个仓库里运行，并且已经报告了会话）；再否则不
-  属于任何对话，`<C-d>` 会问你反馈发到哪里。如果自那个对话的上一轮以来什么都没变，
+  右侧的 Chat（前提是它在这个仓库里工作，并且是本 Nvim 认得的对话：已报告会话的
+  agent，或一个 Chat）；再否则不属于任何对话，`<C-d>` 会问你反馈发到哪里。如果自那个对话的上一轮以来什么都没变，
   它会提示那一轮已经就是当前状态。
 - `<Space>gK`（*Save current code as a baseline*）保存一个有名字的快照，不属于任何
-  对话——比如 "before refactor"。它会预填这个仓库里正在工作的 agent 会话的名字（当前
-  provider 的优先）；可以改，清空则用当时的时间。每个 worktree 保留最新的 10 个，删掉
+  对话——比如 "before refactor"。它会预填这个仓库里正在工作的 agent 会话的名字（右侧
+  Chat 的优先）；可以改，清空则用当时的时间。每个 worktree 保留最新的 10 个，删掉
   的会在提示里列出。
 - `<Space>gk`（*Compare two*）对比任意两端。选一个更早轮次的基线对比工作区，就能一次
   看到自更早某条 prompt 以来、跨越好几轮的全部改动：这个视图算作那一轮的审阅 tab，
