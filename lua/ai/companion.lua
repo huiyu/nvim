@@ -237,7 +237,7 @@ end
 ---tabpage, the slot's way (lua/ai/slot.lua): a chat window here hands itself
 ---over, or the AI windows here make way for a new one.
 ---@param chat table a CodeCompanion.Chat
----@param opts? { focus?: boolean, toggled?: boolean } focus defaults to true; toggled keeps the cursor where it was left
+---@param opts? { focus?: boolean, toggled?: boolean, quiet?: boolean } focus defaults to true; toggled keeps the cursor where it was left; quiet: a jump says nothing (a delivery says where it went itself)
 ---@return boolean shown, "jumped"? how
 function M.show(chat, opts)
   opts = opts or {}
@@ -249,7 +249,7 @@ function M.show(chat, opts)
   local slot = require("ai.slot")
   local item = slot.chat_item(chat)
   if M.where(chat) == "elsewhere" then
-    slot.jump(item, { focus = opts.focus ~= false })
+    slot.jump(item, { focus = opts.focus ~= false, quiet = opts.quiet })
     return true, "jumped"
   end
   local from = vim.api.nvim_get_current_win()

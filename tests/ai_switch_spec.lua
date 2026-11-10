@@ -154,6 +154,8 @@ for _, case in ipairs({
   { env = { NVIM_AI_PROVIDER = "CODEX" }, default = "codex", source = "NVIM_AI_PROVIDER" },
   { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = 'codex'", default = "codex", source = "vim.g.ai_provider" },
   { env = { NVIM_AI_PROVIDER = "" }, default = "claude", source = "built-in" },
+  -- Empty means unset in vim.g as in the environment.
+  { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = ''", default = "claude", source = "built-in" },
 }) do
   local got = child(vim.tbl_extend("force", case.env, { SPEC_LHS = lhs_json }), probe, case.pre)
   local what = ("%s (%s)"):format(case.default, case.source)
@@ -174,10 +176,20 @@ for _, lhs in ipairs({ " ag", " aG", " ah", " aH", " aa", " ad" }) do
   t.eq(here[lhs], vim.NIL, "<leader>" .. lhs:sub(2) .. " is not mapped at startup")
 end
 
-local bad = vim.system({ vim.v.progpath, "--headless", "-u", "init.lua", "-i", "NONE", "+qa" },
-  { env = { NVIM_AI_PROVIDER = "gemini" }, text = true }):wait(30000)
-t.ok(((bad.stdout or "") .. (bad.stderr or "")):find('Invalid NVIM_AI_PROVIDER="gemini"', 1, true) ~= nil,
-  "an unknown NVIM_AI_PROVIDER is an error at startup, naming it")
+-- Anything else that names no agent stops startup, naming the knob it came
+-- from: a value of another type too, rather than a Lua error about it.
+for _, case in ipairs({
+  { env = { NVIM_AI_PROVIDER = "gemini" }, says = 'Invalid NVIM_AI_PROVIDER="gemini"' },
+  { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = 'gemini'", says = 'Invalid vim.g.ai_provider="gemini"' },
+  { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = v:true", says = "Invalid vim.g.ai_provider=true" },
+}) do
+  local cmd = { vim.v.progpath, "--headless", "-u", "init.lua", "-i", "NONE" }
+  if case.pre then vim.list_extend(cmd, { "--cmd", case.pre }) end
+  local bad = vim.system(vim.list_extend(cmd, { "+qa" }), { env = case.env, text = true }):wait(30000)
+  local said = (bad.stdout or "") .. (bad.stderr or "")
+  t.ok(said:find(case.says, 1, true) ~= nil and said:find("expected 'claude' or 'codex'", 1, true) ~= nil,
+    ("%s is an error at startup, naming it and what it takes"):format(case.says:match("^Invalid (.*)$")))
+end
 
 ---------------------------------------------------------------------------
 -- Claude's diff keys exist once claudecode.nvim has loaded
@@ -321,6 +333,18 @@ t.eq(require("codecompanion.adapters").resolve(cc.interactions.inline.adapter).n
   "the live inline adapter resolves")
 t.eq(vim.g.codecompanion_adapter, nil, "vim.g.codecompanion_adapter is never set")
 
+-- And in a Nvim started for the other agent, its ACP agent and its key: what
+-- a typed :CodeCompanionChat opens there. Loading the plugin creates no chat.
+local other_cc = child({ NVIM_AI_PROVIDER = other }, [[
+  require("lazy").load({ plugins = { "codecompanion.nvim" } })
+  local i = require("codecompanion.config").interactions
+  io.stdout:write(vim.json.encode({ chat = i.chat.adapter, inline = i.inline.adapter, cmd = i.cmd.adapter }))
+  vim.cmd("qa!")
+]])
+local other_key = config.providers[other].key_profile
+t.eq(other_cc, { chat = config.providers[other].codecompanion.acp_adapter, inline = other_key, cmd = other_key },
+  ("with %s the default, CodeCompanion's own chats start on its ACP agent and inline prompts on its key"):format(other))
+
 ---------------------------------------------------------------------------
 -- The statusline names a pinned key, and only that
 ---------------------------------------------------------------------------
@@ -347,6 +371,18 @@ t.ok(ok_line, ("a pinned key is named (%s): %s"):format(indicator(), line))
 vim.cmd("AI key auto")
 ok_line, line = statusline_has(ICON, false)
 t.ok(ok_line, "and back on auto the indicator goes away: " .. line)
+
+-- A click on it opens the key picker, nothing else.
+local key_component
+for _, component in ipairs(require("lualine").get_config().sections.lualine_x) do
+  if type(component) == "table" and component.cond and component.on_click then key_component = component end
+end
+t.ok(key_component ~= nil, "the key indicator is a clickable lualine_x component")
+local picks, real_pick = 0, switch.pick
+switch.pick = function() picks = picks + 1 end
+if key_component then pcall(key_component.on_click) end
+switch.pick = real_pick
+t.eq(picks, 1, "clicking it opens the key picker (:AI key)")
 
 -- An agent terminal is labelled by the agent it runs, whichever is the
 -- default; anything else keeps its own name or title.

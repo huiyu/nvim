@@ -90,6 +90,7 @@ local TREE_FILETYPES = { oil = true, NvimTree = true, ["neo-tree"] = true, minif
 ---@field l2 integer last line
 ---@field lines string[] exactly the selected text, columns and blocks kept
 ---@field path string the buffer's name, "" for none
+---@field modified boolean the buffer has unsaved changes: a file mention would miss them
 ---@field filetype string
 ---@field tree boolean a directory listing, whose selection only a live Visual can turn into files
 ---@field draft? string ai.selection.draft()'s text, for a terminal agent's input box
@@ -112,7 +113,8 @@ function M.capture()
   return {
     buf = buf, win = win, mode = visual,
     l1 = math.min(anchor[2], cursor[2]), l2 = math.max(anchor[2], cursor[2]),
-    lines = lines, path = vim.api.nvim_buf_get_name(buf), filetype = vim.bo[buf].filetype,
+    lines = lines, path = vim.api.nvim_buf_get_name(buf), modified = vim.bo[buf].modified,
+    filetype = vim.bo[buf].filetype,
     tree = TREE_FILETYPES[vim.bo[buf].filetype] == true,
     draft = draft, err = err, notice = notice,
   }

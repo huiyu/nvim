@@ -463,6 +463,24 @@ for _, m in ipairs(missing) do
   t.eq(level_of(backends, m.exe .. " not found"), want,
     ("%s missing: %s (%s)"):format(m.exe, want, m.name == ai.default and "the default's" or "not the default's"))
 end
+-- The check reads the default when it runs: as a Nvim started for the other
+-- agent, the levels swap and the heading names the variable that chose it.
+-- (The suite runs under one default; this is the other.)
+local real_default, real_source = ai.default, ai.default_source
+local swapped = real_default == "claude" and "codex" or "claude"
+ai.default, ai.default_source = swapped, "NVIM_AI_PROVIDER"
+local ok_swap, swapped_backends = pcall(function() return section(run(cut, "with the other default"), "config: AI backends") end)
+ai.default, ai.default_source = real_default, real_source
+assert(ok_swap, swapped_backends)
+local swapped_head = swapped_backends[1]
+t.ok(swapped_head and swapped_head.msg:find("default backend " .. ai.providers[swapped].label, 1, true) ~= nil
+  and swapped_head.msg:find("NVIM_AI_PROVIDER=" .. swapped, 1, true) ~= nil,
+  "the other default opens the section, with the variable that chose it: " .. tostring(swapped_head and swapped_head.msg))
+for _, m in ipairs(missing) do
+  local want = m.name == swapped and "error" or "warn"
+  t.eq(level_of(swapped_backends, m.exe .. " not found"), want,
+    ("with %s the default, %s missing: %s"):format(swapped, m.exe, want))
+end
 local g_before = vim.g.ai_review
 vim.g.ai_review = { sources = { codecompanion_acp = false, codecompanion_http = false } }
 local hooks_off = section(run(nil, "with the chat sources off"), "config: review hooks")

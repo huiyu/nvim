@@ -94,6 +94,11 @@ function M.continue()
   end
   M.reveal("--continue")
 end
+-- What a cold start asks before it shows anything: claudecode's model
+-- question, which can be cancelled. The slot hides nothing for it until the
+-- terminal does show (lua/ai/init.lua, native_key).
+M.asks_first = { select_model = true }
+
 function M.select_model()
   if M.running() then
     M.reveal()
@@ -109,11 +114,16 @@ end
 ---public send_at_mention, which queues the mention while the TUI connects.
 ---Not :ClaudeCodeAdd, which splits its argument on whitespace and keeps the
 ---backslashes fnameescape adds, so "a repo/x.lua", "[id]/page.tsx" or
----"$post.tsx" never arrived.
+---"$post.tsx" never arrived. Warns when `modified`: Claude reads the saved
+---file, as Codex does.
 ---@param path string
-function M.add_path(path)
+---@param modified boolean?
+function M.add_path(path, modified)
   if vim.fn.filereadable(path) == 0 and vim.fn.isdirectory(path) == 0 then
     return vim.notify("Claude Code reads files from disk, and this one is not saved: " .. path, WARN, { title = "AI" })
+  end
+  if modified then
+    vim.notify("Claude Code reads the saved file; this buffer has unsaved changes", WARN, { title = "AI" })
   end
   local ok, err = require("claudecode").send_at_mention(path, nil, nil, "ClaudeCodeAdd")
   if not ok then

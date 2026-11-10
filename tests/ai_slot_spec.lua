@@ -190,6 +190,20 @@ end, {})
 local ai, slot, companion = require("ai"), require("ai.slot"), require("ai.companion")
 local claude, codex = require("ai.backend.claude"), require("ai.backend.codex")
 
+---Run `fn` with the transcript views stood in; return whose transcript each
+---was asked for, in order.
+local function transcripts_read(fn)
+  local view = require("ai.transcript")
+  local real = { open_current = view.open_current, pick = view.pick }
+  local read = {}
+  view.open_current = function(agent) read[#read + 1] = "open_current " .. tostring(agent) end
+  view.pick = function(agent) read[#read + 1] = "pick " .. tostring(agent) end
+  local ok, err = pcall(fn)
+  view.open_current, view.pick = real.open_current, real.pick
+  assert(ok, err)
+  return read
+end
+
 local function wins()
   return vim.tbl_filter(function(w) return api.nvim_win_get_config(w).relative == "" end, api.nvim_tabpage_list_wins(0))
 end
@@ -601,6 +615,15 @@ claude.edit_prompt, codex.edit_prompt = real_edit.claude, real_edit.codex
 t.eq({ #prompts[other], #prompts[config.default] }, { 1, 0 },
   "<leader>ai opens the prompt of the agent on the right (" .. other .. "), not the default's")
 t.eq(prompts[other][1] and prompts[other][1].seed, "@src/app.lua lines 1-1 ", "seeded with the selection")
+-- So do the transcript keys: the agent on the right, unasked, not the default.
+editor()
+asked = {}
+local read = transcripts_read(function()
+  ai.transcript()
+  ai.transcript_pick()
+end)
+t.eq({ read, #asked }, { { "open_current " .. other, "pick " .. other }, 0 },
+  "<leader>at/aT read the transcript of the agent on the right (" .. other .. "), unasked")
 
 -- Claude running but hidden, picked for <leader>ai: shown here through
 -- claudecode's open, then asked for its prompt editor.
@@ -637,6 +660,25 @@ editor()
 cc_calls.mentions = {}
 ai.add_buffer()
 t.eq(cc_calls.mentions, { { file } }, "<leader>ab mentions the file to Claude Code, its path whole")
+
+-- A mention is of the file on disk, so an unsaved edit is not in it: the
+-- lines selected still go, and the user is told.
+editor()
+api.nvim_buf_set_lines(0, 0, 0, false, { "local unsaved = 42" })
+api.nvim_win_set_cursor(0, { 1, 0 })
+cc_calls.mentions, notes = {}, {}
+api.nvim_feedkeys("V", "x", false)
+ai.send_selection()
+local unsaved_note = noted("Claude Code reads the saved file; this buffer has unsaved changes")
+t.eq(cc_calls.mentions, { { file, 0, 0 } }, "<leader>as on a buffer with unsaved changes still mentions the lines selected")
+t.eq(unsaved_note and unsaved_note.level, WARN, "warning that Claude Code reads them from the saved file")
+editor()
+notes = {}
+ai.add_buffer()
+unsaved_note = noted("Claude Code reads the saved file; this buffer has unsaved changes")
+t.eq(unsaved_note and unsaved_note.level, WARN, "<leader>ab warns the same way")
+editor()
+vim.cmd("silent edit!")
 
 -- A buffer with no file has nothing to mention.
 editor()
@@ -717,6 +759,16 @@ ai.resume()
 t.eq(asked[1] and asked[1].prompt, "Which native agent?", "with a chat on the right, <leader>ar asks which agent")
 t.eq(asked[1] and asked[1].shown[1], config.providers[config.default].label, "the default first")
 t.ok(anthropic.ui:is_visible(), "cancelled, the chat stays")
+asked = {}
+choose(config.providers[other].label)
+read = transcripts_read(function() ai.transcript() end)
+t.eq({ read, asked[1] and asked[1].prompt }, { { "open_current " .. other }, "Whose transcript?" },
+  "<leader>at with a chat on the right asks whose, and reads the one picked (" .. other .. ")")
+asked = {}
+choose(config.providers[other].label)
+read = transcripts_read(function() ai.transcript_pick() end)
+t.eq(read, { "pick " .. other }, "<leader>aT too")
+t.ok(anthropic.ui:is_visible(), "neither touches the chat on the right")
 -- With one agent installed there is nothing to ask.
 vim.env.PATH = only_claude
 asked = {}
@@ -855,7 +907,7 @@ ai.send_selection()
 t.eq(api.nvim_get_current_tabpage(), first_tab, "<leader>as to a chat shown in another tabpage goes there")
 t.eq(count(text(anthropic), "local d = 3"), d_lines + 1, "and adds the selection to it")
 t.eq(layout(first_tab), first_layout, "nothing there moved")
-t.ok(noted("is shown in tab 1: went there") ~= nil and noted("Sent to Anthropic (tab 1)") ~= nil, "saying where it went")
+t.ok(noted("Sent to Anthropic (tab 1)") ~= nil and not noted("went there"), "saying where it went, once")
 api.nvim_set_current_tabpage(third_tab)
 
 -- <leader>ab asks among the native agents alone: a chat picked or made there
@@ -878,6 +930,19 @@ t.eq(#companion.chats(), chats_before, "no chat is created for it")
 choose("Codex")
 ai.switch_chat()
 vim.cmd("stopinsert")
+
+-- :AI info says where each open chat is: here, in which tabpage, or hidden.
+notes = {}
+vim.cmd("AI info")
+local info = notes[#notes] and notes[#notes].msg or ""
+local function info_says(line, what)
+  t.ok(info:find(line, 1, true) ~= nil, ":AI info: " .. what .. " (" .. line .. ")")
+end
+info_says("Codex · terminal · subscription · ● here", "the chat on the right here")
+info_says(("Anthropic · API · API credits · #%d · tab 1"):format(anthropic.bufnr), "a chat shown in another tabpage")
+info_says(("OpenAI · API · API credits · #%d · tab 2"):format(openai.bufnr), "and in a third")
+info_says("Claude Code · terminal · subscription · hidden", "a session no tabpage shows")
+
 vim.cmd("only")
 t.eq(#wins(), 1, "a tabpage with only the Codex panel")
 notes = {}
@@ -943,6 +1008,17 @@ t.ok(claude.visible() and not anthropic.ui:is_visible(), "in place of the one th
 t.eq(layout(view_b), view_layout, "and the view keeps its windows")
 pick(anthropic)
 ai.switch_chat()
+
+-- <leader>ac in a view: the chat on the right of the page it came from was
+-- not in front of the user, so it is gone to and focused, never hidden there.
+api.nvim_set_current_tabpage(view_b)
+asked = {}
+ai.toggle()
+t.ok(anthropic.ui:is_visible() and api.nvim_win_get_tabpage(anthropic.ui.winnr) == first_tab,
+  "<leader>ac from a view leaves the chat of the page it came from on screen")
+t.eq({ api.nvim_get_current_tabpage(), api.nvim_get_current_buf(), #asked }, { first_tab, anthropic.bufnr, 0 },
+  "and goes into it there, unasked")
+t.eq(layout(view_b), view_layout, "the view opened nothing")
 
 -- A question asked for a view and then cancelled leaves the user in the view.
 editor()
@@ -1239,6 +1315,7 @@ local codex_again = codex.buf()
 t.eq(codex_again and vim.b[codex_again].snacks_terminal.cwd, root,
   "<leader>am starts a stopped Codex from the editor window, not the scratch one: the file's root")
 t.ok(vim.wait(2000, function() return sent(codex_again, "/model\r") end, 20), "and submits /model into its box")
+t.ok(noted("Started Codex · terminal · subscription to pick a model") ~= nil, "a session it starts is announced, billing too")
 if codex_again then codex_buf = codex_again end
 api.nvim_win_close(scratch_win, true)
 
@@ -1259,9 +1336,15 @@ require("ai.editor").stage_seed(nil, { provider = "codex" })
 
 -- Claude stopped: <leader>ar and <leader>aR start it with their arguments,
 -- from the editor window even when pressed in a chat.
-for _, case in ipairs({ { "<leader>ar", ai.resume, "--resume" }, { "<leader>aR", ai.continue, "--continue" } }) do
+for _, case in ipairs({
+  { "<leader>ar", ai.resume, "--resume", "to resume a session" },
+  { "<leader>aR", ai.continue, "--continue", "to continue its last session" },
+}) do
   local old = claude.buf()
   if old then
+    -- Hidden first: a window whose buffer is wiped shows another one, here
+    -- Codex's terminal, which would read as a second AI window.
+    claude.hide()
     pcall(vim.fn.jobstop, vim.bo[old].channel)
     pcall(api.nvim_buf_delete, old, { force = true })
   end
@@ -1272,7 +1355,7 @@ for _, case in ipairs({ { "<leader>ar", ai.resume, "--resume" }, { "<leader>aR",
   settle()
   local file_win = editor()
   api.nvim_set_current_win(openai.ui.winnr)
-  cc_calls.open, cc_calls.open_win = {}, {}
+  cc_calls.open, cc_calls.open_win, notes = {}, {}, {}
   choose("Claude Code")
   case[2]()
   vim.cmd("stopinsert")
@@ -1280,6 +1363,48 @@ for _, case in ipairs({ { "<leader>ar", ai.resume, "--resume" }, { "<leader>aR",
   t.eq(cc_calls.open, { case[3] }, case[1] .. " starts a stopped Claude with " .. case[3])
   t.eq(cc_calls.open_win[1], file_win, case[1] .. ": from the editor window, not the chat")
   t.ok(claude.visible() and not openai.ui:is_visible(), case[1] .. ": shown in place of the chat")
+  t.ok(noted("Started Claude Code · terminal · subscription " .. case[4]) ~= nil, case[1] .. ": announced, billing too")
+end
+
+-- Claude stopped and picked for <leader>am: claudecode asks for a model before
+-- it starts anything (its open_with_model). Cancelled, nothing was hidden for
+-- it; answered, Claude starts and the chat on the right gives way then.
+api.nvim_create_user_command("ClaudeCodeSelectModel", function()
+  vim.ui.select({ "opus", "sonnet" }, { prompt = "Select Claude model:" }, function(model)
+    if model then package.loaded["claudecode.terminal"].open({}, "--model " .. model) end
+  end)
+end, {})
+for _, model in ipairs({ false, "opus" }) do
+  local old = claude.buf()
+  if old then
+    -- Hidden first: a window whose buffer is wiped shows another one, here
+    -- Codex's terminal, which would read as a second AI window.
+    claude.hide()
+    pcall(vim.fn.jobstop, vim.bo[old].channel)
+    pcall(api.nvim_buf_delete, old, { force = true })
+  end
+  claude_term = nil
+  editor()
+  choose("OpenAI")
+  ai.switch_chat()
+  settle()
+  editor()
+  cc_calls.open, asked = {}, {}
+  choose("Claude Code")
+  if model then choose(model) end
+  ai.select_model()
+  vim.cmd("stopinsert")
+  settle()
+  t.eq(asked[2] and asked[2].prompt, "Select Claude model:", "<leader>am on a stopped Claude: claudecode asks for a model")
+  if model then
+    t.eq(cc_calls.open, { "--model opus" }, "answered, Claude starts on it")
+    t.ok(claude.visible() and not openai.ui:is_visible() and api.nvim_buf_is_valid(openai.bufnr),
+      "and the chat gives way to it once it shows, hidden, not closed")
+    t.eq(shown_ids(), { "native:claude" }, "one AI window")
+  else
+    t.ok(not claude.running() and #cc_calls.open == 0, "cancelled, nothing starts")
+    t.eq(shown_ids(), { slot.chat_item(openai).id }, "and the chat on the right was never hidden for it")
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -1297,6 +1422,7 @@ local expected = {
   "Buffer has unsaved changes",
   "Sending code to CodeCompanion is disabled",
   "This buffer has no file",
+  "Claude Code reads the saved file",
   "Only Claude Code takes files from a directory listing",
   "A directory listing cannot wait for a question",
   "is this tabpage's only window",

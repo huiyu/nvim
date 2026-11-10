@@ -22,11 +22,6 @@
 -- Every consumer holds this one table and reads it per call, so switching the
 -- key mutates it in place rather than handing out a new one.
 
-local default_source = (vim.env.NVIM_AI_PROVIDER or "") ~= "" and "NVIM_AI_PROVIDER"
-  or (vim.g.ai_provider and "vim.g.ai_provider") or "built-in"
-local selected = (default_source == "NVIM_AI_PROVIDER" and vim.env.NVIM_AI_PROVIDER
-  or vim.g.ai_provider or "claude"):lower()
-
 local providers = {
   claude = {
     label = "Claude Code",
@@ -117,10 +112,26 @@ end
 -- whichever agent is the default (lua/plugin/lsp/codecompanion.lua).
 assert(key_profiles.anthropic and key_profiles.openai, "the anthropic and openai key profiles are required")
 
-if not providers[selected] then
-  local name = default_source == "built-in" and "NVIM_AI_PROVIDER" or default_source
-  error(("Invalid %s=%q; expected 'claude' or 'codex'"):format(name, selected))
+---The default backend and where it came from: NVIM_AI_PROVIDER, then
+---vim.g.ai_provider, then claude. Both sources are read the same way: empty
+---means unset (an exported-but-empty variable, `let g:ai_provider = ''`), and
+---anything else must name an agent, any case -- a typo or a value of another
+---type stops startup, naming the knob it came from.
+---@return string provider, string source
+local function read_default()
+  for _, source in ipairs({ { "NVIM_AI_PROVIDER", vim.env.NVIM_AI_PROVIDER }, { "vim.g.ai_provider", vim.g.ai_provider } }) do
+    local knob, value = source[1], source[2]
+    if value ~= nil and value ~= "" then
+      local name = type(value) == "string" and value:lower() or nil
+      if not providers[name] then
+        error(("Invalid %s=%s; expected 'claude' or 'codex'"):format(knob, vim.inspect(value)), 0)
+      end
+      return name, knob
+    end
+  end
+  return "claude", "built-in"
 end
+local selected, default_source = read_default()
 
 ---The default backend: a provider name, whose native terminal is the
 ---new-chat picker's first entry. Fixed for the life of the process.

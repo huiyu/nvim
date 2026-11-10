@@ -35,9 +35,10 @@ local WARN = vim.log.levels.WARN
 -- ones that feed it, which open or start the panel to deliver. Before one
 -- runs, the AI slot (lua/ai/slot.lua) hides the other AI windows of this
 -- tabpage -- native panels and CodeCompanion chats alike, hidden and never
--- stopped. A feed that stops short -- a buffer with no file name, a cancelled
--- model picker -- has then hidden them with nothing in their place; hidden
--- only, so they come back the way any hidden chat does.
+-- stopped. A feed that stops short -- a prompt editor that never opens --
+-- has then hidden them with nothing in their place; hidden only, so they come
+-- back the way any hidden chat does. The native-session keys make room their
+-- own way (native_key), so a cancelled model question hides nothing.
 local REVEALS = {
   toggle = true, focus = true, resume = true, continue = true, edit_prompt = true,
   select_model = true, add_buffer = true, send_selection = true, tree_add = true,
@@ -101,21 +102,32 @@ function M.focus() return guard("AI chat", "focus", function() slot().focus() en
 
 -- The keys only a native agent answers: the one on the right, else the one
 -- asked for. A running session is shown and left as it is -- each agent has
--- one session here -- and its backend says so (lua/ai/backend/*).
-local function native_key(method)
+-- one session here -- and its backend says so (lua/ai/backend/*); a session
+-- one of them starts is announced, as one <leader>an starts is.
+---@param why string what a session it starts is for, for that notice
+local function native_key(method, why)
   return function()
     return guard("AI", method, function()
       slot().native_target(function(agent)
         guard(label_of(agent), method, function()
-          if slot().make_room(slot().native_item(agent)) then backend(agent)[method]() end
+          local b, item = backend(agent), slot().native_item(agent)
+          local was = b.running()
+          -- A cold start that asks something first (claudecode's model
+          -- question, backend.asks_first) can still be cancelled: nothing is
+          -- hidden for it, and the slot's guard hides the rest once its
+          -- terminal does show.
+          local asks = not was and (b.asks_first or {})[method]
+          if not slot().make_room(item, { hide = not asks }) then return end
+          b[method]()
+          if not was and b.running() then notify(("Started %s %s"):format(slot().label(item), why)) end
         end)
       end)
     end)
   end
 end
-M.resume = native_key("resume")
-M.continue = native_key("continue")
-M.select_model = native_key("select_model")
+M.resume = native_key("resume", "to resume a session")
+M.continue = native_key("continue", "to continue its last session")
+M.select_model = native_key("select_model", "to pick a model")
 
 ---Deliver a captured selection (ai.selection.capture) to `item`: a chat gets
 ---it fenced in its prompt, Claude a file mention of its lines, Codex the
@@ -124,10 +136,11 @@ M.select_model = native_key("select_model")
 ---@param cap ai.Capture
 ---@param from integer? the tabpage the key was pressed in
 local function deliver_capture(item, cap, from)
+  -- A tabpage changed on the way is said once, by went(), not by the jump too.
   if item.kind == "chat" then
     local ok, why = companion().add_capture(item.chat, cap)
     if not ok then return companion().refused(why) end
-    companion().show(item.chat)
+    companion().show(item.chat, { quiet = true })
   elseif item.agent == "claude" then
     if cap.path == "" then
       return notify("This buffer has no file, and Claude Code takes a selection as a file mention: save it, or <leader>ai",
@@ -136,14 +149,21 @@ local function deliver_capture(item, cap, from)
     -- Shown somewhere already (here, a diff tabpage's copy included, or in the
     -- tabpage make_room went to), the mention goes to it as it is: claudecode's
     -- own open would put a second window beside a copy.
-    local room = slot().make_room(item)
+    local room = slot().make_room(item, { quiet = true })
     if not room then return end
     if room == "room" then backend("claude").reveal() end
+    -- A mention is of the file on disk, so an unsaved edit is not in it. It
+    -- still goes -- the lines are the ones selected -- but the user is told,
+    -- as Codex's paste-instead notice tells them (<leader>ai sends the text).
+    if cap.modified then
+      notify("Claude Code reads the saved file; this buffer has unsaved changes, so the mention points at its saved lines"
+        .. " (<leader>ai takes the selected text itself)", WARN)
+    end
     backend("claude").send_range(cap.path, cap.l1, cap.l2)
   else
     if not cap.draft then return notify(cap.err or "No selection", vim.log.levels.WARN) end
     if cap.notice then notify(cap.notice) end
-    if not slot().make_room(item) then return end
+    if not slot().make_room(item, { quiet = true }) then return end
     backend(item.agent).send_text(cap.draft)
   end
   slot().went(item, from)
@@ -203,14 +223,11 @@ function M.add_buffer()
         return notify("A chat takes a selection (<leader>as), or #{buffer} or /buffer in its own prompt")
       end
       if path == "" then return notify("Current buffer has no file path", vim.log.levels.WARN) end
-      local room = slot().make_room(item)
+      local room = slot().make_room(item, { quiet = true })
       if not room then return end
-      if item.agent == "claude" then
-        if room == "room" then backend("claude").reveal() end
-        backend("claude").add_path(path)
-      else
-        backend(item.agent).add_path(path, modified)
-      end
+      if item.agent == "claude" and room == "room" then backend("claude").reveal() end
+      -- Both agents read the file from disk, and say so for an unsaved edit.
+      backend(item.agent).add_path(path, modified)
       slot().went(item, from)
     end), { prompt = "Add buffer to", native_only = true })
   end)

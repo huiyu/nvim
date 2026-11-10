@@ -31,8 +31,12 @@ stub({ { id = "s1", path = "/tmp/fixture-a.jsonl", mtime = 2, title = "Newest" }
 
 -- A transcript is one native agent's: the caller names it (the agent on the
 -- right, or the one asked for), and nothing falls back to a default.
-t.ok(not pcall(view.open_current), "open_current without an agent is refused")
-t.ok(not pcall(view.pick, "nope"), "and pick with something that is no agent")
+local function refusal(fn, ...)
+  local ok, err = pcall(fn, ...)
+  return not ok and tostring(err):find("a transcript belongs to a native agent", 1, true) ~= nil
+end
+t.ok(refusal(view.open_current), "open_current without an agent is refused, saying why")
+t.ok(refusal(view.pick, "nope"), "and pick with something that is no agent")
 adapter_for = {}
 view.open_current("codex")
 local buf = vim.api.nvim_get_current_buf()

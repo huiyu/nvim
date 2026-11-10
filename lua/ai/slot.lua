@@ -305,9 +305,10 @@ function M.remember(item)
   vim.t.ai_slot_last = item.id
 end
 
----Go to the tabpage whose window shows `item`; nothing moves.
+---Go to the tabpage whose window shows `item`; nothing moves. Says so, unless
+---`quiet`: a delivery says where it went itself, once it has (M.went).
 ---@param item ai.SlotItem
----@param opts? { focus?: boolean }
+---@param opts? { focus?: boolean, quiet?: boolean }
 ---@return boolean
 function M.jump(item, opts)
   opts = opts or {}
@@ -317,7 +318,9 @@ function M.jump(item, opts)
   local tab = api.nvim_win_get_tabpage(win)
   if tab ~= api.nvim_get_current_tabpage() then
     api.nvim_set_current_tabpage(tab)
-    notify(("%s is shown in tab %d: went there"):format(name(item), api.nvim_tabpage_get_number(tab)))
+    if not opts.quiet then
+      notify(("%s is shown in tab %d: went there"):format(name(item), api.nvim_tabpage_get_number(tab)))
+    end
   end
   if opts.focus ~= false then
     api.nvim_set_current_win(win)
@@ -345,8 +348,13 @@ end
 ---it already. When the windows to hide are all this tabpage has, they stay
 ---until it does, and the guard hides them then. Nil when refused: a native
 ---agent to start with no editor window to start it from.
+---
+---`hide = false` leaves the other AI windows where they are, for a method
+---that may still not show anything -- claudecode's model question before a
+---cold start, which can be cancelled: the guard hides them once a window
+---does show `item`, and nothing is left with an empty right if none does.
 ---@param item ai.SlotItem
----@param opts? { jump?: boolean, editor?: boolean } jump to another tabpage (default true); start from the editor window (default true)
+---@param opts? { jump?: boolean, editor?: boolean, hide?: boolean, quiet?: boolean } jump to another tabpage (default true; `quiet` as in M.jump); start from the editor window (default true); hide the rest now (default true)
 ---@return "here"|"elsewhere"|"room"|nil
 function M.make_room(item, opts)
   opts = opts or {}
@@ -357,12 +365,13 @@ function M.make_room(item, opts)
   local state = M.state(item)
   if state == "here" then return "here" end
   if state == "elsewhere" then
-    if opts.jump ~= false then M.jump(item, { focus = false }) end
+    if opts.jump ~= false then M.jump(item, { focus = false, quiet = opts.quiet }) end
     return "elsewhere"
   end
   if item.kind == "native" and opts.editor ~= false and not ask(backend(item.agent).running) then
     if not to_editor() then return nil end
   end
+  if opts.hide == false then return "room" end
   local victims = M.victims(item)
   if not would_empty(victims) then
     for _, v in ipairs(victims) do M.hide(v.item) end
@@ -659,10 +668,22 @@ local function close_copies(shown)
   return closed
 end
 
+---Into the chat on the right of `shown` (see home), asking among several.
+local function into(shown, from)
+  local item = #shown == 1 and shown[1] or current_of(shown)
+  if item then return M.reveal(item) end
+  return M.switch(M.reveal, { items = shown, new = false, back = from })
+end
+
 ---<leader>ac: hide what is on the right, or bring a chat back.
 function M.toggle()
   local shown, from = home()
   if #shown == 0 then return bring_back(M.reveal, from) end
+  -- Pressed in a view that shows no chat: home() went to the page the view
+  -- came from, whose chat was not in front of the user. Hiding it there
+  -- would only leave them outside the view with an empty right, so it is
+  -- gone to instead, as <leader>af would.
+  if from ~= api.nvim_get_current_tabpage() then return into(shown, from) end
   local victims = M.victims()
   -- Each owner would answer differently -- CodeCompanion's :hide closes the
   -- tabpage, Snacks leaves an empty window, claudecode none -- so none does.
@@ -684,9 +705,7 @@ end
 function M.focus()
   local shown, from = home()
   if #shown == 0 then return bring_back(M.reveal, from) end
-  local item = #shown == 1 and shown[1] or current_of(shown)
-  if item then return M.reveal(item) end
-  return M.switch(M.reveal, { items = shown, new = false, back = from })
+  return into(shown, from)
 end
 
 ---The native agent on the right, else the one asked for -- the installed

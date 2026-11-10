@@ -42,7 +42,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   the default and `vi --codex` Codex. These are case-insensitive leading flags
   of the Zsh launcher; all remaining arguments pass unchanged to Neovim,
   including its native `-c`. `NVIM_AI_PROVIDER` (> `vim.g.ai_provider` >
-  claude) is the default backend, fixed for the process (`ai.config.default`).
+  claude) is the default backend, fixed for the process (`ai.config.default`);
+  an empty value is unset in either place, and any other value that names no
+  agent stops startup, naming the knob.
   It only decides defaults: the new-chat picker's first entry, the agent a
   native-only key offers first, what the `auto` key profile resolves to,
   CodeCompanion's chat adapter for its own paths that name none (a typed
@@ -81,7 +83,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   becomes current; otherwise they ask, listing the open chats (● here / tab
   N / hidden, with billing) and "New chat…", or the new-chat picker when none
   is open. A chat shown in another tabpage is gone to, never moved. A
-  question cancelled from a view goes back to the view. Nothing is
+  question cancelled from a view goes back to the view. `<leader>ac` from a
+  view goes into the origin's chat as `<leader>af` would: the user never saw
+  it, so hiding it would only strand them outside the view. A delivery that
+  changes tabpage says so once ("Sent to X (tab N)"), not also as a jump. Nothing is
   delivered silently to a hidden chat, another tabpage's or the default
   backend; `vim.t.ai_slot_last` only lets `ac`/`af` bring the last one back.
   `ab` asks among the native agents alone, since a chat takes no file. A
@@ -94,7 +99,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   unless Claude Code is on the right: it reads the listing's cursor where it
   is, so it asks nothing, as a listing's Visual `as` does not.
   Nothing is typed into a running agent's box for `am`: it may hold a draft
-  an Enter would submit, or an approval an Enter would answer.
+  an Enter would submit, or an approval an Enter would answer. A cold start
+  that asks first (a backend's `asks_first`: claudecode's model question for
+  Claude's `am`) hides nothing, since it can be cancelled; the guard hides
+  the rest once its terminal shows. A session these keys start is announced,
+  as one `<leader>an` starts is. Both agents read a mention from disk, so a
+  buffer with unsaved changes is said: Codex gets the exact text instead,
+  Claude a warning with its mention.
   A native agent cold-starts from the editor window
   (`util.window.editor_win`, which does not toggle like `focus_editor`), so
   its root is the edited file's. Delivering review feedback (`ai.feed`) makes

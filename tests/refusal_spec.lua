@@ -107,7 +107,8 @@ vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 
 -- <leader>at when the transcript view fails. With no native agent on the
 -- right it asks whose transcript, among the agents installed -- stand-ins on
--- PATH here -- the default first: that one is answered.
+-- PATH here -- the default first; the other one is answered, so the agent
+-- read is the one picked, not the default.
 local transcript = require("ai.transcript")
 local ai_config = require("ai.config")
 local real_open, real_select, real_path = transcript.open_current, vim.ui.select, vim.env.PATH
@@ -123,7 +124,11 @@ transcript.open_current = function(agent)
   asked_for = agent
   error("boom")
 end
-vim.ui.select = function(items, _, on_choice) on_choice(items[1]) end
+local offered
+vim.ui.select = function(items, _, on_choice)
+  offered = items
+  on_choice(items[2])
+end
 reset()
 ok = pcall(require("ai").transcript)
 vim.ui.select, vim.env.PATH = real_select, real_path
@@ -131,7 +136,8 @@ vim.fn.delete(stand_ins, "rf")
 t.ok(ok, "<leader>at does not raise when the transcript view fails")
 t.eq(last() and last().level, vim.log.levels.ERROR, "it reports the failure")
 t.ok(said("boom"), "with its cause")
-t.eq(asked_for, ai_config.default, "for the agent it was asked for, the default first")
+t.eq(offered and offered[1], ai_config.default, "it offers the default first")
+t.eq(asked_for, ai_config.default == "claude" and "codex" or "claude", "and reads the agent picked, not the default")
 transcript.open_current = real_open
 
 -- :AI with a subcommand or a name it does not know, and the one it no longer

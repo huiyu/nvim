@@ -257,8 +257,11 @@ t.eq(staged_files, {}, "<C-v> in it stages nothing")
 t.ok(warned ~= nil and warned:find("nowhere to go", 1, true) ~= nil, "and says why")
 close_floats()
 routed = {}
-require("ai").attach_images({ dir .. "/stray.png" }, nil)
+local stray = dir .. "/stray.png"
+vim.fn.writefile({ "not really a png" }, stray)
+require("ai").attach_images({ stray }, nil)
 t.eq(routed, {}, "ai.attach_images with no agent attaches nothing")
+t.eq(vim.fn.filereadable(stray), 0, "and deletes the staged file rather than leave it behind")
 
 clipboard.has_image, clipboard.save_image = real_has, real_save
 for name, b in pairs(backends) do b.attach_images = real_attach[name] end
