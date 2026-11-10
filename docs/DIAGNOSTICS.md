@@ -1060,6 +1060,40 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   same column. Leave terminal input with `Ctrl-\` or `jk`, then press `gx` on
   either part. The closing delimiter must be present in the terminal buffer;
   if the TUI has truncated the link, use the complete URL in `<leader>at`.
+- **A long link in agent output opens or yanks only up to the panel's edge**
+  — Codex prints a link longer than the pane as one line and leaves the wrap
+  to the terminal, so the rest continues in column 0 of the next row (on
+  GitHub a `blob/<sha>` cut there redirects to `tree/<sha>`). A terminal
+  buffer has one line per row and Nvim exposes no wrap flag.
+
+  `gx` and every multi-row yank from a terminal buffer now treat a full row
+  followed by text in column 0 as one wrapped line
+  (`util.terminal.soft_wraps`). That covers `yi(`, `V…y`, `v…$y`, any
+  register, the system clipboard and yanky's ring.
+
+  These keep their newlines, because they fill a row on purpose:
+  - rows the program indented;
+  - frames and rules, `─│╭` or ASCII ones such as pytest's `====`;
+  - progress bars (a tree's `└──` is no bar and still joins);
+  - rows padded with blanks to the edge;
+  - an emoji-led next row;
+  - counters at the edge: tmux copy-mode's position, pytest -v's `[ 37%]`.
+
+  Known limits:
+  - A newline written at exactly the full width is joined like a wrap. So is
+    a program's own unindented word wrap at exactly the width (rich,
+    textwrap), which glues two words. A file path whose joined form does not
+    exist falls back to its first row.
+  - A one-row motion (`yiW`, `y$`) stops at the row's end, so use `yi(` or
+    `V` there.
+  - Blockwise and appending (`"A`) yanks are left as they were.
+  - Rows that scrolled off before a resize keep their old width and are not
+    joined.
+  - A `:terminal` opened from a window with 'number' on keeps a narrower pty
+    until the window is next resized, so its rows are not joined until then.
+
+  tmux's own copy-mode selection (a mouse drag in terminal input) already
+  joins wrapped lines by itself.
 - **Oil opens from an agent panel but focus stays in the TUI, and `q` hides the
   terminal** — Snacks protects terminal windows from buffer replacement. The
   `-` and `;o` mappings now focus an editor window in the current tab before

@@ -217,6 +217,130 @@ end
 fixture({ "  (" .. root .. "/", "  report.md)" }, false)
 check(1, 3, nil, "ordinary source newlines are not joined into file paths")
 
+-- Codex prints a link longer than the pane as one line and leaves the wrap to
+-- the terminal (tmux's `capture-pane -J` joins it back), so the rest resumes in
+-- column 0 whatever column the link started in. These fixtures stream text
+-- into a terminal of a known width and let the terminal wrap it.
+vim.cmd("tabnew")
+local wrap_win = a.nvim_get_current_win()
+vim.cmd("vsplit") -- the editor gx opens files in
+local function wrapped(width, text)
+  a.nvim_set_current_win(wrap_win)
+  local term_buf = a.nvim_create_buf(false, true)
+  a.nvim_win_set_buf(wrap_win, term_buf)
+  local channel = a.nvim_open_term(term_buf, {})
+  -- Whatever columns TermOpen leaves on, the grid itself is `width` cells.
+  a.nvim_win_set_width(wrap_win, width + vim.fn.getwininfo(wrap_win)[1].textoff)
+  t.eq(require("util.terminal").grid_width(term_buf), width, "the wrap fixture's grid is " .. width .. " cells")
+  vim.wait(50, function() return false end) -- the pty follows the window on Nvim's refresh timer
+  a.nvim_chan_send(channel, text)
+  local last = text:match("[^\n]*$")
+  t.ok(vim.wait(1000, function()
+    return table.concat(a.nvim_buf_get_lines(term_buf, 0, -1, false)):find(last:sub(-6), 1, true) ~= nil
+  end), "the wrap fixture renders")
+  return term_buf
+end
+
+local guide = "https://github.com/kabo-sh/creator-skills/blob/2fb33b9147b5ca630a6903b9b36e4d0e20c2fb1e"
+  .. "/creator-skills/runtime/creator-remake-web/references/atoms-and-edits.md#what-each-step-takes"
+local screenshot = wrapped(90, "• 直接读这份：原子能力完整手册 · atoms-and-edits.md\r\n  (" .. guide .. ")。")
+t.eq(a.nvim_buf_get_lines(screenshot, 1, 4, false), {
+  "  (https://github.com/kabo-sh/creator-skills/blob/2fb33b9147b5ca630a6903b9b36e4d0e20c2fb1e",
+  "/creator-skills/runtime/creator-remake-web/references/atoms-and-edits.md#what-each-step-ta",
+  "kes)。",
+}, "the terminal wraps the link exactly as Codex's pane showed it")
+for _, pos in ipairs({ { 2, 3 }, { 2, 60 }, { 3, 0 }, { 3, 89 }, { 4, 0 }, { 4, 4 } }) do
+  check(pos[1], pos[2], guide, "a link the terminal wrapped opens whole from any of its rows")
+end
+
+local long = "https://example.com/" .. ("segment/"):rep(8) .. "end?q=1"
+wrapped(60, "  see " .. long .. " and more\r\nnext line")
+for _, pos in ipairs({ { 1, 8 }, { 2, 0 }, { 2, 20 } }) do
+  check(pos[1], pos[2], long, "a bare link the terminal wrapped opens whole")
+end
+
+-- 29 cells, then a wide character the last cell cannot hold: it wraps from
+-- the last-but-one cell, which still counts as a full row.
+wrapped(30, "https://example.com/abcdefghi路径?q=1")
+check(2, 0, "https://example.com/abcdefghi路径?q=1", "a wide character wrapped early still continues the link")
+
+-- A link that ends short of the edge, or a row Codex wrapped itself (it
+-- indents the next one), has a newline the program wrote.
+wrapped(60, "https://example.com/a\r\nb/c")
+check(2, 0, nil, "a row that ends short of the edge does not continue")
+check(1, 3, "https://example.com/a", "a link that ends short of the edge stays as written")
+local edge = "  https://example.com/" .. ("x"):rep(60 - 22)
+wrapped(60, edge .. "\r\n  indented/tail")
+check(1, 5, edge:sub(3), "an indented next row is never appended to a full row")
+wrapped(60, edge .. "https://example.com/next and more")
+check(1, 5, edge:sub(3), "a link starting in column 0 is the next link, not a wrapped tail")
+check(2, 3, "https://example.com/next", "the next link opens on its own")
+
+-- The wrap can cut the scheme, so neither row holds "https://".
+local filler = ("x"):rep(26) .. " "
+wrapped(30, filler .. "htt" .. "ps://example.com/abc/def and more")
+check(1, 28, "https://example.com/abc/def", "a scheme cut by the wrap opens from its first part")
+check(2, 0, "https://example.com/abc/def", "and from the rest")
+wrapped(30, ("x"):rep(22) .. " " .. "https:/" .. "/example.com/abc/def")
+check(2, 3, "https://example.com/abc/def", "a cut between the slashes too")
+wrapped(30, ("x"):rep(18) .. " 中文见" .. "htt" .. "ps://example.com/abc")
+check(2, 1, "https://example.com/abc", "CJK prose running into the cut scheme still finds it")
+wrapped(30, ("QUJD"):rep(7) .. "Xh" .. "ello/world")
+check(1, 29, nil, "a word ending in a scheme letter at the edge is no link")
+
+-- A signed URL can run past 16 rows; wrapped rows do not count against that.
+local signed = "https://example.com/object?sig=" .. ("s"):rep(400)
+wrapped(20, signed .. " expires")
+local signed_rows = math.ceil(#signed / 20)
+t.ok(signed_rows > 16, "the signed URL takes more than 16 rows")
+for _, r in ipairs({ 1, 10, signed_rows }) do
+  check(r, 0, signed, "a link longer than 16 rows opens whole from row " .. r)
+end
+
+-- base64 padding can be all a wrapped row holds; it is not a table rule.
+local padded = "https://example.com/?s=" .. ("a"):rep(37) .. "=="
+wrapped(30, padded .. "\r\nnext")
+check(1, 3, padded, "a tail of '==' after the wrap stays in the link")
+check(3, 0, padded, "and opens it from that row")
+
+-- Once a link has wrapped, a cell below its original column is not its tail.
+wrapped(20, "  (https://e.com/aaa" .. "bbbbbbbbbb\r\n  x)")
+check(1, 4, "https://e.com/aaabbbbbbbbbb", "a wrapped link never continues down a table column")
+
+-- Its end out of reach, a link opens nothing rather than a truncated URL.
+local huge = "https://e.com/?s=" .. ("a"):rep(20 * 258 - 17)
+wrapped(20, huge)
+check(1, 0, nil, "a link wrapped past the cap opens nothing")
+
+-- A long wrapped line near the link costs about one look per row, not one per
+-- pair of rows: next to a 16 KB base64 or minified line gx took seconds.
+local term_mod = require("util.terminal")
+local soft_wraps = term_mod.soft_wraps
+local calls = 0
+term_mod.soft_wraps = function(...) calls = calls + 1; return soft_wraps(...) end
+local blob = ("QUJD"):rep(80 * 200 / 4)
+wrapped(80, blob .. "\r\n\r\nsee https://example.com/x done")
+local blob_rows = 80 * 200 / 80
+calls = 0
+check(blob_rows + 2, 6, "https://example.com/x", "a link just below a long wrapped line opens")
+t.ok(calls < 200, "and gx looks at each row about once (" .. calls .. " looks)")
+local long_link = "https://example.com/?s=" .. ("b"):rep(80 * 120 - 23)
+wrapped(80, long_link)
+calls = 0
+check(120, 10, long_link, "a 120-row link opens whole from its last row")
+t.ok(calls < 1000, "in about one look per row (" .. calls .. " looks)")
+term_mod.soft_wraps = soft_wraps
+
+-- A file path wraps the same way; one whose joined form does not exist (a
+-- newline written at exactly the full width) still opens its first row.
+local label = "  完整报告 "
+local path_width = vim.fn.strdisplaywidth(label) + #report - 3
+wrapped(path_width, label .. report .. " done")
+check_file(2, 1, report, "a file path the terminal wrapped opens whole")
+wrapped(#report, report .. "\r\nxyz")
+check_file(1, 3, report, "a full row's file opens when the joined path does not exist")
+vim.cmd("tabclose")
+
 -- Exercise the protected Snacks window used by both native providers, not
 -- just a synthetic terminal, and ensure another tab's editor is not reused.
 vim.cmd("enew")

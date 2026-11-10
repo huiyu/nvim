@@ -118,9 +118,27 @@ In terminal buffers, targets enclosed in parentheses or angle brackets can span
 up to 16 consecutive rows in the same table column. Alignment uses display
 width, including CJK text; padding and vertical rules separate columns. The
 full target must reach its closing delimiter before continuation is accepted.
-Quoted local paths can also span rows. Either part of a wrapped target resolves
-to the same destination. Blank rows, table separators and new URLs stop the
-lookup. Ordinary source lines are never joined.
+Quoted local paths can also span rows. Any target, bare or enclosed, that runs
+into the right edge of a row the terminal wrapped (`util.terminal.soft_wraps`)
+continues from column 0 of the next row, whatever column it started in; that
+join needs no closing delimiter, and a file path whose joined form does not
+exist falls back to its first row.
+
+Wrapped rows do not count against the 16-row window. The window grows over
+the wrapped run through the cursor row, up to 256 rows each way, so a long
+signed URL opens whole. A link wrapped past that cap opens nothing rather than
+a truncated URL. Only that run can put a target on the cursor row, since
+nothing continues down a column after a wrap, and each row's wrap is judged
+once. A token that only continues the row above is not walked again. Together
+these keep gx in milliseconds next to a long minified or base64 line.
+
+A wrap that cuts the scheme (`htt` | `ps://`) is found from the prefix at the
+row's edge, unless a word or link character comes right before it. Once a
+target has wrapped, it never continues down a table column.
+
+Either part of a wrapped target resolves to the same destination. Blank rows,
+table separators and new URLs stop the lookup. Ordinary source lines are
+never joined.
 The module loads on the first `gx`; URL opening does not modify the buffer or cursor.
 
 ### Working directories (`util.cwd`)
@@ -539,6 +557,40 @@ terminal.toggle(count)
 -- Show a terminal and put the cursor in it; never closes. Bound to `,1`-`,9`
 -- only in terminal buffers' Normal mode (installed on TermOpen).
 terminal.focus(count)
+
+-- Width in cells of the grid behind terminal buf: Nvim sizes the pty to the
+-- widest window showing it, less that window's textoff. nil when no window
+-- shows the buffer.
+terminal.grid_width(buf)
+
+-- Whether terminal row `line` runs on into `next_line` because the terminal
+-- wrapped it at `width` cells. A terminal buffer has one line per row and Nvim
+-- exposes no wrap flag, so this reads the shape: the row is full (the next
+-- row's first character did not fit after it, so a wide one may wrap a cell
+-- early) and that character is a non-blank in column 0. Layout that fills a
+-- row on purpose never wraps:
+--   * rows ending in two or more blanks;
+--   * box-drawing/block characters on either side of the break;
+--   * a progress bar: three or more of one box/block character anywhere in
+--     the row (tqdm's █, rich's ━, but not a tree's `└──`), or tqdm's
+--     `N%|…| a/b […]` shape;
+--   * a run of four identical ASCII rule characters (`-=_*#~+`) ending the
+--     row or leading the next (pytest's separators);
+--   * a counter at the edge: tmux copy-mode's `[n/m]`, pytest -v's `[ 37%]`;
+--   * a next row led by an emoji.
+-- Rows wider than `width` (from before a resize) never wrap either. A newline
+-- written at exactly the full width is indistinguishable and counts as a wrap,
+-- and so does a program's own unindented word wrap at exactly the width.
+terminal.soft_wraps(line, next_line, width)
+
+-- TextYankPost handler (lua/autocmds.lua, terminal buffers only): rewrite the
+-- yanked register with the rows soft_wraps joins, before yanky's handler reads
+-- it. Characterwise (including one through the end of its last row, `v$y`)
+-- and linewise `y` only; blockwise, black-hole and appending (uppercase) yanks
+-- are left alone. An unnamed yank also rewrites "+ / "* per 'clipboard':
+-- setreg("") never reaches the clipboard provider, which already received the
+-- split text before the event.
+terminal.unwrap_yank(buf)
 ```
 
 Native coding-agent terminals do not run `fix_drift()` on `TermEnter`, avoiding

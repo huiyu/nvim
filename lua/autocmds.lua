@@ -90,6 +90,17 @@ autocmd("TextYankPost", {
   end,
 })
 
+-- A terminal buffer has one line per grid row, so a yank across a row the
+-- terminal wrapped copied a newline the program never printed. This runs
+-- before yanky's handler (it loads later, on its first key), so the yank ring
+-- records the joined text as well.
+autocmd("TextYankPost", {
+  group = augroup("terminal_unwrap_yank", { clear = true }),
+  callback = function(event)
+    if vim.bo[event.buf].buftype == "terminal" then require("util.terminal").unwrap_yank(event.buf) end
+  end,
+})
+
 -- Restore cursor position when reopening a file
 autocmd("BufReadPost", {
   group = augroup("restore_cursor", { clear = true }),
