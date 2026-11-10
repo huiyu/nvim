@@ -149,7 +149,7 @@ end
 local Snacks = require("snacks")
 local claude_term
 -- open: the arguments of each call, and the window it was called from.
-local cc_calls = { open = {}, open_win = {}, mentions = {}, texts = {}, sends = {} }
+local cc_calls = { open = {}, open_win = {}, mentions = {}, texts = {}, sends = {}, tree_adds = {} }
 package.loaded["claudecode"] = {
   send_at_mention = function(path, s, e)
     cc_calls.mentions[#cc_calls.mentions + 1] = { path, s, e }
@@ -181,6 +181,11 @@ package.loaded["claudecode.terminal"] = {
 api.nvim_create_user_command("ClaudeCodeSend", function(o)
   cc_calls.sends[#cc_calls.sends + 1] = { buf = api.nvim_get_current_buf(), mode = vim.fn.mode() }
 end, { range = true })
+-- oil's <leader>aS goes through :ClaudeCodeTreeAdd, which reads the listing's
+-- cursor.
+api.nvim_create_user_command("ClaudeCodeTreeAdd", function()
+  cc_calls.tree_adds[#cc_calls.tree_adds + 1] = { buf = api.nvim_get_current_buf(), line = api.nvim_win_get_cursor(0)[1] }
+end, {})
 
 local ai, slot, companion = require("ai"), require("ai.slot"), require("ai.companion")
 local claude, codex = require("ai.backend.claude"), require("ai.backend.codex")
@@ -254,7 +259,7 @@ asked, notes = {}, {}
 ai.toggle()
 t.eq(#asked, 1, "<leader>ac with nothing open asks")
 t.eq(asked[1] and asked[1].prompt, "New AI chat", "with the new-chat picker")
-t.ok(asked[1] and asked[1].shown[1]:find(config.label .. " · terminal", 1, true) == 1,
+t.ok(asked[1] and asked[1].shown[1]:find(config.providers[config.default].label .. " · terminal", 1, true) == 1,
   "the default backend's terminal first, so <CR> starts it")
 t.eq(#wins(), 1, "cancelled, nothing opens")
 
@@ -578,7 +583,7 @@ t.ok(noted("The chat is replying") ~= nil and vim.fn.mode() == "n", "a chat that
 anthropic._turn_in_progress = nil
 
 -- A native agent on the right gets <leader>ai, whichever is the default.
-local other = config.provider == "claude" and "codex" or "claude"
+local other = config.default == "claude" and "codex" or "claude"
 editor()
 choose(config.providers[other].label .. " · terminal")
 ai.switch_chat()
@@ -593,7 +598,7 @@ api.nvim_win_set_cursor(0, { 1, 0 })
 api.nvim_feedkeys("V", "x", false)
 ai.compose()
 claude.edit_prompt, codex.edit_prompt = real_edit.claude, real_edit.codex
-t.eq({ #prompts[other], #prompts[config.provider] }, { 1, 0 },
+t.eq({ #prompts[other], #prompts[config.default] }, { 1, 0 },
   "<leader>ai opens the prompt of the agent on the right (" .. other .. "), not the default's")
 t.eq(prompts[other][1] and prompts[other][1].seed, "@src/app.lua lines 1-1 ", "seeded with the selection")
 
@@ -710,7 +715,7 @@ editor()
 asked = {}
 ai.resume()
 t.eq(asked[1] and asked[1].prompt, "Which native agent?", "with a chat on the right, <leader>ar asks which agent")
-t.eq(asked[1] and asked[1].shown[1], config.label, "the default first")
+t.eq(asked[1] and asked[1].shown[1], config.providers[config.default].label, "the default first")
 t.ok(anthropic.ui:is_visible(), "cancelled, the chat stays")
 -- With one agent installed there is nothing to ask.
 vim.env.PATH = only_claude
@@ -1121,14 +1126,28 @@ api.nvim_feedkeys("Vj", "x", false)
 ai.send_selection()
 t.eq(vim.fn.mode(), "n", "a directory selection leaves Visual")
 t.ok(noted("Only Claude Code takes files from a directory listing") ~= nil, "and refuses a chat on the right")
+-- oil's <leader>aS is in every listing, whichever agent is the default, and
+-- only Claude Code on the right takes the file under the cursor: the cursor is
+-- read where it is, so nothing asks.
+local tree_key = vim.fn.maparg(" aS", "n", false, true)
+t.ok(tree_key.buffer == 1 and tree_key.desc == "Add file under cursor to Claude Code",
+  "<leader>aS is mapped in the listing, naming Claude Code")
+notes = {}
+tree_key.callback()
+t.ok(noted("Only Claude Code takes files from a directory listing") ~= nil and #cc_calls.tree_adds == 0,
+  "<leader>aS with a chat on the right refuses")
 -- Nothing on the right: it cannot wait for a question, Visual being gone by
 -- the answer.
 ai.toggle()
 asked, notes = {}, {}
 api.nvim_feedkeys("Vj", "x", false)
 ai.send_selection()
-t.ok(noted("A directory selection cannot wait for a question") ~= nil and #asked == 0 and vim.fn.mode() == "n",
+t.ok(noted("A directory listing cannot wait for a question") ~= nil and #asked == 0 and vim.fn.mode() == "n",
   "with nothing on the right, a directory selection is refused unasked")
+notes = {}
+tree_key.callback()
+t.ok(noted("A directory listing cannot wait for a question") ~= nil and #asked == 0 and #cc_calls.tree_adds == 0,
+  "and so is <leader>aS")
 -- Claude Code on the right takes it, through :ClaudeCodeSend on the live
 -- selection.
 choose("Claude Code")
@@ -1142,13 +1161,26 @@ vim.cmd("normal! \27")
 t.eq(#cc_calls.sends, 1, "Claude Code on the right takes a directory selection")
 t.ok(cc_calls.sends[1] and cc_calls.sends[1].buf == listing and cc_calls.sends[1].mode:find("^[vV]") ~= nil,
   "through :ClaudeCodeSend, on the listing's live Visual selection")
+api.nvim_win_set_cursor(listing_win, { 2, 0 })
+tree_key.callback()
+t.eq(cc_calls.tree_adds, { { buf = listing, line = 2 } },
+  "<leader>aS hands it the file under the listing's cursor, through :ClaudeCodeTreeAdd")
+-- A native agent that takes no files from a listing is refused too.
+choose("Codex")
+ai.switch_chat()
+vim.cmd("stopinsert")
+api.nvim_set_current_win(listing_win)
+notes, cc_calls.tree_adds = {}, {}
+tree_key.callback()
+t.ok(codex.visible() and noted("Only Claude Code takes files from a directory listing") ~= nil
+  and #cc_calls.tree_adds == 0, "<leader>aS with Codex on the right refuses")
 vim.bo[listing].filetype = ""
 
 asked = {}
 vim.cmd("AI new")
 t.eq(asked[1] and asked[1].prompt, "New AI chat", ":AI new opens the new-chat picker")
-vim.cmd("AI chats")
-t.eq(asked[2] and asked[2].prompt, "Switch AI chat", ":AI chats opens the switcher")
+vim.cmd("AI")
+t.eq(asked[2] and asked[2].prompt, "Switch AI chat", ":AI opens the switcher")
 
 -- From Visual, the pickers take the selection along to the chat they show.
 vim.cmd.edit(vim.fn.fnameescape(file))
@@ -1266,7 +1298,7 @@ local expected = {
   "Sending code to CodeCompanion is disabled",
   "This buffer has no file",
   "Only Claude Code takes files from a directory listing",
-  "A directory selection cannot wait for a question",
+  "A directory listing cannot wait for a question",
   "is this tabpage's only window",
   "Terminal exited with code", -- Snacks, for the Codex stopped on purpose
 }

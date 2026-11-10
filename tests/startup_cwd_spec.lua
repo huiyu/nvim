@@ -49,7 +49,7 @@ local function child(args, opts)
   local result = vim.system(command, {
     cwd = base, text = true, stdin = opts.stdin,
     env = {
-      NVIM_AI_PROVIDER = opts.provider or require("ai.config").provider,
+      NVIM_AI_PROVIDER = opts.provider or require("ai.config").default,
       CWD_PROBE = probe, CWD_EDIT = opts.edit or "", CWD_NEXT = opts.next and "1" or "",
     },
   }):wait(20000)

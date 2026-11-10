@@ -1,10 +1,11 @@
 local ai_config = require("ai.config")
 
--- Declared under both providers, lazy and command-triggered: `:AI provider
--- claude` in a Codex-started Nvim needs the plugin, and nothing loads it before
--- the first Claude key does. Never make this spec conditional on the provider:
--- lazy then prunes its lock line and lists the plugin in `to_clean`, so
--- `:Lazy clean` / `:Lazy sync` from a Codex process deletes it.
+-- Declared whichever agent is the default, lazy and command-triggered: the
+-- new-chat picker starts Claude in a Codex-started Nvim too, and nothing loads
+-- the plugin before the first Claude key does. Never make this spec
+-- conditional on the default: lazy then prunes its lock line and lists the
+-- plugin in `to_clean`, so `:Lazy clean` / `:Lazy sync` from a Codex process
+-- deletes it.
 
 -- Whether to wrap claude in a dedicated tmux server when launching the
 -- terminal. Precedence: env var > vim.g > default.
@@ -233,9 +234,9 @@ end
 -- immune to the SIGHUP cascade. Also sweeps stale servers from prior crashes
 -- when it starts, leftovers included.
 --
--- Started once per Nvim: at VimEnter in a Claude-started process, as before,
--- and otherwise when claudecode.nvim first loads -- after a switch, which is
--- long after VimEnter has fired.
+-- Started once per Nvim: at VimEnter when Claude is the default backend, and
+-- otherwise when claudecode.nvim first loads -- Claude started from the
+-- new-chat picker, long after VimEnter has fired.
 local watchdog_started = false
 local function ensure_watchdog()
   if watchdog_started or vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then return end
@@ -275,7 +276,7 @@ local function claude_cwd(ctx)
 end
 
 -- A Claude-started Nvim keeps its startup sweep of stale servers.
-if ai_config.is("claude") then
+if ai_config.default == "claude" then
   vim.api.nvim_create_autocmd("VimEnter", {
     group = vim.api.nvim_create_augroup("ClaudeTmuxWatchdog", { clear = true }),
     once = true,
@@ -295,8 +296,8 @@ return {
       -- switching sources.claude off later still drops the events (ai.review.hook).
       opts.terminal_cmd = build_terminal_cmd()
       require("claudecode").setup(opts)
-      -- <leader>aa/ad exist once a Claude diff can arrive, whichever provider
-      -- is active (lua/ai/init.lua).
+      -- <leader>aa/ad exist once a Claude diff can arrive, whatever is on the
+      -- right (lua/ai/init.lua).
       require("ai").apply_keymaps()
     end,
     cmd = {

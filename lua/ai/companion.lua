@@ -4,10 +4,10 @@
 --   acp   agent chat  an agent CLI over ACP, on the subscription
 --   http  API chat    a key profile over HTTP, on API credits
 --
--- A chat is created by spec (create: one of ai.config.backends(), hidden at
--- first) and then put on screen as exactly that chat (show). <leader>ag/aG and
--- <leader>ah/aH still pick "the chat of a kind on its current adapter" (find),
--- which upstream's Toggle and Add cannot do: they only know `last_chat`.
+-- A chat is created by backend (create: one of ai.config.backends(), from
+-- <leader>an, hidden at first) and then put on screen as exactly that chat
+-- (show). Upstream's Toggle and Add cannot be aimed at one chat: they only
+-- know `last_chat`.
 --
 -- show() never calls upstream's Chat.open without a window. That path closes
 -- `last_chat` wherever it is shown, another tabpage included. Instead: a chat
@@ -24,12 +24,12 @@
 -- `chat.bufnr`, `chat.id`, `chat.prompt:add`, `interactions.chat.open`, the
 -- `hidden` chat argument and buf_get_chat()'s entries. This module is the one
 -- reader: the slot asks it (key, buf, name, win, where, win_here, hide) rather
--- than reading a chat itself. The facade pcall-wraps toggle and add and falls
--- back to the upstream commands with a WARN, and tests/companion_spec.lua pins
--- the behaviour. Text goes to one exact chat through add_text (review
--- feedback, a captured selection), which also reads `chat.current_request`
--- and the private `chat._turn_in_progress` (busy), and refuses rather than
--- raise when they have changed.
+-- than reading a chat itself, and the facade reports any failure as an error
+-- rather than falling back to an upstream command aimed at some other chat.
+-- tests/companion_spec.lua pins the behaviour. Text goes to one exact chat
+-- through add_text (review feedback, a captured selection), which also reads
+-- `chat.current_request` and the private `chat._turn_in_progress` (busy), and
+-- refuses rather than raise when they have changed.
 --
 -- Nothing here requires CodeCompanion at the top level. The first call that
 -- needs it does, and lazy's module autoload loads the plugin then -- so the
@@ -55,14 +55,15 @@ local function valid_buf(buf)
   return type(buf) == "number" and vim.api.nvim_buf_is_valid(buf)
 end
 
----The CodeCompanion adapter a new chat of `kind` gets in the current state.
+---The CodeCompanion adapter `kind` means when nothing names one: the default
+---backend's ACP agent, or the key profile's HTTP adapter.
 ---@param kind ai.CompanionKind
 ---@return string
 function M.adapter_name(kind)
   return kind == "acp" and config.codecompanion.acp_adapter or config.codecompanion.http_adapter
 end
 
----The backend (ai.config.backends) a new chat of `kind` comes from now.
+---The backend (ai.config.backends) `kind` means when nothing names one.
 ---@param kind ai.CompanionKind
 ---@return ai.Backend
 local function spec_of(kind)
@@ -77,7 +78,7 @@ end
 ---bridge into an asynchronous connection error. Only what starts something is
 ---checked here: creating a chat (an agent chat spawns its bridge at once, an
 ---API chat may fetch the model list with the key) and the inline prompt.
----@param what ai.CompanionKind|ai.Backend a kind on its current adapter, or one backend
+---@param what ai.CompanionKind|ai.Backend a kind on its default adapter, or one backend
 ---@return boolean ok
 function M.preflight(what)
   local spec = type(what) == "table" and what or spec_of(what)
@@ -176,15 +177,6 @@ function M.name(chat)
   return adapter.formatted_name or adapter.name or "The chat"
 end
 
----Compare two rank tuples, most significant field first.
-local function outranks(a, b)
-  if not b then return true end
-  for i = 1, #a do
-    if a[i] ~= b[i] then return a[i] > b[i] end
-  end
-  return false
-end
-
 ---Every live chat, whatever its adapter or however it was opened, oldest
 ---first, each with what buf_get_chat() knows of it. Empty before CodeCompanion
 ---has loaded, which is not loaded to answer.
@@ -233,29 +225,6 @@ function M.label(chat, entry)
     if bufname ~= "" and not bare:match("^%[CodeCompanion%]%D*%d+$") then name = bufname end
   end
   return ("%s · %s · %s"):format(adapter.formatted_name or adapter.name or "?", kind, name or ("#" .. chat.bufnr))
-end
-
----The chat of `kind` on that kind's current adapter, if any: the one on
----screen in this tabpage first, then upstream's last chat, then the most
----recently entered. `lastused` only has a resolution of seconds, so the buffer number
----(newer chats get higher ones) breaks the remaining ties.
----@param kind ai.CompanionKind
----@return CodeCompanion.Chat|nil
-function M.find(kind)
-  if not loaded() then return nil end
-  local want = M.adapter_name(kind)
-  local last = require("codecompanion").last_chat()
-  local best, best_rank
-  for _, entry in ipairs(require("codecompanion").buf_get_chat()) do
-    local chat = entry.chat
-    local adapter = chat and chat.adapter
-    if adapter and adapter.type == kind and adapter.name == want and vim.api.nvim_buf_is_valid(chat.bufnr) then
-      local info = vim.fn.getbufinfo(chat.bufnr)[1] or {}
-      local rank = { here(chat) and 1 or 0, chat == last and 1 or 0, info.lastused or 0, chat.bufnr }
-      if outranks(rank, best_rank) then best, best_rank = chat, rank end
-    end
-  end
-  return best
 end
 
 local function focus(chat)
@@ -320,30 +289,6 @@ function M.create(spec, extra)
   return chat
 end
 
----Start a chat of `kind` on the current adapter (and the profile's model), and
----show it.
----@param kind ai.CompanionKind
----@return CodeCompanion.Chat|nil
-function M.new(kind)
-  local chat = M.create(spec_of(kind))
-  if chat then M.show(chat) end
-  return chat
-end
-
----Show or hide the chat of `kind`, starting one when there is none.
----@param kind ai.CompanionKind
----@return CodeCompanion.Chat|nil
-function M.toggle(kind)
-  local chat = M.find(kind)
-  if not chat then return M.new(kind) end
-  if here(chat) then
-    M.hide(chat)
-    return chat
-  end
-  M.show(chat, { toggled = true })
-  return chat
-end
-
 ---A captured selection (ai.selection.capture) as chat text: fenced, with its
 ---source -- what :'<,'>CodeCompanionChat Add writes. Nothing is submitted.
 ---@param chat table a CodeCompanion.Chat
@@ -367,29 +312,6 @@ function M.refused(why)
   vim.notify(msg, WARN, { title = "AI" })
 end
 
----Add the Visual selection to the chat of `kind` (CodeCompanion.add, aimed at
----one kind instead of `last_chat`), starting one when there is none. Nothing
----is submitted.
----@param kind ai.CompanionKind
----@return CodeCompanion.Chat|nil
-function M.add_selection(kind)
-  local cap, err = require("ai.selection").capture()
-  if not cap then
-    vim.notify(err, WARN, { title = "AI" })
-    return nil
-  end
-  local chat = M.find(kind)
-  -- A refusal needs nothing loaded; with no chat yet, this one would start it.
-  if not chat and not M.preflight(kind) then return nil end
-  if not require("codecompanion.config").can_send_code() then return M.refused("disabled") end
-  chat = chat or M.create(spec_of(kind), { stop_context_insertion = true })
-  if not chat then return nil end
-  local ok, why = M.add_capture(chat, cap)
-  if not ok then return M.refused(why) end
-  M.show(chat)
-  return chat
-end
-
 ---Is `chat` in the middle of a turn, where text added to its prompt would land
 ---inside the reply? A request in flight, or a tool loop between two of its
 ---steps: there Chat:done has already cleared `current_request` and the next
@@ -410,8 +332,8 @@ end
 
 ---The live chat `chat` still is: its buffer valid and, once CodeCompanion has
 ---loaded, the chat CodeCompanion keeps for that buffer, with the same id. No
----other chat stands in for it -- not find(kind)'s pick, not a newer chat that
----reuses the buffer.
+---other chat stands in for it -- not upstream's last chat, not a newer chat
+---that reuses the buffer.
 ---@param chat table
 ---@return table|nil
 local function exact(chat)
@@ -477,16 +399,17 @@ function M.inline_keys()
   return M.preflight("http") and ":CodeCompanion " or "<Ignore>"
 end
 
----Point CodeCompanion's defaults for new chats and requests at the current
----state. A no-op until the plugin has loaded: its `opts` read the same state
----at load time (lua/plugin/lsp/codecompanion.lua). The live config is written
----directly, never `vim.g.codecompanion_adapter`, which v20's cmd.lua resolves
----through `config.adapters[name]` -- nil -- and so falls back to the ACP chat
----adapter.
+---Point CodeCompanion's inline and command prompts at the current key
+---profile, after :AI key. A no-op until the plugin has loaded: its `opts` read
+---the same state at load time (lua/plugin/lsp/codecompanion.lua). The chat
+---adapter is not touched: it is the default backend's, fixed at load, and
+---only CodeCompanion's own paths that name no adapter use it. The live config
+---is written directly, never `vim.g.codecompanion_adapter`, which v20's
+---cmd.lua resolves through `config.adapters[name]` -- nil -- and so falls back
+---to the ACP chat adapter.
 function M.sync()
   if not loaded() then return end
   local cc = require("codecompanion.config")
-  cc.interactions.chat.adapter = config.codecompanion.acp_adapter
   cc.interactions.inline.adapter = config.http_adapter_spec()
   cc.interactions.cmd.adapter = config.http_adapter_spec()
 end

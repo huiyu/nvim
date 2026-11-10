@@ -358,8 +358,8 @@ local CODEX_SHAPE =
 local SOURCES = {
   { "claude", "native Claude" },
   { "codex", "native Codex" },
-  { "codecompanion_acp", "agent chat (<leader>ag)" },
-  { "codecompanion_http", "API chat (<leader>ah)" },
+  { "codecompanion_acp", "ACP chats (<leader>an)" },
+  { "codecompanion_http", "API chats (<leader>an)" },
 }
 
 -- Static checks only: the strings ai.review.hook generates are parsed and
@@ -688,18 +688,19 @@ function M.check()
   end
 
   local ai = require("ai.config")
-  health.start("config: AI provider")
-  local function moved(now, startup) return now ~= startup and (" (started as %s)"):format(startup) or "" end
-  health.ok(("%s active (provider=%s%s), :AI provider switches it")
-    :format(ai.label, ai.provider, moved(ai.provider, ai.startup.provider)))
-  health.ok(("HTTP key profile %s (%s%s), :AI key switches it")
-    :format(ai.key.label, ai.key_setting(), moved(ai.key_setting(), ai.startup.key)))
+  health.start("config: AI backends")
+  local source = ai.default_source == "built-in" and "built-in default"
+    or ("%s=%s"):format(ai.default_source, ai.default)
+  health.ok(("default backend %s (%s): first in the new-chat picker (<leader>an), fixed at startup")
+    :format(ai.providers[ai.default].label, source))
+  health.ok(("HTTP key profile %s (%s), :AI key switches it"):format(ai.key.label, ai.key_setting()))
 
-  -- Both providers, because either can become active with :AI. Only the
-  -- active one's absence is an error: the other is unavailable, not broken.
+  -- Both agents, because <leader>an offers every backend whichever is the
+  -- default. Only the default's absence is an error: the other is
+  -- unavailable, not broken, and the picker leaves it out.
   for _, name in ipairs(ai.names()) do
     local provider = ai.providers[name]
-    local report = name == ai.provider and health.error or health.warn
+    local report = name == ai.default and health.error or health.warn
     local command = provider.native.command
     if vim.fn.executable(command) == 1 then
       health.ok(("%s found — %s native agent available"):format(command, provider.label))
@@ -708,9 +709,9 @@ function M.check()
     end
     local acp = provider.codecompanion.acp_command
     if vim.fn.executable(acp) == 1 then
-      health.ok(("%s found — agent chat (<leader>ag) can use %s over ACP"):format(acp, provider.label))
+      health.ok(("%s found — <leader>an can start %s over ACP"):format(acp, provider.label))
     else
-      report(("%s not found — agent chat with %s refuses to start"):format(acp, provider.label))
+      report(("%s not found — no %s chat over ACP"):format(acp, provider.label))
     end
   end
 
@@ -730,17 +731,17 @@ function M.check()
   for _, name in ipairs(ai.key_names()) do
     local var = ai.key_profiles[name].api_key
     if is_set(var) then
-      health.ok(("%s found — key profile %s can run API chat and inline/command prompts"):format(var, name))
+      health.ok(("%s found — key profile %s can run API chats and inline/command prompts"):format(var, name))
     elseif name == ai.key.name then
-      health.warn(("%s not set — agent chat works; API chat and inline edits refuse until it is set"):format(var),
+      health.warn(("%s not set — native and ACP chats work; inline edits refuse until it is set"):format(var),
         { "See README.md, API keys" })
     else
-      health.info(("%s not set — key profile %s unavailable until it is"):format(var, name))
+      health.info(("%s not set — no %s API chat until it is"):format(var, name))
     end
   end
 
   -- An agent's own variable outranks its subscription login, so an export
-  -- meant for something else silently moves the native terminal and agent chat
+  -- meant for something else silently moves the native terminal and ACP chat
   -- onto API billing. Both are checked: either agent can be started from here.
   for _, name in ipairs(ai.names()) do
     local provider = ai.providers[name]
@@ -753,7 +754,7 @@ function M.check()
     end
   end
 
-  -- Independent of the provider above: ghost text always comes from the local
+  -- Independent of the backends above: ghost text always comes from the local
   -- server that util.llama starts on the first Insert.
   local llama = require("util.llama")
   health.start("config: inline completion")

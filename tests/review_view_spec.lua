@@ -370,7 +370,7 @@ local function agent_terminal(agent, session)
 end
 -- Either agent can be the one on the right, whichever is the default: the
 -- spec runs the same under both.
-local right = config.provider
+local right = config.default
 local other = right == "claude" and "codex" or "claude"
 local right_term = agent_terminal(right, "s-right")
 local other_term = agent_terminal(other, "s-other")

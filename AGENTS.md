@@ -16,12 +16,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   Add language-specific behavior there instead of expanding a core plugin spec.
 - `lua/util/` contains small reusable helpers. Avoid introducing frameworks for
   behavior already covered by Neovim or a maintained plugin.
-- `lua/ai/config.lua` holds the AI state -- the provider and the HTTP key
-  profile -- which `lua/ai/switch.lua` (`:AI`) switches in-process, and the
-  list of backends a chat can be started on (`backends()`).
-  `lua/ai/init.lua` exposes provider-neutral mappings; `lua/ai/slot.lua` keeps
-  one AI window per tabpage and resolves "the chat on the right";
-  `lua/ai/backend/` owns native-agent details.
+- `lua/ai/config.lua` holds the AI state -- the default backend, fixed at
+  startup, and the HTTP key profile, which `lua/ai/switch.lua` (`:AI key`)
+  switches in-process -- and the list of backends a chat can be started on
+  (`backends()`). `lua/ai/init.lua` exposes agent-neutral mappings;
+  `lua/ai/slot.lua` keeps one AI window per tabpage and resolves "the chat on
+  the right"; `lua/ai/backend/` owns native-agent details.
 - `lua/ai/review/` is the review loop: `config.lua` (every setting's default,
   `vim.g.ai_review` merged over them), `hook.lua` (the native agents' prompt
   hooks), `rounds.lua` (rounds and delivery checks), `init.lua` (`<leader>av`
@@ -38,18 +38,23 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 
 ## AI Provider Invariants
 
-- `vi` uses the default provider, `vi --claude` selects Claude,
-  and `vi --codex` selects Codex. These are case-insensitive leading flags
+- `vi` starts with the built-in default backend, `vi --claude` makes Claude
+  the default and `vi --codex` Codex. These are case-insensitive leading flags
   of the Zsh launcher; all remaining arguments pass unchanged to Neovim,
-  including its native `-c`.
-  `NVIM_AI_PROVIDER` is the startup default, `NVIM_AI_KEY_PROFILE` (optional)
-  the startup HTTP key profile. `:AI provider` / `:AI key` (`<leader>ax`,
-  `lua/ai/switch.lua`) switch them in-process; nothing is persisted. A switch
-  changes state, mapping descriptions and CodeCompanion's live defaults only --
-  it never starts, stops, shows or hides a native terminal, ACP connection or
-  chat. For now the provider is also the default the pickers start from (the
-  new-chat picker's first entry, the native keys' first agent), and what
-  `at`/`aT`, `ag`/`aG` and oil's `aS` reach.
+  including its native `-c`. `NVIM_AI_PROVIDER` (> `vim.g.ai_provider` >
+  claude) is the default backend, fixed for the process (`ai.config.default`).
+  It only decides defaults: the new-chat picker's first entry, the agent a
+  native-only key offers first, what the `auto` key profile resolves to,
+  CodeCompanion's chat adapter for its own paths that name none (a typed
+  `:CodeCompanionChat`, the action palette), whether Claude's watchdog starts
+  at VimEnter, and error or warning in `:checkhealth config`. It never decides
+  what a key is called or where it acts, and nothing switches it in-process:
+  `:AI provider` is gone and says so, pointing at `:AI new`.
+  `NVIM_AI_KEY_PROFILE` (optional) is the startup HTTP key profile, which
+  `:AI key` (`<leader>ax`, `lua/ai/switch.lua`) switches; nothing is
+  persisted. A key switch changes state, `<leader>ae`'s description and
+  CodeCompanion's inline/cmd adapters only -- it never starts, stops, shows or
+  hides a native terminal, ACP connection or chat.
 - One AI window per tabpage (`lua/ai/slot.lua`): the right shows at most one
   of native Claude, native Codex or a CodeCompanion chat. Showing one hides
   the others in this tabpage through their owner's hide (claudecode's
@@ -82,62 +87,69 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `ab` asks among the native agents alone, since a chat takes no file. A
   selection is captured with plain Neovim API before any question
   (`ai.selection.capture`): vim.ui.select is asynchronous, and Visual mode is
-  gone by its answer. `ar`/`aR`/`am` act on the native agent on the right,
-  else ask which (the default first); a running session is shown and left as
-  it is, saying so, instead of being toggled away with its arguments dropped.
+  gone by its answer. `ar`/`aR`/`am` and `at`/`aT` act on the native agent
+  on the right, else ask which (the default first); a running session is
+  shown and left as it is, saying so, instead of being toggled away with its
+  arguments dropped. oil's `<leader>aS` is in every oil buffer and refuses
+  unless Claude Code is on the right: it reads the listing's cursor where it
+  is, so it asks nothing, as a listing's Visual `as` does not.
   Nothing is typed into a running agent's box for `am`: it may hold a draft
   an Enter would submit, or an approval an Enter would answer.
   A native agent cold-starts from the editor window
   (`util.window.editor_win`, which does not toggle like `focus_editor`), so
   its root is the edited file's. Delivering review feedback (`ai.feed`) makes
-  room for the round's agent, active or not; a panel already on screen in any
-  tabpage makes nothing yield there. Per-buffer behaviour (terminal input
+  room for the round's agent, whichever it is; a panel already on screen in
+  any tabpage makes nothing yield there. Per-buffer behaviour (terminal input
   rules, edgy slot, statusline label, image hand-back, the feedback a review
   round delivers) follows the buffer's own agent. A prompt float whose path
   names no agent (`ai.config.provider_of_prompt` answers nil: a `git commit`
   run in an agent's pane) has no owner: it takes no seed, `<C-v>` refuses,
   and its title is " Prompt "; nothing falls back to a default agent.
-- The key profile is `auto` unless pinned: `auto` follows the provider
-  (claude -> anthropic, codex -> openai), `:AI key <name>` pins one so a later
-  provider switch leaves it alone. So switching a process to a provider leaves
-  it exactly as one started with that provider, unless a key was pinned.
-- Native Claude and Codex must retain the same core `<leader>a` shortcuts and
-  should open or refocus in terminal input mode. The facade owns those keys
-  (`lua/ai/init.lua`, `apply_keymaps`) so a switch can relabel them; the chat
-  keys name no agent, since what they reach is the chat on the right.
-  `<leader>an`/`<leader>al` are leaves too.
-  `<leader>aa`/`<leader>ad` always answer Claude's diffs and exist while Claude
-  is active or claudecode.nvim is loaded. The CodeCompanion keys are
-  facade-owned for the same reason, not in its lazy spec; they load the plugin
-  on first `require`. So are `<leader>av`/`aV` (review), though a round
-  belongs to a conversation, not to the active provider: their `desc` names
-  no agent, a switch leaves it alone, and they load the review modules on
-  first press. `<leader>ap` is a leaf: no `<leader>ap*` mapping may return.
+- The key profile is `auto` unless pinned: `auto` follows the default
+  backend (claude -> anthropic, codex -> openai), `:AI key <name>` pins one.
+  It is the key of inline edits and command prompts alone: an API chat's
+  profile is the one its new-chat entry names. The statusline names the key
+  only while one is pinned.
+- Native Claude and Codex share the same `<leader>a` keys and open or refocus
+  in terminal input mode. The facade owns every `<leader>a` key
+  (`lua/ai/init.lua`, `apply_keymaps`). Their descriptions are fixed and name
+  no agent -- what a key reaches is the chat on the right, which a description
+  cannot follow -- except `<leader>ae`, which names the key profile it bills
+  and is relabelled by `:AI key`. `<leader>an`/`<leader>al` are leaves.
+  `<leader>aa`/`<leader>ad` answer Claude's diffs and exist once
+  claudecode.nvim has loaded, whatever is on the right. The CodeCompanion keys
+  are facade-owned too, not in its lazy spec; they load the plugin on first
+  `require`. So are `<leader>av`/`aV` (review): a round belongs to a
+  conversation, and they load the review modules on first press. `<leader>ap`
+  is a leaf: no `<leader>ap*` mapping may return. `<leader>ag`/`aG`/`ah`/`aH`
+  are gone: a chat of either kind starts from `<leader>an`.
 - Claude proposes its diffs in a tabpage of its own
   (`diff_opts.open_in_new_tab`, asserted by `tests/ai_terminal_spec.lua`):
   claudecode picks its target window by skipping `'diff'` windows, CodeDiff's
   panes never set `'diff'`, and its working-tree pane is an ordinary file
   window a proposal could land in.
-- Two chat kinds on separate keys: agent chat (`<leader>ag`/`aG`) is the active
-  provider over ACP, on the subscription; API chat (`<leader>ah`/`aH`) is the
-  active key profile over HTTP, on API credits. Inline (`<leader>ae`) and
-  command prompts use the active key profile. Keep these responsibilities
-  distinct, and keep the billing visible: the which-key headings and the chat
-  header (`roles.llm`, "CodeCompanion (Claude Code · ACP)") name the kind.
-  `lua/ai/companion.lua` picks the chat of the asked-for kind and adapter
-  itself -- upstream's Toggle/Add only know `last_chat` -- and refuses before
+- Two chat kinds, one picker: an ACP chat is an agent CLI over ACP, on the
+  subscription; an API chat is a key profile over HTTP, on API credits. Both
+  start from `<leader>an`, beside the native terminals: `ai.config.backends()`
+  lists every available backend (the native terminals, the ACP chats, one API
+  chat per key profile, never another upstream adapter), each entry naming
+  its transport and billing, and `lua/ai/companion.lua` refuses before
   anything starts when the profile's `NVIM_*` key is unset or the ACP bridge
-  is missing. `<leader>an` offers every available backend
-  (`ai.config.backends()`: the native terminals, the ACP chats, one API chat
-  per key profile, never another upstream adapter), each entry naming its
-  transport and billing, with the same refusal before a chat is created; a
-  native entry stands for that agent's one session and never starts a
-  second. A chat or session it starts is announced with its billing. A
-  chat's adapter is fixed at creation and `change_adapter` stays
-  disabled. Switching writes `interactions.*.adapter` in the live config
-  (`companion.sync`), never `vim.g.codecompanion_adapter` (v20 `cmd.lua`
-  resolves it through `config.adapters[name]`, which is nil, and falls back to
-  the ACP chat adapter).
+  is missing -- upstream's Toggle/Add only know `last_chat`, so it creates and
+  shows exactly the chat asked for. A native entry stands for that agent's
+  one session and never starts a second. A chat or session it starts is
+  announced with its billing. Inline edits (`<leader>ae`) and command prompts
+  use the key profile. Keep the billing visible: the picker's entries, the
+  switcher's labels, the chat header (`roles.llm`, "CodeCompanion (Claude Code
+  · ACP)") and the which-key heading over the keys that spend API credits
+  (`HTTP · API credits`: `ae`, `ax`) name it. A chat's adapter is fixed at
+  creation and `change_adapter` stays disabled. CodeCompanion's
+  `interactions.chat.adapter` is the default backend's ACP agent, set at load
+  and never changed; `:AI key` writes `interactions.inline.adapter` and
+  `interactions.cmd.adapter` in the live config (`companion.sync`), never
+  `vim.g.codecompanion_adapter` (v20 `cmd.lua` resolves it through
+  `config.adapters[name]`, which is nil, and falls back to the ACP chat
+  adapter).
 - codecompanion-history stores the local transcript; continuing the agent's
   stateful ACP session is a separate `/resume` workflow. Preserve that
   distinction in implementation and documentation.
@@ -147,7 +159,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   config that asks for them moves the native agent and agent chat onto API
   billing. Every key profile in `lua/ai/config.lua` names an `NVIM_*`
   variable, both `anthropic` and `openai` are extended with theirs (through
-  `adapters.http.extend`) whichever provider started the process, and
+  `adapters.http.extend`) whichever agent is the default, and
   config.lua refuses a profile naming a CLI variable. The Codex ACP adapter
   always uses `auth_method = "chat-gpt"`. Nothing writes `vim.env` for billing
   variables. Exercised by `tests/ai_api_key_spec.lua`.
@@ -161,8 +173,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   asserts the command stays gone.
 - Preserve the Claude tmux wrapper and watchdog unless a replacement is tested
   against terminal flicker, CJK rendering, cleanup, resume, and appended CLI
-  arguments. Claude's watchdog starts at VimEnter in a Claude-started Nvim and
-  otherwise when claudecode.nvim first loads; Codex's on first spawn.
+  arguments. Claude's watchdog starts at VimEnter when Claude is the default
+  backend and otherwise when claudecode.nvim first loads; Codex's on first
+  spawn.
 - Both tmux wrappers run the agent through `scripts/agent-run`, not directly.
   Their teardown (`exit-empty` plus the `client-detached` hook) makes the tmux
   client exit 0 however the pane's command ended, so nvim sees success and
@@ -186,11 +199,11 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   creation time and forwarded explicitly through `new-session -e` under both tmux
   wrappers. Dropping any of them degrades silently to a nested Nvim inside
   `:terminal`, so treat them as part of the terminal command, not as decoration.
-- Inline ghost text (`lua/plugin/lsp/minuet.lua`) is not part of the provider
+- Inline ghost text (`lua/plugin/lsp/minuet.lua`) is not part of the AI
   facade: it always comes from the local `llama-server` that `util.llama`
-  shares between Nvims, whichever provider the process selected. Do not route
-  it through `ai.config`. The server only starts when a UI is attached, so the
-  headless spec suite never loads the model; keep that guard.
+  shares between Nvims, whatever the default backend or the chat on the right.
+  Do not route it through `ai.config`. The server only starts when a UI is
+  attached, so the headless spec suite never loads the model; keep that guard.
 
 ## Review Baselines
 
@@ -628,10 +641,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `show` and `focus_prompt` use where it is and `<leader>ac` closes.
   `ai.slot` reaches chats only through `ai.companion` (`key`, `buf`, `name`,
   `win`, `where`, `win_here`, `hide`), which reads them in a pcall and
-  checks what it gets. The facade pcall-wraps toggle and add and
-  falls back to `:CodeCompanionChat Toggle` / `:'<,'>CodeCompanionChat Add`
-  with a WARN. `tests/companion_spec.lua` pins the internals without creating
-  an ACP chat (that spawns the bridge) or sending a request, and
+  checks what it gets. A failure is reported as an error by the facade's
+  guards; nothing falls back to an upstream command, which would aim at
+  `last_chat` instead. `tests/companion_spec.lua` pins the internals without
+  creating an ACP chat (that spawns the bridge) or sending a request, and
   `tests/ai_slot_spec.lua` the slot. Review feedback goes to one exact chat
   through `add_text`, `busy` and `show_input`, which also read
   `chat.current_request` and the private
@@ -659,8 +672,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - Neovim's built-in `gc`/`gcc` commenting is the default; do not reintroduce a
   comment plugin without a concrete missing capability.
 - Add or remove plugins through lazy.nvim specs and include the resulting
-  `lazy-lock.json` change. claudecode.nvim is declared under both providers
-  (lazy, cmd-triggered). Never make a spec conditional on the provider: lazy
+  `lazy-lock.json` change. claudecode.nvim is declared whichever agent is the
+  default (lazy, cmd-triggered). Never make a spec conditional on the default
+  backend: lazy
   then prunes its lock line and lists the plugin in `to_clean`, so
   `:Lazy clean`/`sync` deletes it.
 
@@ -679,8 +693,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 
 ## Validation
 
-Run checks proportional to the change. At minimum, verify both providers and
-the working-tree whitespace check:
+Run checks proportional to the change. At minimum, verify both default
+backends and the working-tree whitespace check:
 
 ```sh
 ./tests/run.sh
@@ -709,10 +723,11 @@ once after `Lazy! install` to fetch it, checks the library (and `libgomp`,
 when that was fetched too) against the release's `SHA256SUMS`, and installs
 no watcher.
 
-For CodeCompanion changes, load it under both providers and confirm the resolved
-ACP adapter plus `:CodeCompanionHistory`. For formatting changes, trigger
-`BufWritePre` before checking Conform. For keymap, terminal, window, or deletion
-changes, reproduce the exact edge case rather than relying only on startup.
+For CodeCompanion changes, load it under both default backends and confirm
+the resolved ACP adapter plus `:CodeCompanionHistory`. For formatting changes,
+trigger `BufWritePre` before checking Conform. For keymap, terminal, window, or
+deletion changes, reproduce the exact edge case rather than relying only on
+startup.
 For baseline, CodeDiff or review changes, use a temporary repository (a space
 in its path, an empty global git config) and never start a real agent or
 submit a chat: the specs hand hook payloads to `ai.review.hook.event` and

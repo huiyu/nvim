@@ -430,6 +430,48 @@ local not_repo = find(section(out_msgs, "config: review baselines"), "is not in 
 t.eq(not_repo and not_repo.level, "info", "outside a repository the baseline section says so")
 t.ok(not_repo and not_repo.msg:find(outside, 1, true), "naming the directory")
 
+-- AI backends ---------------------------------------------------------------
+
+-- The default backend decides error against warning: with no agent CLI and no
+-- ACP bridge on PATH, the default's are errors, the other agent's warnings --
+-- unavailable, not broken, and left out of the new-chat picker.
+local ai = require("ai.config")
+local stand_ins = root .. "/no agents"
+vim.fn.mkdir(stand_ins, "p")
+local cut = stand_ins .. ":/usr/bin:/bin"
+local backends = section(run(cut, "with no agent on PATH"), "config: AI backends")
+t.ok(#backends > 0, "the AI backends section has lines")
+local head = backends[1]
+t.ok(head and head.level == "ok" and head.msg:find("default backend " .. ai.providers[ai.default].label, 1, true) ~= nil
+  and head.msg:find(ai.default_source == "built-in" and "built-in default" or ai.default_source, 1, true) ~= nil,
+  "it opens with the default backend and where it came from: " .. tostring(head and head.msg))
+t.eq(level_of(backends, ":AI provider"), nil, "and no longer offers :AI provider")
+-- Judged on the same PATH the check ran on: a CLI in /usr/bin is found.
+local real_path = vim.env.PATH
+vim.env.PATH = cut
+local missing = {}
+for _, name in ipairs(ai.names()) do
+  local p = ai.providers[name]
+  for _, exe in ipairs({ p.native.command, p.codecompanion.acp_command }) do
+    if vim.fn.executable(exe) == 0 then missing[#missing + 1] = { name = name, exe = exe } end
+  end
+end
+vim.env.PATH = real_path
+t.ok(#missing > 0, "some agent CLI or bridge is missing on that PATH, to check against")
+for _, m in ipairs(missing) do
+  local want = m.name == ai.default and "error" or "warn"
+  t.eq(level_of(backends, m.exe .. " not found"), want,
+    ("%s missing: %s (%s)"):format(m.exe, want, m.name == ai.default and "the default's" or "not the default's"))
+end
+local g_before = vim.g.ai_review
+vim.g.ai_review = { sources = { codecompanion_acp = false, codecompanion_http = false } }
+local hooks_off = section(run(nil, "with the chat sources off"), "config: review hooks")
+vim.g.ai_review = g_before
+t.ok(find(hooks_off, "sources.codecompanion_acp = false — ACP chats (<leader>an)") ~= nil
+  and find(hooks_off, "sources.codecompanion_http = false — API chats (<leader>an)") ~= nil,
+  "a chat source switched off is named by the key that starts those chats")
+t.eq(find(hooks_off, "<leader>ag") or find(hooks_off, "<leader>ah"), nil, "never by the retired <leader>ag/ah")
+
 -- Cleanup -------------------------------------------------------------------
 
 vim.cmd.cd(vim.fn.fnameescape(CONFIG_DIR))

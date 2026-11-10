@@ -4,8 +4,8 @@ local pending_drift_fixes = {}
 
 -- Snacks records the original command on every terminal buffer, which is what
 -- tells an agent panel from a shell -- and which agent it is. Any configured
--- agent counts, not only the active provider: after a switch both can be
--- running, and each panel keeps its own rules.
+-- agent counts, the default or not: both can be running, and each panel keeps
+-- its own rules.
 ---@param buf integer?
 ---@return string|nil provider
 function M.agent_of(buf)

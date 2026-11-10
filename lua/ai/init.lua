@@ -3,9 +3,9 @@ local M = {}
 local config = require("ai.config")
 local did_setup = false
 
----@param name string? a provider; nil means the active one
+---@param name string a provider
 local function backend(name)
-  return require("ai.backend." .. (name or config.provider))
+  return require("ai.backend." .. name)
 end
 
 local function label_of(name)
@@ -29,6 +29,7 @@ local function slot() return require("ai.slot") end
 local function companion() return require("ai.companion") end
 
 local function notify(msg, level) vim.notify(msg, level or vim.log.levels.INFO, { title = "AI" }) end
+local WARN = vim.log.levels.WARN
 
 -- Methods that put an agent's panel on screen: the ones that show it, and the
 -- ones that feed it, which open or start the panel to deliver. Before one
@@ -52,45 +53,35 @@ local function make_room(method, provider)
   slot().make_room(slot().native_item(provider), { jump = false, editor = false })
 end
 
----Call `method` on one provider's backend, whichever is active.
+---Call `method` on one agent's backend, by name: a key that already knows
+---which agent it acts on (the one on the right, Claude for its diffs), or
+---review feedback for the agent whose round it is.
 ---@param name string provider
 ---@param method string
-local function invoke_on(name, method, ...)
+local function call(name, method, ...)
   local fn = backend(name)[method]
   if type(fn) ~= "function" then
-    vim.notify(("%s does not support %s"):format(label_of(name), method), vim.log.levels.WARN)
+    vim.notify(("%s does not support %s"):format(label_of(name), method), WARN)
     return
   end
   return guard(label_of(name), method, function(...)
-    if name == config.provider then make_room(method, name) end
+    make_room(method, name)
     return fn(...)
   end, ...)
 end
 
-local function invoke(method, ...)
-  return invoke_on(config.provider, method, ...)
-end
-
----Deliver to one agent by name, whichever provider is active: review feedback
----goes to the agent whose round it is (lua/ai/review). The room made is for
----that agent's panel, the one about to be revealed: every other AI window of
----this tabpage gives way to it, a chat shown here included.
+---Deliver to one agent by name: review feedback goes to the agent whose round
+---it is (lua/ai/review). The room made is for that agent's panel, the one
+---about to be revealed: every other AI window of this tabpage gives way to
+---it, a chat shown here included.
 ---@param provider string
 ---@param method string
 function M.feed(provider, method, ...)
   if not config.providers[provider] then
-    vim.notify(("Unknown AI provider %q"):format(tostring(provider)), vim.log.levels.WARN)
+    vim.notify(("Unknown AI provider %q"):format(tostring(provider)), WARN)
     return
   end
-  local fn = backend(provider)[method]
-  if type(fn) ~= "function" then
-    vim.notify(("%s does not support %s"):format(label_of(provider), method), vim.log.levels.WARN)
-    return
-  end
-  return guard(label_of(provider), method, function(...)
-    make_room(method, provider)
-    return fn(...)
-  end, ...)
+  return call(provider, method, ...)
 end
 
 ---Run `fn(item, ...)` for a chat the slot resolved, under the same guard as a
@@ -158,19 +149,34 @@ local function deliver_capture(item, cap, from)
   slot().went(item, from)
 end
 
+---The native agent on the right of this tabpage when it takes files from a
+---directory listing (ai.config's tree_add capability: Claude Code). Asks
+---nothing: a listing's cursor and selection are only read where they are now.
+---@return string|nil agent, ai.SlotItem|nil item what is on the right
+local function tree_target()
+  local item = slot().target_now()
+  local agent = item and item.kind == "native" and item.agent
+  if agent and config.providers[agent].native.capabilities.tree_add then return agent, item end
+  return nil, item
+end
+
+---Why a listing's file or selection went nowhere.
+---@param item ai.SlotItem|nil what is on the right
+local function tree_refused(item)
+  if not item then
+    return notify("A directory listing cannot wait for a question: put Claude Code on the right first (<leader>al)",
+      WARN)
+  end
+  notify("Only Claude Code takes files from a directory listing: put it on the right (<leader>al)", WARN)
+end
+
 ---A directory listing's selection names files, and only a live Visual tells
 ---which: it goes to Claude Code on the right at once, or nowhere.
 local function tree_selection()
-  local item = slot().target_now()
-  if item and item.kind == "native" and item.agent == "claude" then
-    return invoke_on("claude", "send_selection")
-  end
+  local agent, item = tree_target()
+  if agent then return call(agent, "send_selection") end
   vim.cmd("normal! \27")
-  if not item then
-    return notify("A directory selection cannot wait for a question: put Claude Code on the right first (<leader>al)",
-      vim.log.levels.WARN)
-  end
-  notify("Only Claude Code takes files from a directory listing", vim.log.levels.WARN)
+  tree_refused(item)
 end
 
 ---<leader>as: the selection, to the chat on the right.
@@ -210,11 +216,17 @@ function M.add_buffer()
   end)
 end
 
--- Diffs are Claude's alone, and one opened before a switch away still needs
--- an answer, so these never follow the active provider.
-function M.accept_diff() return invoke_on("claude", "accept_diff") end
-function M.deny_diff() return invoke_on("claude", "deny_diff") end
-function M.tree_add() return invoke("tree_add") end
+-- Diffs are Claude's alone, whatever is on the right.
+function M.accept_diff() return call("claude", "accept_diff") end
+function M.deny_diff() return call("claude", "deny_diff") end
+
+---oil's <leader>aS: the file under the cursor, to Claude Code on the right
+---(see tree_target); anything else on the right, or nothing, is refused.
+function M.tree_add()
+  local agent, item = tree_target()
+  if agent then return call(agent, "tree_add") end
+  tree_refused(item)
+end
 
 ---Replay the TUI's own image-paste keystroke for each staged file.
 ---
@@ -227,9 +239,9 @@ function M.attach_images(paths, provider)
   if not config.providers[provider] then
     -- No agent to guess at: an image sent to the wrong one is worse than none.
     for _, png in ipairs(paths or {}) do vim.fn.delete(png) end
-    return notify("The images belong to no known agent's prompt: nothing was attached", vim.log.levels.WARN)
+    return notify("The images belong to no known agent's prompt: nothing was attached", WARN)
   end
-  return invoke_on(provider, "attach_images", paths)
+  return call(provider, "attach_images", paths)
 end
 
 local function visual() return vim.fn.mode():sub(1, 1):match("[vVsS\22\19]") ~= nil end
@@ -318,14 +330,21 @@ M.new_chat = pick_with("new")
 ---selection goes to it.
 M.switch_chat = pick_with("switch")
 
--- Not backend methods, so not `invoke`; the same guard, so a failing view is
--- a notification like every other <leader>a key.
-function M.transcript()
-  return guard(config.label, "transcript", function() return require("ai.transcript").open_current() end)
+-- A native agent's own records, read from disk: the agent on the right, else
+-- the one asked for (the default first). Not backend methods, so not `call`;
+-- the same guard, so a failing view is a notification like every other
+-- <leader>a key.
+local function transcript_key(method)
+  return function()
+    return guard("AI", "transcript", function()
+      slot().native_target(function(agent)
+        guard(label_of(agent), "transcript", function() require("ai.transcript")[method](agent) end)
+      end, { prompt = "Whose transcript?" })
+    end)
+  end
 end
-function M.transcript_pick()
-  return guard(config.label, "transcript_pick", function() return require("ai.transcript").pick() end)
-end
+M.transcript = transcript_key("open_current")
+M.transcript_pick = transcript_key("pick")
 
 -- The review loop is one for every conversation, so these name no agent. Each
 -- loads its module on first use: nothing of it is required at startup.
@@ -336,8 +355,8 @@ function M.new_round()
   return guard("AI review", "start", function() return require("ai.review.rounds").start() end)
 end
 
----State of both axes and of both native agents. Never loads claudecode.nvim
----or CodeCompanion to answer.
+---The default backend, the key profile and every open chat, for :AI info.
+---Never loads claudecode.nvim or CodeCompanion to answer.
 function M.info()
   local function set(var) return (vim.env[var] or "") ~= "" end
 
@@ -347,38 +366,24 @@ function M.info()
     profiles[name] = { label = p.label, var = p.api_key, set = set(p.api_key) }
   end
 
-  -- A summary must not fail on one backend's question.
-  local function ask(fn)
-    if not fn then return false end
-    local ok, value = pcall(fn)
-    return ok and value == true
-  end
-
-  local sessions, cli_keys = {}, {}
+  local cli_keys = {}
   for _, name in ipairs(config.names()) do
-    local b = backend(name)
-    sessions[name] = { label = label_of(name), running = ask(b.running), visible = ask(b.visible) }
     local var = config.providers[name].cli_api_key
     cli_keys[var] = set(var)
   end
 
-  local chats
-  local plugin = require("lazy.core.config").plugins["codecompanion.nvim"]
-  if plugin and plugin._.loaded then
-    chats = {}
-    local ok, list = pcall(function() return require("codecompanion").buf_get_chat() end)
-    for _, entry in ipairs(ok and list or {}) do
-      local adapter = entry.chat and entry.chat.adapter
-      local name = adapter and adapter.name or "?"
-      chats[name] = (chats[name] or 0) + 1
-    end
+  -- A summary must not fail on one chat's question.
+  local chats = {}
+  local ok, items = pcall(slot().list)
+  for _, item in ipairs(ok and items or {}) do
+    local got, label, where = pcall(function() return slot().label(item), slot().where(item) end)
+    if got then chats[#chats + 1] = { id = item.id, label = label, where = where } end
   end
 
   return {
-    provider = config.provider,
-    label = config.label,
-    native = config.native.command,
-    startup = vim.deepcopy(config.startup),
+    default = config.default,
+    default_label = label_of(config.default),
+    default_source = config.default_source,
     key = {
       name = config.key.name,
       label = config.key.label,
@@ -388,7 +393,6 @@ function M.info()
     },
     profiles = profiles,
     cli_keys = cli_keys,
-    sessions = sessions,
     codecompanion = {
       chat = config.codecompanion.acp_adapter .. " (ACP)",
       inline = config.codecompanion.http_adapter .. " (HTTP)",
@@ -401,43 +405,19 @@ local function map(mode, lhs, rhs, desc)
   vim.keymap.set(mode, lhs, rhs, { desc = desc, silent = true })
 end
 
----A CodeCompanion key. lua/ai/companion.lua reaches into CodeCompanion's chat
----internals, so an upgrade that breaks them falls back to the nearest
----upstream command with a WARN -- or, without one, reports the error -- rather
----than ending in a traceback.
----@param what string
----@param fn fun()
----@param fallback string? an Ex command
-local function companion_key(what, fn, fallback)
-  return function()
-    local ok, err = xpcall(fn, debug.traceback)
-    if ok then return end
-    if not fallback then
-      vim.notify(("Companion %s failed:\n%s"):format(what, err), vim.log.levels.ERROR)
-      return
-    end
-    vim.notify(("Companion %s fell back to :%s\n%s"):format(what, fallback, err), vim.log.levels.WARN)
-    -- A range fallback reads '< and '>, which only mark this selection once
-    -- Visual has been left.
-    if vim.fn.mode():match("^[vV\22]") then vim.cmd("normal! \27") end
-    vim.cmd(fallback)
-  end
-end
-
--- Global keys. `%{agent}` is the active provider's label and `%{key}` the
--- active key profile's, substituted whenever the keys are (re)applied, so
--- which-key names what a key will actually reach after a switch.
+-- Global keys. Their descriptions are fixed: what a key reaches depends on
+-- what each tabpage shows, which a description cannot follow. `<leader>ae` is
+-- the one relabelled -- by :AI key, with the profile it bills (apply_keymaps).
 --
 -- The chat keys (n l c f b s i) act on the chat on the right, whatever it is
--- -- a native agent's terminal or a CodeCompanion chat (lua/ai/slot.lua) --
--- so their descriptions name no agent. The native-session keys (r R m) reach
--- the native agent on the right, else the one asked for.
+-- -- a native agent's terminal or a CodeCompanion chat (lua/ai/slot.lua). The
+-- native-session keys (r R m) and the transcript keys (t T) reach the native
+-- agent on the right, else the one asked for.
 --
--- The CodeCompanion keys (g G h H e p o) are owned here rather than by its lazy
--- spec so a switch can relabel them; they load the plugin on first use, through
--- `require`. Normal mode goes to a chat, Visual mode takes the selection
--- along. `<leader>ap` is a leaf -- a `<leader>ap*` mapping would make it wait
--- out 'timeoutlen' again; so are `<leader>an` and `<leader>al`.
+-- The CodeCompanion keys (e p o) are owned here rather than by its lazy spec,
+-- like the rest; they load the plugin on first use, through `require` or its
+-- commands. `<leader>ap` is a leaf -- a `<leader>ap*` mapping would make it
+-- wait out 'timeoutlen' again; so are `<leader>an` and `<leader>al`.
 local KEYS = {
   -- From Visual mode both take the selection to the chat they open.
   { { "n", "x" }, "n", M.new_chat, "New AI chat…" },
@@ -454,26 +434,14 @@ local KEYS = {
   -- here; a chat's prompt is a buffer already. Bound in Visual mode too, where
   -- it seeds from the selection.
   { { "n", "x" }, "i", M.compose, "Edit prompt for AI chat" },
-  { "n", "t", M.transcript, "Read %{agent} transcript" },
-  { "n", "T", M.transcript_pick, "%{agent} session history" },
-  -- Review rounds: a round belongs to a conversation, not to the active
-  -- provider, so neither description changes on a switch.
+  { "n", "t", M.transcript, "Read native agent transcript" },
+  { "n", "T", M.transcript_pick, "Native agent session history" },
+  -- Review rounds: a round belongs to a conversation, so neither names an
+  -- agent.
   { "n", "v", M.review, "Review changes since round baseline" },
   { "n", "V", M.new_round, "Start a review round" },
-  { "n", "x", function() require("ai.switch").pick() end, "Switch AI provider / API key" },
-  -- Agent chat: the active provider over ACP, on the subscription.
-  { "n", "g", companion_key("toggle", function() companion().toggle("acp") end, "CodeCompanionChat Toggle"),
-    "Agent chat · %{agent} (ACP)" },
-  { "x", "g", companion_key("add", function() companion().add_selection("acp") end, "'<,'>CodeCompanionChat Add"),
-    "Add selection to agent chat · %{agent}" },
-  -- "New" is CodeCompanion's public chat() already, so it has no fallback.
-  { "n", "G", companion_key("new chat", function() companion().new("acp") end), "New agent chat · %{agent} (ACP)" },
-  -- API chat: the active key profile over HTTP, on API credits.
-  { "n", "h", companion_key("toggle", function() companion().toggle("http") end, "CodeCompanionChat Toggle"),
-    "API chat · %{key} (HTTP)" },
-  { "x", "h", companion_key("add", function() companion().add_selection("http") end, "'<,'>CodeCompanionChat Add"),
-    "Add selection to API chat · %{key}" },
-  { "n", "H", companion_key("new chat", function() companion().new("http") end), "New API chat · %{key} (HTTP)" },
+  -- The key profile of inline edits and command prompts (API credits).
+  { "n", "x", function() require("ai.switch").pick() end, "Switch API key profile" },
   { { "n", "x" }, "p", "<cmd>CodeCompanionActions<cr>", "Companion actions" },
   -- codecompanion-history's browser: every chat it auto-saved, either kind.
   -- A restored chat comes up through upstream's own open; the slot's guard
@@ -481,30 +449,25 @@ local KEYS = {
   { "n", "o", "<cmd>CodeCompanionHistory<cr>", "Open saved Companion chat" },
 }
 
--- oil is the only directory view in this config (no tree sidebar), so the
--- backend's tree-add command is offered there alone, and only while the active
--- provider has one.
+-- oil is the only directory view in this config (no tree sidebar). Every oil
+-- buffer gets the key; whether anything takes the file is decided when it is
+-- pressed, by what is on the right (M.tree_add).
 ---@param buf integer
 local function oil_keys(buf)
-  if config.native.capabilities.tree_add then
-    vim.keymap.set("n", "<leader>aS", M.tree_add, {
-      buffer = buf,
-      desc = "Add file under cursor to " .. config.label,
-      silent = true,
-    })
-  else
-    pcall(vim.keymap.del, "n", "<leader>aS", { buffer = buf })
-  end
+  vim.keymap.set("n", "<leader>aS", M.tree_add, {
+    buffer = buf,
+    desc = "Add file under cursor to Claude Code",
+    silent = true,
+  })
 end
 
 ---Define, relabel or remove the `<leader>a` keys for the current state.
----Idempotent: called from setup(), after every :AI switch, and once
+---Idempotent: called from setup(), after every :AI key, and once
 ---claudecode.nvim has loaded. which-key rereads the keymaps each time its popup
 ---opens, so it needs no notice of the change.
 function M.apply_keymaps()
-  local subst = { agent = config.label, key = config.key.label }
   for _, k in ipairs(KEYS) do
-    map(k[1], "<leader>a" .. k[2], k[3], (k[4]:gsub("%%{(%w+)}", subst)))
+    map(k[1], "<leader>a" .. k[2], k[3], k[4])
   end
   -- An expr mapping, so a missing key refuses before the command line opens;
   -- not silent, so the half-typed :CodeCompanion stays visible. From Visual
@@ -515,9 +478,9 @@ function M.apply_keymaps()
     desc = ("Inline edit · %s (HTTP)"):format(config.key.label),
   })
 
-  -- Claude's diffs can arrive while Claude is active or, after a switch away,
-  -- from a session claudecode.nvim is still connected to.
-  local diffs = config.is("claude") or package.loaded["claudecode"] ~= nil
+  -- Claude's diffs arrive through claudecode.nvim, so the keys exist once it
+  -- has loaded -- whatever is on the right, whichever agent is the default.
+  local diffs = package.loaded["claudecode"] ~= nil
   for lhs, spec in pairs({
     ["<leader>aa"] = { M.accept_diff, "Accept Claude diff" },
     ["<leader>ad"] = { M.deny_diff, "Deny Claude diff" },
@@ -591,7 +554,7 @@ function M.setup()
   if did_setup then return end
   did_setup = true
 
-  -- Input rules for every agent panel, whichever provider owns it -- see
+  -- Input rules for every agent panel, whichever agent runs in it -- see
   -- lua/ai/terminal.lua.
   require("ai.terminal").setup()
 

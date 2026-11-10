@@ -28,8 +28,8 @@ vim.api.nvim_set_current_buf(first)
 local editor = vim.api.nvim_get_current_win()
 
 -- Use the same /usr/bin/env terminal name as the wrapper, without running a
--- real agent or touching a session. Identity follows the selected provider.
-local bin = dir .. "/" .. require("ai.config").native.command
+-- real agent or touching a session. Identity follows the default backend.
+local bin = dir .. "/" .. require("ai.config").providers[require("ai.config").default].native.command
 vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin)
 vim.fn.setfperm(bin, "rwx------")
 local panel = Snacks.terminal.open({ "env", bin }, {

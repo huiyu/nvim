@@ -13,21 +13,21 @@ return {
     "nvim-treesitter/nvim-treesitter",
     "ravitemer/codecompanion-history.nvim",
   },
-  -- No `keys`: the <leader>a chat keys belong to the AI facade
-  -- (lua/ai/init.lua), which relabels them on every :AI switch. They still load
-  -- the plugin on first use -- through `require`, which lazy autoloads -- and
-  -- the commands above cover everything typed.
+  -- No `keys`: the <leader>a keys belong to the AI facade (lua/ai/init.lua),
+  -- which relabels <leader>ae on :AI key. They still load the plugin on first
+  -- use -- through `require`, which lazy autoloads -- and the commands above
+  -- cover everything typed.
   --
-  -- A function, so the plugin starts from the state lua/ai/switch.lua left
-  -- behind when it first loads; after that, switching writes the live config
-  -- (lua/ai/companion.lua, sync).
+  -- A function, so the plugin starts from the key profile :AI key left behind
+  -- when it first loads; after that, :AI key writes the live inline/cmd
+  -- adapters (lua/ai/companion.lua, sync).
   opts = function()
     local ai = require("ai.config")
 
     -- Every key profile reads its own NVIM_* variable, never the one the agent
     -- CLIs bill against (lua/ai/config.lua). Both built-in adapters are
-    -- redirected whichever provider started this Nvim, because either can be
-    -- the active key profile after a switch.
+    -- redirected whichever agent is the default, because <leader>an starts an
+    -- API chat on either and :AI key can pin either.
     local http = { extend = {} }
     for name, profile in pairs(ai.key_profiles) do
       if name == profile.adapter then
@@ -49,9 +49,9 @@ return {
       adapters = {
         acp = {
           extend = {
-            -- Unconditional: a Claude-started Nvim reaches Codex too, and the
-            -- adapter's own default (`api-key`) would bill OPENAI_API_KEY
-            -- instead of the ChatGPT login.
+            -- Unconditional: <leader>an starts a Codex chat whichever agent
+            -- is the default, and the adapter's own default (`api-key`) would
+            -- bill OPENAI_API_KEY instead of the ChatGPT login.
             codex = { defaults = { auth_method = "chat-gpt" } },
           },
         },
@@ -59,9 +59,13 @@ return {
       },
       interactions = {
         chat = {
+          -- Only for CodeCompanion's own paths that name no adapter (a typed
+          -- :CodeCompanionChat, the action palette): the default backend's ACP
+          -- agent, fixed for the process. Every chat <leader>an starts names
+          -- its own.
           adapter = ai.codecompanion.acp_adapter,
-          -- A chat's adapter is fixed when it is created; choosing another is
-          -- :AI's job (lua/ai/switch.lua), and applies to the next chat.
+          -- A chat's adapter is fixed when it is created; another backend is
+          -- another chat (<leader>an).
           keymaps = { change_adapter = false },
           -- Agent and API chats look alike once open, and bill differently,
           -- so every reply's header names both the backend and the kind:

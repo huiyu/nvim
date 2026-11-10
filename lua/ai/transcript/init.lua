@@ -1,4 +1,5 @@
--- Read-only viewer for the active provider's recorded sessions.
+-- Read-only viewer for a native agent's recorded sessions: the agent on the
+-- right, else the one asked for (<leader>at / <leader>aT, lua/ai/init.lua).
 --
 -- Scrolling an agent TUI is not Vim: no `/` search history, no text objects, no
 -- yanking into the editor's registers. This renders the session into an ordinary
@@ -39,8 +40,18 @@ local ENTRY_CAP = 5000
 
 -- Indirection so tests can substitute an adapter, and so provider knowledge
 -- stops here. Mirrors how lua/ai/init.lua resolves backends.
-M._adapter = function()
-  return require("ai.transcript." .. config.provider)
+---@param agent string a provider
+M._adapter = function(agent)
+  return require("ai.transcript." .. agent)
+end
+
+---@param agent any
+---@return string agent
+local function check(agent)
+  if type(agent) ~= "string" or not config.providers[agent] then
+    error(("a transcript belongs to a native agent, not %s"):format(vim.inspect(agent)), 3)
+  end
+  return agent
 end
 
 local function open_window(buf)
@@ -50,10 +61,10 @@ local function open_window(buf)
   return win
 end
 
-local function apply(buf, session, entries, truncated)
+local function apply(buf, agent, session, entries, truncated)
   local lines, folds = render.build(entries, {
-    provider = config.provider,
-    label = config.label,
+    provider = agent,
+    label = config.providers[agent].label,
     id = session.id,
     title = session.title,
     root = config.project_root(""),
@@ -71,7 +82,7 @@ local function apply(buf, session, entries, truncated)
   vim.b[buf].ai_transcript_folds = folds
 end
 
-local function configure(buf, session)
+local function configure(buf, agent, session)
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
@@ -86,6 +97,7 @@ local function configure(buf, session)
 
   vim.b[buf].ai_transcript_path = session.path
   vim.b[buf].ai_transcript_session = session
+  vim.b[buf].ai_transcript_agent = agent
 
   local function map(lhs, rhs, desc)
     vim.keymap.set("n", lhs, rhs, { buffer = buf, desc = desc, silent = true, nowait = true })
@@ -121,15 +133,16 @@ local function configure_window(win)
   vim.wo[win].signcolumn = "no"
 end
 
----Render one session into a fresh read-only buffer.
+---Render one of `agent`'s sessions into a fresh read-only buffer.
+---@param agent string
 ---@param session ai.transcript.Session
-local function show(session)
-  local adapter = M._adapter()
+local function show(agent, session)
+  local adapter = M._adapter(agent)
   local entries, truncated = adapter.parse(session.path, ENTRY_CAP)
 
   local buf = vim.api.nvim_create_buf(false, true)
-  configure(buf, session)
-  apply(buf, session, entries, truncated)
+  configure(buf, agent, session)
+  apply(buf, agent, session, entries, truncated)
 
   local win = open_window(buf)
   configure_window(win)
@@ -139,27 +152,31 @@ local function show(session)
   vim.api.nvim_win_set_cursor(win, { vim.api.nvim_buf_line_count(buf), 0 })
 end
 
----Open the most recent session for the current project.
-function M.open_current()
+---Open `agent`'s most recent session for the current project.
+---@param agent string a provider
+function M.open_current(agent)
+  check(agent)
   local root = config.project_root("")
-  local sessions = M._adapter().sessions(root)
+  local sessions = M._adapter(agent).sessions(root)
   if #sessions == 0 then
     vim.notify(
-      ("No %s transcript found for %s"):format(config.label, root),
+      ("No %s transcript found for %s"):format(config.providers[agent].label, root),
       vim.log.levels.WARN
     )
     return
   end
-  show(sessions[1])
+  show(agent, sessions[1])
 end
 
----Pick from this project's recorded sessions.
-function M.pick()
+---Pick from `agent`'s recorded sessions for this project.
+---@param agent string a provider
+function M.pick(agent)
+  check(agent)
   local root = config.project_root("")
-  local sessions = M._adapter().sessions(root)
+  local sessions = M._adapter(agent).sessions(root)
   if #sessions == 0 then
     vim.notify(
-      ("No %s transcript found for %s"):format(config.label, root),
+      ("No %s transcript found for %s"):format(config.providers[agent].label, root),
       vim.log.levels.WARN
     )
     return
@@ -182,11 +199,11 @@ function M.pick()
     source = "ai_transcripts",
     items = items,
     format = "text",
-    title = config.label .. " sessions",
+    title = config.providers[agent].label .. " sessions",
     preview = "none",
     confirm = function(picker, item)
       picker:close()
-      if item and item.session then show(item.session) end
+      if item and item.session then show(agent, item.session) end
     end,
   })
 end
@@ -194,12 +211,12 @@ end
 ---Re-read the transcript backing `buf` and re-render it in place.
 ---@param buf integer
 function M.refresh(buf)
-  local session = vim.b[buf].ai_transcript_session
-  if not session then return end
+  local session, agent = vim.b[buf].ai_transcript_session, vim.b[buf].ai_transcript_agent
+  if not (session and agent) then return end
 
   local view = vim.fn.winsaveview()
-  local entries, truncated = M._adapter().parse(session.path, ENTRY_CAP)
-  apply(buf, session, entries, truncated)
+  local entries, truncated = M._adapter(agent).parse(session.path, ENTRY_CAP)
+  apply(buf, agent, session, entries, truncated)
   vim.fn.winrestview(view)
 end
 

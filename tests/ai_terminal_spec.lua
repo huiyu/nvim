@@ -14,7 +14,7 @@ local util_term = require("util.terminal")
 -- so a script named after the provider is indistinguishable from the agent as
 -- far as ai.config.is_native_command is concerned -- and it will not try to
 -- reach the network or a real session.
-local bin = vim.fn.tempname() .. "/" .. config.native.command
+local bin = vim.fn.tempname() .. "/" .. config.providers[config.default].native.command
 vim.fn.mkdir(vim.fn.fnamemodify(bin, ":h"), "p")
 vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin)
 vim.fn.setfperm(bin, "rwx------")
@@ -151,7 +151,7 @@ do
   t.ok(not wraps or cmd:find("set-option -g extended-keys-format csi-u", 1, true) ~= nil,
     "and emits them as CSI u, the form both TUIs parse")
 end
-if config.is("codex") and vim.fn.executable("tmux") == 1 then
+if config.default == "codex" and vim.fn.executable("tmux") == 1 then
   local joined = table.concat(require("ai.backend.codex")._terminal_command({ "codex" }), " ")
   t.ok(joined:find("set-option -g extended-keys always", 1, true) ~= nil,
     "the Codex wrapper keeps modified Enter chords (extended-keys always)")
@@ -176,7 +176,7 @@ t.ok(failed:find("boom", 1, true) ~= nil, "and keeps the agent's own output")
 t.ok(failed:find("exited with status 7", 1, true) ~= nil, "and names the status")
 
 -- Both wrappers have to route the pane through it.
-if config.is("codex") and vim.fn.executable("tmux") == 1 then
+if config.default == "codex" and vim.fn.executable("tmux") == 1 then
   local cmd = require("ai.backend.codex")._terminal_command({ "codex" })
   local at = vim.fn.index(cmd, runner)
   t.ok(at >= 0, "the Codex wrapper runs the pane through agent-run")
@@ -215,7 +215,7 @@ do
   t.eq(vim.list_slice(codex_cmd, 1, 5), { "codex", "--no-alt-screen", "--yolo", "-c", hook.codex_override() },
     "Codex keeps its flags and gets the hook override before its arguments")
   t.eq(codex_cmd[6], "resume", "and resume / resume --last still follow")
-  if config.is("codex") and vim.fn.executable("tmux") == 1 then
+  if config.default == "codex" and vim.fn.executable("tmux") == 1 then
     local saved_wrap = vim.env.CODEX_WRAP_TMUX
     vim.env.CODEX_WRAP_TMUX = "1"
     local wrapped = codex_backend._terminal_command(codex_cmd)
@@ -272,7 +272,7 @@ local editor = require("ai.editor")
 local teardown = editor.teardown and editor.teardown() or ""
 t.eq(vim.fn.executable(teardown), 1, "scripts/agent-teardown is present and executable")
 
-if config.is("codex") and vim.fn.executable("tmux") == 1 then
+if config.default == "codex" and vim.fn.executable("tmux") == 1 then
   local cmd = require("ai.backend.codex")._terminal_command({ "codex" })
   local joined = table.concat(cmd, " ")
   t.ok(joined:find("destroy-unattached off", 1, true) ~= nil,
@@ -334,9 +334,8 @@ if teardown ~= "" and vim.fn.executable("tmux") == 1 and vim.fn.executable("perl
   remove_socket(sock)
 end
 
--- Two agents at once. After :AI provider both CLIs can be running in one Nvim,
--- and every per-buffer rule follows the buffer's own agent, not the active
--- provider. Stand-ins named after each CLI, so identity is decided exactly as
+-- Two agents at once. Both CLIs can be running in one Nvim, and every
+-- per-buffer rule follows the buffer's own agent, not the default backend. Stand-ins named after each CLI, so identity is decided exactly as
 -- for the real ones, and nothing reaches the network or a real session.
 local agents_dir = vim.fn.tempname()
 vim.fn.mkdir(agents_dir, "p")
@@ -356,7 +355,7 @@ local codex_probe = panel({ agents_dir .. "/codex" })
 t.eq(util_term.agent_of(claude_term.buf), "claude", "a Claude terminal is Claude's")
 t.eq(util_term.agent_of(codex_probe.buf), "codex", "a Codex terminal is Codex's")
 t.ok(util_term.is_agent_buf(claude_term.buf) and util_term.is_agent_buf(codex_probe.buf),
-  "both are agent buffers, whichever provider is active")
+  "both are agent buffers, whichever is the default")
 t.eq(vim.fn.maparg("<Esc>", "t", false, true).buffer, 1, "and both get the panel input rules")
 vim.fn.jobstop(vim.bo[codex_probe.buf].channel)
 pcall(vim.api.nvim_buf_delete, codex_probe.buf, { force = true })

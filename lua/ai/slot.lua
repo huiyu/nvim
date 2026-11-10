@@ -427,13 +427,17 @@ local function select(items, opts, on_choice, back)
   end)
 end
 
----Where an item is, as a picker says it.
+---Where an item is, as a picker and :AI info say it: "● here", "tab N" or
+---"hidden".
+---@param item ai.SlotItem
+---@return string
 local function where(item)
   local tab = tab_showing(item)
   if not tab then return "hidden" end
   if tab == api.nvim_get_current_tabpage() then return "● here" end
   return ("tab %d"):format(api.nvim_tabpage_get_number(tab))
 end
+M.where = where
 
 local function lastused(item)
   local buf = M.buf_of(item)
@@ -686,8 +690,8 @@ function M.focus()
 end
 
 ---The native agent on the right, else the one asked for -- the installed
----agents, the default's first; with one installed, that one -- for the keys
----only a native agent answers (resume, continue, model).
+---agents, the default backend's first; with one installed, that one -- for
+---the keys only a native agent answers (resume, continue, model, transcripts).
 ---@param cb fun(agent: string)
 ---@param opts? { prompt?: string }
 function M.native_target(cb, opts)

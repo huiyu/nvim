@@ -939,7 +939,6 @@ for _, var in ipairs(VARS) do vim.env[var] = saved_keys[var] end
 ---------------------------------------------------------------------------
 
 local ai = require("ai")
-local backends = { claude = require("ai.backend.claude"), codex = require("ai.backend.codex") }
 local saved_fns, shown, hidden, fed = {}, {}, {}, {}
 for name, b in pairs(backends) do
   saved_fns[name] = { window = b.window, visible = b.visible, hide = b.hide, edit_prompt = b.edit_prompt }
@@ -950,22 +949,18 @@ for name, b in pairs(backends) do
   b.hide = function() hidden[#hidden + 1] = name; shown[name] = nil end
   b.edit_prompt = function(opts) fed[#fed + 1] = { name, opts and opts.seed } end
 end
-local function feed_case(active, state, target)
-  vim.cmd("silent AI provider " .. active)
+local function feed_case(state, target)
   shown, hidden, fed = vim.deepcopy(state), {}, {}
   ai.feed(target, "edit_prompt", { seed = "feedback" })
   return hidden, fed
 end
-local h, f = feed_case("claude", { claude = "here" }, "codex")
+local h, f = feed_case({ claude = "here" }, "codex")
 t.eq({ h, f }, { { "claude" }, { { "codex", "feedback" } } },
-  "feeding Codex while Claude is active hides Claude's panel here, and feeds Codex")
-h, f = feed_case("codex", { codex = "here" }, "claude")
-t.eq({ h, f }, { { "codex" }, { { "claude", "feedback" } } }, "and the other way round")
-h = feed_case("claude", { claude = "here", codex = "elsewhere" }, "codex")
+  "feeding Codex with Claude's panel here hides Claude's panel, and feeds Codex")
+h, f = feed_case({ codex = "here" }, "claude")
+t.eq({ h, f }, { { "codex" }, { { "claude", "feedback" } } }, "and the other way round, whichever is the default")
+h = feed_case({ claude = "here", codex = "elsewhere" }, "codex")
 t.eq(h, {}, "a target already shown in another tabpage makes nothing yield")
-h = feed_case("codex", { claude = "here" }, "codex")
-t.eq(h, { "claude" }, "feeding the active agent makes room as its keys do")
-vim.cmd("silent AI provider claude")
 shown, hidden = { claude = "here" }, {}
 ai.feed("codex", "running")
 t.eq(hidden, {}, "a method that reveals nothing hides nothing")
@@ -975,7 +970,6 @@ t.ok(#notes == 1 and notes[1].level == WARN and #fed == 0, "an unknown provider 
 for name, b in pairs(backends) do
   for k, fn in pairs(saved_fns[name]) do b[k] = fn end
 end
-vim.cmd("silent AI provider " .. config.startup.provider)
 
 ---------------------------------------------------------------------------
 -- <leader>av / <leader>aV
@@ -983,14 +977,10 @@ vim.cmd("silent AI provider " .. config.startup.provider)
 
 local function keymap(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true) end
 local DESCS = { [" av"] = "Review changes since round baseline", [" aV"] = "Start a review round" }
-for _, provider in ipairs({ config.startup.provider, config.startup.provider == "claude" and "codex" or "claude" }) do
-  vim.cmd("silent AI provider " .. provider)
-  for lhs, desc in pairs(DESCS) do
-    t.eq(keymap(lhs).desc, desc, ("%s under %s: %q"):format(lhs, provider, desc))
-    t.eq(keymap(lhs, "x"), {}, lhs .. " is Normal-mode only")
-  end
+for lhs, desc in pairs(DESCS) do
+  t.eq(keymap(lhs).desc, desc, ("%s: %q, naming no agent"):format(lhs, desc))
+  t.eq(keymap(lhs, "x"), {}, lhs .. " is Normal-mode only")
 end
-vim.cmd("silent AI provider " .. config.startup.provider)
 local calls = {}
 local real_view, real_start = package.loaded["ai.review"], rounds.start
 package.loaded["ai.review"] = { open = function() calls[#calls + 1] = "open" end }

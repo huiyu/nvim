@@ -3,10 +3,10 @@
 -- bill against: exporting ANTHROPIC_API_KEY or OPENAI_API_KEY for Nvim's sake
 -- would move Claude Code or Codex off the subscription.
 --
--- Either key profile can be active after :AI key, and either provider after
--- :AI provider, so BOTH HTTP adapters are checked under BOTH startup providers,
--- each in a fresh child Nvim -- plus the Codex ACP adapter, which must stay on
--- the ChatGPT login whichever provider started the process.
+-- Either key profile can be active after :AI key, and <leader>an starts an
+-- API chat on either, so BOTH HTTP adapters are checked under BOTH default
+-- backends, each in a fresh child Nvim -- plus the Codex ACP adapter, which
+-- must stay on the ChatGPT login whichever agent is the default.
 local t = dofile("tests/helper.lua")
 
 -- Resolve every adapter the way CodeCompanion does before a request, under the

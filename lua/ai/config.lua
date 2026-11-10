@@ -1,18 +1,31 @@
--- Two independent axes of AI state, both switchable in-process (lua/ai/switch.lua):
+-- AI state: the default backend, fixed at startup, and the HTTP key profile,
+-- which :AI key (lua/ai/switch.lua) switches in-process.
 --
---   provider     which agent CLI backs the native terminal and CodeCompanion's
---                ACP chat. Billed to the subscription login.
---   key profile  which HTTP adapter and NVIM_* key CodeCompanion's inline and
---                command prompts use. Billed to API credits. `auto` follows the
---                provider (claude -> anthropic, codex -> openai).
+--   default      the agent this Nvim was started for (`vi --claude` /
+--                `vi --codex`): NVIM_AI_PROVIDER > vim.g.ai_provider > claude.
+--                It only decides defaults: the new-chat picker's first entry,
+--                the agent a native-only key offers first, what the `auto` key
+--                profile resolves to, the chat adapter CodeCompanion's own
+--                paths use when they name none (a typed :CodeCompanionChat,
+--                the action palette), whether Claude's watchdog starts at
+--                VimEnter, and error or warning in :checkhealth config. Never
+--                where a key acts -- that is the chat on the right
+--                (lua/ai/slot.lua) -- and it cannot be switched.
+--   key profile  which HTTP adapter and NVIM_* key inline edits and command
+--                prompts use. Billed to API credits. `auto` follows the
+--                default (claude -> anthropic, codex -> openai); a name pins
+--                it. An API chat's profile is the one its new-chat entry named.
 --
--- Startup defaults: NVIM_AI_PROVIDER > vim.g.ai_provider > claude, and
--- NVIM_AI_KEY_PROFILE > vim.g.ai_key_profile > auto. Nothing is persisted.
+-- Startup key: NVIM_AI_KEY_PROFILE > vim.g.ai_key_profile > auto. Nothing is
+-- persisted.
 --
--- Every consumer holds this one table and reads it per call, so switching
--- mutates it in place rather than handing out a new one.
+-- Every consumer holds this one table and reads it per call, so switching the
+-- key mutates it in place rather than handing out a new one.
 
-local selected = (vim.env.NVIM_AI_PROVIDER or vim.g.ai_provider or "claude"):lower()
+local default_source = (vim.env.NVIM_AI_PROVIDER or "") ~= "" and "NVIM_AI_PROVIDER"
+  or (vim.g.ai_provider and "vim.g.ai_provider") or "built-in"
+local selected = (default_source == "NVIM_AI_PROVIDER" and vim.env.NVIM_AI_PROVIDER
+  or vim.g.ai_provider or "claude"):lower()
 
 local providers = {
   claude = {
@@ -33,7 +46,7 @@ local providers = {
       acp_adapter = "claude_code",
       acp_command = "claude-agent-acp",
     },
-    -- What the `auto` key profile resolves to under this provider.
+    -- What the `auto` key profile resolves to while this is the default.
     key_profile = "anthropic",
     -- The variable the CLI itself bills against, checked by :checkhealth config.
     cli_api_key = "ANTHROPIC_API_KEY",
@@ -101,12 +114,23 @@ for name, profile in pairs(key_profiles) do
   M.check_key_profile(name, profile)
 end
 -- Both built-in adapters are always redirected to their NVIM_* variable,
--- whichever provider started the process (lua/plugin/lsp/codecompanion.lua).
+-- whichever agent is the default (lua/plugin/lsp/codecompanion.lua).
 assert(key_profiles.anthropic and key_profiles.openai, "the anthropic and openai key profiles are required")
 
 if not providers[selected] then
-  error(("Invalid NVIM_AI_PROVIDER=%q; expected 'claude' or 'codex'"):format(selected))
+  local name = default_source == "built-in" and "NVIM_AI_PROVIDER" or default_source
+  error(("Invalid %s=%q; expected 'claude' or 'codex'"):format(name, selected))
 end
+
+---The default backend: a provider name, whose native terminal is the
+---new-chat picker's first entry. Fixed for the life of the process.
+M.default = selected
+---Where it came from: "NVIM_AI_PROVIDER", "vim.g.ai_provider" or "built-in".
+M.default_source = default_source
+-- The chat adapter for CodeCompanion's own paths that name none, fixed with
+-- the default (lua/plugin/lsp/codecompanion.lua). Every chat <leader>an
+-- starts names its adapter itself.
+M.codecompanion.acp_adapter = providers[selected].codecompanion.acp_adapter
 
 -- Shared geometry for every AI side panel: the native Claude/Codex terminals
 -- and the CodeCompanion chat window. Width is in columns (absolute, not a
@@ -126,18 +150,13 @@ function M.names() return sorted(providers) end
 ---@return string[] every key profile, sorted
 function M.key_names() return sorted(key_profiles) end
 
-function M.is(provider)
-  return M.provider == provider
-end
-
----Select the HTTP key profile. `auto` follows the provider; any other name pins
----it, so a later provider switch leaves the key alone. Validates before it
----mutates anything.
+---Select the HTTP key profile. `auto` follows the default backend's vendor;
+---any other name pins it. Validates before it mutates anything.
 ---@param name string
 function M.use_key(name)
   name = (name or ""):lower()
   local auto = name == "auto"
-  local id = auto and providers[M.provider].key_profile or name
+  local id = auto and providers[M.default].key_profile or name
   local profile = key_profiles[id]
   if not profile then
     error(("Unknown AI key profile %q; expected auto, %s"):format(name, table.concat(M.key_names(), ", ")), 0)
@@ -147,20 +166,6 @@ function M.use_key(name)
   M.codecompanion.http_adapter = id
   M.codecompanion.api_key = profile.api_key
   M.codecompanion.model = profile.model
-end
-
----Select the provider. Validates before it mutates anything.
----@param name string
-function M.use_provider(name)
-  name = (name or ""):lower()
-  local provider = providers[name]
-  if not provider then
-    error(("Unknown AI provider %q; expected %s"):format(name, table.concat(M.names(), ", ")), 0)
-  end
-  M.provider, M.label, M.native, M.cli_api_key = name, provider.label, provider.native, provider.cli_api_key
-  M.codecompanion.acp_adapter = provider.codecompanion.acp_adapter
-  M.codecompanion.acp_command = provider.codecompanion.acp_command
-  if M.key.auto then M.use_key("auto") end
 end
 
 ---The inline/cmd adapter as CodeCompanion takes it: a bare name, or name plus
@@ -199,10 +204,10 @@ local function is_set(var) return (vim.env[var] or "") ~= "" end
 ---chats and one API chat per key profile, in that order, with `default`'s
 ---entry first in each group -- so the very first is its native terminal.
 ---Answering reads PATH and the environment only; it loads no plugin.
----@param default string? a provider; the active one when nil
+---@param default string? a provider; the default backend when nil
 ---@return ai.Backend[]
 function M.backends(default)
-  default = default or M.provider
+  default = default or M.default
   -- Per group: the default's entries, then the others, each in listed order.
   local groups = {}
   for _, kind in ipairs({ "native", "acp", "http" }) do groups[kind] = { first = {}, rest = {} } end
@@ -249,20 +254,13 @@ function M.backends(default)
   return all
 end
 
-M.use_provider(selected)
+M.use_key("auto")
 local key_default = vim.env.NVIM_AI_KEY_PROFILE or vim.g.ai_key_profile
 -- A typo in this optional knob falls back to auto instead of aborting startup.
 if key_default and key_default ~= "" and not pcall(M.use_key, key_default) then
   vim.schedule(function()
     vim.notify(("NVIM_AI_KEY_PROFILE=%q is not a key profile; using auto"):format(key_default), vim.log.levels.WARN)
   end)
-end
-M.startup = { provider = M.provider, key = M.key_setting() }
-
----Has either axis moved since startup?
----@return boolean
-function M.switched()
-  return M.provider ~= M.startup.provider or M.key_setting() ~= M.startup.key
 end
 
 -- The directory an agent session belongs to. Shared because three callers need
@@ -277,9 +275,9 @@ function M.project_root(path)
   return vim.fs.root(start, ".git") or vim.uv.cwd() or vim.fn.getcwd()
 end
 
----Which configured agent a terminal command runs, if any. Every CLI counts, not
----only the active one: after a switch both agents can be running at once, and
----each panel keeps its own input rules, edgy slot and statusline label.
+---Which configured agent a terminal command runs, if any. Every CLI counts,
+---the default or not: both agents can be running at once, and each panel
+---keeps its own input rules, edgy slot and statusline label.
 ---@param cmd string|string[]|nil
 ---@return string|nil provider
 function M.provider_of_command(cmd)
