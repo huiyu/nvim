@@ -8,8 +8,8 @@
 --      chat), else the current file's repository when it is in one -- in a
 --      CodeDiff panel, the repository that view compares -- else the cwd's.
 --      Outside a Git worktree it stops with git's reason.
---   2. round: rounds.select_round -- the buffer's conversation, the active
---      provider's session, the newest this process opened, the newest there.
+--   2. round: rounds.select_round -- the buffer's conversation, the chat on
+--      the right's (ai.slot), the newest this process opened, the newest there.
 --   3. one review tab per root: a tab already showing that round is focused
 --      (its explorer); one showing another round is closed first, and the new
 --      view opens from the tab <leader>av was pressed in, so the tab before a

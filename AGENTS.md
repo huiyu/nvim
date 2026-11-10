@@ -307,6 +307,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `on_before_submit` for agent and API chats (attached on
   `User CodeCompanionChatCreated`), and `<leader>aV` (`rounds.start`).
   `<leader>gK`'s saved baselines are no round and belong to no conversation.
+  Outside an agent's or a chat's own buffer, `<leader>aV`'s owner and the
+  round `<leader>av` prefers are the chat on the right's
+  (`ai.slot.shown_here`: this tabpage's, or from a CodeDiff view the page it
+  came from; of several, the current window's, else none -- it never asks
+  and never moves), and `rounds.live_conversations` lists that one first.
+  No default agent stands in when nothing is on the right.
   Claude waking itself to go on with the work opens no round
   (`continues_turn` in `rounds.lua`): a `<task-notification>` when a
   background task it started finishes, and a background agent's

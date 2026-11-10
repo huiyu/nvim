@@ -914,6 +914,11 @@ t.eq({ util_window.origin_tab(view_b), util_window.origin_tab(view_a), util_wind
   { first_tab, first_tab, nil }, "a view's origin is the first page before it that is no view")
 vim.cmd.edit(vim.fn.fnameescape(file))
 local view_layout = layout(view_b)
+-- What the review loop asks for its owner fallbacks: the same answer, with
+-- no question and no tabpage change.
+local right_of_view = slot.shown_here()
+t.ok(right_of_view and right_of_view.chat == anthropic and api.nvim_get_current_tabpage() == view_b,
+  "shown_here from a view: the chat in the page it came from, without going there")
 before_a = text(anthropic)
 notes = {}
 api.nvim_win_set_cursor(0, { 3, 0 })
@@ -1168,12 +1173,14 @@ local openai_copy = api.nvim_get_current_win()
 vim.o.eventignore = events
 t.eq(#slot.shown(), 2, "two AI windows shown here")
 editor()
+t.eq(slot.shown_here(), nil, "shown_here does not guess between two from the file")
 asked = {}
 api.nvim_feedkeys("V", "x", false)
 ai.send_selection()
 t.eq(asked[1] and asked[1].prompt, "Add selection to", "<leader>as from the file asks which of them")
 t.eq(#(asked[1] and asked[1].items or {}), 2, "among those two alone, no New chat… (" .. table.concat(asked[1] and asked[1].shown or {}, " | ") .. ")")
 api.nvim_set_current_win(openai_copy)
+t.eq((slot.shown_here() or {}).chat, openai, "from inside one of them, shown_here is that one")
 asked = {}
 ai.focus()
 t.eq({ #asked, api.nvim_get_current_buf() }, { 0, openai.bufnr }, "from inside one of them, <leader>af takes that one unasked")

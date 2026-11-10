@@ -768,21 +768,52 @@ t.ok(noted("started") ~= nil, "and says it started")
 rec = start(claude_buf)
 t.ok(rec.reused == true and noted("already the current state") ~= nil, "aV again with nothing changed only says so")
 
+-- Outside an agent's own buffer, the owner is the chat on the right: what
+-- ai.slot reads off this tabpage's windows. The slot knows a native agent by
+-- its backend, so the stand-in panels are its terminals for these cases.
+local backends = { claude = require("ai.backend.claude"), codex = require("ai.backend.codex") }
+local slot_saved = {}
+for name, b in pairs(backends) do slot_saved[name] = { running = b.running, buf = b.buf } end
+backends.claude.running, backends.claude.buf = function() return true end, function() return claude_buf end
+backends.codex.running, backends.codex.buf = function() return true end, function() return codex_buf end
+local function unstand()
+  for name, fns in pairs(slot_saved) do
+    for k, fn in pairs(fns) do backends[name][k] = fn end
+  end
+end
+---Show `buf` in a split on the right of this tabpage, and go back.
+local function on_right(buf)
+  vim.cmd("botright vsplit")
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.cmd("stopinsert")
+  vim.cmd("wincmd p")
+  return win
+end
+
 vim.cmd.edit(vim.fn.fnameescape(R1 .. "/a.txt"))
 local file_buf = vim.api.nvim_get_current_buf()
-vim.cmd("silent AI provider claude")
 edit()
-t.eq((owner_of(start(file_buf))), "claude:s1", "aV in a file: the active provider's panel in this root owns it")
-vim.cmd("silent AI provider codex")
+owner, entry = owner_of(start(file_buf))
+t.ok(entry ~= nil and owner == nil, "aV in a file with nothing on the right: no owner, whatever runs elsewhere")
+local right_win = on_right(claude_buf)
 edit()
-t.eq((owner_of(start(file_buf))), "codex:c1", "after a switch, the other agent's")
-vim.cmd("silent AI provider " .. config.startup.provider)
+t.eq((owner_of(start(file_buf))), "claude:s1", "aV in a file: the agent on the right, working in this root, owns it")
+vim.api.nvim_win_set_buf(right_win, codex_buf)
+edit()
+t.eq((owner_of(start(file_buf))), "codex:c1", "with Codex on the right instead, Codex's session")
+local second = on_right(claude_buf)
+edit()
+owner, entry = owner_of(start(file_buf))
+t.ok(entry ~= nil and owner == nil, "two agents on the right and a file current: no guess, no owner")
+vim.api.nvim_win_close(second, true)
 
 vim.cmd.edit(vim.fn.fnameescape(R2 .. "/a.txt"))
 edit(R2)
 rec = start(vim.api.nvim_get_current_buf())
 owner, entry = owner_of(rec)
-t.ok(entry ~= nil and owner == nil and entry.root == R2, "aV where no panel runs: a round without an owner")
+t.ok(entry ~= nil and owner == nil and entry.root == R2,
+  "aV where the agent on the right works in another root: a round without an owner")
 t.ok(noted("No conversation yet") ~= nil, "saying feedback will ask where to go")
 
 edit()
@@ -817,10 +848,21 @@ local scratch_buf = vim.api.nvim_create_buf(false, true)
 local picked, why = select_round(R1, claude_buf)
 t.ok(picked and why == "buffer" and picked.id == newest_of(R1, "claude:s1").id,
   "select_round: from an agent panel, that session's newest round")
-local active_conv = config.provider .. ":" .. native[config.provider].session
+vim.api.nvim_win_set_buf(right_win, codex_buf)
 picked, why = select_round(R1, scratch_buf)
-t.ok(picked and why == "active" and picked.id == newest_of(R1, active_conv).id,
-  "select_round: elsewhere, the active provider's session's newest round (" .. active_conv .. ")")
+t.ok(picked and why == "right" and picked.id == newest_of(R1, "codex:c1").id,
+  "select_round: elsewhere, the newest round of the chat on the right (codex:c1)")
+vim.api.nvim_win_set_buf(right_win, claude_buf)
+picked, why = select_round(R1, scratch_buf)
+t.ok(picked and why == "right" and picked.id == newest_of(R1, "claude:s1").id,
+  "and Claude's once Claude is on the right")
+t.eq(vim.tbl_map(function(c) return c.conversation end, rounds.live_conversations(R1))[1], "claude:s1",
+  "live_conversations lists the chat on the right first")
+vim.api.nvim_win_set_buf(right_win, codex_buf)
+t.eq(vim.tbl_map(function(c) return c.conversation end, rounds.live_conversations(R1))[1], "codex:c1",
+  "whichever it is")
+vim.api.nvim_win_close(right_win, true)
+unstand()
 picked, why = select_round(R2, scratch_buf)
 local r2_newest = rounds_in(R2)[1]
 t.ok(picked and why == "process" and picked.id == r2_newest.id, "select_round: else the newest this process opened there")

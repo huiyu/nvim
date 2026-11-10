@@ -417,6 +417,23 @@ function M.conversation_of(buf)
   return nil, nil, false
 end
 
+---The conversation of the chat on the right (ai.slot.shown_here: the one
+---shown in this tabpage, or, from a CodeDiff view, in the page it came from)
+---as this registry knows it, with its root and buffer. Nil when nothing is
+---on the right, only a question could tell which, or what is there is no
+---conversation here (a terminal that has not reported its session).
+---@return string|nil conversation, string|nil root, integer|nil buf
+local function on_the_right()
+  local ok, buf = pcall(function()
+    local slot = require("ai.slot")
+    local item = slot.shown_here()
+    return item and slot.buf_of(item)
+  end)
+  if not (ok and type(buf) == "number") then return nil end
+  local conversation, root = M.conversation_of(buf)
+  return conversation, root, buf
+end
+
 local function chat_label(entry)
   local adapter = entry.chat.adapter or {}
   local name = adapter.formatted_name or adapter.name or "?"
@@ -448,18 +465,14 @@ function M.label(conversation)
 end
 
 ---The live sessions in `root` this Nvim could deliver to: running agent
----terminals (the active provider's first) and open chats.
+---terminals and open chats, the chat on the right first.
 ---@param root string
 ---@return { kind: "native"|"cc", conversation?: string, agent?: string, chat?: table, buf: integer, root: string, label: string, session_known?: boolean, dirty?: boolean }[]
 function M.live_conversations(root)
   root = uv.fs_realpath(root) or root
   local out = {}
-  local active = require("ai.config").provider
   local agents = vim.tbl_keys(native)
-  table.sort(agents, function(a, b)
-    if (a == active) ~= (b == active) then return a == active end
-    return a < b
-  end)
+  table.sort(agents)
   for _, agent in ipairs(agents) do
     local entry = native[agent]
     if entry.root == root and terminal_running(entry.buf) then
@@ -488,6 +501,13 @@ function M.live_conversations(root)
         root = entry.root,
         label = chat_label(entry),
       }
+    end
+  end
+  local _, _, right = on_the_right()
+  for i, item in ipairs(out) do
+    if item.buf == right then
+      table.insert(out, 1, table.remove(out, i))
+      break
     end
   end
   return out
@@ -689,8 +709,8 @@ end
 
 ---<leader>aV: open a round now. Its owner is the session the current buffer
 ---belongs to (an agent terminal or a chat; a terminal that has not reported
----its session gives none), else the active provider's terminal when it runs
----in this root with a known session, else nobody -- delivery then asks.
+---its session gives none), else the chat on the right when it works in this
+---root and is a known conversation, else nobody -- delivery then asks.
 ---@param opts? { buf?: integer }
 function M.start(opts)
   opts = opts or {}
@@ -700,10 +720,8 @@ function M.start(opts)
     local name = vim.api.nvim_buf_get_name(buf)
     local file = vim.bo[buf].buftype == "" and name ~= "" and not name:match("^%a[%w+.-]*://") and name or nil
     root = M.toplevel(file)
-    local active = native[require("ai.config").provider]
-    if active and active.root == root and active.session and terminal_running(active.buf) then
-      owner = native_conversation(active)
-    end
+    local right, right_root = on_the_right()
+    if right and right_root == root then owner = right end
   end
   M.submit({
     source = "manual",
@@ -724,9 +742,9 @@ function M.start(opts)
 end
 
 ---Which round <leader>av shows for `root`: the newest round of the current
----buffer's conversation, else of the active provider's terminal session, else
----the newest this process opened in `root`, else the newest there at all.
----`cb(entry, why)` with why "buffer"|"active"|"process"|"latest", or
+---buffer's conversation, else of the chat on the right's, else the newest
+---this process opened in `root`, else the newest there at all.
+---`cb(entry, why)` with why "buffer"|"right"|"process"|"latest", or
 ---`cb(nil, err?)` when there is none.
 ---@param root string
 ---@param cb fun(entry: baseline.Entry|nil, why_or_err?: string)
@@ -736,10 +754,8 @@ function M.select_round(root, cb, opts)
   local wants = {}
   local own = M.conversation_of(opts.buf)
   if own then wants[#wants + 1] = { conversation = own, why = "buffer" } end
-  local active = native[require("ai.config").provider]
-  if active and active.session then
-    wants[#wants + 1] = { conversation = native_conversation(active), why = "active" }
-  end
+  local right = on_the_right()
+  if right and right ~= own then wants[#wants + 1] = { conversation = right, why = "right" } end
   require("util.baseline").list(root, "round", function(entries, err)
     if err then return cb(nil, err) end
     for _, want in ipairs(wants) do

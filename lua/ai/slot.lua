@@ -563,6 +563,24 @@ function M.target_now()
   return current_of(shown)
 end
 
+---The chat on the right without asking and without going anywhere: the one
+---shown in this tabpage, else -- from a prefix-blocking view (CodeDiff) -- the
+---one shown in the page the view came from; of several, the current
+---window's. Nil where only a question could tell. For callers that may
+---neither ask nor move, such as the review loop's owner fallbacks
+---(lua/ai/review/rounds.lua).
+---@return ai.SlotItem|nil
+function M.shown_here()
+  local tab = api.nvim_get_current_tabpage()
+  local shown = M.shown(tab)
+  if #shown == 0 then
+    local origin = require("util.window").origin_tab(tab)
+    if origin then shown = M.shown(origin) end
+  end
+  if #shown == 1 then return shown[1] end
+  return current_of(shown)
+end
+
 ---Resolve the chat on the right, then call `cb` with it: the one shown here
 ---(see home); of several, the current window's, else the one picked among
 ---them; with none, the one picked among every open chat, or a new one. A
