@@ -108,7 +108,8 @@ local function build_terminal_cmd()
     -- than libvterm implements" trap that caused huiyu/nvim#2.
     "set-option -g default-terminal " .. vim.fn.shellescape(term),
     "\\;",
-    -- Claude's Ink TUI never asks for mouse reporting, and nvim only forwards
+    -- Claude's classic renderer (`/tui default`) never asks for mouse
+    -- reporting (the fullscreen one does), and nvim only forwards
     -- a click to a job that did. Without this the pane's clicks are handled by
     -- nvim instead -- which drops out of Terminal-mode, so clicking back into
     -- the window after an app switch left the panel in Normal mode. tmux does
@@ -140,10 +141,13 @@ local function build_terminal_cmd()
     "\\;",
     -- Force copy-mode rather than leaving tmux's default root bindings to
     -- decide. Claude Code can be put on the alternate screen (`/tui
-    -- fullscreen`), and there tmux's default translates the wheel into arrow
-    -- keys -- which Claude reads as "walk the input history", so scrolling
-    -- would replace whatever is typed in the box. An empty copy-mode you leave
-    -- with `q` is the better failure. PPage is what lua/ai/terminal.lua sends
+    -- fullscreen`), and there, with its mouse reporting off, tmux's default
+    -- translates the wheel into arrow keys -- which Claude reads as "walk the
+    -- input history", so scrolling would replace whatever is typed in the box.
+    -- An empty copy-mode you leave with `q` is the better failure. With mouse
+    -- reporting on, fullscreen's default, these bindings still take the wheel
+    -- and PageUp away from Claude's own scrolling: the wrapper is tuned for the
+    -- classic renderer. PPage is what lua/ai/terminal.lua sends
     -- when the scroll starts from terminal-Normal mode.
     --
     -- The wheel enters copy-mode without `-u`, which PPage keeps: `-u` scrolls

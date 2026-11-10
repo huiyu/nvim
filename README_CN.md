@@ -140,7 +140,7 @@ nvim
 | [nvim-autopairs](https://github.com/windwp/nvim-autopairs) | 自动配对括号 |
 | [persistence](https://github.com/folke/persistence.nvim) | 会话管理 |
 | [guess-indent](https://github.com/NMAC427/guess-indent.nvim) | 自动检测缩进 |
-| [oil](https://github.com/stevearc/oil.nvim) | 把目录当 buffer 编辑：改行名即重命名，`dd`/`p` 即移动文件。`-` 打开上级目录，`;o` 开浮窗 |
+| [oil](https://github.com/stevearc/oil.nvim) | 把目录当 buffer 编辑：改行名即重命名，`dd`/`p` 即移动文件，新增一行即创建文件。`-` 打开上级目录，`;o` 开浮窗 |
 
 #### LSP 与开发工具
 
@@ -368,7 +368,7 @@ history。
 
 #### AI 快捷键
 
-AI 相关的键都在 `<leader>a` 下。每个键的描述写明它会发给谁——哪个 agent 或哪个
+AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git 视图逗号菜单中的 `,C`（审阅反馈），它的描述以 `[AI]` 开头。每个键的描述写明它会发给谁——哪个 agent 或哪个
 API key——并随 [`:AI`](#ai-provider-选择) 切换而更新。
 
 | 键 | 模式 | 作用 |
@@ -699,7 +699,7 @@ Inline 和命令 Prompt（`<leader>ah`、`<leader>ae`、`:CodeCompanion`）用�
 | 选项 | 说明 |
 |------|------|
 | `vim.g.terminal_position` | `"float"`（默认）或 `"bottom"`，决定编号终端在哪里打开。只在启动时选定，不支持运行时切换——Snacks 在开窗那一刻定死窗口形态，edgy 又独立判断终端是否属于底部边栏，运行时切换意味着要在每一次隐藏、显示、重排里维持两者一致。 |
-| `vim.g.ai_review` | 审阅闭环和 diff 视图的设置：保留多少轮次和基线、哪些对话会开启轮次、投递时如何确认、Native Claude 从哪里启动、`<leader>gH` 列出多少历史。只写要改的键，例如 `{ retention = { rounds = 30 } }`；全部键和默认值见[使用手册](docs/MANUAL_CN.md#设置vimgai_review)。 |
+| `vim.g.ai_review` | 审阅闭环和 diff 视图的设置：保留多少轮次和基线、哪些对话会开启轮次、投递时如何确认、Native Claude 从哪里启动、`<leader>gH` / `<leader>gV` 列出多少历史。只写要改的键，例如 `{ retention = { rounds = 30 } }`；全部键和默认值见[使用手册](docs/MANUAL_CN.md#设置vimgai_review)。 |
 
 ### 环境变量
 

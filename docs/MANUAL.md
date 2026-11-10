@@ -22,6 +22,7 @@ This document covers *using* it.
 - [Workflows](#workflows)
 - [Reviewing a round of agent changes](#reviewing-a-round-of-agent-changes)
 - [When you forget a key](#when-you-forget-a-key)
+- [Debugging](#debugging)
 
 ---
 
@@ -448,8 +449,9 @@ selection, with the name given as an argument.
 `<localleader>` is also comma. Filetype keys are buffer-local: the comma menu
 shows Python's imports/environment in Python, LaTeX's build/preview sections in
 TeX, and neither in plain text. These headings add no keystrokes. `[LSP]` marks
-operations that need a language server; Java test-debug keys appear after jdtls
-and its debug adapter initialize. Dart reload/restart needs an active compatible
+operations that need a language server, and `[AI]` an AI key shown in a menu
+other than `<Space>a`'s (today `,C`, review feedback in a Git view); Java
+test-debug keys appear after jdtls and its debug adapter initialize. Dart reload/restart needs an active compatible
 DAP session. Menu entries describe actions, not a guarantee that dependencies
 or a running session are available.
 
@@ -705,7 +707,8 @@ together, and `q` quits it. Lazygit has no Vim-style Normal/Insert modes;
 `;c` jumps to any changed hunk in the repository (see [Positions](#positions)).
 
 The diff views are CodeDiff's. Each opens in a tabpage of its own, with a file
-panel on the left and the two sides of the selected file beside it:
+panel on the left and the two sides of the selected file beside it (a history,
+`gV` / `gH`, lists its commits in a panel along the bottom instead):
 
 | Key | Shows |
 |---|---|

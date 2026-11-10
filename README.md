@@ -401,7 +401,7 @@ output enter the wrapper tmux history.
 
 #### AI keys
 
-Everything AI lives under `<leader>a`. Descriptions name what a key reaches —
+AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback) in a Git view's comma menu, starts its description with `[AI]`. Descriptions name what a key reaches —
 the agent or the API key — and change with [`:AI`](#ai-provider-selection).
 
 | Key | Mode | Does |
@@ -788,7 +788,7 @@ Set these in `init.lua` before plugins load.
 | Option | Description |
 |--------|-------------|
 | `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where numbered terminals open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
-| `vim.g.ai_review` | The review loop and the diff views: how many rounds and baselines to keep, which conversations open rounds, how delivery confirms, where native Claude starts, how much history `<leader>gH` lists. Name only the keys you change, e.g. `{ retention = { rounds = 30 } }`; every key and default is in the [manual](docs/MANUAL.md#settings-vimgai_review). |
+| `vim.g.ai_review` | The review loop and the diff views: how many rounds and baselines to keep, which conversations open rounds, how delivery confirms, where native Claude starts, how much history `<leader>gH` / `<leader>gV` list. Name only the keys you change, e.g. `{ retention = { rounds = 30 } }`; every key and default is in the [manual](docs/MANUAL.md#settings-vimgai_review). |
 
 ### Environment Variables
 

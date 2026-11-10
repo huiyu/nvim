@@ -96,6 +96,20 @@ helper keeps the original session even if the user selects a different one.
 Go remote uses this to clear server-side source breakpoints and resume, while
 preserving local breakpoints for the next attachment.
 
+`disconnect()` and `restart()` (`<leader>dR`) act on the root of the session
+tree, not on whichever child session last stopped. An adapter that drives
+several targets (js-debug) answers with child sessions. `disconnect()` lets go
+of every session in the tree, deepest first. `restart()` selects the root
+before `dap.restart()`.
+
+The debug view owns a tabpage of its own. `open_panels()` creates it with
+`tab split` (or focuses it) and opens dap-ui. `close_panels()` closes dap-ui
+and that tabpage, unless it is the last tabpage left. `toggle_panels()` is
+`<leader>du`. A root session's `event_initialized` opens the view, and the end
+of the last root session closes it. `jump(bufnr, line, column)` is nvim-dap's
+`switchbuf`: it places a stopped frame in `util.window.ensure_editor_win()` of
+the current tabpage, never another one.
+
 ### URLs and local files (`util.url`)
 
 `open()` implements Normal-mode `gx`: open the nearest HTTP(S) URL or existing
@@ -211,7 +225,7 @@ Throwaway helpers for working *on* this configuration. Distinct from
 debugs never loads it:
 
 ```lua
-_G.dd = function(...) require("util.debug").dump(...) end
+_G.dd = function(...) return require("util.debug").dump(...) end
 vim.print = _G.dd
 ```
 
@@ -472,6 +486,11 @@ window.resize(dim, delta)
 -- window from its edgebar outright and only pinned views can be reopened.
 window.toggle_zoom()
 
+-- `wincmd =`, then put every winfixwidth/winfixheight panel back to the size
+-- it was first seen at. Run in every tabpage on VimResized, by toggle_zoom
+-- when it restores the layout, and bound to `s=`.
+window.equalize_respecting_fixed()
+
 -- Whether `tabpage` holds a view that disables the global prefixes: its
 -- vim.t.blocks_global_prefixes is set (util.codediff sets it while CodeDiff
 -- has a session there; a new prefix-blocking view sets it too), or one of its
@@ -557,6 +576,11 @@ terminal.toggle(count)
 -- Show a terminal and put the cursor in it; never closes. Bound to `,1`-`,9`
 -- only in terminal buffers' Normal mode (installed on TermOpen).
 terminal.focus(count)
+
+-- Whether terminals float (the default) rather than dock at the bottom
+-- (vim.g.terminal_position = "bottom"). edgy asks it, so its bottom slot
+-- claims no terminal that is meant to float.
+terminal.floats()
 
 -- Width in cells of the grid behind terminal buf: Nvim sizes the pty to the
 -- widest window showing it, less that window's textoff. nil when no window
@@ -956,7 +980,7 @@ local move = require("util.move")
 move.run("down")   -- also "up", "left", "right"; bound to ,{h,j,k,l}
 ```
 
-The first press comes from `<leader>m`, then bare `h`/`j`/`k`/`l` keep going
+The first press comes from `,h`/`,j`/`,k`/`,l`, then bare `h`/`j`/`k`/`l` keep going
 until some other key ends the run — and that key is fed back rather than
 swallowed. Directions mix freely within a run.
 
@@ -1051,6 +1075,16 @@ config.codecompanion  -- { acp_adapter, acp_command, http_adapter, api_key, mode
 config.key            -- { name, label, auto }
 config.startup        -- { provider, key } as this Nvim started
 config.providers, config.key_profiles          -- the data both axes choose from
+config.names(), config.key_names()             -- their names, sorted
+config.is(name)                                -- is `name` the active provider?
+config.cli_api_key    -- the active CLI's own billing variable (ANTHROPIC_API_KEY / OPENAI_API_KEY)
+config.panel.width    -- 90 columns, shared by both agent panels and the chat window
+
+-- The directory an agent session belongs to: the Git root of `path`'s
+-- directory ("" or nil: of the cwd), else the cwd. Codex starts there, and
+-- Claude does too under claude_cwd = "git_root". ai.selection makes paths
+-- relative to it, and the transcripts find their project by it.
+config.project_root(path)
 
 config.use_provider(name)  -- validate, then switch; an auto key follows
 config.use_key(name)       -- "auto" follows the provider, a profile name pins it

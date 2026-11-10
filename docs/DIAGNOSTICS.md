@@ -75,7 +75,7 @@ the update checker runs silently once a day (`bootstrap.lua`).
 `lua/config/health.lua` checks the things specific to this configuration:
 
 - Neovim version floor (>= 0.12.5, refactoring.nvim's minimum)
-- External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, python3, cc, lazygit, macism) and
+- External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, java, cargo, dart, flutter, python3, cc, lazygit, curl, and macism on macOS) and
   what each one is needed for
 - The tree-sitter CLI and its version: nvim-treesitter's `main` builds every
   parser with `tree-sitter build`, so a missing CLI or one below its 0.26.1
@@ -172,7 +172,7 @@ when vtsls first attaches. It recognizes a root `pnpm-workspace.yaml` or
 non-ignored `tsconfig.json`/`jsconfig.json` files with `rg`, and registers them
 with tsserver when at least two configs exist. Dependencies and common build
 directories are excluded. Each config keeps its own compiler options; no
-source buffers or config files are created. This lets `gr` / `grr` find callers
+source buffers or config files are created. This lets `gr` find callers
 in other packages without opening their files first. Loading more projects
 uses more server memory, and references become available when loading finishes.
 
@@ -217,6 +217,9 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 The `<leader>g` diff views and the review view are CodeDiff's
 (`lua/plugin/vcs/codediff.lua`). `lua/util/codediff.lua` is the one module that
 reaches into its internals, for the `,` keys, the `;`/`s` blocks, the tab
+labels and the listing; its header lists what it depends on. Besides it, only
+`:checkhealth config` (`lua/config/health.lua`) reads two values: the
+library's version and the watcher release CodeDiff wants. for the `,` keys, the `;`/`s` blocks, the tab
 labels and the listing; its header lists what it depends on.
 
 - **The native library.** CodeDiff computes diffs in a C library,
@@ -250,8 +253,10 @@ labels and the listing; its header lists what it depends on.
   plugin moved past the pin in `lazy-lock.json`. Plain CodeDiff still works
   (the upstream keys that could harm a review are off in the spec), but the
   revision listing, the non-ASCII path fix and the history limit are off.
-  `:Lazy restore codediff.nvim` goes back to the pin; moving the pin means
-  running `tests/codediff_spec.lua` against the new version first.
+  `:Lazy restore codediff.nvim` goes back to the pin; moving the pin (`commit` in
+  `lua/plugin/vcs/codediff.lua`, then `VERSION` in `lua/util/codediff.lua`)
+  means running `tests/codediff_spec.lua`, `tests/codediff_listing_spec.lua`
+  and `tests/hunk_actions_spec.lua` against the new version first.
 - **`CodeDiff's revision listing fell back to upstream's`** — the listing (below)
   failed once in this Nvim, for the reason in parentheses. Until a restart a
   revision view can show a path as both `D` and `??`.
@@ -630,7 +635,10 @@ from this Nvim's panel have the hooks; nothing is written to `~/.claude` or
      `GIT_WORK_TREE` set in Nvim's environment, nothing is snapshotted.
   7. Prompts of subagents (Claude's Task agents, Codex's spawned threads) open
      no round by design, and the later steps of a chat's tool loop open none
-     of their own.
+     of their own. Nor does Claude waking itself to go on with the work — a
+     `<task-notification>` when a background task it started finishes, or a
+     background agent's `[Subagent hand-back]`: what it changes then belongs
+     to the session's newest round.
 - **Codex warns at startup: `Running without the shared background server:
   command-line configuration overrides (-c, --enable, --disable, or --search)
   requires embedded mode`.** That is the review hook's `-c hooks=…`: a Codex
@@ -842,7 +850,9 @@ failure is reported instead of swallowed. After installing bundles, use
   with `No LSP client found that supports vscode.java.resolveMainClass`. The
   bundles are installed by then, so `lua/lang/java.lua` restarts that client
   once and the second start has them. A second miss for the same project
-  only warns: run `:JdtRestart`. For project-import failures inspect `:checkhealth vim.lsp` and
+  only warns: run `:JdtRestart`.
+
+For project-import failures inspect `:checkhealth vim.lsp` and
 `:JdtShowLogs`. JDWP targets must start with `-agentlib:jdwp=...`; the default
 attach endpoint is `127.0.0.1:5005`. Attach bypasses launch-only main-class/path
 enrichment, so the source buffer need not have a main method. The real Java
@@ -1102,8 +1112,12 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   - A `:terminal` opened from a window with 'number' on keeps a narrower pty
     until the window is next resized, so its rows are not joined until then.
 
-  tmux's own copy-mode selection (a mouse drag in terminal input) already
-  joins wrapped lines by itself.
+  tmux's own copy-mode selection (a mouse drag in terminal input) joins the
+  rows the terminal wrapped, such as a Codex link, but not the ones a TUI
+  wraps itself: Claude's classic renderer cuts a long line into separate rows
+  and tells no one, so a long command copied from it keeps those breaks. Its
+  `/copy` (or `/copy N`) copies the response as written, with a picker for
+  each code block.
 - **Oil opens from an agent panel but focus stays in the TUI, and `q` hides the
   terminal** — Snacks protects terminal windows from buffer replacement. The
   `-` and `;o` mappings now focus an editor window in the current tab before

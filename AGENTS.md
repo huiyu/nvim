@@ -23,11 +23,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - `lua/ai/review/` is the review loop: `config.lua` (every setting's default,
   `vim.g.ai_review` merged over them), `hook.lua` (the native agents' prompt
   hooks), `rounds.lua` (rounds and delivery checks), `init.lua` (`<leader>av`
-  and `,C`) and `feedback.lua` (drafts and delivery). Its storage and its
+  and `,C`), `feedback.lua` (drafts and delivery) and `labels.lua` (baseline
+  labels for the `<leader>gM`/`<leader>gk` pickers and `<leader>gK`'s offered
+  name). Its storage and its
   views are utilities: `lua/util/baseline.lua` (snapshots under
   `refs/nvim-review/`), `lua/util/codediff.lua` and
   `lua/util/codediff_actions.lua` (the CodeDiff views behind `<leader>g` and
-  their hunk keys). The vcs layer reads a baseline's subject and sha only;
+  their hunk keys). The vcs layer reads a baseline's subject, sha, kind and time only;
   its trailers mean something to `ai.review` alone (`rounds.review_vars`,
   and `labels.describe` for the pickers' labels, which read session names and
   turn ends from the agents' own records through `ai.transcript.marks`).
@@ -456,8 +458,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   earlier version matched description patterns, where a reworded `desc` silently
   changed a key's colour and position and every new pattern risked catching
   someone else's entry. Every prefix worth sectioning is declared: `;`, `g`,
-  `,`, `[`/`]` (one table, mirrored), `<leader>` itself, and the `<leader>`
-  groups with more than a screenful (`g`, `G`, `d`, `a`, `m`, `b`, `x`, `t`).
+  `,` (and grug-far's `,S`), `s`, `[`/`]` (one table, mirrored), `<leader>`
+  itself, and the `<leader>` groups `g`, `G`, `d`, `a`, `m`, `b`, `x`, `t`,
+  `u`, `<tab>` and `y`.
   In a sectioned popup, undeclared keys sort last under `others`, styled by
   `fallback_section` in the same data file. Even one remaining key gets this
   heading, so it never appears to belong to the preceding section. Explicit
@@ -492,10 +495,14 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   table whose rows *are* the items, and its render loop reads only `key`, `sep`,
   `icon`, `desc`, `group` and `icon_hl`. This, `lua/util/codediff.lua` and
   `lua/ai/companion.lua` (next items) are the only places here that depend on
-  plugin internals, apart from two narrower readers: `:checkhealth config`
-  asks CodeDiff for its library and watcher versions (next item), and
+  plugin internals, apart from these narrower ones: `:checkhealth config`
+  asks CodeDiff for its library and watcher versions (next item);
   `busy` in `lua/ai/review/rounds.lua` repeats `ai.companion.busy`'s reads of
-  a chat as a fallback for when that function is missing. The `sort`
+  a chat as a fallback for when that function is missing;
+  `lua/util/window.lua` sizes edgy's panels through `edgy.editor`, the
+  edgebars in `edgy.config.layout` and `edgy.layout.update` (window sizing,
+  above); and `lua/util/diffsplit.lua` tells gitsigns' revision windows by
+  their `gitsigns://` buffer names, which `tests/gitsigns_spec.lua` pins. The `sort`
   replacement is guarded (a renamed `sort` drops headings and colours,
   ordering still works through the supported `sort` option, nothing errors)
   and covered by `tests/whichkey_popup_spec.lua`, with real contextual menus
