@@ -463,6 +463,18 @@ function M.is_prompt_win(win)
   return false
 end
 
+---Whose prompt float is open in the current tabpage, if one is. That agent's
+---TUI is blocked on it, so it is where <leader>ai goes back to first.
+---@return string|nil owner
+function M.open_here()
+  local tab = vim.api.nvim_get_current_tabpage()
+  for _, open in pairs(state.open) do
+    if vim.api.nvim_win_is_valid(open.win) and vim.api.nvim_win_get_tabpage(open.win) == tab then
+      return open.owner
+    end
+  end
+end
+
 ---Bring an already-open prompt float back into focus.
 ---
 ---The way back after focus slipped out despite the modal guard (a prompt for

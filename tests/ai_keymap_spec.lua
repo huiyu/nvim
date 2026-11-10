@@ -17,6 +17,30 @@ for _, lhs in ipairs({ " ac", " af", " ar", " aR", " am", " ab" }) do
 end
 t.ok(mapped(" as", "x"), "UC-R1: <leader>as still lives in Visual mode")
 
+-- The chat on the right (lua/ai/slot.lua): its keys name no agent, since what
+-- they reach is whatever that tabpage shows. n/l open a picker, from Visual
+-- mode taking the selection along; both are leaves.
+local SLOT = {
+  [" an"] = "New AI chat…", [" al"] = "Switch AI chat…", [" ac"] = "Toggle AI chat", [" af"] = "Focus AI chat",
+  [" ab"] = "Add buffer to AI chat", [" ai"] = "Edit prompt for AI chat",
+  [" ar"] = "Resume native agent…", [" aR"] = "Continue native agent…", [" am"] = "Select native agent model",
+}
+for lhs, want in pairs(SLOT) do
+  t.eq(vim.fn.maparg(lhs, "n", false, true).desc, want, "<leader>" .. lhs:sub(2) .. " is " .. want)
+end
+t.eq(vim.fn.maparg(" as", "x", false, true).desc, "Add selection to AI chat", "<leader>as is Add selection to AI chat")
+for _, lhs in ipairs({ " an", " al", " ai" }) do
+  t.ok(mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " also works from Visual mode")
+end
+for _, mode in ipairs({ "n", "x" }) do
+  local longer = {}
+  for _, m in ipairs(vim.api.nvim_get_keymap(mode)) do
+    local keys = vim.fn.keytrans(vim.keycode(m.lhs))
+    if keys:find("^<Space>a[nl].") then longer[#longer + 1] = keys end
+  end
+  t.eq(longer, {}, "no <leader>an* / <leader>al* mapping in " .. mode .. " mode")
+end
+
 -- <leader>ax opens :AI's switcher, Normal mode only.
 t.eq(vim.fn.maparg(" ax", "n", false, true).desc, "Switch AI provider / API key", "<leader>ax switches provider / key")
 for _, mode in ipairs({ "x", "o", "i", "t" }) do
@@ -86,8 +110,11 @@ local start = c.provider
 local other = start == "claude" and "codex" or "claude"
 local was_auto = c.key.auto
 require("ai.switch").provider(other)
-for _, lhs in ipairs({ " ag", " aG", " ai", " at", " aT" }) do
+for _, lhs in ipairs({ " ag", " aG", " at", " aT" }) do
   t.ok(desc(lhs):find(c.providers[other].label, 1, true) ~= nil, "after a switch " .. lhs .. " names " .. c.label)
+end
+for lhs, want in pairs(SLOT) do
+  t.eq(desc(lhs), want, "after a switch <leader>" .. lhs:sub(2) .. " still names no agent")
 end
 t.ok(desc(" ag", "x"):find(c.providers[other].label, 1, true) ~= nil, "and so does Visual <leader>ag")
 for lhs, want in pairs(REVIEW) do
@@ -102,14 +129,13 @@ vim.notify = real_notify
 
 -- The facade must expose the methods those mappings call.
 local ai = require("ai")
-for _, method in ipairs({ "compose", "transcript", "transcript_pick", "review", "new_round", "feed" }) do
+for _, method in ipairs({ "compose", "transcript", "transcript_pick", "review", "new_round", "feed", "new_chat", "switch_chat" }) do
   t.ok(type(ai[method]) == "function", "facade exposes " .. method .. "()")
 end
 
--- Descriptions carry the provider label so which-key stays truthful about which
--- agent a key talks to.
+-- The transcript keys still read the active provider's sessions, and say so.
 local label = require("ai.config").label
-for _, lhs in ipairs({ " ai", " at", " aT" }) do
+for _, lhs in ipairs({ " at", " aT" }) do
   local desc = vim.fn.maparg(lhs, "n", false, true).desc or ""
   t.ok(desc:find(label, 1, true) ~= nil, lhs .. " describes the active provider")
 end

@@ -60,7 +60,7 @@ end
 -- The command
 ---------------------------------------------------------------------------
 
-t.eq(vim.fn.getcompletion("AI ", "cmdline"), { "provider", "key", "info" }, ":AI completes its subcommands")
+t.eq(vim.fn.getcompletion("AI ", "cmdline"), { "provider", "key", "info", "new", "chats" }, ":AI completes its subcommands")
 t.eq(vim.fn.getcompletion("AI provider ", "cmdline"), { "claude", "codex" }, ":AI provider completes provider names")
 t.eq(vim.fn.getcompletion("AI key ", "cmdline"), { "auto", "anthropic", "openai" },
   ":AI key completes auto and every profile")
@@ -117,13 +117,20 @@ t.ok(last().msg:find(label(start) .. " keeps running", 1, true) ~= nil,
   "and says the old agent keeps running")
 t.ok(not loaded("claudecode.nvim"), "switching loads no plugin")
 
-for _, lhs in ipairs({ " ac", " af", " ar", " aR", " ab", " ai", " at", " aT" }) do
+for _, lhs in ipairs({ " at", " aT" }) do
   local d = desc(lhs) or ""
   t.ok(d:find(label(other), 1, true) ~= nil and d:find(label(start), 1, true) == nil,
     ("<leader>%s now names %s (%s)"):format(lhs:sub(2), label(other), d))
 end
-t.ok((desc(" as", "x") or ""):find(label(other), 1, true) ~= nil, "Visual <leader>as is relabelled too")
-t.ok((desc(" ai", "x") or ""):find(label(other), 1, true) ~= nil, "and Visual <leader>ai")
+-- The chat keys act on the chat on the right (lua/ai/slot.lua), not on the
+-- provider, so a switch leaves them as they were: they name no agent.
+for _, lhs in ipairs({ " an", " al", " ac", " af", " ar", " aR", " am", " ab", " ai" }) do
+  local d = desc(lhs) or ""
+  t.ok(d ~= "" and d:find(label(other), 1, true) == nil and d:find(label(start), 1, true) == nil,
+    ("<leader>%s names no agent (%s)"):format(lhs:sub(2), d))
+end
+t.eq({ desc(" as", "x"), desc(" ai", "x") }, { "Add selection to AI chat", "Edit prompt for AI chat" },
+  "and neither do Visual <leader>as and <leader>ai")
 -- A review round belongs to a conversation, not to the active provider: the
 -- review keys are re-applied with the rest and keep naming no agent.
 t.eq({ desc(" av"), desc(" aV") }, { "Review changes since round baseline", "Start a review round" },
@@ -160,7 +167,7 @@ t.eq(here, fresh, ("after :AI provider %s this Nvim matches one started with NVI
 
 vim.cmd("AI provider " .. start)
 t.eq(config.provider, start, "and switching back restores the provider")
-t.ok((desc(" ac") or ""):find(label(start), 1, true) ~= nil, "with its labels")
+t.ok((desc(" at") or ""):find(label(start), 1, true) ~= nil, "with its labels")
 t.eq(has(" aa"), config.is("claude") or package.loaded["claudecode"] ~= nil, "and its diff keys")
 
 ---------------------------------------------------------------------------

@@ -177,6 +177,78 @@ function M.key_setting()
   return M.key.auto and "auto" or M.key.name
 end
 
+local function is_set(var) return (vim.env[var] or "") ~= "" end
+
+---A way to start a chat, as the new-chat picker (lua/ai/slot.lua) offers it.
+---@class ai.Backend
+---@field id string "claude", "codex", "acp:<adapter>" or "api:<profile>"
+---@field kind "native"|"acp"|"http"
+---@field vendor string the provider it belongs to, which orders the list
+---@field agent? string native: the provider
+---@field adapter? string acp, http: the CodeCompanion adapter
+---@field command? string native, acp: the executable it needs
+---@field profile? string http: the key profile
+---@field api_key? string http: the profile's NVIM_* variable
+---@field model? string http: the profile's pinned model
+---@field label string what it is, where it runs and who bills it
+---@field available boolean whether it can start here
+---@field why? string why it cannot
+---@field warn? string a CLI billing variable that is set, so "subscription" may not hold
+
+---Every way to start a chat, available or not: the native terminals, the ACP
+---chats and one API chat per key profile, in that order, with `default`'s
+---entry first in each group -- so the very first is its native terminal.
+---Answering reads PATH and the environment only; it loads no plugin.
+---@param default string? a provider; the active one when nil
+---@return ai.Backend[]
+function M.backends(default)
+  default = default or M.provider
+  -- Per group: the default's entries, then the others, each in listed order.
+  local groups = {}
+  for _, kind in ipairs({ "native", "acp", "http" }) do groups[kind] = { first = {}, rest = {} } end
+  local function add(kind, entry)
+    local list = entry.vendor == default and groups[kind].first or groups[kind].rest
+    list[#list + 1] = entry
+  end
+  for _, name in ipairs(M.names()) do
+    local p = providers[name]
+    local warn = is_set(p.cli_api_key) and (p.cli_api_key .. " is set — it may bill the API") or nil
+    local native_ok = vim.fn.executable(p.native.command) == 1
+    add("native", {
+      id = name, kind = "native", vendor = name, agent = name, command = p.native.command,
+      label = p.label .. " · terminal · subscription",
+      available = native_ok, why = not native_ok and (p.native.command .. " not found") or nil, warn = warn,
+    })
+    local acp = p.codecompanion
+    local acp_ok = vim.fn.executable(acp.acp_command) == 1
+    add("acp", {
+      id = "acp:" .. acp.acp_adapter, kind = "acp", vendor = name, adapter = acp.acp_adapter, command = acp.acp_command,
+      label = p.label .. " · CodeCompanion ACP · subscription",
+      available = acp_ok, why = not acp_ok and (acp.acp_command .. " not found") or nil, warn = warn,
+    })
+  end
+  for _, name in ipairs(M.key_names()) do
+    local kp = key_profiles[name]
+    local vendor
+    for _, pname in ipairs(M.names()) do
+      if key_profiles[providers[pname].key_profile].adapter == kp.adapter then vendor = pname end
+    end
+    local ok = is_set(kp.api_key)
+    add("http", {
+      id = "api:" .. name, kind = "http", vendor = vendor or "", adapter = name, profile = name,
+      api_key = kp.api_key, model = kp.model,
+      label = kp.label .. " · CodeCompanion API · API credits",
+      available = ok, why = not ok and (kp.api_key .. " is not set") or nil,
+    })
+  end
+  local all = {}
+  for _, kind in ipairs({ "native", "acp", "http" }) do
+    vim.list_extend(all, groups[kind].first)
+    vim.list_extend(all, groups[kind].rest)
+  end
+  return all
+end
+
 M.use_provider(selected)
 local key_default = vim.env.NVIM_AI_KEY_PROFILE or vim.g.ai_key_profile
 -- A typo in this optional knob falls back to auto instead of aborting startup.

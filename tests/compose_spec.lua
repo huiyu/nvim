@@ -61,13 +61,35 @@ end
 vim.wait(200, function() return false end)
 
 -- UC-1/UC-3: the facade hands the backend a seed only when there is a selection.
+--
+-- Nothing is on the right, so <leader>ai asks which chat (lua/ai/slot.lua):
+-- with none open, the new-chat picker, whose first entry is the active
+-- provider's terminal. The answer is given here, and the agents on PATH are
+-- stand-ins -- the stubbed edit_prompt below would start nothing anyway.
+local stand_ins = vim.fn.tempname()
+vim.fn.mkdir(stand_ins, "p")
+for _, name in ipairs({ "claude", "codex" }) do
+  vim.fn.writefile({ "#!/bin/sh", "exec cat" }, stand_ins .. "/" .. name)
+  vim.fn.setfperm(stand_ins .. "/" .. name, "rwx------")
+end
+local real_path, real_select = vim.env.PATH, vim.ui.select
+vim.env.PATH = stand_ins .. ":" .. real_path
+local asked = {}
+vim.ui.select = function(items, opts, on_choice)
+  asked[#asked + 1] = { prompt = opts.prompt, first = opts.format_item(items[1]) }
+  on_choice(items[1])
+end
+
 local seen = {}
 local real_edit_prompt = backend.edit_prompt
 backend.edit_prompt = function(opts) seen[#seen + 1] = opts end
 
 ai.compose()
 t.eq(#seen, 1, "UC-1: compose reaches the backend once")
-t.eq(seen[1].seed, nil, "UC-1: outside Visual mode there is no seed")
+t.eq(seen[1] and seen[1].seed, nil, "UC-1: outside Visual mode there is no seed")
+t.eq(#asked, 1, "with no chat on the right, it asks once")
+t.ok(asked[1] and asked[1].first:find(config.label .. " · terminal", 1, true) == 1,
+  "offering the active provider's terminal first (" .. tostring(asked[1] and asked[1].first) .. ")")
 
 -- Drive a real Visual selection: ai.selection reads mode() and the `v` mark, so
 -- a faked range would not exercise the path <leader>ai actually takes.
@@ -78,6 +100,8 @@ vim.api.nvim_win_set_cursor(0, { 1, 0 })
 vim.cmd("normal! Vj")
 ai.compose()
 t.eq(#seen, 1, "UC-3: compose reaches the backend once from Visual mode")
+vim.ui.select, vim.env.PATH = real_select, real_path
+vim.fn.delete(stand_ins, "rf")
 t.ok(seen[1].seed ~= nil and seen[1].seed ~= "", "UC-3: a Visual selection seeds the prompt")
 -- The composer this replaced left Visual by opening a buffer; sending bytes to a
 -- terminal does not, so the mode has to be dropped explicitly.

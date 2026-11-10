@@ -227,6 +227,53 @@ press(" ah")
 t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
 
 ---------------------------------------------------------------------------
+-- Upstream internals the slot relies on (lua/ai/companion.lua show/create)
+---------------------------------------------------------------------------
+
+-- A chat created hidden: rendered, announced, not on screen, and not
+-- upstream's last chat until it is entered.
+local events = {}
+local event_group = vim.api.nvim_create_augroup("companion_spec_events", { clear = true })
+for _, pattern in ipairs({ "CodeCompanionChatCreated", "CodeCompanionChatOpened", "CodeCompanionChatHidden" }) do
+  vim.api.nvim_create_autocmd("User", { group = event_group, pattern = pattern,
+    callback = function(ev) events[#events + 1] = { pattern, ev.data and ev.data.bufnr } end })
+end
+local last_before = Chats.last_chat()
+vim.api.nvim_set_current_win(editor_win)
+local hidden = require("codecompanion").chat({ params = { adapter = "openai" }, hidden = true })
+t.ok(hidden ~= nil and not hidden.ui:is_visible(), "chat({ hidden = true }) makes a chat that is not on screen")
+t.ok(hidden ~= nil and vim.iter(events):any(function(e) return e[1] == "CodeCompanionChatCreated" and e[2] == hidden.bufnr end),
+  "and announces it")
+t.ok(hidden and vim.api.nvim_buf_line_count(hidden.bufnr) > 1, "with its buffer rendered all the same")
+t.eq(Chats.last_chat(), last_before, "it is not upstream's last chat until it is entered")
+-- Handed the window of the chat shown here: hide with keep_window, then
+-- Chat.open with that window, which is ui:show_in_win.
+local here_win = anthropic.ui.winnr
+events = {}
+anthropic.ui:hide({ keep_window = true })
+t.ok(vim.api.nvim_win_is_valid(here_win), "ui:hide({ keep_window = true }) leaves the window for the next chat")
+Chats.open({ ui = hidden.ui, winnr = here_win })
+t.eq({ hidden.ui.winnr, vim.api.nvim_win_get_buf(here_win) }, { here_win, hidden.bufnr },
+  "Chat.open({ ui, winnr }) shows the chat in exactly that window")
+t.ok(not anthropic.ui:is_visible(), "which the other chat no longer has")
+t.eq(vim.bo[hidden.bufnr].filetype, "codecompanion", "as a chat buffer")
+t.eq(events, { { "CodeCompanionChatHidden", anthropic.bufnr }, { "CodeCompanionChatOpened", hidden.bufnr } },
+  "hidden and opened, as upstream's own swap reports them")
+t.eq(windows(), base_windows + 1, "one window throughout")
+-- With no chat window here, ui:open() splits one of its own.
+hidden.ui:hide()
+t.eq(windows(), base_windows, "ui:hide() closes the window")
+hidden.ui:open()
+t.ok(shown(hidden) and windows() == base_windows + 1, "ui:open() opens one here")
+t.eq(vim.api.nvim_win_get_cursor(hidden.ui.winnr)[1], vim.api.nvim_buf_line_count(hidden.bufnr),
+  "following the conversation to its end")
+vim.api.nvim_del_augroup_by_id(event_group)
+hidden:close()
+vim.api.nvim_set_current_win(editor_win)
+press(" ah")
+t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
+
+---------------------------------------------------------------------------
 -- Visual mode: the selection goes to the chat of the key's kind and profile
 ---------------------------------------------------------------------------
 

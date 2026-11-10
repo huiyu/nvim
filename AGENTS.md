@@ -17,9 +17,11 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - `lua/util/` contains small reusable helpers. Avoid introducing frameworks for
   behavior already covered by Neovim or a maintained plugin.
 - `lua/ai/config.lua` holds the AI state -- the provider and the HTTP key
-  profile -- which `lua/ai/switch.lua` (`:AI`) switches in-process.
-  `lua/ai/init.lua` exposes provider-neutral mappings; `lua/ai/backend/` owns
-  native-agent details.
+  profile -- which `lua/ai/switch.lua` (`:AI`) switches in-process, and the
+  list of backends a chat can be started on (`backends()`).
+  `lua/ai/init.lua` exposes provider-neutral mappings; `lua/ai/slot.lua` keeps
+  one AI window per tabpage and resolves "the chat on the right";
+  `lua/ai/backend/` owns native-agent details.
 - `lua/ai/review/` is the review loop: `config.lua` (every setting's default,
   `vim.g.ai_review` merged over them), `hook.lua` (the native agents' prompt
   hooks), `rounds.lua` (rounds and delivery checks), `init.lua` (`<leader>av`
@@ -45,22 +47,53 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `lua/ai/switch.lua`) switch them in-process; nothing is persisted. A switch
   changes state, mapping descriptions and CodeCompanion's live defaults only --
   it never starts, stops, shows or hides a native terminal, ACP connection or
-  chat. Revealing a native panel hides the other provider's panel in the
-  current tabpage without stopping its job, and whichever panel is revealed
-  decides (`make_room` in `lua/ai/init.lua`): a key that shows the active
-  provider's panel or feeds it (`ab`, `as`, `am`, oil's `aS`) makes room for
-  the active one; delivering review feedback (`ai.feed`) makes room for the
-  round's agent, active or not. A panel already on screen in any tabpage
-  makes nothing yield. Keys act on the active provider; per-buffer behaviour
-  (terminal input rules, edgy slot, statusline label, image hand-back, the
-  feedback a review round delivers) follows the buffer's own agent.
+  chat. For now the provider is also the default the pickers start from (the
+  new-chat picker's first entry, the native keys' first agent), and what
+  `at`/`aT`, `ag`/`aG` and oil's `aS` reach.
+- One AI window per tabpage (`lua/ai/slot.lua`): the right shows at most one
+  of native Claude, native Codex or a CodeCompanion chat. Showing one hides
+  the others in this tabpage through their owner's hide (claudecode's
+  `cc_hide`, Snacks' hide, CodeCompanion's `ui:hide`) -- never a stop, close
+  or wipe, never edgy's hide/close, never another tabpage; a window its owner
+  cannot hide (claudecode's terminal copy in a diff tabpage) is left alone.
+  Hide comes first, show second, except when the windows to hide are all the
+  tabpage has (E444). A `BufWinEnter` guard holds the rule for upstream's own
+  paths (`<leader>ao`, a typed `:CodeCompanionChat`/`:ClaudeCode`, the action
+  palette, `}`/`{`, claudecode's re-show after a diff); it records the
+  tabpage when the event fires, ignores floats, and the latest AI window
+  entered in a tick wins. Between two chats the window is handed over in
+  place; a terminal window cannot take another buffer (Snacks' fixbuf), so
+  between a terminal and anything else one window closes and another opens.
+- The chat keys (`an`, `al`, `ac`, `af`, `ab`, `as`, `ai`) act on the chat on
+  the right, read off the windows: the one shown in this tabpage; from a
+  prefix-blocking view (CodeDiff), the one shown in the page the view came
+  from (`util.window.origin_tab`, which `ai.review.feedback` uses too), which
+  becomes current; otherwise they ask, listing the open chats (● here / tab
+  N / hidden, with billing) and "New chat…", or the new-chat picker when none
+  is open. A chat shown in another tabpage is gone to, never moved. Nothing is
+  delivered silently to a hidden chat, another tabpage's or the default
+  backend; `vim.t.ai_slot_last` only lets `ac`/`af` bring the last one back. A
+  selection is captured with plain Neovim API before any question
+  (`ai.selection.capture`): vim.ui.select is asynchronous, and Visual mode is
+  gone by its answer. `ar`/`aR`/`am` act on the native agent on the right,
+  else ask which (the default first); a running session is shown and left as
+  it is, saying so, instead of being toggled away with its arguments dropped.
+  A native agent cold-starts from the editor window
+  (`util.window.editor_win`, which does not toggle like `focus_editor`), so
+  its root is the edited file's. Delivering review feedback (`ai.feed`) makes
+  room for the round's agent, active or not; a panel already on screen in any
+  tabpage makes nothing yield there. Per-buffer behaviour (terminal input
+  rules, edgy slot, statusline label, image hand-back, the feedback a review
+  round delivers) follows the buffer's own agent.
 - The key profile is `auto` unless pinned: `auto` follows the provider
   (claude -> anthropic, codex -> openai), `:AI key <name>` pins one so a later
   provider switch leaves it alone. So switching a process to a provider leaves
   it exactly as one started with that provider, unless a key was pinned.
 - Native Claude and Codex must retain the same core `<leader>a` shortcuts and
   should open or refocus in terminal input mode. The facade owns those keys
-  (`lua/ai/init.lua`, `apply_keymaps`) so a switch can relabel them.
+  (`lua/ai/init.lua`, `apply_keymaps`) so a switch can relabel them; the chat
+  keys name no agent, since what they reach is the chat on the right.
+  `<leader>an`/`<leader>al` are leaves too.
   `<leader>aa`/`<leader>ad` always answer Claude's diffs and exist while Claude
   is active or claudecode.nvim is loaded. The CodeCompanion keys are
   facade-owned for the same reason, not in its lazy spec; they load the plugin
@@ -82,7 +115,11 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `lua/ai/companion.lua` picks the chat of the asked-for kind and adapter
   itself -- upstream's Toggle/Add only know `last_chat` -- and refuses before
   anything starts when the profile's `NVIM_*` key is unset or the ACP bridge
-  is missing. A chat's adapter is fixed at creation and `change_adapter` stays
+  is missing. `<leader>an` offers every available backend
+  (`ai.config.backends()`: the native terminals, the ACP chats, one API chat
+  per key profile, never another upstream adapter), each entry naming its
+  transport and billing, with the same refusal before a chat is created; a
+  native entry stands for that agent's one session and never starts a second. A chat's adapter is fixed at creation and `change_adapter` stays
   disabled. Switching writes `interactions.*.adapter` in the live config
   (`companion.sync`), never `vim.g.codecompanion_adapter` (v20 `cmd.lua`
   resolves it through `config.adapters[name]`, which is nil, and falls back to
@@ -495,7 +532,11 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   table whose rows *are* the items, and its render loop reads only `key`, `sep`,
   `icon`, `desc`, `group` and `icon_hl`. This, `lua/util/codediff.lua` and
   `lua/ai/companion.lua` (next items) are the only places here that depend on
-  plugin internals, apart from these narrower ones: `:checkhealth config`
+  plugin internals, apart from these narrower ones: `lua/ai/backend/claude.lua`
+  drives claudecode through `claudecode.terminal` (`open`, which reuses its one
+  terminal and never hides it, `ensure_visible`, `send_to_terminal`,
+  `get_active_terminal_bufnr`) and `claudecode.send_at_mention`, and finds its
+  Snacks terminal by buffer; `:checkhealth config`
   asks CodeDiff for its library and watcher versions (next item);
   `busy` in `lua/ai/review/rounds.lua` repeats `ai.companion.busy`'s reads of
   a chat as a fallback for when that function is missing;
@@ -543,16 +584,28 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   the user's real file buffers, and the registry suspends its claims on them
   in other tabpages and hands every key back when the view closes. Never map
   a pane buffer with a bare `vim.keymap.set`.
-- `lua/ai/companion.lua` reads CodeCompanion's `chat.adapter`, `chat.ui`,
-  `chat.prompt:add`, `interactions.chat.open` and `utils.context.get`, because
-  upstream's Toggle and Add cannot be aimed at one chat kind. The facade
-  pcall-wraps toggle and add and falls back to `:CodeCompanionChat Toggle` /
-  `:'<,'>CodeCompanionChat Add` with a WARN. `tests/companion_spec.lua` covers
-  it without creating an ACP chat (that spawns the bridge) or sending a
-  request. It reuses upstream's single-slot open, so a chat shown in another
-  tabpage gives up its window there, exactly as `:CodeCompanionChat Toggle`
-  does. Review feedback goes to one exact chat through `add_text`, `busy` and
-  `show_input`, which also read `chat.current_request` and the private
+- `lua/ai/companion.lua` reads CodeCompanion's `chat.adapter`, `chat.ui`
+  (`is_visible`, `is_visible_non_curtab`, `open`, `hide`, `hide({
+  keep_window = true })`, `winnr`), `chat.title`, `chat.prompt:add`,
+  `interactions.chat.open({ ui, winnr })`, the `hidden` argument of
+  `codecompanion.chat()` and `buf_get_chat()`'s entries, because upstream's
+  Toggle and Add cannot be aimed at one chat, and its window-less `Chat.open`
+  closes `last_chat` wherever it is shown. A chat is created hidden and shown
+  as exactly itself: gone to in another tabpage, handed a chat window here
+  (`ui:hide({ keep_window = true })` then `Chat.open({ ui, winnr })`), or
+  given a window by `ui:open()` once the slot has made room; it is not
+  upstream's `last_chat` until first entered. Nothing here calls
+  `Chat.open` without a window. Upstream's own paths still can (`<leader>ao`,
+  a typed `:CodeCompanionChat`, the action palette, `}`/`{`, `<C-c>`'s
+  successor), and may hide a chat in another tabpage on the way; the slot's
+  guard keeps this tabpage to one AI window afterwards. `ai.slot` reaches
+  chats only through `ai.companion`. The facade pcall-wraps toggle and add and
+  falls back to `:CodeCompanionChat Toggle` / `:'<,'>CodeCompanionChat Add`
+  with a WARN. `tests/companion_spec.lua` pins the internals without creating
+  an ACP chat (that spawns the bridge) or sending a request, and
+  `tests/ai_slot_spec.lua` the slot. Review feedback goes to one exact chat
+  through `add_text`, `busy` and `show_input`, which also read
+  `chat.current_request` and the private
   `chat._turn_in_progress`: a tool loop clears `current_request` and makes the
   buffer editable between its steps, and only that flag stays set. It is read
   in a pcall, so a rename upstream loses that signal only; `add_text` answers

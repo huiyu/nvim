@@ -1384,13 +1384,19 @@ function chat_ui:hide()
   if self:is_visible() then api.nvim_win_close(self.winnr, true) end
   self.winnr = nil
 end
--- Upstream's single-slot open, standing in: a split in this tabpage.
+-- Upstream's own window for a chat, standing in: ui:open splits one in this
+-- tabpage, and Chat.open with a window (the handoff from another chat,
+-- lua/ai/companion.lua show) takes that one.
+function chat_ui:open()
+  vim.cmd("botright split")
+  api.nvim_win_set_buf(0, chat_buf)
+  self.winnr = api.nvim_get_current_win()
+end
 local saved_chat_mod = package.loaded["codecompanion.interactions.chat"]
 package.loaded["codecompanion.interactions.chat"] = {
   open = function(args)
-    vim.cmd("botright split")
-    api.nvim_win_set_buf(0, chat_buf)
-    args.ui.winnr = api.nvim_get_current_win()
+    api.nvim_win_set_buf(args.winnr, chat_buf)
+    args.ui.winnr = args.winnr
   end,
 }
 vim.fn.chdir(root)

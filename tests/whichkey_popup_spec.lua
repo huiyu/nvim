@@ -181,7 +181,10 @@ for _, case in ipairs({
   { ";", "c", "positions" }, { ";", "j", "positions" }, { ";", "m", "positions" },
   { "<leader>y", "l", "path" }, { "<leader>y", "g", "path" },
   { "<leader>g", "D", "diff" }, { "<leader>b", "h", "delete" },
-  { "<leader>a", "x", "session" }, { "<leader>a", "c", "session" },
+  { "<leader>a", "x", "session" }, { "<leader>a", "r", "session" },
+  -- The chat on the right: new, switch, toggle, focus.
+  { "<leader>a", "n", "chats" }, { "<leader>a", "l", "chats" },
+  { "<leader>a", "c", "chats" }, { "<leader>a", "f", "chats" },
   { "<leader>a", "g", "ACP chat · subscription" }, { "<leader>a", "G", "ACP chat · subscription" },
   { "<leader>a", "h", "HTTP · API credits" }, { "<leader>a", "H", "HTTP · API credits" },
   { "<leader>a", "e", "HTTP · API credits" },

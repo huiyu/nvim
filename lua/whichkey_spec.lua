@@ -480,9 +480,14 @@ local sections = {
   },
 
   ["<leader>a"] = {
-    -- `x` switches which agent the rest of these keys reach (:AI).
-    { "session",   icon = "󰚩 ", color = "green",  keys = { "c", "f", "r", "R", "m", "x" } },
-    -- `s` only exists in Visual mode and `S` only in oil buffers.
+    -- The chat on the right, whatever it is (lua/ai/slot.lua): open a new one,
+    -- switch to another, hide or bring it back, go into it.
+    { "chats",     icon = "󰍩 ", color = "blue",   keys = { "n", "l", "c", "f" } },
+    -- A native agent's own session; `x` switches the provider, which is still
+    -- the default the pickers start from (:AI).
+    { "session",   icon = "󰚩 ", color = "green",  keys = { "r", "R", "m", "x" } },
+    -- What goes to the chat on the right. `s` only exists in Visual mode and
+    -- `S` only in oil buffers.
     { "context",   icon = "󰈔 ", color = "cyan",   keys = { "b", "i", "s", "S" } },
     -- Claude's own proposals, answered before they reach the disk.
     { "Claude diffs", icon = "󰓡 ", color = "orange", keys = { "a", "d" } },

@@ -901,7 +901,9 @@ local backends = { claude = require("ai.backend.claude"), codex = require("ai.ba
 local saved_fns, shown, hidden, fed = {}, {}, {}, {}
 for name, b in pairs(backends) do
   saved_fns[name] = { window = b.window, visible = b.visible, hide = b.hide, edit_prompt = b.edit_prompt }
-  b.window = function() return shown[name] and 1000 or nil end
+  -- A window id no tabpage has: 1000 is Nvim's first window, which the slot
+  -- would rightly refuse to hide as the tabpage's last one.
+  b.window = function() return shown[name] and 999999 or nil end
   b.visible = function() return shown[name] == "here" end
   b.hide = function() hidden[#hidden + 1] = name; shown[name] = nil end
   b.edit_prompt = function(opts) fed[#fed + 1] = { name, opts and opts.seed } end

@@ -25,35 +25,31 @@ local function guard(label, method, fn, ...)
   return result
 end
 
--- Methods that put the active provider's panel on screen: the ones that show
--- it, and the ones that feed it, which open or start the panel to deliver. A
--- feed that stops short -- a buffer with no file name, a cancelled model
--- picker -- has then hidden the other panel with nothing in its place; hidden
--- only, so it comes back the way any hidden panel does.
+local function slot() return require("ai.slot") end
+local function companion() return require("ai.companion") end
+
+local function notify(msg, level) vim.notify(msg, level or vim.log.levels.INFO, { title = "AI" }) end
+
+-- Methods that put an agent's panel on screen: the ones that show it, and the
+-- ones that feed it, which open or start the panel to deliver. Before one
+-- runs, the AI slot (lua/ai/slot.lua) hides the other AI windows of this
+-- tabpage -- native panels and CodeCompanion chats alike, hidden and never
+-- stopped. A feed that stops short -- a buffer with no file name, a cancelled
+-- model picker -- has then hidden them with nothing in their place; hidden
+-- only, so they come back the way any hidden chat does.
 local REVEALS = {
   toggle = true, focus = true, resume = true, continue = true, edit_prompt = true,
   select_model = true, add_buffer = true, send_selection = true, tree_add = true,
 }
 
--- One agent panel per tabpage: before `target`'s panel opens here, the other
--- provider's panel in this tabpage is hidden -- hidden, never stopped, so its
--- job and tmux client keep running. Nothing happens while the target's panel
--- is already on screen in any tabpage: then the method shows or hides that
--- window where it is, and opens nothing here, so two panels placed side by
--- side by hand do not hide each other either. Whichever panel is revealed
--- decides: the active provider's for the keys, the addressee's for feed().
----@param target string? a provider; nil means the active one
-local function make_room(method, target)
+---Make room for `provider`'s panel before `method` reveals it. Nothing yields
+---while that panel is on screen in any tabpage: the method acts on it where it
+---is. Neither moves tabpage nor starts anything from elsewhere -- these callers
+---act where they were called from (review delivery has already gone to the
+---right tabpage).
+local function make_room(method, provider)
   if not REVEALS[method] then return end
-  target = target or config.provider
-  local revealed = backend(target)
-  if revealed.window and revealed.window() then return end
-  for _, name in ipairs(config.names()) do
-    if name ~= target then
-      local other = backend(name)
-      if other.visible and other.visible() then pcall(other.hide) end
-    end
-  end
+  slot().make_room(slot().native_item(provider), { jump = false, editor = false })
 end
 
 ---Call `method` on one provider's backend, whichever is active.
@@ -66,7 +62,7 @@ local function invoke_on(name, method, ...)
     return
   end
   return guard(label_of(name), method, function(...)
-    if name == config.provider then make_room(method) end
+    if name == config.provider then make_room(method, name) end
     return fn(...)
   end, ...)
 end
@@ -76,10 +72,9 @@ local function invoke(method, ...)
 end
 
 ---Deliver to one agent by name, whichever provider is active: review feedback
----goes to the agent whose round it is (lua/ai/review). Like invoke_on, except
----that the room made is for that agent's panel, the one about to be revealed,
----so a feed to the inactive agent hides the active one's panel here, not its
----own.
+---goes to the agent whose round it is (lua/ai/review). The room made is for
+---that agent's panel, the one about to be revealed: every other AI window of
+---this tabpage gives way to it, a chat shown here included.
 ---@param provider string
 ---@param method string
 function M.feed(provider, method, ...)
@@ -98,13 +93,118 @@ function M.feed(provider, method, ...)
   end, ...)
 end
 
-function M.toggle() return invoke("toggle") end
-function M.focus() return invoke("focus") end
-function M.resume() return invoke("resume") end
-function M.continue() return invoke("continue") end
-function M.select_model() return invoke("select_model") end
-function M.add_buffer() return invoke("add_buffer") end
-function M.send_selection() return invoke("send_selection") end
+---Run `fn(item, ...)` for a chat the slot resolved, under the same guard as a
+---key: it runs from a picker's callback too, long after the key returned.
+local function on_item(what, fn)
+  return function(item, ...)
+    local label = item.kind == "native" and label_of(item.agent) or "AI chat"
+    return guard(label, what, fn, item, ...)
+  end
+end
+
+-- <leader>ac / <leader>af: the chat on the right (lua/ai/slot.lua), whatever
+-- it is. Neither delivers anything, so with nothing on the right they bring
+-- the last one back rather than ask.
+function M.toggle() return guard("AI chat", "toggle", function() slot().toggle() end) end
+function M.focus() return guard("AI chat", "focus", function() slot().focus() end) end
+
+-- The keys only a native agent answers: the one on the right, else the one
+-- asked for. A running session is shown and left as it is -- each agent has
+-- one session here -- and its backend says so (lua/ai/backend/*).
+local function native_key(method)
+  return function()
+    return guard("AI", method, function()
+      slot().native_target(function(agent)
+        guard(label_of(agent), method, function()
+          if slot().make_room(slot().native_item(agent)) then backend(agent)[method]() end
+        end)
+      end)
+    end)
+  end
+end
+M.resume = native_key("resume")
+M.continue = native_key("continue")
+M.select_model = native_key("select_model")
+
+---Deliver a captured selection (ai.selection.capture) to `item`: a chat gets
+---it fenced in its prompt, Claude a file mention of its lines, Codex the
+---draft typed into its input box. Nothing is submitted.
+---@param item ai.SlotItem
+---@param cap ai.Capture
+---@param from integer? the tabpage the key was pressed in
+local function deliver_capture(item, cap, from)
+  if item.kind == "chat" then
+    local ok, why = companion().add_capture(item.chat, cap)
+    if not ok then return companion().refused(why) end
+    companion().show(item.chat)
+  elseif item.agent == "claude" then
+    if cap.path == "" then
+      return notify("This buffer has no file, and Claude Code takes a selection as a file mention: save it, or <leader>ai",
+        vim.log.levels.WARN)
+    end
+    if not slot().make_room(item) then return end
+    local claude = backend("claude")
+    if not (claude.running() and claude.window()) then claude.reveal() end
+    claude.send_range(cap.path, cap.l1, cap.l2)
+  else
+    if not cap.draft then return notify(cap.err or "No selection", vim.log.levels.WARN) end
+    if cap.notice then notify(cap.notice) end
+    if not slot().make_room(item) then return end
+    backend(item.agent).send_text(cap.draft)
+  end
+  slot().went(item, from)
+end
+
+---A directory listing's selection names files, and only a live Visual tells
+---which: it goes to Claude Code on the right at once, or nowhere.
+local function tree_selection()
+  local item = slot().target_now()
+  if item and item.kind == "native" and item.agent == "claude" then
+    return invoke_on("claude", "send_selection")
+  end
+  vim.cmd("normal! \27")
+  if not item then
+    return notify("A directory selection cannot wait for a question: put Claude Code on the right first (<leader>al)",
+      vim.log.levels.WARN)
+  end
+  notify("Only Claude Code takes files from a directory listing", vim.log.levels.WARN)
+end
+
+---<leader>as: the selection, to the chat on the right.
+function M.send_selection()
+  return guard("AI chat", "send_selection", function()
+    if require("ai.selection").is_tree() then return tree_selection() end
+    local cap, err = require("ai.selection").capture()
+    if not cap then return notify(err, vim.log.levels.WARN) end
+    slot().target(on_item("send_selection", function(item, from) deliver_capture(item, cap, from) end),
+      { prompt = "Add selection to" })
+  end)
+end
+
+---<leader>ab: the current buffer, as a file mention, to the native agent on
+---the right. A chat takes a selection or its own #{buffer} instead.
+function M.add_buffer()
+  return guard("AI chat", "add_buffer", function()
+    local buf = vim.api.nvim_get_current_buf()
+    local path, modified = vim.api.nvim_buf_get_name(buf), vim.bo[buf].modified
+    slot().target(on_item("add_buffer", function(item, from)
+      if item.kind == "chat" then
+        return notify("A chat takes a selection (<leader>as), or #{buffer} or /buffer in its own prompt")
+      end
+      if path == "" then return notify("Current buffer has no file path", vim.log.levels.WARN) end
+      if not slot().make_room(item) then return end
+      if item.agent == "claude" then
+        local claude = backend("claude")
+        if not (claude.running() and claude.window()) then claude.reveal() end
+        claude.add_path(path)
+      else
+        backend(item.agent).add_path(path, modified)
+      end
+      slot().went(item, from)
+    end), { prompt = "Add buffer to" })
+  end)
+end
+
 -- Diffs are Claude's alone, and one opened before a switch away still needs
 -- an answer, so these never follow the active provider.
 function M.accept_diff() return invoke_on("claude", "accept_diff") end
@@ -123,30 +223,85 @@ function M.attach_images(paths, provider)
   return invoke_on(provider or config.provider, "attach_images", paths)
 end
 
----Open the agent's prompt editor.
+local function visual() return vim.fn.mode():sub(1, 1):match("[vVsS\22\19]") ~= nil end
+
+---Open the prompt of the chat on the right.
 ---
----This is the TUI's own ctrl+g, not a buffer of ours: `$EDITOR` points at
----scripts/agent-editor, which brings the prompt back into this Nvim. Going
----through the CLI means the box's existing text arrives exactly and the edit is
----written back by the CLI itself -- see lua/ai/editor.lua for why reading the
----box off the screen instead cannot work.
+---For a native agent this is the TUI's own ctrl+g, not a buffer of ours:
+---`$EDITOR` points at scripts/agent-editor, which brings the prompt back into
+---this Nvim. Going through the CLI means the box's existing text arrives
+---exactly and the edit is written back by the CLI itself -- see
+---lua/ai/editor.lua for why reading the box off the screen instead cannot
+---work. A CodeCompanion chat's prompt is its own buffer: the cursor goes there.
 ---
----From Visual mode the selection is placed in the box first, so it shows up in
----the editor alongside whatever was already typed there.
+---From Visual mode the selection goes along: placed in the agent's box first,
+---so it shows up in the editor alongside whatever was already typed there, or
+---added to the chat's prompt.
 function M.compose()
-  local seed
-  if vim.fn.mode():sub(1, 1):match("[vVsS\22\19]") then
-    seed = require("ai.selection").draft()
-    -- Leave Visual explicitly. The composer this replaced dropped out of it by
-    -- opening a buffer; sending bytes to a terminal does not, and the selection
-    -- has already been read by this point.
-    vim.cmd("normal! \27")
-  end
-  -- A prompt already open means the TUI is blocked on it and would swallow the
-  -- key; the useful thing is to get back into that buffer.
-  if require("ai.editor").focus_open(seed) then return end
-  return invoke("edit_prompt", { seed = seed })
+  return guard("AI chat", "compose", function()
+    local cap
+    if visual() then
+      local err
+      cap, err = require("ai.selection").capture()
+      if not cap then return notify(err, vim.log.levels.WARN) end
+    end
+    local seed = cap and cap.draft
+    local editor = require("ai.editor")
+    -- A prompt already open here means that TUI is blocked on it and would
+    -- swallow the key; the useful thing is to get back into that buffer.
+    local owner = editor.open_here()
+    if owner and editor.focus_open(seed, owner) then return end
+    slot().target(on_item("compose", function(item)
+      if item.kind == "chat" then
+        if cap then
+          local ok, why = companion().add_capture(item.chat, cap)
+          if not ok then return companion().refused(why) end
+        end
+        return companion().focus_prompt(item.chat, true)
+      end
+      if editor.focus_open(seed, item.agent) then return end
+      if not slot().make_room(item) then return end
+      backend(item.agent).edit_prompt({ seed = seed })
+    end), { prompt = "Edit prompt for" })
+  end)
 end
+
+---After a chat was picked: show it, or give it the selection captured before
+---the question.
+local function picked(cap)
+  return on_item("open", function(item)
+    if cap then return deliver_capture(item, cap) end
+    slot().reveal(item)
+  end)
+end
+
+local function pick_with(what)
+  return function()
+    return guard("AI chat", what, function()
+      local cap
+      if visual() then
+        if require("ai.selection").is_tree() then
+          vim.cmd("normal! \27")
+          return notify("A directory selection cannot wait for a question: use <leader>as with Claude Code on the right",
+            vim.log.levels.WARN)
+        end
+        local err
+        cap, err = require("ai.selection").capture()
+        if not cap then return notify(err, vim.log.levels.WARN) end
+      end
+      -- From a CodeDiff view, the chat picked opens in the page it came from.
+      slot().home()
+      if what == "new" then slot().pick_new(picked(cap)) else slot().switch(picked(cap)) end
+    end)
+  end
+end
+
+---<leader>an / :AI new: start a chat on any available backend, and show it.
+---From Visual mode the selection goes to it.
+M.new_chat = pick_with("new")
+---<leader>al / :AI chats: show another open chat. From Visual mode the
+---selection goes to it.
+M.switch_chat = pick_with("switch")
 
 -- Not backend methods, so not `invoke`; the same guard, so a failing view is
 -- a notification like every other <leader>a key.
@@ -231,8 +386,6 @@ local function map(mode, lhs, rhs, desc)
   vim.keymap.set(mode, lhs, rhs, { desc = desc, silent = true })
 end
 
-local function companion() return require("ai.companion") end
-
 ---A CodeCompanion key. lua/ai/companion.lua reaches into CodeCompanion's chat
 ---internals, so an upgrade that breaks them falls back to the nearest
 ---upstream command with a WARN -- or, without one, reports the error -- rather
@@ -260,23 +413,32 @@ end
 -- active key profile's, substituted whenever the keys are (re)applied, so
 -- which-key names what a key will actually reach after a switch.
 --
+-- The chat keys (n l c f b s i) act on the chat on the right, whatever it is
+-- -- a native agent's terminal or a CodeCompanion chat (lua/ai/slot.lua) --
+-- so their descriptions name no agent. The native-session keys (r R m) reach
+-- the native agent on the right, else the one asked for.
+--
 -- The CodeCompanion keys (g G h H e p o) are owned here rather than by its lazy
 -- spec so a switch can relabel them; they load the plugin on first use, through
 -- `require`. Normal mode goes to a chat, Visual mode takes the selection
 -- along. `<leader>ap` is a leaf -- a `<leader>ap*` mapping would make it wait
--- out 'timeoutlen' again.
+-- out 'timeoutlen' again; so are `<leader>an` and `<leader>al`.
 local KEYS = {
-  { "n", "c", M.toggle, "Toggle %{agent}" },
-  { "n", "f", M.focus, "Focus %{agent}" },
-  { "n", "r", M.resume, "Resume %{agent}" },
-  { "n", "R", M.continue, "Continue %{agent}" },
-  { "n", "m", M.select_model, "Select AI model" },
-  { "n", "b", M.add_buffer, "Add buffer to %{agent}" },
-  { "x", "s", M.send_selection, "Attach selection to %{agent}" },
+  -- From Visual mode both take the selection to the chat they open.
+  { { "n", "x" }, "n", M.new_chat, "New AI chat…" },
+  { { "n", "x" }, "l", M.switch_chat, "Switch AI chat…" },
+  { "n", "c", M.toggle, "Toggle AI chat" },
+  { "n", "f", M.focus, "Focus AI chat" },
+  { "n", "r", M.resume, "Resume native agent…" },
+  { "n", "R", M.continue, "Continue native agent…" },
+  { "n", "m", M.select_model, "Select native agent model" },
+  { "n", "b", M.add_buffer, "Add buffer to AI chat" },
+  { "x", "s", M.send_selection, "Add selection to AI chat" },
   -- The agent's own input box loses <C-h/j/k/l> to window navigation, so long
   -- prompts get a real buffer instead -- the agent's own ctrl+g, routed back
-  -- here. Bound in Visual mode too, where it seeds from the selection.
-  { { "n", "x" }, "i", M.compose, "Edit %{agent} prompt" },
+  -- here; a chat's prompt is a buffer already. Bound in Visual mode too, where
+  -- it seeds from the selection.
+  { { "n", "x" }, "i", M.compose, "Edit prompt for AI chat" },
   { "n", "t", M.transcript, "Read %{agent} transcript" },
   { "n", "T", M.transcript_pick, "%{agent} session history" },
   -- Review rounds: a round belongs to a conversation, not to the active
@@ -299,6 +461,8 @@ local KEYS = {
   { "n", "H", companion_key("new chat", function() companion().new("http") end), "New API chat · %{key} (HTTP)" },
   { { "n", "x" }, "p", "<cmd>CodeCompanionActions<cr>", "Companion actions" },
   -- codecompanion-history's browser: every chat it auto-saved, either kind.
+  -- A restored chat comes up through upstream's own open; the slot's guard
+  -- makes the rest of the tabpage's AI windows give way to it.
   { "n", "o", "<cmd>CodeCompanionHistory<cr>", "Open saved Companion chat" },
 }
 
@@ -425,6 +589,9 @@ function M.setup()
   })
 
   review_events()
+
+  -- One AI window per tabpage, whichever path opened it.
+  require("ai.slot").setup()
 
   -- :AI and :AIInfo. Defining them loads no plugin.
   require("ai.switch").setup()

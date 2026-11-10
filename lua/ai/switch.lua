@@ -175,7 +175,7 @@ local function complete(arglead, cmdline)
   local n = #args - (cmdline:match("%s$") and 0 or 1)
   local words = {}
   if n <= 1 then
-    words = { "provider", "key", "info" }
+    words = { "provider", "key", "info", "new", "chats" }
   elseif n == 2 and args[2] == "provider" then
     words = c.names()
   elseif n == 2 and args[2] == "key" then
@@ -192,9 +192,12 @@ function M.setup()
       if sub == "provider" then return M.provider(arg) end
       if sub == "key" then return M.key(arg) end
       if sub == "info" and not arg then return M.info() end
+      -- The chat pickers of <leader>an / <leader>al (lua/ai/slot.lua).
+      if sub == "new" and not arg then return require("ai").new_chat() end
+      if sub == "chats" and not arg then return require("ai").switch_chat() end
     end
-    notify("Usage: :AI [provider [name] | key [name] | info]", ERROR)
-  end, { nargs = "*", complete = complete, desc = "Switch the AI provider / API key profile" })
+    notify("Usage: :AI [provider [name] | key [name] | info | new | chats]", ERROR)
+  end, { nargs = "*", complete = complete, desc = "Switch the AI provider / API key profile, or open an AI chat" })
 
   vim.api.nvim_create_user_command("AIInfo", function() M.info() end,
     { desc = "Show the AI provider, key profile and native agents" })
