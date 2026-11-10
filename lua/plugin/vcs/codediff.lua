@@ -121,24 +121,51 @@ local function when(time)
   return os.date("%Y-%m-%d %H:%M", time)
 end
 
+-- How long a picker waits for ai.review.labels at most. It answers within its
+-- own budget (300 ms); this only keeps a broken one from holding a key up.
+local LABEL_GUARD_MS = 2000
+
+--- Labels for baseline `entries` from ai.review.labels -- "<session>: Claude
+--- 11:16:38 - 11:43:18", "<name>: Saved 11-09 23:08" -- as `cb(labels)`, or
+--- `cb({})` when that module is missing, fails or does not answer: each entry
+--- then keeps its subject and time. Called back once.
+local function baseline_labels(entries, cb)
+  local done = false
+  local function finish(labels)
+    if done then return end
+    done = true
+    cb(type(labels) == "table" and labels or {})
+  end
+  local ok, labels = pcall(require, "ai.review.labels")
+  if not (ok and type(labels) == "table" and type(labels.describe) == "function") then return finish({}) end
+  if not pcall(labels.describe, entries, finish) then return finish({}) end
+  vim.defer_fn(function() finish({}) end, LABEL_GUARD_MS)
+end
+
 --- The baselines of the worktree at `root` (util.baseline; this worktree's
 --- only), newest first, as picker items: `cb(items)`. The vcs layer reads a
 --- baseline's subject and sha, nothing else; what its trailers mean belongs
---- to ai.review. CodeDiff gets the sha, never the ref: retention may delete
---- the ref while a view of it is still open.
+--- to ai.review, which labels it (baseline_labels). CodeDiff gets the sha,
+--- never the ref: retention may delete the ref while a view of it is still
+--- open.
 local function baseline_items(root, cb)
   require("util.baseline").list(root, nil, function(entries)
-    local items = {}
-    for _, e in ipairs(entries or {}) do
-      items[#items + 1] = {
-        kind = "rev",
-        rev = e.sha,
-        label = e.subject,
-        baseline = e,
-        display = " " .. e.subject .. " · " .. when(e.time),
-      }
-    end
-    cb(items)
+    entries = entries or {}
+    baseline_labels(entries, function(labels)
+      local items = {}
+      for i, e in ipairs(entries) do
+        local l = labels[i]
+        local named = type(l) == "table" and type(l.label) == "string" and type(l.display) == "string"
+        items[#items + 1] = {
+          kind = "rev",
+          rev = e.sha,
+          label = named and l.label or e.subject,
+          baseline = e,
+          display = " " .. (named and l.display or (e.subject .. " · " .. when(e.time))),
+        }
+      end
+      cb(items)
+    end)
   end)
 end
 
@@ -386,20 +413,39 @@ local function compare_two()
   end)
 end
 
+--- The name <leader>gK offers: the agent session working in `root`
+--- (ai.review.labels.current_name), as `cb(name)`, or `cb(nil)`. Called back
+--- once.
+local function offered_name(root, cb)
+  local done = false
+  local function finish(name)
+    if done then return end
+    done = true
+    cb(type(name) == "string" and name ~= "" and name or nil)
+  end
+  local ok, labels = pcall(require, "ai.review.labels")
+  if not (ok and type(labels) == "table" and type(labels.current_name) == "function") then return finish(nil) end
+  if not pcall(labels.current_name, root, finish) then return finish(nil) end
+  vim.defer_fn(function() finish(nil) end, LABEL_GUARD_MS)
+end
+
 --- Save the working tree as a named baseline for <leader>gk/<leader>gM. It
 --- belongs to no session and opens no round; retention.saved prunes the
---- oldest (util.baseline names each one it removes).
+--- oldest (util.baseline names each one it removes). The name offered is the
+--- session an agent is working in here, if any.
 local function save_baseline()
   local root, reason = repo_root()
   if not root then return warn("Save baseline", reason) end
-  vim.ui.input({ prompt = "Baseline name (empty: the time)" }, function(name)
-    if name == nil then return end
-    name = vim.trim(name)
-    if name == "" then name = os.date("%Y-%m-%d %H:%M:%S") end
-    require("util.baseline").save(root, "saved", { subject = "saved · " .. name, Label = name }, function(entry, err)
-      if not entry then return warn("Save baseline", tostring(err)) end
-      vim.notify(('Saved baseline "%s" (%s); <leader>gk compares against it'):format(name, entry.sha:sub(1, 8)),
-        vim.log.levels.INFO)
+  offered_name(root, function(default)
+    vim.ui.input({ prompt = "Baseline name (empty: the time)", default = default }, function(name)
+      if name == nil then return end
+      name = vim.trim(name)
+      if name == "" then name = os.date("%Y-%m-%d %H:%M:%S") end
+      require("util.baseline").save(root, "saved", { subject = "saved · " .. name, Label = name }, function(entry, err)
+        if not entry then return warn("Save baseline", tostring(err)) end
+        vim.notify(('Saved baseline "%s" (%s); <leader>gk compares against it'):format(name, entry.sha:sub(1, 8)),
+          vim.log.levels.INFO)
+      end)
     end)
   end)
 end

@@ -1194,13 +1194,50 @@ keeps recording its rounds where it started, and says so once.
   nothing changed since that owner's last round, it says that round is already
   the current state.
 - `<Space>gK` (*Save current code as a baseline*) saves a named snapshot that
-  belongs to no conversation — "before refactor". Each worktree keeps its
-  newest 10, and a notice names any it removes.
+  belongs to no conversation — "before refactor". It offers the name of the
+  agent session at work in this repository (the active provider's first);
+  edit it, or clear it for the time. Each worktree keeps its newest 10, and a
+  notice names any it removes.
 - `<Space>gk` (*Compare two*) compares any two ends. Pick an older round's
   baseline against the working tree to see everything since an earlier
   prompt, several rounds at once: that view counts as the round's review tab,
   and `,C` files feedback for its owner. Any baseline against the working tree
   gets `,X` too. `<Space>gM` lists the baselines as well.
+
+Both pickers name a round by its session, source and time:
+
+```text
+Scanner error messages: Claude 11:16:38 - 11:43:18   a round today
+Parser cleanup: Claude 11-09 20:36 - 21:39            a round on another day
+Config differences: Codex 07:48:39 - …                its session is still at it
+Agent chat 09:03:20                                   no session records to read
+before refactor: Saved 11-09 23:08                    a saved baseline
+```
+
+- **The name** is the first one the session had — Claude Code's generated
+  title (what `/resume` lists) or a `/rename` made before it, a Codex thread's
+  name — read from the agent's own records, and a later rename leaves it
+  alone. Past 40 columns it is cut with `…`.
+- **The start** is when the round's baseline was taken, as the prompt left.
+- **The end** is when the session last finished a turn (or was interrupted)
+  before its next round began. A prompt that changed nothing since the last
+  round keeps that round, so the end can come from a later prompt, and a turn
+  that ran past the next prompt leaves its round with no end.
+- **`…`** means the session is at work on this round: it was prompted after
+  its last turn ended, and it is alive — its terminal runs in this Nvim, or
+  its records were written in the last 30 minutes. A session killed mid-turn
+  therefore drops the `…`, and so does one working in another Nvim on a step
+  that writes nothing for 30 minutes. A manual round (`<Space>aV`) is no
+  prompt, so it shows `…` only once its session is prompted again.
+- A chat, a manual round with no owner, or a session whose records are not
+  on this machine shows its source and start alone. Codex compresses a
+  rollout it has not touched for about ten days (`.jsonl.zst`); its turns are
+  read through `zstd` when that is installed, else such a round shows its
+  name and start.
+
+The view a baseline opens is labelled with the start alone, `Scanner error
+messages: Claude 11:16:38 → working tree`: it shows everything since then, up
+to now, whatever the end says.
 
 To start over with a conversation, send the next prompt or press `<Space>aV`;
 `<Space>av` always picks the newest round.

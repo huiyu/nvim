@@ -28,7 +28,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `refs/nvim-review/`), `lua/util/codediff.lua` and
   `lua/util/codediff_actions.lua` (the CodeDiff views behind `<leader>g` and
   their hunk keys). The vcs layer reads a baseline's subject and sha only;
-  its trailers mean something to `ai.review` alone (`rounds.review_vars`).
+  its trailers mean something to `ai.review` alone (`rounds.review_vars`,
+  and `labels.describe` for the pickers' labels, which read session names and
+  turn ends from the agents' own records through `ai.transcript.marks`).
 
 ## AI Provider Invariants
 

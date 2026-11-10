@@ -531,6 +531,19 @@ local function parse_commit(body)
   return { tree = tree, time = time or 0, subject = msg_lines[1] or "", trailers = trailers }
 end
 
+---When `entry` was taken, to the millisecond: its `time` plus the millisecond
+---its id holds (make_id), so two baselines of one second keep their order.
+---`time` alone when the id is not one of ours.
+---@param entry baseline.Entry
+---@return number
+function M.time_of(entry)
+  local time = type(entry) == "table" and tonumber(entry.time) or 0
+  local hex = type(entry.id) == "string" and entry.id:match("^%d%d%d%d%d%d%d%dT%d%d%d%d%d%d%-(%x%x%x%x)$")
+  if not hex then return time end
+  local ms = math.floor(tonumber(hex, 16) / 64)
+  return ms < 1000 and time + ms / 1000 or time
+end
+
 ---The baselines of `kind` ("round", "saved", or nil for both) in the worktree
 ---that contains `root`, newest first: `cb(entries)`, or `cb({}, err)`.
 ---A ref whose commit is missing (deleted by hand, or by a gc that could not

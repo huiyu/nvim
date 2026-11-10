@@ -21,7 +21,11 @@
 --     ai_review for a round through ai.review.rounds, which may be absent);
 --   * <leader>gK names a saved baseline (subject and Label), defaults the
 --     name to the time, and retention removes the oldest past 10 with a word;
---   * <leader>gM lists baselines next to branches, tags and commits.
+--   * <leader>gM lists baselines next to branches, tags and commits;
+--   * both pickers and the views they open label a baseline through
+--     ai.review.labels ("<name>: Saved <time>", "Claude <start>" for a round
+--     whose session left no records here), and keep its subject when that
+--     module fails (tests/baseline_labels_spec.lua has the rest).
 -- Every repository lives under tempname() with a space in its path, with
 -- git's system and global config shut out. Nothing here touches this
 -- repository.
@@ -50,6 +54,13 @@ vim.env.GIT_CONFIG_NOSYSTEM = "1"
 vim.env.GIT_DIR, vim.env.GIT_WORK_TREE, vim.env.GIT_INDEX_FILE = nil, nil, nil
 local saved_g = vim.g.ai_review
 vim.g.ai_review = nil
+-- No agent records: the round below belongs to a session that left none.
+local saved_env = { CLAUDE_CONFIG_DIR = vim.env.CLAUDE_CONFIG_DIR, CODEX_HOME = vim.env.CODEX_HOME }
+local records = vim.fn.tempname()
+vim.fn.mkdir(records .. "/claude/projects", "p")
+vim.fn.mkdir(records .. "/codex/sessions", "p")
+vim.env.CLAUDE_CONFIG_DIR, vim.env.CODEX_HOME = records .. "/claude", records .. "/codex"
+local stamp = require("ai.review.labels").stamp
 
 local notices = {}
 local real_notify = vim.notify
@@ -89,7 +100,9 @@ vim.ui.select = function(items, _, on_choice)
   end
   on_choice(nil)
 end
-vim.ui.input = function(_, on_confirm)
+local asked = {} ---@type table[] the opts of every input, in order
+vim.ui.input = function(opts, on_confirm)
+  asked[#asked + 1] = opts
   local text = table.remove(script, 1)
   on_confirm(text ~= CANCEL and text or nil)
 end
@@ -183,7 +196,9 @@ vim.cmd.enew()
 -- <leader>gK: a named baseline
 ---------------------------------------------------------------------------
 
+asked = {}
 press("<leader>gK", { "before refactor" }, function() return said("Saved baseline") end)
+t.eq(asked[1] and asked[1].default, nil, "with no agent session here, no name is offered")
 local saved = baselines(root, "saved")
 t.eq(#saved, 1, "<leader>gK saves one baseline")
 t.eq(saved[1] and saved[1].subject, "saved · before refactor", "its subject names it for the pickers")
@@ -227,8 +242,10 @@ t.eq(position(INDEX), 2, "then the index")
 t.ok(position(rev(round.sha)) and position(rev(timed.sha)) and position(rev(before_refactor.sha))
   and position(rev(round.sha)) < position(rev(timed.sha)) and position(rev(timed.sha)) < position(rev(before_refactor.sha)),
   "then the baselines, newest first, by sha")
-t.ok(position(display("saved · before refactor · ")) ~= nil, "a saved baseline shows its name and time")
-t.ok(position(display("nvim review: Claude round 10:00:00 · ")) ~= nil, "a round shows its subject and time")
+t.ok(position(display(" before refactor: Saved " .. stamp(before_refactor.time))) ~= nil,
+  "a saved baseline shows its name and time")
+t.ok(position(function(item) return item.display == " Claude " .. stamp(round.time) end) ~= nil,
+  "a round with no session records shows its source and start")
 t.ok(position(rev("main")) and position(rev("old")) and position(rev("v1")), "then branches and tags")
 t.ok(position(rev(git("rev-parse", "--short", "HEAD"))) ~= nil, "and recent commits")
 t.eq(position(TYPE), #items, "with free input last")
@@ -321,7 +338,8 @@ t.ok(said("Swapped the ends: CodeDiff shows the working tree on the right"), "an
 -- Baselines go as shas, and against the working tree mark the view.
 args, spec = press("<leader>gk", { rev(before_refactor.sha), WORKING })
 t.eq(args, C(before_refactor.sha), "a saved baseline → working tree passes its sha")
-t.eq(spec and spec.label, "saved · before refactor → working tree", "labelled with its subject")
+t.eq(spec and spec.label, "before refactor: Saved " .. stamp(before_refactor.time) .. " → working tree",
+  "labelled with its name and time")
 t.eq(spec and spec.tab_vars, { codediff_baseline = { sha = before_refactor.sha, kind = "saved" } },
   "and marks the view as a saved baseline's")
 args, spec = press("<leader>gk", { WORKING, rev(before_refactor.sha) })
@@ -411,7 +429,7 @@ press("<leader>gK", { "now" }, function() return said("Saved baseline") end)
 local now = baselines(root, "saved")[1]
 args = press("<leader>gk", { rev(now.sha), WORKING })
 t.eq(args, nil, "a baseline of the current tree against the working tree opens nothing")
-t.ok(said("no differences, saved · now → working tree"), "and says so")
+t.ok(said("no differences, now: Saved " .. stamp(now.time) .. " → working tree"), "and says so")
 write(root, "n.txt", { "untracked, and changed" })
 args = press("<leader>gk", { rev(now.sha), WORKING })
 t.eq(args, C(now.sha), "an untracked file changed since makes a difference")
@@ -456,9 +474,20 @@ t.ok(position(rev(round.sha)) and position(rev(before_refactor.sha)) and positio
   and position(rev("v1")), "<leader>gM offers baselines next to branches and tags")
 t.ok(position(rev(round.sha)) < position(rev("main")), "baselines first")
 t.eq(args, C(before_refactor.sha), "a baseline is diffed against the working tree by sha")
-t.eq(spec and spec.label, "saved · before refactor → working tree", "labelled with its subject")
+t.eq(spec and spec.label, "before refactor: Saved " .. stamp(before_refactor.time) .. " → working tree",
+  "labelled with its name and time")
 t.eq(spec and spec.tab_vars, { codediff_baseline = { sha = before_refactor.sha, kind = "saved" } },
   "and marked as a baseline view")
+
+-- ai.review.labels failing leaves each baseline its subject and time.
+local real_labels = package.loaded["ai.review.labels"]
+package.loaded["ai.review.labels"] = { describe = function() error("labels broke") end }
+args, spec = press("<leader>gM", { rev(before_refactor.sha) })
+items = offered[1] or {}
+t.ok(position(display(" saved · before refactor · ")) ~= nil and position(display(" nvim review: Claude round 10:00:00 · ")) ~= nil,
+  "with ai.review.labels failing, <leader>gM lists subjects and times")
+t.eq(spec and spec.label, "saved · before refactor → working tree", "and labels a view with the subject")
+package.loaded["ai.review.labels"] = real_labels
 args, spec = press("<leader>gM", { rev("old") })
 t.eq(args, C(OLD), "a branch diffs by sha")
 t.eq(spec and spec.label, "old → working tree", "labelled as before")
@@ -492,6 +521,8 @@ cd.open = real_open
 vim.ui.select, vim.ui.input = real_select, real_input
 vim.notify = real_notify
 vim.g.ai_review = saved_g
+vim.env.CLAUDE_CONFIG_DIR, vim.env.CODEX_HOME = saved_env.CLAUDE_CONFIG_DIR, saved_env.CODEX_HOME
+vim.fn.delete(records, "rf")
 vim.cmd.cd(vim.fn.fnameescape(cwd))
 git("worktree", "remove", "--force", linked)
 for _, dir in ipairs({ root, clean, outside, linked }) do vim.fn.delete(dir, "rf") end

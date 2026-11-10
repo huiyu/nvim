@@ -675,6 +675,10 @@ baseline.save(root, kind, meta, cb)
 -- (root, cb) lists both kinds.
 baseline.list(root, kind, cb)
 
+-- When an entry was taken, to the millisecond its id holds: entry.time plus
+-- that fraction, or entry.time for an id that is not one of ours.
+baseline.time_of(entry)
+
 -- Delete refs compare-and-swap, each only if it still points at its `sha`:
 -- cb(deleted, skipped). A ref that moved, is gone or lies outside
 -- refs/nvim-review/ is skipped, never an error.
@@ -1493,6 +1497,10 @@ rounds.conversation_of(buf)      --> conversation?, root?, bound
 rounds.live_conversations(root)  --> the sessions this Nvim could deliver to there
 rounds.label(conversation)       --> "Claude Code session 7f0c1a2b…", and the like
 rounds.toplevel(path)            --> realpath of the Git toplevel, no git run
+rounds.source_label(source)      --> "Claude" for a Source trailer's "claude", nil for none
+rounds.prompted_at(conversation) --> when a native session was last prompted here
+                                 --  (epoch seconds, fraction kept), or nil
+rounds.running(conversation)     --> true while an agent terminal here runs that session
 rounds.nonce()                   --> this process's nonce in cc: ids
 rounds.draft_path(root, id)      --> stdpath("state")/ai-review/<12 hex>/<id>.md
 
@@ -1534,6 +1542,40 @@ conversation?, agent?, chat?, buf, root, label, owner?, redirected }`, or
 `cb(nil, reason)` with `"root"`, `"owner-gone"`, `"unknown-session"`,
 `"busy"`, `"cancelled"`, `"no-session"` or `"unknown"`. Asynchronous whenever
 anything is asked.
+
+### Baseline labels (`ai.review.labels`)
+
+```lua
+local labels = require("ai.review.labels")
+
+labels.describe(entries, cb, opts)    -- cb(labels): labels[i] = { label, display } or nil
+labels.current_name(root, cb, opts)   -- cb(name|nil): the session at work in root (<leader>gK)
+labels.stamp(t, now)                  --> "11:16:38" today, "11-09 23:08", "2025-12-31 23:50"
+labels.span(start, ended, open, now)  --> "11:16:38 - 11:43:18", "11-09 23:50 - 11-10 00:20",
+                                      --  "11:39:25 - …"
+labels.shorten(name, width)           --> one line, cut to `width` columns (NAME_WIDTH, 40)
+```
+
+`describe` labels `util.baseline.list` entries for the `<leader>g` pickers:
+`display` is the picker's line -- `"<session>: <Source> <start> - <end>"` for
+a round, `"<name>: Saved <time>"` for a saved baseline -- and `label` the
+view's, with the start alone, since a view shows everything since the start.
+`labels[i]` is nil where the caller keeps its own (a round with no `Source`,
+an unknown kind). A round's session is its `Conversation`; its name is the
+first title its records hold and its end the last turn end at or after its
+start and before the session's next round, both from `ai.transcript.marks`,
+compared to the millisecond (`util.baseline.time_of`). `…` marks a session's
+newest round when the session was prompted after its last turn end -- by
+this round's own prompt (a non-Late round whose `Source` is the agent) or a
+later one `rounds.prompted_at` heard -- and is alive: `rounds.running`, or
+records written within `LIVE_SECONDS` (30 minutes). It reads each session
+twice, once for the name alone, so a name is there even when the turns miss
+the budget; it waits up to `opts.budget_ms` (`BUDGET_MS`, 300) and labels
+without what is still being read; `cb` runs once, on the main loop.
+`current_name` takes the first native session `rounds.live_conversations(root)`
+lists, reads its name alone, loads nothing when `ai.review.rounds` was never
+loaded, and answers nil past the same budget. `opts.now` is the clock for the
+formatting and the liveness check.
 
 ### The view and its feedback (`ai.review`, `ai.review.feedback`)
 
@@ -1596,7 +1638,46 @@ transcript.refresh(buf)    -- re-read and re-render in place (`R` in the buffer)
 Provider knowledge lives in `ai.transcript.claude` and `ai.transcript.codex`,
 which share one `Adapter` contract: `sessions(root)` and `parse(path, cap)`.
 `ai.transcript.render` turns their common `Entry` list into lines plus a parallel
-fold-level array, and never learns which provider produced them.
+fold-level array, and never learns which provider produced them. Both read
+`$CLAUDE_CONFIG_DIR` / `$CODEX_HOME` when set, as the CLIs do, else
+`~/.claude` / `~/.codex`.
+
+#### Session marks (`ai.transcript.marks`)
+
+```lua
+local marks = require("ai.transcript.marks")
+-- agent "claude" or "codex": cb({ title?, ends, turns, mtime? }) | cb(nil)
+marks.read(agent, id, cb, opts)
+
+local time = require("ai.transcript.time")
+time.epoch("2026-11-10T03:43:18.085Z")  --> 1794282198.085 (UTC by arithmetic, offsets applied)
+time.hhmm(timestamp)                    --> local "HH:MM"
+```
+
+A session's name and the ends of its turns, for `ai.review.labels`. The
+adapters say where and what: `sources(id)` lists `{ path, patterns, mark,
+turns?, titles?, decompress? }` -- Claude's transcript, found as
+`projects/*/<id>.jsonl`; Codex's `session_index.jsonl` (names, `turns =
+false`) and its rollout (`titles = false`), looked for first under the day
+its UUIDv7 id was created, and read through `zstd -dc` (`decompress`) when
+Codex has compressed it to `.jsonl.zst` and zstd is installed. Both remember
+a path they found (checked with one stat) and a miss for `MISS_TTL` (60 s).
+`mark(record)` turns a decoded record into `{ title }`, `{ id, title }` (the
+index) or `{ ended }`: Claude's `ai-title` and `custom-title`, its
+`turn_duration` and an interrupted turn's user record (never a sidechain's);
+Codex's `task_complete` and `turn_aborted`.
+
+`read` decodes only lines holding one of `patterns`, reads on libuv's thread
+pool `SLICE` bytes per job in `CHUNK`-sized blocks (collecting each block's
+garbage in the worker), keeps the offset it reached so a later call reads
+only what was appended (a file that shrank, was replaced or now starts
+differently is read again; a compressed one is read whole, again only when
+it changes), skips any line over `MAX_LINE`, and keeps a session's first
+title. `title` is that name, `ends` every turn end ascending (epoch seconds),
+`turns` whether a file of turns was read, `mtime` when the newest of those was
+last written; nil when the records say nothing of the session. With
+`opts.titles` only the name is wanted: files without names are not read, and
+it answers as soon as the name is found. `cb` runs once, on the main loop.
 
 ## Best Practices
 

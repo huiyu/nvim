@@ -493,6 +493,23 @@ rather than a broken viewer.
   jq -r '.type' ~/.claude/projects/<slug>/<id>.jsonl | sort | uniq -c
   jq -r '.payload.type' ~/.codex/sessions/<date>/<file>.jsonl | sort | uniq -c
   ```
+- **A baseline in `<Space>gM` / `<Space>gk` shows no session name or end** —
+  the labels read the same records (`ai.transcript.marks`): Claude's
+  `ai-title` / `custom-title` and `turn_duration` records in
+  `~/.claude/projects/*/<session>.jsonl`, Codex's `thread_name` in
+  `~/.codex/session_index.jsonl` and `task_complete` / `turn_aborted` in its
+  rollout (`$CLAUDE_CONFIG_DIR` / `$CODEX_HOME` when set). A round's session
+  is its `Conversation` trailer (`git log -1 --format=%B <sha>`). No file
+  there, a session with no title yet, or records taking longer than 300 ms to
+  read the first time leave the label at its source and start; the next
+  picker has what was read meanwhile. Codex compresses a rollout it has not
+  touched for about ten days to `rollout-*.jsonl.zst` in place; its turns are
+  read through `zstd -dc`, so without `zstd` on `PATH` those rounds show their
+  name and start only (`brew install zstd`).
+- **A round shows no `…` though its session is working** — `…` needs the
+  session alive: its terminal running in this Nvim, or its records written in
+  the last 30 minutes. A session in another Nvim on a long step that writes
+  nothing (a long build) loses the `…` until it writes again.
 - **Folded "thinking" sections never appear** — expected. Neither CLI persists
   reasoning text: Claude writes `thinking` blocks whose text is an empty string,
   and Codex keeps its reasoning in `encrypted_content`. Empty thinking is

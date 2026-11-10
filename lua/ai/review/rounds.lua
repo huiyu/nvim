@@ -70,6 +70,9 @@ local submitted = {}
 local last_round = {}
 -- root -> the newest round entry this process opened there
 local newest_here = {}
+-- native conversation -> wall-clock seconds (with the fraction) of its newest
+-- prompt this process heard of
+local prompted = {}
 
 local function settings()
   return require("ai.review.config").get()
@@ -163,6 +166,27 @@ local function baseline()
   return mod
 end
 
+---The word a round's Source trailer stands for ("claude" -> "Claude"), nil
+---for none.
+---@param source? string
+---@return string|nil
+function M.source_label(source)
+  if type(source) ~= "string" or source == "" then return nil end
+  return SOURCE_LABELS[source] or source
+end
+
+---When this process last heard native `conversation` submit a prompt, in
+---seconds since the epoch with the fraction kept (turn ends in the agents'
+---records have milliseconds); nil if it never did. A prompt that kept the
+---round before it (nothing changed since) opens no round, so this is how
+---ai.review.labels tells that round's session is busy again.
+---@param conversation? string
+---@return number|nil
+function M.prompted_at(conversation)
+  return conversation and prompted[conversation] or nil
+end
+
+
 ---The tab variables of a review view (vim.t.ai_review) for a round entry from
 ---util.baseline.list, or nil for any other entry. The vcs layer gets a round's
 ---metadata here instead of parsing trailers itself.
@@ -193,6 +217,18 @@ end
 
 local function native_conversation(entry)
   return entry.session and (entry.agent .. ":" .. entry.session) or nil
+end
+
+---Whether native `conversation` is the session an agent terminal of this Nvim
+---is running now.
+---@param conversation? string
+---@return boolean
+function M.running(conversation)
+  if not conversation then return false end
+  for _, entry in pairs(native) do
+    if native_conversation(entry) == conversation and terminal_running(entry.buf) then return true end
+  end
+  return false
 end
 
 local function chat_alive(entry)
@@ -599,6 +635,10 @@ function M.native_event(ev)
   end
 
   if entry and session then report_session(entry, session) end
+  if session then
+    local sec, usec = uv.gettimeofday()
+    prompted[agent .. ":" .. session] = sec + usec / 1e6
+  end
   local root = entry and entry.root or M.toplevel(payload.cwd)
   -- Claude's Bash can `cd` into another repository; the session's root stays
   -- the one it started in, and saying so once is enough.
@@ -965,12 +1005,15 @@ end
 
 ---The registry and the per-process round memory, live.
 function M._state()
-  return { native = native, chats = chats, submitted = submitted, last_round = last_round, newest_here = newest_here }
+  return {
+    native = native, chats = chats, submitted = submitted, last_round = last_round, newest_here = newest_here,
+    prompted = prompted,
+  }
 end
 
 ---Forget everything this process knows: registry and round memory.
 function M._reset()
-  for _, t in ipairs({ native, chats, submitted, last_round, newest_here }) do
+  for _, t in ipairs({ native, chats, submitted, last_round, newest_here, prompted }) do
     for k in pairs(t) do t[k] = nil end
   end
 end
