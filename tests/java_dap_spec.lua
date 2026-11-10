@@ -20,7 +20,45 @@ vim.cmd.edit(vim.fn.fnameescape(root .. "/src/Main.java"))
 local main = vim.api.nvim_get_current_buf()
 local dap = require("dap")
 t.ok(vim.wait(45000, function() return dap.adapters.java ~= nil end, 100), "jdtls registers Java adapter after attaching")
-local client = vim.lsp.get_clients({ name = "jdtls", bufnr = main })[1]
+-- jdtls's first start on a fresh configuration area (every CI job) can come
+-- up without the debug bundle's commands, and then never lists them:
+-- lua/lang/java.lua restarts it once. Take the client that has them, a
+-- restarted one included; the first may already be stopping.
+local first = vim.lsp.get_clients({ name = "jdtls", bufnr = main })[1]
+local client
+t.ok(vim.wait(120000, function()
+  for _, c in ipairs(vim.lsp.get_clients({ name = "jdtls", bufnr = main })) do
+    local commands = vim.tbl_get(c.server_capabilities or {}, "executeCommandProvider", "commands") or {}
+    if not c:is_stopped() and vim.tbl_contains(commands, "vscode.java.resolveMainClass") then
+      client = c
+      return true
+    end
+  end
+end, 100), "jdtls offers the debug bundle's commands, after one restart at most")
+if client and first and client.id ~= first.id then
+  print("NOTE - jdtls was restarted: its first start missed the bundle commands")
+end
+-- The restart on the real server, forced: show on_init this client as a
+-- first start that lost the bundle commands would look. Everything below
+-- then runs on the restarted client, so it has to come back complete.
+if client then
+  local lost = client
+  local provider = lost.server_capabilities.executeCommandProvider
+  provider.commands = vim.tbl_filter(function(c) return not c:find("^vscode%.java%.") end, provider.commands)
+  lost.config.on_init(lost)
+  client = nil
+  t.ok(vim.wait(120000, function()
+    for _, c in ipairs(vim.lsp.get_clients({ name = "jdtls", bufnr = main })) do
+      local commands = vim.tbl_get(c.server_capabilities or {}, "executeCommandProvider", "commands") or {}
+      if c.id ~= lost.id and not c:is_stopped() and vim.tbl_contains(commands, "vscode.java.resolveMainClass") then
+        client = c
+        return true
+      end
+    end
+  end, 100), "a jdtls missing the bundle commands is restarted, and comes back with them")
+  t.eq(vim.lsp.get_client_by_id(lost.id), nil, "the incomplete client is gone")
+  t.ok(vim.wait(10000, function() return dap.adapters.java ~= nil end, 100), "the restarted client sets up debugging again")
+end
 if client then
   t.ok(dap.providers.configs.jdtls ~= nil, "main class discovery stays dynamic per project")
   local bundles = client.config.init_options.bundles
@@ -30,13 +68,6 @@ if client then
   t.ok(vim.wait(5000, function() return vim.lsp.buf_is_attached(0, client.id) end, 50), "second Java buffer attaches to the same server")
   t.ok(vim.fn.maparg(",dt", "n", false, true).buffer == 1, "Java test debug key is buffer-local")
   vim.api.nvim_set_current_buf(main)
-  -- jdtls lists the debug bundle's commands only once it has loaded the
-  -- bundles; asking before that fails with "No LSP client found that supports
-  -- vscode.java.resolveMainClass" (seen on CI, where jdtls starts slowly).
-  t.ok(vim.wait(60000, function()
-    local provider = client.server_capabilities.executeCommandProvider
-    return type(provider) == "table" and vim.tbl_contains(provider.commands or {}, "vscode.java.resolveMainClass")
-  end, 100), "jdtls offers the debug bundle's commands")
   local configs
   require("jdtls.dap").fetch_main_configs({}, function(value) configs = value end)
   t.ok(vim.wait(30000, function() return configs ~= nil end, 100), "jdtls discovers main classes")
@@ -111,6 +142,46 @@ if client then
     process:wait(3000)
     cleanup()
   end
+end
+-- The restart, driven with stand-ins for a client whose initialize response
+-- lacked the bundle commands, so it is pinned without waiting for the race.
+local on_init = client and client.config.on_init
+t.ok(type(on_init) == "function", "the jdtls config checks the commands it came up with")
+if type(on_init) == "function" then
+  local notes, stops = {}, 0
+  local notify = vim.notify
+  -- Only the restart's own words: the JDWP cleanup above stopped the real
+  -- jdtls, and Nvim reports that exit whenever it gets to it.
+  vim.notify = function(msg, level)
+    msg = tostring(msg)
+    if msg:find("^jdtls came up") or msg:find("^jdtls started again") then
+      notes[#notes + 1] = { msg = msg, level = level }
+    end
+  end
+  local function stand_in(commands)
+    return {
+      id = -1, attached_buffers = {}, config = client.config,
+      server_capabilities = { executeCommandProvider = { commands = commands } },
+      stop = function() stops = stops + 1 end,
+    }
+  end
+  local complete = { "vscode.java.startDebugSession", "vscode.java.test.findJavaProjects" }
+  on_init(stand_in({ "java.edit.organizeImports" }))
+  vim.wait(1000, function() return stops == 1 end, 10)
+  t.eq(stops, 1, "a jdtls that came up without the bundle commands is restarted")
+  t.ok(notes[1] and notes[1].level == vim.log.levels.INFO and notes[1].msg:find("restarting it", 1, true) ~= nil,
+    "with a word")
+  on_init(stand_in({ "vscode.java.startDebugSession" }))
+  vim.wait(300, function() return stops > 1 end, 10)
+  t.eq(stops, 1, "a second miss for that root is not restarted again")
+  t.ok(notes[2] and notes[2].level == vim.log.levels.WARN and notes[2].msg:find("vscode.java.test.findJavaProjects", 1, true)
+    and notes[2].msg:find(":JdtRestart", 1, true), "it names what is missing and what to do")
+  on_init(stand_in(complete))
+  t.eq(#notes, 2, "a complete start says nothing")
+  on_init(stand_in({}))
+  vim.wait(1000, function() return stops == 2 end, 10)
+  t.eq(stops, 2, "and lets a later miss restart again")
+  vim.notify = notify
 end
 for _, c in ipairs(vim.lsp.get_clients({ name = "jdtls" })) do c:stop(true) end
 vim.fn.delete(root, "rf")

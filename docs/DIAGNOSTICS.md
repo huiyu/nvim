@@ -832,7 +832,17 @@ cache directory, and subsequent Java buffers attach to the existing client.
 
 `,dt` / `,dT` debug the nearest test / class. A missing debug bundle or setup
 failure is reported instead of swallowed. After installing bundles, use
-`:JdtRestart`. For project-import failures inspect `:checkhealth vim.lsp` and
+`:JdtRestart`.
+
+- **`jdtls came up without its debug commands … restarting it`** — jdtls's
+  first start on a fresh configuration area (right after Mason installs or
+  updates `jdtls`, `java-debug-adapter` or `java-test`) races its own bundle
+  loading and can answer `initialize` without the debug or test bundle's
+  commands. It never lists them later, and every debug request then fails
+  with `No LSP client found that supports vscode.java.resolveMainClass`. The
+  bundles are installed by then, so `lua/lang/java.lua` restarts that client
+  once and the second start has them. A second miss for the same project
+  only warns: run `:JdtRestart`. For project-import failures inspect `:checkhealth vim.lsp` and
 `:JdtShowLogs`. JDWP targets must start with `-agentlib:jdwp=...`; the default
 attach endpoint is `127.0.0.1:5005`. Attach bypasses launch-only main-class/path
 enrichment, so the source buffer need not have a main method. The real Java

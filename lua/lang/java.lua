@@ -75,6 +75,33 @@ return {
       "mfussenegger/nvim-dap",
     },
     config = function()
+      -- Roots whose jdtls was restarted for missing bundle commands: a second
+      -- miss warns instead of restarting again. Cleared by a complete start.
+      local restarted = {}
+
+      -- Stop `client`, then start its config again on the buffers it had,
+      -- without blocking: nvim-jdtls's own :JdtRestart restarts every jdtls
+      -- client and waits up to 30 s on the main loop for each to stop.
+      local function restart(client)
+        local bufs = vim.tbl_keys(client.attached_buffers or {})
+        local config = client.config
+        local deadline = vim.uv.now() + 30000
+        client:stop()
+        local function relaunch()
+          local alive = vim.lsp.get_client_by_id(client.id) ~= nil
+          if alive and vim.uv.now() < deadline then return vim.defer_fn(relaunch, 100) end
+          -- Forced after 30 s; a moment later it no longer counts as the
+          -- client vim.lsp.start would reuse for this root.
+          if alive then client:stop(true) end
+          vim.defer_fn(function()
+            for _, buf in ipairs(bufs) do
+              if vim.api.nvim_buf_is_valid(buf) then vim.lsp.start(config, { bufnr = buf }) end
+            end
+          end, alive and 1000 or 0)
+        end
+        vim.defer_fn(relaunch, 100)
+      end
+
       local function start()
         -- Runs twice for the first Java buffer otherwise: lazy.nvim re-fires
         -- FileType after loading an `ft=`-lazy plugin, and its event handler
@@ -99,12 +126,16 @@ return {
         -- Collect debug and test bundles
         local bundles = {}
 
+        -- A command each bundle contributes, to tell that jdtls loaded it.
+        local expected = {}
+
         -- java-debug-adapter
         local java_debug = mason_registry.get_package("java-debug-adapter")
         if java_debug:is_installed() then
           local debug_path = mason_path .. "/java-debug-adapter"
           local debug_jars = vim.fn.glob(debug_path .. "/extension/server/com.microsoft.java.debug.plugin-*.jar", true, true)
           vim.list_extend(bundles, debug_jars)
+          if #debug_jars > 0 then expected[#expected + 1] = "vscode.java.startDebugSession" end
         end
 
         -- java-test
@@ -116,6 +147,9 @@ return {
             local name = vim.fs.basename(jar)
             if name ~= "com.microsoft.java.test.runner-jar-with-dependencies.jar" and name ~= "jacocoagent.jar" then
               table.insert(bundles, jar)
+              if name:match("^com%.microsoft%.java%.test%.plugin%-") then
+                expected[#expected + 1] = "vscode.java.test.findJavaProjects"
+              end
             end
           end
         end
@@ -246,6 +280,33 @@ return {
             bundles = bundles,
           },
         }
+
+        -- jdtls's first start on a fresh OSGi configuration area -- after Mason
+        -- installs or updates jdtls, java-debug-adapter or java-test -- races
+        -- its own bundle loading: the initialize response can go out before
+        -- a bundle's commands are registered (measured on CI: 3 of 34 cold
+        -- starts lost all 18 debug commands). Nvim declares no dynamic
+        -- registration for executeCommand, so jdtls never sends them later,
+        -- and nvim-jdtls then refuses every debug request with "No LSP client
+        -- found that supports vscode.java.resolveMainClass". The bundles are
+        -- installed by then, so a second start has them: restart once.
+        config.on_init = function(client)
+          local commands = vim.tbl_get(client.server_capabilities or {}, "executeCommandProvider", "commands") or {}
+          local missing = vim.tbl_filter(function(cmd) return not vim.tbl_contains(commands, cmd) end, expected)
+          if #missing == 0 then
+            restarted[root] = nil
+            return
+          end
+          if restarted[root] then
+            vim.notify(("jdtls started again without %s; Java debugging needs :JdtRestart")
+              :format(table.concat(missing, ", ")), vim.log.levels.WARN)
+            return
+          end
+          restarted[root] = true
+          vim.notify("jdtls came up without its debug commands, as a first start after an install can; restarting it",
+            vim.log.levels.INFO)
+          vim.schedule(function() restart(client) end)
+        end
 
         -- Setup DAP after jdtls attaches
         config.on_attach = function(_, bufnr)
