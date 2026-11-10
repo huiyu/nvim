@@ -95,8 +95,11 @@ if vim.fn.executable("tmux") == 1 then
     return vim.trim(tmux("display-message", "-p", "-t", "main:", "#{pane_in_mode}").stdout or "")
   end
 
+  -- The session answers before its pane does: on tmux 3.4 (CI) copy-mode
+  -- failed and #{pane_in_mode} was empty for ~25 ms after #{session_name}
+  -- was there. Wait for the pane, and the client, the next steps use.
   t.ok(vim.wait(2000, function()
-    return tmux("display-message", "-p", "-t", "main:", "#{session_name}").code == 0
+    return pane_in_mode() == "0" and vim.trim(tmux("list-clients", "-t", "main").stdout or "") ~= ""
   end, 10), "the wrapped tmux server is ready")
   t.eq(tmux("copy-mode", "-u", "-t", "main:").code, 0,
     "the wrapped panel can enter tmux copy-mode")

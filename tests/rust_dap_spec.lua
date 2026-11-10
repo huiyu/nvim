@@ -23,12 +23,38 @@ vim.fn.writefile({ '[build]', 'target-dir = "custom target"' }, root .. "/.cargo
 vim.fn.writefile({ 'fn main() {', '  let value = 42;', '  println!("{}", value);', '}',
   '#[test] fn works() { assert_eq!(2 + 2, 4); }' }, root .. "/src/main.rs")
 vim.cmd.edit(vim.fn.fnameescape(root .. "/src/main.rs"))
+
+-- Cargo answers in 0.1-2 s here. On CI the first `cargo test` of a runner
+-- once took 30.4 s, past the old 30 s bound, while Nvim's loop ran normally
+-- throughout: the build itself stalled, most likely on I/O. The bound only
+-- catches a wedged build now, and a slow one prints what it was doing.
+local function descendants(pid, out)
+  out = out or {}
+  for _, child in ipairs(vim.api.nvim_get_proc_children(pid)) do
+    out[#out + 1] = child
+    descendants(child, out)
+  end
+  return out
+end
+local function await(done, what)
+  local started = vim.uv.now()
+  if vim.wait(10000, done, 50) then return true end
+  local pids = descendants(vim.fn.getpid())
+  local ps = #pids == 0 and "(none)\n" or vim.system({ "ps", "-o", "pid,ppid,stat,etime,command", "-p",
+    table.concat(pids, ",") }, { text = true }):wait().stdout
+  print(("NOTE - %s: still waiting after 10 s; child processes:\n%s"):format(what, ps))
+  local ok = vim.wait(110000, done, 50)
+  print(("NOTE - %s: %s after %.1f s"):format(what, ok and "done" or "gave up", (vim.uv.now() - started) / 1000))
+  return ok
+end
+
 local function resolve(config)
   local path
   local co = coroutine.create(function() path = coroutine.yield() end)
   coroutine.resume(co)
-  coroutine.resume(config.program(), co)
-  t.ok(vim.wait(30000, function() return path ~= nil end, 50), config.name .. " finishes")
+  local started, err = coroutine.resume(config.program(), co)
+  if not started then print(("NOTE - %s did not start: %s"):format(config.name, tostring(err))) end
+  t.ok(await(function() return path ~= nil end, config.name), config.name .. " finishes")
   t.ok(type(path) == "string" and vim.fn.executable(path) == 1, config.name .. " resolves an actual executable")
   t.ok(type(path) == "string" and path:find("custom target", 1, true), "Cargo custom target-dir and spaces are respected")
   return path
@@ -47,7 +73,7 @@ dap.adapters.codelldb = function(_, config) prepared = config end
 local buffer = vim.api.nvim_get_current_buf()
 dap.run(build)
 vim.cmd.enew()
-vim.wait(30000, function() return prepared ~= nil end, 50)
+await(function() return prepared ~= nil end, "cargo build for dap.run")
 t.eq(prepared and prepared.cwd, vim.uv.fs_realpath(root), "switching buffers during Cargo build preserves project cwd")
 t.eq(prepared and prepared.program, binary, "buffer switch does not change the executable")
 vim.api.nvim_set_current_buf(buffer)
@@ -83,7 +109,7 @@ local run, selected = dap.run
 dap.run = function(config) selected = config end
 vim.fn.maparg(" td", "n", false, true).callback()
 vim.cmd.enew()
-t.ok(vim.wait(30000, function() return selected ~= nil end, 50), "nearest Rust test resolves after a buffer switch")
+t.ok(await(function() return selected ~= nil end, "nearest Rust test"), "nearest Rust test resolves after a buffer switch")
 t.eq(selected and selected.args, { "--exact", "--nocapture", "math::same" }, "nearest Rust test uses its full module path")
 t.eq(selected and selected.cwd, vim.uv.fs_realpath(root), "nearest test preserves project cwd")
 if selected then
@@ -93,7 +119,7 @@ end
 vim.api.nvim_set_current_buf(math_buffer)
 selected = nil
 vim.fn.maparg(" tF", "n", false, true).callback()
-t.ok(vim.wait(30000, function() return selected ~= nil end, 50), "Rust test-file target resolves")
+t.ok(await(function() return selected ~= nil end, "Rust test-file target"), "Rust test-file target resolves")
 t.eq(selected and selected.args, { "--exact", "--nocapture", "math::nested::same", "math::same" }, "file target includes nested tests without the sibling file")
 if selected then
   local result = vim.system(vim.list_extend({ selected.program }, selected.args), { text = true }):wait()
@@ -124,7 +150,7 @@ local failed
 local co = coroutine.create(function() failed = coroutine.yield() end)
 coroutine.resume(co)
 coroutine.resume(build.program(), co)
-vim.wait(30000, function() return failed ~= nil end, 50)
+await(function() return failed ~= nil end, "failing cargo build")
 t.eq(failed, dap.ABORT, "build errors abort instead of launching a stale binary")
 vim.fn.delete(root, "rf")
 t.done()
