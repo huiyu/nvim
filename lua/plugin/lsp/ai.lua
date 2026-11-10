@@ -301,6 +301,9 @@ return {
     end,
     cmd = {
       "ClaudeCode",
+      -- Shows or starts the session and never hides it: the AI slot's reveal
+      -- (lua/ai/backend/claude.lua) goes through it until the plugin has loaded.
+      "ClaudeCodeOpen",
       "ClaudeCodeFocus",
       "ClaudeCodeSelectModel",
       "ClaudeCodeAdd",

@@ -287,6 +287,12 @@ function M.running()
   return active()
 end
 
+---The session's terminal buffer, while one runs.
+---@return integer|nil
+function M.buf()
+  return active() and current.buf or nil
+end
+
 ---The panel's window, in whichever tabpage shows it; nil while hidden.
 ---@return integer|nil
 function M.window()
@@ -321,6 +327,10 @@ function M.focus()
   show_and_focus(term)
 end
 
+---Show the session here and focus it, starting it when none runs; never
+---hides it. The slot's reveal (lua/ai/slot.lua), as Claude's is.
+M.reveal = M.focus
+
 function M.resume()
   if active() then
     show_and_focus(current)
@@ -334,6 +344,7 @@ end
 function M.continue()
   if active() then
     show_and_focus(current)
+    vim.notify("Codex is already running: this is its session", vim.log.levels.INFO)
     return
   end
   local path = vim.api.nvim_buf_get_name(0)
@@ -413,13 +424,30 @@ function M.select_model()
   send("/model", { raw = true, submit = true })
 end
 
-function M.add_buffer()
-  local buf, rel = buffer_context()
-  if not buf then return end
-  if vim.bo[buf].modified then
+---Mention a file: `@<path relative to its project> `, typed into the input
+---box, not submitted. Warns when `modified`: Codex reads the saved file.
+---@param path string
+---@param modified boolean?
+function M.add_path(path, modified)
+  if modified then
     vim.notify("Codex @-mentions read the saved file; this buffer has unsaved changes", vim.log.levels.WARN)
   end
+  local rel = vim.fs.relpath(project_root(path), path) or path
   send("@" .. rel .. " ", { submit = false })
+end
+
+function M.add_buffer()
+  local buf = buffer_context()
+  if not buf then return end
+  M.add_path(vim.api.nvim_buf_get_name(buf), vim.bo[buf].modified)
+end
+
+---Type `text` into the input box as one paste, not submitted, starting Codex
+---when it is not running. What a selection captured before asking where it
+---goes becomes (lua/ai/init.lua): send_selection reads the live selection.
+---@param text string
+function M.send_text(text)
+  send(text, { submit = false })
 end
 
 -- Codex CLI has file mentions but no editor selection attachment API, so a
