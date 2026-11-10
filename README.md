@@ -290,7 +290,7 @@ Unprefixed keys worth knowing:
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
 | `g` · `[` / `]` · `z` | Goto+LSP (from the symbol under the cursor) · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
-| `jk` · `<C-]>` / `<C-\>` | Input-safe Escape; in Normal, use its input source |
+| `jk` (except lazygit) · `<C-]>` / `<C-\>` | Input-safe Escape; in Normal, use its input source |
 
 Diff views live under `<leader>g`, each in a tabpage of its own (CodeDiff):
 

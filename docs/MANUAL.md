@@ -691,6 +691,10 @@ that referenced it get rewritten instead of silently breaking.
 ### Git
 
 `<Space>gg` opens lazygit — staging, committing and history in one place.
+`<Space>gf` opens the current file's history. Both open a focused floating
+terminal in input mode: `j`/`k` go straight to lazygit, even when typed quickly
+together, and `q` quits it. Lazygit has no Vim-style Normal/Insert modes;
+`Ctrl-]` deliberately leaves Neovim's terminal input mode, and `i` resumes it.
 `;c` jumps to any changed hunk in the repository (see [Positions](#positions)).
 
 The diff views are CodeDiff's. Each opens in a tabpage of its own, with a file

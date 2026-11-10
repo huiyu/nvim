@@ -70,7 +70,8 @@ vim.keymap.set("x", "<C-\\>", "<Esc>", { desc = "Exit selection mode", noremap =
 -- The agent panels opt out of this pair: both CLIs read a quick double Esc as
 -- their own "go back a message", so lua/ai/terminal.lua maps a buffer-local
 -- <Esc> there. <C-]> is the input-method-safe way to stay in the panel and
--- reach terminal-Normal; `jk` remains the unmodified alternative.
+-- reach terminal-Normal; `jk` remains the unmodified alternative except in
+-- lazygit, whose buffer-local j must navigate immediately (snacks.lua).
 vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
 vim.keymap.set("t", "jk", "<C-\\><C-n>", { desc = "Exit terminal mode", noremap = true, silent = true })
 vim.keymap.set("t", "<C-]>", "<C-\\><C-n>", { desc = "Exit input mode", noremap = true, silent = true })

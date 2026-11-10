@@ -623,6 +623,9 @@ dd                    → 删除
 ### Git
 
 `<Space>gg` 打开 lazygit——暂存、提交、历史都在一处。
+`<Space>gf` 打开当前文件的历史。两者都会聚焦浮动终端并进入输入状态：`j`/`k`
+直接交给 lazygit，快速连按也不会退出，`q` 退出 lazygit。lazygit 本身没有 Vim 式的
+Normal/Insert 模式；`Ctrl-]` 可以主动退出 Neovim 的终端输入状态，`i` 恢复输入。
 `;c` 跳到仓库里任意一处改动的 hunk（见[位置](#位置)）。
 
 Diff 视图由 CodeDiff 提供。每个视图开在自己的 tabpage 里，左边是文件面板，旁边是
