@@ -150,7 +150,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   any tabpage makes nothing yield there. Per-buffer behaviour (terminal input
   rules, edgy slot, statusline label, image hand-back, the feedback a review
   round delivers) follows the buffer's own agent. A prompt float whose path
-  names no agent (`ai.config.provider_of_prompt` answers nil: a `git commit`
+  names no agent (`ai.config.agent_of_prompt` answers nil: a `git commit`
   run in an agent's pane) has no owner: it takes no seed, `<C-v>` refuses,
   and its title is " Prompt "; nothing falls back to the first provider's
   agent or any other.
@@ -370,7 +370,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   the agent kind travels in argv. Add no environment variable for it: a new
   one has to join both wrappers' `new-session -e` whitelist, or it silently
   never reaches the pane.
-- The injected words follow the CLI's name, so `provider_of_command` still
+- The injected words follow the CLI's name, so `agent_of_command` still
   finds the agent (`tests/agent_hook_spec.lua` and
   `tests/ai_terminal_spec.lua`, both wrapper paths), and claudecode's appended
   `--resume`/`--continue` still land after them through `"$@"`. Claude's
@@ -423,7 +423,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   an owner that is gone is refused, with an offer (unless `redirect = false`)
   to pick a current session of the same root and confirm the change once.
   The registry it checks is in memory, per Nvim.
-- Seeds are per provider (`ai.editor.stage_seed`, whose provider is
+- Seeds are per agent (`ai.editor.stage_seed`, whose agent is
   required): feedback staged for
   Claude is never taken by a Codex prompt, or the other way round, and
   exactly one of `on_consumed` / `on_expired` fires. A draft is copied to
@@ -727,8 +727,6 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   Snacks terminal by buffer -- `tests/ai_terminal_spec.lua` pins those
   signatures against the pinned plugin's source; `:checkhealth config`
   asks CodeDiff for its library and watcher versions (next item);
-  `busy` in `lua/ai/review/rounds.lua` repeats `ai.companion.busy`'s reads of
-  a chat as a fallback for when that function is missing;
   `lua/util/window.lua` sizes edgy's panels through `edgy.editor`, the
   edgebars in `edgy.config.layout` and `edgy.layout.update` (window sizing,
   above); and `lua/util/diffsplit.lua` tells gitsigns' revision windows by

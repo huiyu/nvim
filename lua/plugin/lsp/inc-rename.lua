@@ -7,9 +7,9 @@
 -- `expr` map that leaves `:IncRename <cword>` on the cmdline for editing
 -- rather than running it.
 --
--- Nvim's own `grn` is left alone and keeps plain `vim.lsp.buf.rename()`, so
--- the live preview is what `,r` adds over the default rather than a
--- replacement for it.
+-- Nvim's own `grn` (plain `vim.lsp.buf.rename()`) is not remapped, but the
+-- nowait `gr` (References) shadows it in an LSP buffer, so `,r` is the rename
+-- key there.
 return {
   "smjonas/inc-rename.nvim",
   cmd = "IncRename",

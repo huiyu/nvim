@@ -1,8 +1,9 @@
--- Clipboard image plumbing for the composer.
+-- Clipboard image plumbing for the prompt editor and the agent panels.
 --
--- Why this exists at all: an image cannot travel through the composer's only
--- channel to the agent, which is the pty. The agent CLIs solve this by reading
--- the system clipboard themselves -- Claude Code shells out to
+-- Why this exists at all: an image cannot travel through the prompt the agent
+-- reads back (a plain markdown file) or through the pty, which carries
+-- keystrokes only. The agent CLIs solve this by reading the system clipboard
+-- themselves -- Claude Code shells out to
 -- `osascript -e 'the clipboard as «class PNGf»'`, Codex uses NSPasteboard --
 -- and base64 the result straight into their API request. Nvim has no way to
 -- inject into that request, so it does the next best thing: it hands the image
@@ -15,7 +16,7 @@
 -- Both are the same byte, 0x16.
 --
 -- The temp-file round trip is not optional. `clipboard = "unnamedplus"`
--- (lua/options.lua:50) means every yank, delete or change inside the composer
+-- (lua/options.lua) means every yank, delete or change inside the prompt editor
 -- overwrites the system clipboard, so an image left sitting there while a prompt
 -- is being written would be gone by the time it was sent.
 
@@ -155,8 +156,9 @@ end
 -- Whether this process has emptied its staging directory yet.
 local claimed = false
 
----Where composer images are staged. One directory per Nvim process so a crash
----leaves an obvious, self-identifying pile rather than scattered temp files.
+---Where images staged by the prompt editor's <C-v> are kept. One directory
+---per Nvim process so a crash leaves an obvious, self-identifying pile rather
+---than scattered temp files.
 ---The name is the pid, and pids are reused: the first call in a process
 ---empties it, so a new Nvim never starts out holding a dead one's images.
 ---@return string

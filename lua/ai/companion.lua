@@ -41,37 +41,24 @@ local M = {}
 
 local INFO, ERROR, WARN = vim.log.levels.INFO, vim.log.levels.ERROR, vim.log.levels.WARN
 
----@alias ai.CompanionKind "acp"|"http"
-
 ---Has CodeCompanion loaded? Before it has, no chat can exist, so nothing needs
 ---to load it to find out.
 local function loaded()
   local plugin = require("lazy.core.config").plugins["codecompanion.nvim"]
   return plugin ~= nil and plugin._.loaded ~= nil
 end
-M.loaded = loaded
 
 local function valid_buf(buf)
   return type(buf) == "number" and vim.api.nvim_buf_is_valid(buf)
 end
 
----The CodeCompanion adapter `kind` means when nothing names one: the first
----`acp` in provider order, or the key profile's HTTP adapter; nil when no
----provider offers that kind.
----@param kind ai.CompanionKind
----@return string|nil
-function M.adapter_name(kind)
-  return kind == "acp" and config.codecompanion.acp_adapter or config.codecompanion.http_adapter
-end
-
----The backend (ai.config.backends) `kind` means when nothing names one; nil
----when no provider offers that kind.
----@param kind ai.CompanionKind
+---The API chat backend (ai.config.backends) of the key profile's HTTP
+---adapter; nil when no provider offers `api`.
 ---@return ai.Backend|nil
-local function spec_of(kind)
-  local name = M.adapter_name(kind)
+local function http_spec()
+  local name = config.codecompanion.http_adapter
   if not name then return nil end
-  local id = (kind == "acp" and "acp:" or "api:") .. name
+  local id = "api:" .. name
   for _, b in ipairs(config.backends()) do
     if b.id == id then return b end
   end
@@ -82,13 +69,13 @@ end
 ---bridge into an asynchronous connection error. Only what starts something is
 ---checked here: creating a chat (an agent chat spawns its bridge at once, an
 ---API chat may fetch the model list with the key) and the inline prompt.
----@param what ai.CompanionKind|ai.Backend a kind on its default adapter, or one backend
+---@param what "http"|ai.Backend the key profile's HTTP adapter, or one backend
 ---@return boolean ok
 function M.preflight(what)
-  local spec = type(what) == "table" and what or spec_of(what)
+  local spec = type(what) == "table" and what or http_spec()
   local problem
   if not spec then
-    problem = ("no provider offers %s\nsee lua/ai/config.lua"):format(what == "acp" and "an ACP chat" or "an API key")
+    problem = "no provider offers an API key\nsee lua/ai/config.lua"
   elseif spec.kind == "http" then
     if (vim.env[spec.api_key] or "") == "" then
       problem = ("%s is not set\nnothing sent: export it, or :AI key <profile>"):format(spec.api_key)

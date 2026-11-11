@@ -2,14 +2,7 @@ return {
   "ThePrimeagen/harpoon",
   branch = "harpoon2",
   dependencies = { "nvim-lua/plenary.nvim" },
-  -- opts is a function so the quick-menu width is computed when harpoon loads,
-  -- not frozen at startup (when the current window is usually the dashboard).
-  opts = function()
-    return {
-      menu = { width = math.max(1, vim.api.nvim_win_get_width(0) - 4) },
-      settings = { save_on_toggle = true },
-    }
-  end,
+  opts = { settings = { save_on_toggle = true } },
   keys = function()
     local keys = {
       { ";H", function() require("harpoon"):list():add() end,                                    desc = "Add file to Harpoon" },

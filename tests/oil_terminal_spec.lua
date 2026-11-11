@@ -1,7 +1,7 @@
 local t = dofile("tests/helper.lua")
 local config = require("ai.config")
 
--- Both native providers use a Snacks terminal docked by Edgy. A provider-named
+-- Both native agents use a Snacks terminal docked by Edgy. An agent-named
 -- stand-in exercises those rules without starting a real agent session.
 vim.cmd("Lazy! load edgy.nvim")
 vim.cmd("Lazy! load oil.nvim")
@@ -34,7 +34,7 @@ local function panel()
   settle()
   vim.api.nvim_set_current_win(term.win)
   vim.cmd("stopinsert")
-  t.ok(require("util.terminal").is_agent_buf(term.buf), "the panel has the default agent's identity")
+  t.ok(require("util.terminal").is_agent_buf(term.buf), "the panel has the first listed agent's identity")
   t.eq(vim.fn.maparg("-", "t"), "", "typing - in terminal input still belongs to the agent")
   return term
 end

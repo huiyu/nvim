@@ -13,14 +13,6 @@ return {
     opts = {
       servers = {
         yamlls = {
-          capabilities = {
-            textDocument = {
-              foldingRange = {
-                dynamicRegistration = false,
-                lineFoldingOnly = true,
-              },
-            },
-          },
           -- See json.lua: before_init is honored by vim.lsp.config; on_new_config is not.
           before_init = function(_, config)
             config.settings.yaml.schemas = vim.tbl_deep_extend(

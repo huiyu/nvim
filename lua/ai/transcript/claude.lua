@@ -110,11 +110,6 @@ function M.sources(id)
   return { { path = path, patterns = M.MARK_PATTERNS, mark = M.mark } }
 end
 
----For the spec: forget where transcripts were found.
-function M._forget()
-  found = {}
-end
-
 -- Substrings a marked line contains, unescaped: a JSON string escapes its
 -- quotes, so a transcript quoting these records (a tool reading this very
 -- file) never matches the first three. M.mark() decides on the decoded record.

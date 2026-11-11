@@ -4,8 +4,10 @@
 -- `runtimepath/lua/`, and `tests/` deliberately stays out of the runtime path so
 -- test code can never be pulled into a real editing session.
 --
--- Specs run as `nvim --headless -u init.lua -c 'luafile tests/<x>_spec.lua' -c qa`
--- from the repository root, so the relative path below resolves.
+-- tests/run.sh runs each spec from the repository root
+-- (`SPEC=tests/<x>_spec.lua nvim --headless -u init.lua -i NONE -c "lua $BOOTSTRAP" -c 'qa!'`,
+-- the spec pcall'd through luafile), so a spec's `dofile("tests/helper.lua")`
+-- resolves.
 
 local M = {}
 

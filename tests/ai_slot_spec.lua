@@ -302,7 +302,7 @@ require("codecompanion").chat = function(args)
   created[#created].win = api.nvim_get_current_win()
   return real_chat(args)
 end
--- The first chat on `adapter`, whatever the default provider makes of a kind.
+-- The first chat on `adapter`.
 local function chat_on(adapter)
   for _, entry in ipairs(companion.chats()) do
     if entry.chat.adapter.name == adapter then return entry.chat end
@@ -655,7 +655,7 @@ ai.compose()
 vim.cmd("stopinsert")
 settle()
 t.ok(#cc_calls.open == 1 and claude.visible(), "<leader>ai shows a hidden Claude here before asking for its prompt")
-require("ai.editor").stage_seed(nil, { provider = "claude" })
+require("ai.editor").stage_seed(nil, { agent = "claude" })
 
 ---------------------------------------------------------------------------
 -- Claude on the right: a mention of the captured lines; its own session keys
@@ -1193,7 +1193,7 @@ ai.compose()
 in_diff_tab("<leader>ai")
 ai.feed("claude", "edit_prompt", { seed = "review feedback" })
 in_diff_tab("Review feedback for Claude")
-require("ai.editor").stage_seed(nil, { provider = "claude" })
+require("ai.editor").stage_seed(nil, { agent = "claude" })
 -- Claude's own window in the first tabpage, the copy here: still here, no jump.
 api.nvim_set_current_tabpage(first_tab)
 editor()
@@ -1236,7 +1236,7 @@ api.nvim_feedkeys("Vj", "x", false)
 ai.send_selection()
 t.eq(vim.fn.mode(), "n", "a directory selection leaves Visual")
 t.ok(noted("Only Claude Code takes files from a directory listing") ~= nil, "and refuses a chat on the right")
--- oil's <leader>aS is in every listing, whichever agent is the default, and
+-- oil's <leader>aS is in every listing, whatever the provider list holds, and
 -- only Claude Code on the right takes the file under the cursor: the cursor is
 -- read where it is, so nothing asks.
 local tree_key = vim.fn.maparg(" aS", "n", false, true)
@@ -1366,7 +1366,7 @@ vim.cmd("stopinsert")
 settle()
 t.ok(codex.visible() and not openai.ui:is_visible() and api.nvim_buf_is_valid(openai.bufnr),
   "ai.feed hides the chat for the agent it feeds")
-require("ai.editor").stage_seed(nil, { provider = "codex" })
+require("ai.editor").stage_seed(nil, { agent = "codex" })
 
 -- Claude stopped: <leader>ar and <leader>aR start it with their arguments,
 -- from the editor window even when pressed in a chat.

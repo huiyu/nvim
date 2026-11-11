@@ -615,7 +615,6 @@ end
 ---@param side "original"|"modified"|"result"
 ---@return ai.review.Entry
 local function lines_entry(view, side, buf, first, last)
-  local s = view.s
   local path, renamed_from = file_of(view)
   local label
   if side == "original" then

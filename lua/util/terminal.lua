@@ -7,12 +7,12 @@ local pending_drift_fixes = {}
 -- provider offers counts: several can be running, and each panel keeps its
 -- own rules.
 ---@param buf integer?
----@return string|nil provider
+---@return string|nil agent the TUI kind
 function M.agent_of(buf)
   buf = buf or vim.api.nvim_get_current_buf()
   if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "terminal" then return nil end
   local info = vim.b[buf].snacks_terminal
-  return info ~= nil and require("ai.config").provider_of_command(info.cmd) or nil
+  return info ~= nil and require("ai.config").agent_of_command(info.cmd) or nil
 end
 
 -- Only native coding-agent TUIs need the automatic resize workaround; applying

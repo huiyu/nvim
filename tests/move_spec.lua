@@ -1,5 +1,6 @@
--- Moving lines lives on <leader>m because Alt belongs to tmux here (#12), and
--- repeats on bare j/k so a multi-line move is not one <leader> press per line.
+-- Moving lines lives on ,j/,k (,h/,l dedent and indent) because Alt belongs to
+-- tmux here (#12), and repeats on bare j/k so a multi-line move is not one
+-- prefix press per line.
 local t = dofile("tests/helper.lua")
 local move = require("util.move")
 
@@ -32,7 +33,7 @@ buffer({ "a", "b", "c", "d" })
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
 feed({ "j", "j" })
 move.run("down")
-t.eq(body(), "bcda", "bare j keeps moving without another <leader>")
+t.eq(body(), "bcda", "bare j keeps moving without another ,")
 
 -- k reverses inside the same run.
 buffer({ "a", "b", "c", "d" })

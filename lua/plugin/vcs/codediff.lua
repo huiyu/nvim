@@ -513,8 +513,9 @@ return {
         -- q only closes from the explorer and history panels
         -- (util.codediff); in a diff pane it stays macro recording.
         quit = false,
-        -- View actions join the comma menu: P/B as Diffview had them, I and
-        -- z because `t` is flash and `gc` is the comment operator.
+        -- View actions join the comma menu: ,P focuses and ,B toggles the
+        -- panel; ,I and ,z because `t` is flash and `gc` is the comment
+        -- operator.
         toggle_explorer = "<localleader>B",
         focus_explorer = "<localleader>P",
         toggle_layout = "<localleader>I",
@@ -536,7 +537,7 @@ return {
       -- in a revision view the explorer's X deletes files that are merely
       -- untracked in the index.
       explorer = { stage_all = false, unstage_all = false, restore = false },
-      -- Diffview's meanings, on ,g so ,c (codelens) stays immediate:
+      -- Conflict choices, on ,g so ,c (codelens) stays immediate:
       -- o = ours, t = theirs, b = base, a = all; uppercase for the whole file.
       conflict = {
         accept_current = "<localleader>go",

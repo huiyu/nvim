@@ -32,7 +32,7 @@ return {
   },
   {
     "nvim-treesitter/nvim-treesitter",
-    opts = { ensure_installed = { "python", "ninja", "rst" } }
+    opts = { ensure_installed = { "python" } }
   },
   {
     "neovim/nvim-lspconfig",
@@ -53,7 +53,6 @@ return {
           },
         },
         ruff = {
-          cmd_env = { RUFF_TRACE = "message" },
           init_options = {
             settings = {
               logLevel = "error",

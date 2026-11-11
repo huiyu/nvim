@@ -778,18 +778,11 @@ end
 -- Delivery checks (D4)
 ---------------------------------------------------------------------------
 
+-- A chat ai.companion.busy cannot read counts as busy: the delivery is
+-- refused rather than sent to a chat that may be mid-turn.
 local function busy(chat)
-  local companion = require("ai.companion")
-  if type(companion.busy) == "function" then
-    local ok, res = pcall(companion.busy, chat)
-    if ok then return res == true end
-  end
-  -- A turn's tool loop clears current_request and makes the buffer editable
-  -- between steps; only _turn_in_progress stays set throughout.
-  local ok, res = pcall(function()
-    return chat.current_request ~= nil or chat._turn_in_progress == true or not vim.bo[chat.bufnr].modifiable
-  end)
-  return not ok or res
+  local ok, res = pcall(require("ai.companion").busy, chat)
+  return not ok or res == true
 end
 
 local function confirm(prompt, yes, cb)
@@ -978,7 +971,7 @@ end
 ---@class ai.review.Target
 ---@field kind "native"|"cc"
 ---@field conversation? string the session delivered to (nil: a terminal that has not reported one)
----@field agent? "claude"|"codex" native targets: the provider to feed
+---@field agent? "claude"|"codex" native targets: the agent to feed
 ---@field chat? table cc targets: the CodeCompanion chat
 ---@field buf integer the terminal or chat buffer
 ---@field root string
@@ -1048,13 +1041,6 @@ function M._state()
     native = native, chats = chats, submitted = submitted, last_round = last_round, newest_here = newest_here,
     prompted = prompted,
   }
-end
-
----Forget everything this process knows: registry and round memory.
-function M._reset()
-  for _, t in ipairs({ native, chats, submitted, last_round, newest_here, prompted }) do
-    for k in pairs(t) do t[k] = nil end
-  end
 end
 
 return M

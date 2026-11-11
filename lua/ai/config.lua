@@ -75,22 +75,12 @@ local TUI_KINDS = {
     -- The temp file Claude hands to $EDITOR (scripts/agent-editor), which is
     -- how a prompt float knows whose prompt it is.
     prompt_pattern = "claude%-prompt%-[^/]*%.md$",
-    capabilities = {
-      continue = true,
-      diff = true,
-      model = true,
-      tree_add = true,
-    },
+    capabilities = { tree_add = true },
   },
   codex = {
     command = "codex",
     prompt_pattern = "/editor/[^/]*%.md$", -- $CODEX_HOME/editor/*.md
-    capabilities = {
-      continue = true,
-      diff = false,
-      model = true,
-      tree_add = false,
-    },
+    capabilities = { tree_add = false },
   },
 }
 
@@ -298,7 +288,7 @@ function M.use_key(name)
     error(("Unknown AI key profile %q; expected %s"):format(name, table.concat(names, ", ")), 0)
   end
   M.key.name, M.key.label, M.key.auto = id, profile.label, auto
-  -- The adapter *name*, as before: a profile's name is its CodeCompanion adapter.
+  -- The adapter *name*: a profile's name is its CodeCompanion adapter.
   M.codecompanion.http_adapter = id
   M.codecompanion.api_key = profile.api_key
   M.codecompanion.model = profile.model
@@ -312,7 +302,7 @@ function M.http_adapter_spec()
   return c.model and { name = c.http_adapter, model = c.model } or c.http_adapter
 end
 
----The key axis as a user spells it: "auto" or a profile name.
+---The key profile setting as a user spells it: "auto" or a profile name.
 ---@return string
 function M.key_setting()
   return M.key.auto and "auto" or M.key.name
@@ -407,10 +397,10 @@ end
 ---edgy slot and statusline label.
 ---@param cmd string|string[]|nil
 ---@return string|nil agent the TUI kind
-function M.provider_of_command(cmd)
+function M.agent_of_command(cmd)
   if type(cmd) == "table" then
     for _, part in ipairs(cmd) do
-      local agent = M.provider_of_command(tostring(part))
+      local agent = M.agent_of_command(tostring(part))
       if agent then return agent end
     end
     return nil
@@ -426,7 +416,7 @@ function M.provider_of_command(cmd)
 end
 
 function M.is_native_command(cmd)
-  return M.provider_of_command(cmd) ~= nil
+  return M.agent_of_command(cmd) ~= nil
 end
 
 ---Which agent handed over a prompt file, from the temp path its CLI chose;
@@ -435,7 +425,7 @@ end
 ---since either would go to an agent guessed at.
 ---@param path string
 ---@return string|nil agent the TUI kind
-function M.provider_of_prompt(path)
+function M.agent_of_prompt(path)
   for _, kind in ipairs(built.agent_names) do
     if type(path) == "string" and path:find(M.agents[kind].prompt_pattern) then return kind end
   end

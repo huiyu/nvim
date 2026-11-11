@@ -63,7 +63,6 @@ return {
         ["graphql"] = { "prettier" },
         ["handlebars"] = { "prettier" },
         ["markdown"] = { "prettier" },
-        ["markdown.mdx"] = { "prettier" },
       },
     },
   },
