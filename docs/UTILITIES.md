@@ -307,61 +307,16 @@ the Ghostty focus flash but can make the first CJK characters race on macOS 26.
 
 ## LSP Utilities (`util.lsp`)
 
-Enhanced LSP functionality with error handling.
-
-#### Features
-- **Safe Attachment**: Error-handled LSP client attachment
-- **Action Management**: Dynamic LSP action execution
-- **Client Management**: Query and manage LSP clients
-- **Command Wrapper**: Safe LSP command execution
+LSP code actions with a client check and logging.
 
 #### API Reference
 
 ```lua
 local lsp = require("util.lsp")
 
--- Safe LSP attachment
-local autocmd_id = lsp.on_attach(function(client, buffer)
-  -- Setup LSP for buffer
-  print("LSP attached:", client.name)
-end, "lua_ls")  -- Optional: specific client name
-
--- LSP actions (dynamic)
+-- LSP actions (dynamic): one function per code action kind
 lsp.action["source.organizeImports"]()  -- Organize imports
 lsp.action["quickfix"]()                -- Apply quickfix
-
--- Client management
-local available, clients = lsp.is_available()
-local client = lsp.get_client("lua_ls")
-
--- Safe command execution
-local success = lsp.buf_command("hover")
-local success = lsp.buf_command("definition")
-```
-
-## Common Utilities (`util.common`)
-
-Functional programming utilities for table manipulation.
-
-#### API Reference
-
-```lua
-local common = require("util.common")
-
--- Create table wrapper
-local tbl = common.table({a = 1, b = 2, c = 3})
-
--- Chainable operations
-local keys = tbl:keys()                    -- Get all keys
-local values = tbl:values()                -- Get all values
-local doubled = tbl:map(function(k, v)     -- Transform values
-  return k, v * 2
-end)
-
--- Query operations
-local has_key = tbl:containsKey("a")       -- true
-local has_value = tbl:containsValue(2)     -- true
-local result = tbl:get()                   -- Get underlying table
 ```
 
 ## Vim Errors (`util.vim_error`)
@@ -1200,8 +1155,8 @@ config.check_key_profile(name, profile) -- error unless api_key is NVIM_*, never
 -- offers), and which agent handed over a prompt file, from the temp path its
 -- CLI chose: nil for a path none uses (an agent's pane running `git commit`).
 -- Nothing falls back to a provider picked for the user.
-config.provider_of_command(cmd)  -- the TUI kind ("claude" / "codex") or nil
-config.provider_of_prompt(path)  -- the TUI kind ("claude" / "codex") or nil
+config.agent_of_command(cmd)     -- the TUI kind ("claude" / "codex") or nil
+config.agent_of_prompt(path)     -- the TUI kind ("claude" / "codex") or nil
 config.is_native_command(cmd)
 
 local switch = require("ai.switch")
@@ -1243,21 +1198,22 @@ until the terminal shows.
 ```lua
 local ai = require("ai")
 
--- Call one agent's backend method by name, whatever is on the right, and
--- make room for *that* agent's panel: every other AI window of this tabpage
+-- Call one agent's backend method by name, whatever is on the right. A
+-- method that feeds the panel (edit_prompt, send_selection, tree_add) first
+-- makes room for *that* agent's panel: every other AI window of this tabpage
 -- gives way to it (unless it is on screen somewhere already). Review feedback
--- reaches the round's agent this way. An unknown provider or a method its
+-- reaches the round's agent this way. An unknown agent or a method its
 -- backend lacks is a WARN; a method that raises, an ERROR.
-ai.feed(provider, method, ...)
+ai.feed(agent, method, ...)
 
--- What review feedback sends: the backend stages `seed` for that provider
+-- What review feedback sends: the backend stages `seed` for that agent
 -- (ai.editor.stage_seed) and presses the TUI's own ctrl+g.
 ai.feed("claude", "edit_prompt", { seed = text, on_consumed = fn, on_expired = fn, ttl_ms = 10000 })
 
 -- Images go to the agent that owns the prompt, never to one guessed at: a
 -- prompt that names no agent (nil) has its staged files deleted, attached to
 -- nothing, saying so.
-ai.attach_images(paths, provider)
+ai.attach_images(paths, agent)
 
 ai.info()  -- the data :AI info prints: providers (in order, each part with
            -- whether it can start here), key, profiles, cli_keys,
@@ -1265,7 +1221,7 @@ ai.info()  -- the data :AI info prints: providers (in order, each part with
 ```
 
 Both backends' `edit_prompt(opts)` take `{ seed?, on_consumed?, on_expired?,
-ttl_ms? }` and pass them to `stage_seed` with their own provider; `<leader>ai`
+ttl_ms? }` and pass them to `stage_seed` with their own agent; `<leader>ai`
 passes only `seed`.
 
 ## AI Slot (`ai.slot`)
@@ -1378,14 +1334,12 @@ it does, and that is what loads the plugin.
 ```lua
 local companion = require("ai.companion")
 
-companion.adapter_name(kind)   -- "acp": the first ACP agent in provider order;
-                               -- "http": the key profile's adapter; nil when no
-                               -- provider offers that kind
 companion.preflight(what)      -- false (and an ERROR) when an "http" backend's
                                -- NVIM_* key is unset or an "acp" bridge is missing;
-                               -- `what` is one ai.config.backends() entry, or a
-                               -- kind on adapter_name(kind) (<leader>ae: "http"),
-                               -- which raises when no provider offers it
+                               -- `what` is one ai.config.backends() entry, or
+                               -- "http" for the key profile's HTTP adapter
+                               -- (<leader>ae), refused when no provider offers an
+                               -- API key
 companion.create(spec, extra?) -- a chat on one ai.config.backends() entry, created
                                -- hidden from the editor window and announced
                                -- ("New chat: <label>"); nil when refused
@@ -1493,7 +1447,7 @@ per event because Ghostty sends three of them per notch. That automatic
 transition is marked for one event so it preserves copy-mode; any later
 `TermEnter` -- whether from `i`, `a`, another terminal-input entry key, or
 automatic focus -- runs `tmux copy-mode -q` and returns the panel to its live
-bottom. This used to live in `ai.backend.codex`, so Claude never had it.
+bottom.
 
 ## AI Selection (`ai.selection`)
 
@@ -1594,16 +1548,16 @@ editor.EDIT_KEY              -- the byte both TUIs bind to "edit in $EDITOR" (0x
 editor.tui_ready(buf)        -- has the agent TUI in buf drawn its input prompt?
 editor.when_ready(get_buf, action, on_timeout)
 
--- Text to add to the next prompt `opts.provider` hands this Nvim. The
--- provider is required: a seed has an addressee, and no agent gets one by
--- default. One slot per provider; nil or "" only clears that slot.
-editor.stage_seed(text, { provider = ..., on_consumed = fn, on_expired = fn, ttl_ms = ... })
+-- Text to add to the next prompt `opts.agent` hands this Nvim. The
+-- agent is required: a seed has an addressee, and no agent gets one by
+-- default. One slot per agent; nil or "" only clears that slot.
+editor.stage_seed(text, { agent = ..., on_consumed = fn, on_expired = fn, ttl_ms = ... })
 
 -- Bring an already-open prompt float back into focus, appending `text`.
--- With `provider`, only that agent's prompt counts; without, the one open in
+-- With `agent`, only that agent's prompt counts; without, the one open in
 -- this tabpage wins, else the one opened last -- no agent outranks the other.
 -- false when no (such) prompt is open.
-editor.focus_open(text, provider)  --> boolean
+editor.focus_open(text, agent)     --> boolean
 editor.open_here()                 --> open, owner?: a prompt float in this tabpage
 editor.is_prompt_win(win)          -- is `win` one of the open prompt floats?
 
@@ -1640,7 +1594,7 @@ the buffer instead has no ordering to lose, and needs no paste sanitising.
 
 A seed has an addressee, so each provider has a slot of its own, taken
 unconditionally by the first `open` of that provider's prompt
-(`config.provider_of_prompt`): an unanswered request cannot leak its seed
+(`config.agent_of_prompt`): an unanswered request cannot leak its seed
 into a later `ctrl+g`, and review feedback staged for Claude never lands in a
 prompt Codex opens meanwhile, or the other way round. The stager hears what
 happened through exactly one callback, at most once: `on_consumed` once the
@@ -1658,7 +1612,7 @@ into the buffer — the prompt file is plain markdown, and only the CLI can put
 image bytes into its request. On return, the staged files are replayed through
 the TUI's own `ctrl+v` (`ai.attach_images`), and the CLI writes its own
 `[Image #N]` marker. They go to the agent that owns the prompt, read from the
-temp path its CLI chose (`config.provider_of_prompt`: `claude-prompt-*.md` for
+temp path its CLI chose (`config.agent_of_prompt`: `claude-prompt-*.md` for
 Claude, `$CODEX_HOME/editor/*.md` for Codex), so a Codex prompt hands its images
 to Codex whatever is on the right. The float's title names the same owner. A
 prompt whose path names neither agent (a `git commit` run in an agent's pane)
