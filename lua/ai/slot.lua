@@ -75,7 +75,7 @@ end
 ---@class ai.SlotItem
 ---@field id string "native:<agent>" or "cc:<buf>:<chat id>"
 ---@field kind "native"|"chat"
----@field agent? string native: the provider
+---@field agent? string native: the agent (TUI kind)
 ---@field chat? table chat: the CodeCompanion.Chat
 ---@field entry? table chat: what buf_get_chat() says of it
 ---@field win? integer a window showing it, where one was looked for

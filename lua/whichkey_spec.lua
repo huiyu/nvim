@@ -37,7 +37,7 @@ local spec = {
   -- <localleader> is also comma; it contributes to this same menu.
   { ",",             group = "Buffer actions",  mode = { "n", "x" } },
   { ",e",            group = "Extract",         mode = { "n", "x" } },
-  -- Just sessions now; the tooling half moved to <leader>m.
+  -- Sessions only; config and tooling live under <leader>m.
   { "<leader>s",     group = "Session",         mode = "n" },
   { "<leader>G",     group = "GitHub",          mode = { "n", "x" } },
   { "<leader>b",     group = "Buffer" },
@@ -177,7 +177,7 @@ local spec = {
       "          ,X discard hunk back to the baseline",
       "  View and language sections can coexist.",
       "  [LSP] actions need a language server.",
-      "  , is also <localleader>; old \\ keys are gone.",
+      "  , is also <localleader>.",
       "",
       "  ── <leader> groups ──────────────────────",
       -- filled in below from the spec itself

@@ -6,8 +6,5 @@ return {
     { "<leader>s.", function() require("persistence").load() end,                desc = "Load current session", mode = "n" },
     { "<leader>ss", function() require("persistence").save() end,                desc = "Save the session",     mode = "n" },
   },
-  opts = {
-    -- Skip the save when no file buffer is open (replaces `save_empty = false`).
-    need = 1,
-  },
+  opts = {},
 }

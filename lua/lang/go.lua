@@ -117,7 +117,6 @@ return {
             gopls = {
               gofumpt = true,
               codelenses = {
-                gc_details = false,
                 generate = true,
                 regenerate_cgo = true,
                 run_govulncheck = true,
@@ -143,7 +142,6 @@ return {
                 nilness = true,
                 unusedparams = true,
                 unusedwrite = true,
-                useany = true,
               },
               usePlaceholders = true,
               completeUnimported = true,
@@ -157,8 +155,6 @@ return {
       tools = {
         -- goimports removed; gopls `source.organizeImports` handles imports on save.
         ["gofumpt"] = {},
-        ["gomodifytags"] = {},
-        ["impl"] = {},
         ["golangci-lint"] = {},
         -- delve (dlv) is the Go debug adapter used by nvim-dap-go; mason puts it on PATH.
         ["delve"] = {},

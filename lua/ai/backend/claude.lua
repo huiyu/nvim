@@ -6,9 +6,6 @@ local function command(cmd)
   vim.cmd(cmd)
 end
 
-function M.toggle() command("ClaudeCode") end
-function M.focus() command("ClaudeCodeFocus") end
-function M.add_buffer() command("ClaudeCodeAdd %") end
 function M.send_selection() command("ClaudeCodeSend") end
 function M.accept_diff() command("ClaudeCodeDiffAccept") end
 function M.deny_diff() command("ClaudeCodeDiffDeny") end
@@ -215,7 +212,7 @@ function M.edit_prompt(opts)
   -- would look "already running" and fire the key into a booting TUI.
   local running = channel_of(terminal.get_active_terminal_bufnr())
 
-  editor.stage_seed(opts.seed, { provider = "claude", on_consumed = opts.on_consumed, on_expired = opts.on_expired, ttl_ms = opts.ttl_ms })
+  editor.stage_seed(opts.seed, { agent = "claude", on_consumed = opts.on_consumed, on_expired = opts.on_expired, ttl_ms = opts.ttl_ms })
 
   -- Shown here already, in its own window or the copy of a diff tabpage: it
   -- stays as it is -- open() would put a second window beside a copy. A

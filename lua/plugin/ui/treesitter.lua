@@ -86,7 +86,7 @@ return {
       -- retried on every FileType of that language.
       local available, requested = nil, {}
 
-      -- Enable highlight + indent + fold for buffers whose parser is available.
+      -- Enable highlight + indent for buffers whose parser is available.
       vim.api.nvim_create_autocmd("FileType", {
         group = vim.api.nvim_create_augroup("user_treesitter", { clear = true }),
         callback = function(args)
@@ -116,7 +116,7 @@ return {
           end
 
           -- Auto-install on demand if the parser is supported but missing
-          -- (this replaces the old `auto_install = true` option).
+          -- (nvim-treesitter's main branch has no `auto_install` option).
           if requested[lang] then
             return
           end

@@ -5,7 +5,7 @@ local options = {
   expandtab = true,  -- convert tabs to spaces
   shiftround = true, -- When shifting lines, round the indentation to the nearest multiple of “shiftwidth.”
   shiftwidth = 2,    -- When shifting, indent using two spaces.
-  smarttab = true,   -- Insert “tabstop” number of spaces when the “tab” key is pressed.
+  smarttab = true,   -- <Tab> in leading whitespace indents by “shiftwidth”.
   tabstop = 2,       -- Indent using two spaces.
 
   -- Search Options --
@@ -48,9 +48,9 @@ local options = {
   hidden = true,                           -- Hide files in the background instead of closing them.
   swapfile = false,                        -- Disable swap file
   writebackup = false,                     -- Disable write swap file
-  cmdheight = 1,                           -- more space in the neovim command line for displaying messages
+  cmdheight = 1,                           -- one command-line row; ui2 (below) collapses taller output
   clipboard = "unnamedplus",               -- allows neovim to access the system clipboard
-  completeopt = { "menuone", "noselect" }, -- mostly just for cmp
+  completeopt = { "menuone", "noselect" }, -- builtin insert completion (<C-n>, <C-x>…); blink.cmp draws its own menu
   signcolumn = "yes",                      -- always show the sign column, otherwise it would shift the text each time
   showmode = false,                        -- we don't need to see things like -- INSERT -- anymore
   showtabline = 2,                         -- always on, as bufferline keeps it; set here so the first frame has the row too

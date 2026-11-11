@@ -48,7 +48,7 @@ local function build_terminal_cmd()
   if should_use_chrome() then claude_args[#claude_args + 1] = "--chrome" end
   -- The review baseline's prompt hooks (lua/ai/review/hook.lua). Claude merges
   -- --settings hooks with the user's own instead of replacing them, so nothing
-  -- is written to ~/.claude. One shell word after `claude`: provider_of_command
+  -- is written to ~/.claude. One shell word after `claude`: agent_of_command
   -- still finds the agent in front of it, and claudecode's appended --resume /
   -- --continue still land after it, through "$@" under tmux.
   if require("ai.review.config").get().sources.claude then
@@ -268,7 +268,7 @@ end
 -- current file's Git root (ai.config.project_root), so both agents' sessions --
 -- and the review rounds their prompts open -- belong to the same project.
 -- "cwd" answers nil, which leaves claudecode's own default: Nvim's working
--- directory, as before. Read on every launch.
+-- directory. Read on every launch.
 local function claude_cwd(ctx)
   if require("ai.review.config").get().claude_cwd ~= "git_root" then return nil end
   return ai_config.project_root(ctx.file)
@@ -327,8 +327,6 @@ return {
         no_proxy = "localhost,127.0.0.1",
       },
       diff_opts = {
-        auto_close_on_accept = true,
-        vertical_split = true,
         -- A proposed edit opens in a tabpage of its own. In the current one,
         -- claudecode picks its target by skipping 'diff' windows
         -- (claudecode/diff.lua find_main_editor_window), and CodeDiff's panes

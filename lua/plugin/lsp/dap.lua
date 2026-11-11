@@ -169,30 +169,29 @@ return {
       vim.fn.sign_define("DapLogPoint", { text = "◆", texthl = "DiagnosticInfo" })
 
       -- Config nvim mason
-      local tbl = require("util.common").table
-      -- Guard against a base startup with no language module injecting handlers
-      -- (util.common.table errors on a nil argument).
-      local table_handlers = tbl(opts.handlers or {}):map(function(k, v)
+      -- `or {}`: a base startup with no language module injecting handlers
+      -- has none.
+      local handlers, ensure_installed = {}, {}
+      for k, v in pairs(opts.handlers or {}) do
         if type(v) == "table" then
-          return k,
-              function(config)
-                config = vim.tbl_extend("force", config, v)
-                require("mason-nvim-dap").default_setup(config)
-              end
+          handlers[k] = function(config)
+            config = vim.tbl_extend("force", config, v)
+            require("mason-nvim-dap").default_setup(config)
+          end
         elseif type(v) == "function" then
-          return k,
-              function(config)
-                require("mason-nvim-dap").default_setup(vim.tbl_extend("force", config, v()))
-              end
+          handlers[k] = function(config)
+            require("mason-nvim-dap").default_setup(vim.tbl_extend("force", config, v()))
+          end
         else
           error("Unsupported type error: " .. type(v))
         end
-      end)
+        ensure_installed[#ensure_installed + 1] = k
+      end
 
       require("mason-nvim-dap").setup({
         automatic_installation = true,
-        ensure_installed = table_handlers:keys():get(),
-        handlers = table_handlers:get(),
+        ensure_installed = ensure_installed,
+        handlers = handlers,
       })
 
       -- Adapters mason-nvim-dap cannot supply, contributed as data by the

@@ -345,8 +345,6 @@ return {
       desc = "Man pages"
     },
 
-    -- ── Code (LSP symbols) ──────────────────────────────────────────────
-
     -- ── Diagnostics ─────────────────────────────────────────────────────
     { "<leader>xx", function() Snacks.picker.diagnostics() end,           desc = "Diagnostics" },
     { "<leader>xX", function() Snacks.picker.diagnostics_buffer() end,    desc = "Buffer diagnostics" },
@@ -414,7 +412,6 @@ return {
   opts = {
     image = {
       enabled = true,
-      backend = "kitty",
     },
     -- Only with a UI attached. Enabled, it takes over vim.notify as soon as
     -- snacks is set up, and in --headless that would swallow every warning

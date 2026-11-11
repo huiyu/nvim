@@ -170,13 +170,17 @@ end
 -- <S-h>/<S-l>, so both pairs follow the visual bufferline order (pins/sorting)
 -- instead of :bprev/:bnext buffer-number order.
 
--- Diagnostic navigation
-vim.keymap.set("n", "[d", function() vim.diagnostic.jump({ count = -1, float = true }) end, { desc = "Prev diagnostic" })
-vim.keymap.set("n", "]d", function() vim.diagnostic.jump({ count = 1, float = true }) end, { desc = "Next diagnostic" })
-vim.keymap.set("n", "[e", function() vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.ERROR, float = true }) end, { desc = "Prev error" })
-vim.keymap.set("n", "]e", function() vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.ERROR, float = true }) end, { desc = "Next error" })
-vim.keymap.set("n", "[w", function() vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.WARN, float = true }) end, { desc = "Prev warning" })
-vim.keymap.set("n", "]w", function() vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.WARN, float = true }) end, { desc = "Next warning" })
+-- Diagnostic navigation. Each jump shows the diagnostic it lands on in a
+-- float; `on_jump` replaces jump()'s `float` option, deprecated in 0.12.
+local function show_jumped(_, bufnr)
+  vim.diagnostic.open_float({ bufnr = bufnr, scope = "cursor", focus = false })
+end
+vim.keymap.set("n", "[d", function() vim.diagnostic.jump({ count = -1, on_jump = show_jumped }) end, { desc = "Prev diagnostic" })
+vim.keymap.set("n", "]d", function() vim.diagnostic.jump({ count = 1, on_jump = show_jumped }) end, { desc = "Next diagnostic" })
+vim.keymap.set("n", "[e", function() vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.ERROR, on_jump = show_jumped }) end, { desc = "Prev error" })
+vim.keymap.set("n", "]e", function() vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.ERROR, on_jump = show_jumped }) end, { desc = "Next error" })
+vim.keymap.set("n", "[w", function() vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.WARN, on_jump = show_jumped }) end, { desc = "Prev warning" })
+vim.keymap.set("n", "]w", function() vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.WARN, on_jump = show_jumped }) end, { desc = "Next warning" })
 
 -- Quickfix navigation
 vim.keymap.set("n", "[q", "<cmd>cprev<cr>zz", { desc = "Prev quickfix" })

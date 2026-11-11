@@ -123,10 +123,8 @@ autocmd("BufReadPost", {
 autocmd("FileType", {
   group = augroup("close_with_q", { clear = true }),
   pattern = {
-    "help", "lspinfo", "notify", "qf", "query",
-    "startuptime", "checkhealth", "neotest-output",
-    "neotest-summary", "neotest-output-panel", "dbout",
-    "gitsigns-blame",
+    "help", "qf", "query", "checkhealth", "neotest-output",
+    "neotest-summary", "neotest-output-panel", "gitsigns-blame",
   },
   callback = function(event)
     vim.bo[event.buf].buflisted = false
