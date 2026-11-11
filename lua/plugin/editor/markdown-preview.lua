@@ -21,7 +21,7 @@ return {
     vim.g.mkdp_auto_close = 0
   end,
   keys = {
-    { "<localleader>p", "<cmd>MarkdownPreviewToggle<cr>", desc = "Toggle Markdown Preview", ft = "markdown" },
+    { "<localleader>p", "<cmd>MarkdownPreviewToggle<cr>", desc = "Toggle Markdown preview", ft = "markdown" },
     -- Entry point from anywhere. mkdp's server exposes no directory index, so
     -- browsing happens on the Neovim side: pick any markdown under cwd, open
     -- it, hand that buffer to mkdp. `;` finds the destination; the buffer-local
@@ -55,7 +55,7 @@ return {
           end,
         })
       end,
-      desc = "Browse markdown in cwd → preview",
+      desc = "Find Markdown file in cwd → preview",
     },
   },
 }

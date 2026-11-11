@@ -26,11 +26,11 @@ return {
   },
   cmd = "Refactor",
   keys = {
-    { ",ef", op("extract_func"),         desc = "Extract function",         mode = { "n", "x" }, expr = true },
-    { ",eF", op("extract_func_to_file"), desc = "Extract function to file", mode = { "n", "x" }, expr = true },
-    { ",ex", op("extract_var"),          desc = "Extract variable",         mode = { "n", "x" }, expr = true },
-    { ",i",  op("inline_var"),           desc = "Inline variable",          mode = { "n", "x" }, expr = true },
-    { ",R", function() require("refactoring").select_refactor() end, desc = "Select refactor", mode = { "n", "x" } },
+    { ",ef", op("extract_func"),         desc = "Extract function…",         mode = { "n", "x" }, expr = true },
+    { ",eF", op("extract_func_to_file"), desc = "Extract function to file…", mode = { "n", "x" }, expr = true },
+    { ",ex", op("extract_var"),          desc = "Extract variable…",         mode = { "n", "x" }, expr = true },
+    { ",i",  op("inline_var"),           desc = "Inline variable",           mode = { "n", "x" }, expr = true },
+    { ",R", function() require("refactoring").select_refactor() end, desc = "Select refactor…", mode = { "n", "x" } },
   },
   opts = {},
 }

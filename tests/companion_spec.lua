@@ -341,16 +341,17 @@ local function own(lhs, mode)
 end
 for _, case in ipairs({
   { "q", "Hide chat" },
-  { "<C-c>", "Stop the current request" },
-  { ",q", "Close the chat buffer" },
+  { "<C-c>", "Stop request" },
+  { ",q", "Close chat (ends it)" },
   { ",X", "Clear chat messages" },
-  { ",z", "Fold all codeblocks" },
-  { ",s", "Save current chat" },
-  { "gf", "Open the file path under the cursor" },
+  { ",z", "Fold code blocks" },
+  { ",s", "Save chat" },
+  { "gf", "Go to file under cursor" },
+  { "gh", "Browse saved Companion chats" },
   { "?", "Options" },
   { "g?", "Options" },
-  { "<CR>", "Send the message to the LLM" },
-  { "<C-d>", "Send the message to the LLM", "i" },
+  { "<CR>", "Send message" },
+  { "<C-d>", "Send message", "i" },
 }) do
   t.eq(own(case[1], case[3]), case[2], ("the chat maps %s%s"):format(case[3] and "Insert " or "", case[1]))
 end
@@ -359,7 +360,7 @@ for _, case in ipairs({ { "<C-c>", "i" }, { "<C-s>", "i" }, { "<C-s>" }, { "gx" 
   t.eq(own(case[1], case[2]), nil, ("the chat leaves %s%s alone"):format(case[2] and "Insert " or "", case[1]))
 end
 t.eq(key("gx").desc, "Open URL / local file", "gx in the chat opens the URL under the cursor, as everywhere")
-t.eq(key("<C-c>", "i").desc, "Exit insert mode", "Insert <C-c> in the chat is the global one")
+t.eq(key("<C-c>", "i").desc, "Exit Insert mode", "Insert <C-c> in the chat is the global one")
 local general = vim.tbl_filter(function(map) return map.lhs:match("^,[hjklrce]") ~= nil end,
   vim.api.nvim_buf_get_keymap(anthropic.bufnr, "n"))
 t.eq(general, {}, "and the general comma actions (,h ,j ,k ,l ,r ,c ,e…) keep their meaning")

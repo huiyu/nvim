@@ -217,6 +217,20 @@ anything not explicitly assigned to a group sorts last under `── others`,
 including new plugin keys and builtins. An empty `others` section is hidden;
 popups without declared sections, such as `z`, keep the default layout.
 
+Some buffers give these keys a meaning of their own, and the popup names that
+one there. In Python, Go, Rust, Vim script, TeX, Markdown, help and checkhealth
+buffers the filetype's own plugin rebinds `]]` / `[[` (and `][` / `[]` where it
+has them) as its section motions, instead of the next / previous reference:
+top-level class or def in Python, type or func in Go, function in Vim script.
+Python's `]m` / `]M` are its class/def motions, and VimTeX's are environments;
+VimTeX also adds `]n` / `]N` math zones, `]r` / `]R` frames and `]/` / `]*`
+comments (start / end). In a diff window `]c` / `[c` are the next / previous
+hunk (the popup reads *Next class start (diff: next hunk)*); in a CodeDiff view
+it shows CodeDiff's own *Next hunk*. `gO` is *[LSP] Document symbols (Nvim
+default)* in code, and *Show outline* — a list of the headings, no server
+needed — in markdown, help, checkhealth and man buffers, under its own
+`outline` heading.
+
 `gx` opens the nearest HTTP(S) URL or existing local file on the current line:
 URLs use the system browser; referenced files open in Nvim. From a terminal,
 the file opens in an editor window in the current tab and the terminal stays
@@ -311,15 +325,15 @@ Every way of reaching a file, a symbol, or a position.
 | Key | Does |
 |---|---|
 | `;<Space>` | **Smart find** — recent + open + all files, ranked by how often you use them. Start here. |
-| `;f` | Find file by name in the project |
+| `;f` | Find file by name under cwd |
 | `;i` | Find files respecting `.gitignore`, including hidden files |
 | `;F` | Find file next to the current one |
-| `;r` | Recently opened |
+| `;r` | Recently opened, under cwd |
 | `;b` | Open buffers |
 | `;B` | Pick a buffer by its tab letter |
 | `;g` | Files tracked by git |
 | `;p` | Switch project |
-| `;a` | **Last used buffer (toggle)** — return to the previous buffer in this window. |
+| `;a` | **Last used buffer (alternate)** — return to the previous buffer in this window. |
 | `;;` | Reopen the last search, with its results intact |
 
 When started with a file (`vi /work/project/src/main.lua`), cwd becomes its
@@ -344,13 +358,13 @@ and floats them to the top.
 
 | Key | Does |
 |---|---|
-| `;/` | Search the whole project |
+| `;/` | Search text under cwd |
 | `;?` | Search text respecting `.gitignore`, including hidden files |
 | `;w` | Search the word under the cursor |
 | `;l` | Search lines in this file |
-| `;D` | Search this directory |
+| `;D` | Search from here: this file's directory |
 | `;s` | Symbols (functions, classes) in this file |
-| `;S` | Symbols across the project |
+| `;S` | Symbols across the workspace |
 
 `;f` and `;/` include gitignored files but skip common build/dependency
 directories. `;i` and `;?` use `.gitignore` without those extra exclusions, so
@@ -393,16 +407,18 @@ shows hidden files. `<C-r>` is redo and `v<C-v>` starts blockwise Visual, as
 in any buffer. Edit filenames or add/delete lines, then `:w` to review and
 confirm the filesystem changes.
 
-### Pinned files
+### Harpoon files
 
 | Key | Does |
 |---|---|
-| `;H` | Pin the current file |
-| `;h` | Show the pinned list |
-| `;1` … `;9` | Jump straight to pinned file 1-9 |
+| `;H` | Add the current file to Harpoon |
+| `;h` | Show the Harpoon menu |
+| `;1` … `;9` | Jump straight to Harpoon file 1-9 |
 
-Pin the three or four files you are actively changing, then `;2` gets you there
-without looking. Re-pin when you move to another task.
+Add the three or four files you are actively changing, then `;2` gets you there
+without looking. Replace them when you move to another task. Harpoon's list is
+not bufferline's pin (`<Space>bp`), which only keeps a tab at the left of the
+tabline.
 
 ### Positions
 
@@ -430,7 +446,7 @@ operations share this menu; headings show which context provides each action.
 | `,c` | Run a codelens (gopls offers generate, test, tidy, govulncheck) |
 | `,n` | Generate a docstring / annotation |
 | `,x` | Run this file in a terminal split below |
-| `,O` | Outline of this file |
+| `,O` | Show / hide the outline of this file |
 
 `,a`, `,r` and `,c` only exist where a language server is running — in a plain text
 file they are simply not there.
@@ -478,9 +494,11 @@ selection, with the name given as an argument.
 `<localleader>` is also comma. Filetype keys are buffer-local: the comma menu
 shows Python's imports/environment in Python, LaTeX's build/preview sections in
 TeX, and neither in plain text. These headings add no keystrokes. `[LSP]` marks
-operations that need a language server, and `[AI]` an AI key shown in a menu
-other than `<Space>a`'s (today `,C`, review feedback in a Git view); Java
-test-debug keys appear after jdtls and its debug adapter initialize. Dart reload/restart needs an active compatible
+operations that need a language server, `[AI]` an AI key shown in a menu
+other than `<Space>a`'s (today `,C`, review feedback in a Git view), and an
+entry ending in "…" asks something first (a value or a choice) before it acts:
+`,a`, `,r`, `,e…`, `,R`, Python's `,v`. Java test-debug keys appear after jdtls
+and its debug adapter initialize. Dart reload/restart needs an active compatible
 DAP session. Menu entries describe actions, not a guarantee that dependencies
 or a running session are available.
 
@@ -496,9 +514,9 @@ or a running session are available.
 | Search-and-replace panel | Replace / sync / results / history | `,S…` panel actions; `g?` help |
 | LaTeX | Compilation | `,b` continuous build toggle · `,s` stop · `,K` clean aux files · `,E` errors |
 | LaTeX | Preview / tools | `,v` view PDF · `,t` toggle TOC · `,L…` VimTeX's full command set |
-| CodeDiff | Panels / layout | `,P` focus the file panel · `,B` show / hide it · `,z` fold unchanged lines · `,I` inline / side by side |
-| CodeDiff | Conflicts | `,go` ours · `,gt` theirs · `,gb` base (drop both) · `,ga` both; uppercase final letters (`,gO`, `,gT`, `,gB`, `,gA`) apply to the whole file |
-| CodeDiff | Review | `,C` feedback on the hunk / selection / file · `,u` / `,U` stage / unstage the hunk · `,X` put the hunk back to the baseline |
+| CodeDiff | Panels / layout | `,P` focus the explorer (the file panel) · `,B` show / hide it · `,z` compact mode (fold unchanged lines) · `,I` diff layout: inline / side by side |
+| CodeDiff | Conflicts | `,go` accept current (ours) · `,gt` incoming (theirs) · `,gb` keep base (drop both) · `,ga` both; uppercase final letters (`,gO`, `,gT`, `,gB`, `,gA`) apply to the whole file |
+| CodeDiff | Review | `,C` feedback on the hunk / selection / file · `,u` / `,U` stage / unstage the hunk · `,X` discard the hunk back to baseline |
 | Terminal | Sessions | `,1`–`,9` choose terminal 1–9 in Normal mode (`jk` first) |
 
 CodeDiff is a view layered on a filetype: a Markdown diff keeps `,p`/`,m` and
@@ -634,7 +652,7 @@ is open beside your code.
 | `<Space>t` | Test | run file / nearest / debug, output panel |
 | `<Space>x` | Diagnostics | error list, quickfix, location list |
 | `<Space>a` | AI | the chat on the right — Claude / Codex panels and CodeCompanion chats (`an` new, `al` switch, `ac` / `af`), prompts, transcript, review rounds (`av` / `aV`), API key (`ax`) |
-| `<Space>b` | Buffer | delete, pin, close others, close the hidden ones (`bh`) |
+| `<Space>b` | Buffer | delete, pin, delete others, delete the hidden ones (`bh`) |
 | `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
 | `<Space>y` | Yank | copy file path, `path:line` (`yl`), git permalink (`yg`), yank history, registers |
@@ -668,7 +686,8 @@ to read its output in a pager instead; `q` closes the pager. Notifications from 
 | `<Space>mnd` / `<Space>un` | Dismiss the notifications on screen |
 
 The two histories are separate. An error from Vim itself is in `:messages`; a
-plugin's notification is only in the notification history.
+plugin's notification is only in the notification history. Both sit under the
+`<Space>mn` group, *Messages/notifications*.
 
 ---
 
@@ -684,6 +703,10 @@ Ctrl-o  walk back up the way you came
 gC  who calls this?
 ]]  next place this symbol appears in the file
 ```
+
+In Python, Go, Rust, Vim script, TeX, Markdown and help buffers `]]` is the
+filetype's section motion instead ([single-letter
+namespaces](#6-single-letter-namespaces)).
 
 `K` shows documentation for whatever is under the cursor. `Ctrl-f` / `Ctrl-b`
 scroll that popup while the cursor stays in the code; `KK` moves into it. `gr`
@@ -714,7 +737,7 @@ A line has room for one sign, so a line with several shows the most severe.
 `<Space>xd` shows the current line's.
 
 If you are bouncing between two files, `;a` toggles between them. If it is
-three or four files, pin them with `;H` and use `;1`-`;4`.
+three or four files, add them to Harpoon with `;H` and use `;1`-`;4`.
 
 ### Reorganising files
 
@@ -799,7 +822,7 @@ windows, `gf` opens the file elsewhere, and `<Space>` keys work as everywhere.
 `q` closes the view from its file or history panel only; in a diff pane it
 records a macro as usual. In the status view's file panel `-` stages or
 unstages a file, `S` / `U` stage / unstage everything and `X` discards a
-file's changes; no other view has these four.
+file's changes, after asking; no other view has these four.
 
 Which `,` review keys a view has depends on what it compares:
 
@@ -807,7 +830,7 @@ Which `,` review keys a view has depends on what it compares:
 |---|---|---|---|
 | Status view, Changes group (index → working tree) | stage | — | — |
 | Status view, Staged group (HEAD → index) | — | unstage, whole hunks | — |
-| A baseline → the working tree (`<Space>av`, or a baseline picked in `gk` / `gM`) | stage | unstage | put the hunk back |
+| A baseline → the working tree (`<Space>av`, or a baseline picked in `gk` / `gM`) | stage | unstage | discard the hunk back to baseline |
 | The same, for a file added or deleted since the baseline | — | — | how to undo it |
 | Any other revision → the working tree (`gm`, `gM`, `gk`) | stage | unstage | — |
 | Revision → revision, → the index, history, conflicts | — | — | — |
@@ -823,11 +846,12 @@ already staged inside it, a branch's own commits inside a `gm` hunk — staging
 to `<Space>gv`, which compares with the index itself. In Visual mode they take
 the selected lines of the right pane.
 
-`,X` puts one hunk of the working-tree file back the way the baseline had it,
-and writes that file. It skips the formatter and every other before-write
-hook, so only the hunk changes; the index is not touched, and `u` then `:w`
-undoes it. In Visual mode it takes every hunk the selection touches, and
-refuses when one of them is only partly selected. It works on hunks only: for
+`,X` discards one hunk of the working-tree file back to the baseline, so it
+reads again the way the baseline had it, and writes that file. It skips the
+formatter and every other before-write hook, so only the hunk changes; the
+index is not touched, and `u` then `:w` undoes it. In Visual mode it takes
+every hunk the selection touches, and refuses when one of them is only partly
+selected. It works on hunks only: for
 a file deleted since the baseline it prints the `git restore` command to
 paste, and a new file you delete yourself.
 
@@ -956,7 +980,7 @@ Pick by what you are doing:
 
 - **Hand over a task: the native panel.** It is the whole agent — it edits
   files and runs commands, and Claude's proposed edits come back as diffs, in
-  a tabpage of their own (`<Space>aa` accepts, `<Space>ad` denies; the tab
+  a tabpage of their own (`<Space>aa` accepts, `<Space>ad` rejects; the tab
   closes once Claude has the answer). `<Space>ai` writes the prompt in a real
   buffer.
 - **Work through something in a buffer: the agent chat.** The same agent on
@@ -985,16 +1009,17 @@ credits*.
 
 Two chats on the right hand the one window over in place. A chat keeps the
 backend it was started on; another backend is another chat, from `<Space>an`.
-`<Space>ao` reopens a saved chat of either kind. An API chat whose key is not
-set is not offered, and `<Space>ae` says so and sends nothing.
+`<Space>ao` (or `gh` inside a chat) browses the saved chats of either kind
+and reopens one. An API chat whose key is not set is not offered, and
+`<Space>ae` says so and sends nothing.
 
 Approving an edit and reviewing one are different things. `<Space>aa` /
 `<Space>ad` answer one edit Claude *proposes*, before it reaches the disk; only
 native Claude asks (Codex runs with `--yolo` and asks nothing, and the chats
 have CodeCompanion's own tool approvals). Reviewing looks afterwards at
 everything that changed on disk since you sent a prompt, whichever of the three
-made it: `<Space>av` shows it, and from there you send feedback, stage, or put
-a hunk back. The next chapter walks through it.
+made it: `<Space>av` shows it, and from there you send feedback, stage, or
+discard a hunk back to the baseline. The next chapter walks through it.
 
 ---
 
@@ -1104,7 +1129,7 @@ and the statusline reads `Review · Claude · round 11:22:33 → working tree`.
   ([troubleshooting](DIAGNOSTICS.md#review-rounds-and-agent-hooks)).
 
 The view itself is an ordinary [CodeDiff view](#git) of a baseline against the
-working tree: `,u` / `,U` stage and unstage, `,X` puts a hunk back to the
+working tree: `,u` / `,U` stage and unstage, `,X` discards a hunk back to the
 baseline. `<Space>gq`, or `q` in its file panel, closes the tab; the agents
 keep running.
 
@@ -1263,7 +1288,7 @@ keeps recording its rounds where it started, and says so once.
 
 ### Manual rounds, saved baselines and any two ends
 
-- `<Space>aV` (*Start a review round*) takes a round now, without a prompt — say,
+- `<Space>aV` (*Start review round*) takes a round now, without a prompt — say,
   before you edit by hand or before a task you start some other way. It
   belongs to the conversation of the panel or chat you press it in; else to the
   chat on the right, when it works in this repository and is a conversation
@@ -1271,7 +1296,7 @@ keeps recording its rounds where it started, and says so once.
   nobody, and `<C-d>` asks where its feedback goes. When
   nothing changed since that owner's last round, it says that round is already
   the current state.
-- `<Space>gK` (*Save current code as a baseline*) saves a named snapshot that
+- `<Space>gK` (*Save baseline…*) saves a named snapshot that
   belongs to no conversation — "before refactor". It offers the name of the
   agent session at work in this repository (the chat on the right first);
   edit it, or clear it for the time. Each worktree keeps its newest 10, and a
@@ -1327,7 +1352,7 @@ To start over with a conversation, send the next prompt or press `<Space>aV`;
 |---|---|---|---|
 | Feedback | `,C`, then `<C-d>` | nothing in the repository: text appears in the agent's input or the chat, for you to send | everything |
 | Stage / unstage | `,u` / `,U` | the real index — what `git commit` takes next | the working tree, the baseline |
-| Put back | `,X` | one hunk of the working-tree file, written to disk | the index, the baseline, the rest of the file |
+| Discard | `,X` | one hunk of the working-tree file, written to disk | the index, the baseline, the rest of the file |
 | Claude's approval | `<Space>aa` / `<Space>ad` | an edit Claude proposes, *before* it is written | the review view: unrelated |
 
 None of them is called *accept* or *approve*, because none of them tells the
@@ -1415,7 +1440,7 @@ the thing that moves you between tabs.
 
 | Key | Action |
 |---|---|
-| `<Space>dB` | Conditional breakpoint |
+| `<Space>dB` | Set a conditional breakpoint (asks for the condition) |
 | `<Space>dA` / `:DapAttach` | Choose an attach configuration for an existing process |
 | `<Space>dL` | Logpoint: print a message such as `value={value}` without stopping |
 | `<Space>de` | Choose exception breakpoints from the active adapter's filters |

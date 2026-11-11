@@ -63,7 +63,8 @@ local group
 for _, entry in ipairs(require("whichkey_spec").spec) do
   if entry[1] == "<leader>mn" then group = entry.group end
 end
-t.eq(group, "Messages", "<leader>mn is labelled Messages, not Noice")
+-- Both histories live here: ui2's messages and the notifier's notifications.
+t.eq(group, "Messages/notifications", "<leader>mn names both histories, not Noice")
 
 -- Automatic signature help moved from noice to blink.
 require("lazy").load({ plugins = { "blink.cmp" } })

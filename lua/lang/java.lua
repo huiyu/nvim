@@ -323,9 +323,9 @@ return {
           end
           enable_attach()
           vim.keymap.set("n", "<localleader>dt", jdtls.test_nearest_method,
-            { buffer = bufnr, desc = "[LSP] Debug Java Test Method" })
+            { buffer = bufnr, desc = "[LSP] Debug test method" })
           vim.keymap.set("n", "<localleader>dT", jdtls.test_class,
-            { buffer = bufnr, desc = "[LSP] Debug Java Test Class" })
+            { buffer = bufnr, desc = "[LSP] Debug test class" })
         end
 
         local ok, err = pcall(jdtls.start_or_attach, config)

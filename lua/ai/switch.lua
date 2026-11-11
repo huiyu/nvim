@@ -180,10 +180,10 @@ function M.setup()
       if sub == "new" and not arg then return require("ai").new_chat() end
     end
     notify("Usage: :AI [new | key [name] | info]", ERROR)
-  end, { nargs = "*", complete = complete, desc = "Switch AI chat, start one, or set the API key profile" })
+  end, { nargs = "*", complete = complete, desc = "Switch AI chat, start one, or set API key profile" })
 
   vim.api.nvim_create_user_command("AIInfo", function() M.info() end,
-    { desc = "Show the AI providers, the key profile and the open chats" })
+    { desc = "Show AI providers, key profile and open chats" })
 end
 
 return M

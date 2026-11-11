@@ -79,11 +79,11 @@ return {
   end,
   keys = {
     { ";o", function() open_oil(true) end,
-      desc = "Oil file manager (float)" },
+      desc = "File manager (oil, float)" },
     -- oil's own convention, and the reason it is worth the shadowing: `-`
     -- reaches the current file's directory in one key. It replaces the builtin
     -- "first non-blank of the previous line" motion, which `k^` already covers.
-    { "-", function() open_oil(false) end, desc = "Oil: parent directory" },
+    { "-", function() open_oil(false) end, desc = "Parent directory (oil)" },
   },
   opts = {
     default_file_explorer = true,

@@ -134,7 +134,7 @@ end
 
 -- [AI]: the one AI key outside <leader>a, in the comma menu of a Git view
 -- (AGENTS.md, next to the [LSP] rule).
-local DESC = "[AI] Review feedback (hunk / selection / file)"
+local DESC = "[AI] Review feedback (hunk/selection/file)"
 
 -- On every buffer of the view: both panes, a conflict result, the explorer or
 -- history list. The handlers read the window they were pressed in, so one

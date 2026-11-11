@@ -24,13 +24,13 @@ end, { desc = "Close other windows" })
 -- Close current window safely
 cmd("WindowCloseCurrent", function()
   require("util.window").close_current()
-end, { desc = "Close current window" })
+end, { desc = "Close window" })
 
 -- Reach the editor area in one press from a sidebar or terminal, and return
 -- to the window it came from on a second press
 cmd("WindowFocusEditor", function()
   require("util.window").focus_editor()
-end, { desc = "Focus editor window (toggle back)" })
+end, { desc = "Editor window (toggle back)" })
 
 -- Track the editor window the cursor last occupied so WindowFocusEditor lands
 -- on the file being worked on instead of a fixed slot in the layout.
@@ -133,6 +133,7 @@ autocmd("FileType", {
     vim.keymap.set("n", "q", "<cmd>close<cr>", {
       buffer = event.buf,
       silent = true,
+      desc = "Close window",
     })
   end,
 })

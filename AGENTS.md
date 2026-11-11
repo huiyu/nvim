@@ -169,8 +169,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   (`lua/ai/init.lua`, `apply_keymaps`). Their descriptions are fixed and name
   no agent -- what a key reaches is the chat on the right, which a description
   cannot follow -- except `<leader>ae`, which names the key profile it bills
-  and is relabelled by `:AI key`. `<leader>an`/`<leader>al` are leaves.
-  `<leader>aa`/`<leader>ad` answer Claude's diffs and exist once
+  and is relabelled by `:AI key`, and the Claude-only `<leader>aa`/`<leader>ad`
+  and oil's `<leader>aS`, which say "Claude". `<leader>an`/`<leader>al` are
+  leaves. `<leader>aa`/`<leader>ad` answer Claude's diffs and exist once
   claudecode.nvim has loaded, whatever is on the right. The CodeCompanion keys
   are facade-owned too, not in its lazy spec; they load the plugin on first
   `require`. So are `<leader>av`/`aV` (review): a round belongs to a
@@ -467,14 +468,16 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   Filetype and view contributions stay buffer-local and must preserve general
   editing keys, including `,h`/`,l` dedent/indent, `,k` move up, `,r` rename,
   `,c` codelens and `,e...` extraction. VimTeX uses `,L...` to keep `,l`
-  immediate. CodeDiff uses `,P`/`,B` for its panel (focus, toggle), `,z`/`,I`
-  for compact and inline layout and `,g...` for conflicts (`o` ours, `t`
-  theirs, `b` base, `a` all, uppercase for the whole file), so language
-  actions still work in its source buffers; its defaults that would shadow
-  this config's keys (`q`, `t`, `gc`, `-`, `gS`, `gm`, `<leader>b`,
-  `<leader>e`, `<leader>h*`, `<leader>c*`) are moved or off. The review keys
-  join them per view: `,C` (feedback) on every buffer of every Git view;
-  `,u` (stage, through gitsigns) in the status view's Changes group and in
+  immediate. CodeDiff uses `,P`/`,B` for its explorer (focus, toggle),
+  `,z`/`,I` for compact mode and diff layout (inline) and `,g...` for
+  conflicts (`o` current/ours, `t` incoming/theirs, `b` base, `a` both,
+  uppercase for the whole file), so language actions still work in its source
+  buffers. Those are CodeDiff's own descs (its keymaps take an lhs only), and
+  the `<leader>?` guide and the manual use the same words. Its defaults that
+  would shadow this config's keys (`q`, `t`, `gc`, `-`, `gS`, `gm`,
+  `<leader>b`, `<leader>e`, `<leader>h*`, `<leader>c*`) are moved or off. The
+  review keys join them per view: `,C` (feedback) on every buffer of every Git
+  view; `,u` (stage, through gitsigns) in the status view's Changes group and in
   any revision- or baseline-vs-working-tree file shown on both sides; `,U`
   (unstage) in the latter too, and in the Staged group as CodeDiff's own;
   `,X` (discard a hunk back to the baseline) only where the left end is a
@@ -515,7 +518,39 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   an AI buffer (the prompt editor's `<C-d>`, the agent panel's terminal keys)
   and Insert-mode `<C-l>` (ghost text) open no popup and need none; a chat's
   own comma keys (`,s`, `,X`, `,q`, `,z`) show only in the chat, under the
-  `Chat ·` heading, which already names it, and keep upstream's descs.
+  `Chat ·` heading, which already names it, so they carry no `[AI]` either.
+  Their descs are this config's (`description` in
+  `lua/plugin/lsp/codecompanion.lua`: "Save chat", "Clear chat messages",
+  "Close chat (ends it)", "Fold code blocks"), and the chat's `gh` reads
+  "Browse saved Companion chats", as `<leader>ao` does.
+- Under a which-key popup the letter may be a mnemonic or an accident, but the
+  `desc` is the interface: it is exact, and one act is worded one way
+  everywhere (`tests/key_descriptions_spec.lua`; `tests/ai_keymap_spec.lua`
+  for `<leader>a`, and the view and LSP specs for theirs). Sentence case: the
+  first word capitalised, the rest lowercase but for proper nouns and acronyms
+  (LSP, DAP, REPL, AI, API, ACP, URL, PR, Git, GitHub, Claude, Codex,
+  CodeCompanion, CodeDiff, Lazygit, Mason, Harpoon, Treesitter, Nvim, oil).
+  No articles. Verbs: Close a window, tab, view, panel or float; Delete a
+  buffer or a list item; Discard a change (`<leader>gr`/`gR`, the status
+  explorer's `X`, `,X`), never Reset or Restore -- Restore is a session's;
+  Toggle only where the key toggles, else Show, Hide or Open; "Go to", never
+  "Goto"; bracket keys say "Next X"/"Prev X", never "Previous". LSP jumps on
+  `g` are bare nouns, as in the `<leader>?` guide (`[LSP] Definition`,
+  `[LSP] References`, `[LSP] Type definition`). Scope words: "file" is the
+  current file, "buffer" only the buffer list (`<leader>b`), "cwd" Nvim's
+  working directory, "repo" the Git repository, "here" the current file's
+  directory; "project" names only the projects picker (`;p`). "/" joins
+  single words without spaces ("Stage/unstage"), " / " phrases. A desc ends
+  in "…" when the key asks something of its own -- a choice, typed input or a
+  confirmation -- before it acts: `<leader>an`/`al`/`ar`/`am`/`ae`/`ax`/`ap`,
+  `<leader>gM`/`gk`/`gK`, `<leader>Gc`, `<leader>mM`,
+  `<leader>dA`/`dB`/`dL`/`de`/`dW`/`da`, `,a`, `,r`, `,ef`/`,eF`/`,ex`, `,R`,
+  Python's `,v`, the status explorer's `X`. A picker whose list is itself the
+  destination gets none (the `;` pickers, `<leader>aT`, `<leader>ao`), nor
+  does the shared which-agent or which-chat question a chat key asks when
+  nothing is on the right (`<leader>aR` has none), nor a key that asks only
+  sometimes (`<leader>dc`, `df`/`td`/`tF` and `,c` ask only when there are
+  several configurations, targets or lenses).
 - The buffer-local `gr` (References) sets `nowait`. Nvim 0.11's default
   `grr`/`gri`/`grt`/`gra`/`grn`/`grx` are longer candidates, so without it every
   `gr` press waits out `timeoutlen` before firing. The cost is that `gr*` takes
@@ -564,9 +599,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   owns, so CodeDiff's own actions live on `,` in its diff panes and its
   explorer or history panel alike, and single letters there stay reserved for
   that panel's list operations. The status view's explorer keeps upstream's
-  `-`/`S`/`U`/`X` (stage, stage all, unstage all, restore a file); no other
-  view gets them. `q` closes the view from the explorer and history panels
-  only, and stays macro recording in a diff pane. Only layout-fragile
+  `-`/`S`/`U`/`X` (stage/unstage a file, stage all, unstage all, discard a
+  file's changes, which asks first); no other view gets them. `q` closes the
+  view from the explorer and history panels only, and stays macro recording
+  in a diff pane. Only layout-fragile
   multi-window views (currently CodeDiff) block layout-sensitive prefixes:
   `;` and `s` in every window of a CodeDiff tabpage, panels included, with
   `nowait` and a visible disabled hint. A `;` picker drops its file into the
@@ -649,11 +685,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `fallback_section` in the same data file. Even one remaining key gets this
   heading, so it never appears to belong to the preceding section. Explicit
   sections need at least two keys; do not invent a separate section for a
-  group row such as `+Messages` -- it can fall under `others`.
+  group row such as `+Messages/notifications` -- it can fall under `others`.
   Context sections are the exception: even one filetype action needs its own
   heading. Optional `filetype` (list) and `buftype` filters select the section;
   `labels` names implicit subgroups without creating global placeholder keys.
-  A shared key such as `,v` can have one section per filetype. Actual mappings
+  A shared key such as `,v` can have one section per filetype. The first
+  matching section owns a key, so a filetype section comes before any
+  unfiltered one that declares the same suffix: `g`'s oil, CodeDiff panel,
+  chat, Lazy and outline sections before LSP, and `,`'s Lazy section before
+  refactor and lines (`tests/whichkey_popup_spec.lua`). Actual mappings
   determine which rows exist; headings never create keys or load plugins.
   See `docs/UTILITIES.md` for the section-data contract. Context/menu changes
   are exercised by `tests/context_actions_spec.lua`; combined language and
@@ -773,6 +813,20 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   cannot see those. Entries with an RHS are created through `vim.keymap.set`
   after which-key's scheduled loader runs; assert those with `maparg()` after
   `VimEnter`, and assert description-only entries against `whichkey_spec`.
+  A description-only entry outranks every desc, buffer-local ones included,
+  so it is only for a key that no buffer remaps. A key with a buffer-local
+  twin carries a real desc on its global mapping instead: the treesitter
+  moves `]m`/`]c` (and `]M`/`]C`, `[`-side alike) and the `af`/`ac` objects
+  (`lua/plugin/ui/treesitter.lua`), whose twins are CodeDiff's `]c`, Python's
+  and VimTeX's `]m` and VimTeX's `ac`; and Nvim's `gO`, whose twins are the
+  markdown, help, checkhealth and man outline. Nvim's LSP defaults (`gO`,
+  `grr`/`gri`/`grt`/`grn`/`gra`/`grx`) keep their callbacks:
+  `lua/mappings.lua` rewrites only their desc, in place, with `mapset()`, and
+  leaves alone one that something already replaced. Filetype plugins' own
+  desc-less motions (Python's `]]`, VimTeX's `]n`, man's `gO`) get descs from
+  `whichkey_spec`'s `filetype_descs`, which `lua/plugin/editor/whichkey.lua`
+  writes onto the buffer's own mapping on `FileType` -- never as a which-key
+  entry, which would outlive the filetype.
 - Window commands should normally affect the current tab only. Be deliberate
   before using global APIs such as `nvim_list_wins()`.
 - Messages and the cmdline come from Nvim's experimental ui2

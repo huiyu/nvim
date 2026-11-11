@@ -695,7 +695,7 @@ local function own_keys(tab, s)
     keys[#keys + 1] = { { "n", "x" }, key, wheel(tab, key), desc = "Scroll " .. direction:lower() .. " (sync diff panes)" }
   end
   -- q leaves the diff panes to macro recording.
-  keys[#keys + 1] = { "n", "q", function() M.close(tab) end, desc = "Close the CodeDiff view",
+  keys[#keys + 1] = { "n", "q", function() M.close(tab) end, desc = "Close diff view",
     on = "panel", opts = { nowait = true } }
   -- The explorer's file-level index keys, in the status view only: in a
   -- revision view CodeDiff's X runs `git clean` on any file the index does
@@ -704,10 +704,10 @@ local function own_keys(tab, s)
   local stages = false
   if mode_of(s) == "status" and actions then
     for _, k in ipairs({
-      { "-", "toggle_stage_entry", "Stage / unstage" },
+      { "-", "toggle_stage_entry", "Stage/unstage file" },
       { "S", "stage_all",          "Stage all files" },
       { "U", "unstage_all",        "Unstage all files" },
-      { "X", "restore_entry",      "Restore / discard changes" },
+      { "X", "restore_entry",      "Discard file changes…" },
     }) do
       if type(actions[k[2]]) == "function" then
         keys[#keys + 1] = { "n", k[1], panel_action(tab, actions[k[2]]), desc = k[3], on = "panel", opts = { nowait = true } }

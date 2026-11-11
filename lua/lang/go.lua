@@ -87,7 +87,7 @@ vim.api.nvim_create_autocmd("FileType", {
     -- Buffer-local contributions to the shared comma action menu.
     vim.keymap.set("n", "<localleader>G", rebuild_gopls, { buffer = ev.buf, desc = "[LSP] Rebuild gopls index" })
     vim.keymap.set("n", "<localleader>o", lsp.action["source.organizeImports"],
-      { buffer = ev.buf, desc = "[LSP] Organize Imports" })
+      { buffer = ev.buf, desc = "[LSP] Organize imports" })
   end,
 })
 

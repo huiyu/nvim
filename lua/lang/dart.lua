@@ -102,8 +102,8 @@ return {
   {
     "mfussenegger/nvim-dap",
     keys = {
-      { "<localleader>dr", hot_request("hotReload"), ft = "dart", desc = "Dart/Flutter Hot Reload" },
-      { "<localleader>dR", hot_request("hotRestart"), ft = "dart", desc = "Flutter Hot Restart" },
+      { "<localleader>dr", hot_request("hotReload"), ft = "dart", desc = "Hot reload" },
+      { "<localleader>dR", hot_request("hotRestart"), ft = "dart", desc = "Hot restart (Flutter only)" },
     },
     opts = {
       targets = { dart = {

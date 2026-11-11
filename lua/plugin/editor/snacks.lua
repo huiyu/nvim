@@ -224,7 +224,7 @@ local function lazygit(cmd)
         -- define j last so it is found before the local jk partial match.
         for _, key in ipairs({ "jk", "j" }) do
           vim.keymap.set("t", key, key, {
-            buffer = win.buf, nowait = true, desc = "Send " .. key .. " to lazygit",
+            buffer = win.buf, nowait = true, desc = "Send " .. key .. " to Lazygit",
           })
         end
       end,
@@ -244,23 +244,23 @@ return {
     { ";<space>", function() Snacks.picker.smart({ filter = { cwd = true } }) end,                  desc = "Smart find (buffers/recent/files, cwd-only)" },
     { ";;",       function() Snacks.picker.resume() end,                                            desc = "Resume last picker" },
     { ";f",       function() Snacks.picker.files() end,                                             desc = "Find file in cwd" },
-    { ";i",       function() Snacks.picker.files({ ignored = false, exclude = {} }) end,           desc = "Find file (respect gitignore)" },
-    { ";F",       function() Snacks.picker.files({ cwd = require("util.cwd").buffer_dir() }) end,   desc = "Find file from here (buffer dir)" },
-    { ";r",       function() Snacks.picker.recent({ filter = { cwd = true } }) end,                 desc = "Recent files" },
+    { ";i",       function() Snacks.picker.files({ ignored = false, exclude = {} }) end,           desc = "Find file in cwd (respect gitignore)" },
+    { ";F",       function() Snacks.picker.files({ cwd = require("util.cwd").buffer_dir() }) end,   desc = "Find file from here (file's dir)" },
+    { ";r",       function() Snacks.picker.recent({ filter = { cwd = true } }) end,                 desc = "Recent files in cwd" },
     { ";b",       function() Snacks.picker.buffers() end,                                           desc = "Buffers" },
     { ";g",       function() Snacks.picker.git_files() end,                                         desc = "Git files" },
     { ";p",       function() Snacks.picker.projects() end,                                          desc = "Switch project" },
-    { ";/",       function() Snacks.picker.grep() end,                                              desc = "Search project" },
-    { ";?",       function() Snacks.picker.grep({ ignored = false, exclude = {} }) end,            desc = "Search project (respect gitignore)" },
+    { ";/",       function() Snacks.picker.grep() end,                                              desc = "Search in cwd" },
+    { ";?",       function() Snacks.picker.grep({ ignored = false, exclude = {} }) end,            desc = "Search in cwd (respect gitignore)" },
     { ";w",       function() Snacks.picker.grep_word() end,                                         desc = "Search word under cursor", mode = { "n", "x" } },
     -- Symbols and in-file matches answer the same question as the file
     -- pickers above -- "where do I need to be?" -- so they share the prefix.
     -- These search without a starting point; the LSP jumps that begin from the
     -- symbol under the cursor live on `g` instead (see plugin/lsp/lsp.lua).
-    { ";s",       function() Snacks.picker.lsp_symbols() end,                                       desc = "[LSP] Symbol in buffer" },
+    { ";s",       function() Snacks.picker.lsp_symbols() end,                                       desc = "[LSP] Symbol in file" },
     { ";S",       function() Snacks.picker.lsp_workspace_symbols() end,                             desc = "[LSP] Symbol in workspace" },
-    { ";l",       function() Snacks.picker.lines() end,                                             desc = "Lines in this buffer" },
-    { ";D",       function() Snacks.picker.grep({ cwd = require("util.cwd").buffer_dir() }) end,    desc = "Search current directory" },
+    { ";l",       function() Snacks.picker.lines() end,                                             desc = "Lines in file" },
+    { ";D",       function() Snacks.picker.grep({ cwd = require("util.cwd").buffer_dir() }) end,    desc = "Search from here (file's dir)" },
     { ";j",       function() Snacks.picker.jumps() end,                                             desc = "Jumps" },
     { ";m",       function() Snacks.picker.marks() end,                                             desc = "Marks" },
     -- Every changed hunk in the repository, staged and unstaged. Like a mark,
@@ -286,7 +286,7 @@ return {
         local path = buffer_path()
         if path then yank(project_path(path)) end
       end,
-      desc = "Yank file path from project"
+      desc = "Yank file path (repo-relative)"
     },
     -- `path:12` / `path:12-18`, the form gF, terminal links and agent prompts
     -- read. Not GitHub's `#L12-L18`: that is <leader>yg's job.
@@ -320,7 +320,7 @@ return {
         })
       end,
       mode = { "n", "x" },
-      desc = "Yank git permalink"
+      desc = "Yank Git permalink"
     },
     -- ── <leader>m — Manage the editor ────────────────────────────────────
     { "<leader>mf", function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end, desc = "Find Nvim config file" },
@@ -342,23 +342,23 @@ return {
         local name = vim.fn.input("Man: ")
         if name and name ~= "" then vim.cmd("Man " .. vim.fn.fnameescape(name)) end
       end,
-      desc = "Man pages"
+      desc = "Man page…"
     },
 
     -- ── Code (LSP symbols) ──────────────────────────────────────────────
 
     -- ── Diagnostics ─────────────────────────────────────────────────────
     { "<leader>xx", function() Snacks.picker.diagnostics() end,           desc = "Diagnostics" },
-    { "<leader>xX", function() Snacks.picker.diagnostics_buffer() end,    desc = "Buffer diagnostics" },
+    { "<leader>xX", function() Snacks.picker.diagnostics_buffer() end,    desc = "File diagnostics" },
     { "<leader>xd", vim.diagnostic.open_float,                            desc = "Line diagnostics" },
-    { "<leader>xL", function() Snacks.picker.loclist() end,               desc = "Location list" },
-    { "<leader>xQ", function() Snacks.picker.qflist() end,                desc = "Quickfix list" },
+    { "<leader>xL", function() Snacks.picker.loclist() end,               desc = "Location list (picker)" },
+    { "<leader>xQ", function() Snacks.picker.qflist() end,                desc = "Quickfix list (picker)" },
 
     -- ── Git ─────────────────────────────────────────────────────────────
     { "<leader>gs", function() Snacks.picker.git_status() end,            desc = "Git status" },
     { "<leader>gb", function() Snacks.picker.git_branches() end,          desc = "Git branches" },
-    { "<leader>gc", function() Snacks.picker.git_log_file() end,          desc = "Buffer commits" },
-    { "<leader>gC", function() Snacks.picker.git_log() end,               desc = "Project commits" },
+    { "<leader>gc", function() Snacks.picker.git_log_file() end,          desc = "File commits" },
+    { "<leader>gC", function() Snacks.picker.git_log() end,               desc = "Repo commits" },
 
     -- ── Misc snacks ─────────────────────────────────────────────────────
     -- No tree sidebar: directories are browsed and edited through oil (`-`,
@@ -389,7 +389,7 @@ return {
       function()
         lazygit({ "lazygit", "log", "--filter", vim.api.nvim_buf_get_name(0) })
       end,
-      desc = "Lazygit file history",
+      desc = "File history (Lazygit)",
       mode = { "n" }
     },
     { "<C-/>",      function() require("util.terminal").toggle() end,        desc = "Toggle terminal", mode = { "n", "t" } },
@@ -514,17 +514,17 @@ return {
       width = 64,
       preset = {
         keys = {
-          { icon = "󰈞 ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
-          { icon = "󰊄 ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
-          { icon = "󰋚 ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
-          { icon = "󰙅 ", key = "e", desc = "Browse Files", action = ":Oil" },
+          { icon = "󰈞 ", key = "f", desc = "Find file", action = ":lua Snacks.dashboard.pick('files')" },
+          { icon = "󰊄 ", key = "g", desc = "Find text", action = ":lua Snacks.dashboard.pick('live_grep')" },
+          { icon = "󰋚 ", key = "r", desc = "Recent files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
+          { icon = "󰙅 ", key = "e", desc = "Browse files", action = ":Oil" },
           { icon = "󰒓 ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
           { icon = "󰒲 ", key = "l", desc = "Lazy", action = ":Lazy" },
           -- Repo/GitHub jumps: open the repo / issues list / PRs list in browser.
-          { icon = "󰊤 ", key = "b", desc = "Browse Repo", action = ":lua Snacks.gitbrowse()" },
-          { icon = "󰨰 ", key = "i", desc = "Open Issues", action = ":lua vim.fn.jobstart('gh issue list --web', {detach=true})" },
-          { icon = "󰜘 ", key = "o", desc = "Open PRs", action = ":lua vim.fn.jobstart('gh pr list --web', {detach=true})" },
-          { icon = "󰦛 ", key = "s", desc = "Restore Session", section = "session" },
+          { icon = "󰊤 ", key = "b", desc = "Browse repo", action = ":lua Snacks.gitbrowse()" },
+          { icon = "󰨰 ", key = "i", desc = "Issues (browser)", action = ":lua vim.fn.jobstart('gh issue list --web', {detach=true})" },
+          { icon = "󰜘 ", key = "o", desc = "PRs (browser)", action = ":lua vim.fn.jobstart('gh pr list --web', {detach=true})" },
+          { icon = "󰦛 ", key = "s", desc = "Restore session", section = "session" },
           { icon = "󰩈 ", key = "q", desc = "Quit", action = ":qa" },
         },
       },

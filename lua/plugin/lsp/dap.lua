@@ -35,35 +35,35 @@ return {
     lazy = true,
     cmd = { "DapAttach" },
     keys = {
-      { "<leader>dA", function() require("util.dap").attach() end, desc = "Attach to Running Target" },
-      { "<leader>df", function() require("util.dap").run_target("file") end, desc = "Debug Current File" },
-      { "<leader>td", function() require("util.dap").run_target("test") end, desc = "Debug Nearest Test" },
-      { "<leader>tF", function() require("util.dap").run_target("test_file") end, desc = "Debug Current Test File" },
-      { "<leader>dB", function() require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: ")) end, desc = "Breakpoint Condition" },
-      { "<leader>db", function() require("dap").toggle_breakpoint() end,                                    desc = "Toggle Breakpoint" },
+      { "<leader>dA", function() require("util.dap").attach() end, desc = "Attach to running target…" },
+      { "<leader>df", function() require("util.dap").run_target("file") end, desc = "Debug file" },
+      { "<leader>td", function() require("util.dap").run_target("test") end, desc = "Debug nearest test" },
+      { "<leader>tF", function() require("util.dap").run_target("test_file") end, desc = "Debug tests in file" },
+      { "<leader>dB", function() require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: ")) end, desc = "Set conditional breakpoint…" },
+      { "<leader>db", function() require("dap").toggle_breakpoint() end,                                    desc = "Toggle breakpoint" },
       -- Breakpoints live in memory across files; without a list the only way to
       -- find one set in a buffer you have since closed is to remember it.
-      { "<leader>dq", function() require("dap").list_breakpoints(true) end,                                 desc = "List Breakpoints (quickfix)" },
-      { "<leader>dx", function() require("dap").clear_breakpoints() end,                                    desc = "Clear All Breakpoints" },
-      { "<leader>dL", function() require("util.dap").logpoint() end, desc = "Logpoint" },
-      { "<leader>de", function() require("util.dap").exceptions() end, desc = "Exception Breakpoints" },
-      { "<leader>dR", function() require("util.dap").restart() end, desc = "Restart Session" },
-      { "<leader>dD", function() require("util.dap").disconnect() end, desc = "Disconnect (Keep Target Running)" },
-      { "<leader>du", function() require("util.dap").toggle_panels() end, desc = "Toggle Debug View" },
-      { "<leader>dW", function() require("util.dap").watch() end, desc = "Add Watch Expression", mode = { "n", "x" } },
-      { "<leader>dc", function() require("dap").continue() end,                                             desc = "Run/Continue" },
-      { "<leader>da", function() require("dap").continue({ before = get_args }) end,                        desc = "Run with Args" },
-      { "<leader>dC", function() require("dap").run_to_cursor() end,                                        desc = "Run to Cursor" },
-      { "<leader>dg", function() require("dap").goto_() end,                                                desc = "Go to Line (No Execute)" },
-      { "<leader>di", function() require("dap").step_into() end,                                            desc = "Step Into" },
-      { "<leader>dj", function() require("dap").down() end,                                                 desc = "Down" },
-      { "<leader>dk", function() require("dap").up() end,                                                   desc = "Up" },
-      { "<leader>dl", function() require("dap").run_last() end,                                             desc = "Run Last" },
-      { "<leader>do", function() require("dap").step_out() end,                                             desc = "Step Out" },
-      { "<leader>dO", function() require("dap").step_over() end,                                            desc = "Step Over" },
+      { "<leader>dq", function() require("dap").list_breakpoints(true) end,                                 desc = "List breakpoints (quickfix)" },
+      { "<leader>dx", function() require("dap").clear_breakpoints() end,                                    desc = "Clear all breakpoints" },
+      { "<leader>dL", function() require("util.dap").logpoint() end, desc = "Set logpoint…" },
+      { "<leader>de", function() require("util.dap").exceptions() end, desc = "Set exception breakpoints…" },
+      { "<leader>dR", function() require("util.dap").restart() end, desc = "Restart session" },
+      { "<leader>dD", function() require("util.dap").disconnect() end, desc = "Disconnect (keep target running)" },
+      { "<leader>du", function() require("util.dap").toggle_panels() end, desc = "Toggle debug view" },
+      { "<leader>dW", function() require("util.dap").watch() end, desc = "Add watch expression…", mode = { "n", "x" } },
+      { "<leader>dc", function() require("dap").continue() end,                                             desc = "Run/continue" },
+      { "<leader>da", function() require("dap").continue({ before = get_args }) end,                        desc = "Run with args…" },
+      { "<leader>dC", function() require("dap").run_to_cursor() end,                                        desc = "Run to cursor" },
+      { "<leader>dg", function() require("dap").goto_() end,                                                desc = "Go to line (no execute)" },
+      { "<leader>di", function() require("dap").step_into() end,                                            desc = "Step into" },
+      { "<leader>dj", function() require("dap").down() end,                                                 desc = "Stack frame down" },
+      { "<leader>dk", function() require("dap").up() end,                                                   desc = "Stack frame up" },
+      { "<leader>dl", function() require("dap").run_last() end,                                             desc = "Run last" },
+      { "<leader>do", function() require("dap").step_out() end,                                             desc = "Step out" },
+      { "<leader>dO", function() require("dap").step_over() end,                                            desc = "Step over" },
       { "<leader>dP", function() require("dap").pause() end,                                                desc = "Pause" },
       { "<leader>dr", function() require("dap").repl.toggle() end,                                          desc = "Toggle REPL" },
-      { "<leader>ds", function() local w = require("dap.ui.widgets"); w.centered_float(w.sessions) end, desc = "Debug Sessions" },
+      { "<leader>ds", function() local w = require("dap.ui.widgets"); w.centered_float(w.sessions) end, desc = "Debug sessions" },
       -- js-debug and Electron own a session tree: a root plus one child per
       -- target. Bare terminate() defaults to hierarchy=false and kills only
       -- dap.session(), which is usually a child -- the root stays attached and
@@ -71,7 +71,9 @@ return {
       -- the root and terminates the whole tree. Not `all`: a second, unrelated
       -- session (a backend alongside a browser) is not this key's business.
       { "<leader>dt", function() require("dap").terminate({ hierarchy = true }) end,                       desc = "Terminate" },
-      { "<leader>dw", function() require("util.dap").evaluate() end, desc = "Evaluate Expression / Selection", mode = { "n", "x" } },
+      -- One act, two inputs: the popup says which one the key reads.
+      { "<leader>dw", function() require("util.dap").evaluate() end, desc = "Evaluate expression", mode = "n" },
+      { "<leader>dw", function() require("util.dap").evaluate() end, desc = "Evaluate selection", mode = "x" },
     },
     dependencies = {
       { "rcarriga/nvim-dap-ui",            dependencies = { "nvim-neotest/nvim-nio" }, config = function() end },
@@ -85,7 +87,7 @@ return {
       local dap = require("dap")
       require("util.dap").targets = opts.targets or {}
       vim.api.nvim_create_user_command("DapAttach", function() require("util.dap").attach() end,
-        { desc = "Choose an attach configuration for this filetype or project" })
+        { desc = "Attach to running target…" })
       require("dapui").setup({
         -- Placement belongs to edgy (lua/plugin/editor/edgy.lua), which claims
         -- these filetypes like every other panel here. dapui still decides when
