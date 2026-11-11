@@ -15,7 +15,7 @@ A modern Neovim configuration built with Lua and [lazy.nvim](https://github.com/
 - **[tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md)** >= 0.26.1 and a C compiler — nvim-treesitter's `main` branch builds every parser with `tree-sitter build`. Install it from a package manager (`tree-sitter-cli` in Homebrew), not npm
 
 **Optional (feature-specific):**
-- **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg` (project) / `<leader>gf` (file history)
+- **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg` (repo) / `<leader>gf` (file history)
 - **[tmux](https://github.com/tmux/tmux)** — wraps the native-agent TUIs inside `:terminal` to prevent stale or torn frames; auto-detected (see [Terminal Integration](#terminal-integration))
 - **[GitHub CLI](https://cli.github.com/)** — authenticated `gh` for `<leader>G` GitHub pickers and status
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** and/or **[Codex](https://developers.openai.com/codex/cli/)** — native coding agents; either can run, alongside CodeCompanion chats, started with `<leader>an` ([AI chats](#ai-chats-and-providers))
@@ -135,7 +135,7 @@ snacks below.
 | [snacks](https://github.com/folke/snacks.nvim) | Picker, dashboard, terminal, notifications (history `<leader>mnh`), indent guides, smooth scroll, rename, zen mode (`sz`), git permalinks copied to the clipboard (`<leader>yg`) |
 | [aerial](https://github.com/stevearc/aerial.nvim) | Code outline / symbol navigation |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | Search and replace |
-| [harpoon](https://github.com/ThePrimeagen/harpoon) | Pinned-file jumps (`;1`-`;9`, `;h` menu) |
+| [harpoon](https://github.com/ThePrimeagen/harpoon) | Jumps to a short list of files (`;H` add, `;1`-`;9`, `;h` menu) |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank history ring |
 | [dial](https://github.com/monaqa/dial.nvim) | Increment/decrement booleans, dates, etc.; `let` / `const` in JS/TS |
 | [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | Extract function/variable, inline (`,e…` / `,i`) |
@@ -246,7 +246,7 @@ The everyday actions are also one key shorter, in the LaTeX sections of the `,` 
 | `,K` | Clean aux files |
 | `,t` | Toggle table of contents |
 | `,E` | Show error list |
-| `,x` | One-shot `latexmk` build to PDF (the generic "run this file" key) |
+| `,x` | One-shot `latexmk` build to PDF (the generic "Run file" key) |
 
 TeX buffers also enable soft `wrap` and `spell` by default (toggle with `<leader>uw` / `<leader>us`).
 
@@ -258,7 +258,7 @@ Every key answers one question, and the prefix says which:
 
 | Prefix | Question | Examples |
 |--------|----------|----------|
-| `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;c` git hunks, `;1`-`;9` pinned files |
+| `;` | Which file / symbol / position do I want? | `;<space>` smart find, `;f` files, `;/` grep, `;s` symbols, `;c` git hunks, `;1`-`;9` Harpoon files |
 | `,` | What can I do in this file / view? | `,a` code action, `,f` format, `,r` rename, `,o` organize imports (Go/Python); terminal-local `,1`-`,9` |
 | `s` | What about this window? | `ss`/`sv` split, `sd` close, `se` editor window, `s=` equalize |
 | `<leader>` | Everything else, by domain | `g` git, `G` GitHub, `d` debug, `t` test, `a` AI, `x` diagnostics, `m` manage, `s` session, `y` yank (paths, `path:line`, permalinks), `u` toggles, `b` buffer, `q` quit |
@@ -271,7 +271,7 @@ The `,` menu separates general editing from the current language's operations
 (imports/environment, compilation/preview, test debugging) and view actions.
 A CodeDiff view adds two sections alongside the source file's language section:
 its panel, layout and conflict keys, and the review keys (`,C` feedback, `,u`
-/ `,U` stage / unstage a hunk, `,X` put a hunk back to the baseline).
+/ `,U` stage / unstage a hunk, `,X` discard a hunk back to baseline).
 The search-and-replace panel keeps its actions under `,S…`.
 See the [filetype and view actions](docs/MANUAL.md#filetype-and-view-actions) for the full key list.
 The local leader shares the comma menu; it is not a fifth prefix. Restart Nvim
@@ -288,7 +288,7 @@ Unprefixed keys worth knowing:
 | `<C-,>` | Jump to the editor area, press again to return |
 | `<C-/>` | Toggle terminal; `3<C-/>` selects terminal 3 from a file; `,1`-`,9` switch from terminal-Normal |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
-| `g` · `[` / `]` · `z` | Goto+LSP (from the symbol under the cursor) · prev/next thing · folds and spelling |
+| `g` · `[` / `]` · `z` | Go to + LSP (from the symbol under the cursor) · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
 | `q` · `g?` · `<C-s>` / `<C-v>` / `<C-t>` · `<M-p>` | In a picker, oil or the outline: close · list its keys · open below / beside / in a tab (the outline has no tab) · toggle the preview (picker, oil). Hidden files: `<M-.>` in a picker, `g.` in oil |
 | `jk` (except lazygit) · `<C-]>` / `<C-\>` | Input-safe Escape; in Normal, use its input source |
@@ -298,9 +298,9 @@ Diff views live under `<leader>g`, each in a tabpage of its own (CodeDiff):
 | Key | Opens |
 |-----|-------|
 | `gv` | Diff view: the status view (staged, unstaged, untracked, conflicts) |
-| `gm` / `gM` | Diff against main branch / against a picked commit, branch, tag or baseline |
-| `gk` | Compare two: worktree / index / baseline / ref |
-| `gK` | Save current code as a baseline, for `gk` and `gM` |
+| `gm` / `gM` | Diff against main branch / against a picked baseline or ref (branch, tag, commit)… |
+| `gk` | Compare two (working tree/index/baseline/ref)… |
+| `gK` | Save baseline… (named), for `gk` and `gM` |
 | `gV` / `gH` | File / repo history (recent 100, no merges) |
 | `gq` | Close the diff view in this tab |
 
@@ -404,25 +404,25 @@ output enter the wrapper tmux history.
 
 #### AI keys
 
-AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback) in a Git view's comma menu, starts its description with `[AI]`. The chat keys act on **the chat on the right** of the current tabpage — native Claude Code, native Codex or a CodeCompanion chat, whichever is shown there ([AI chats](#ai-chats-and-providers)) — so their descriptions name no agent. `ae`'s names the key profile it bills, and changes with `:AI key`.
+AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback) in a Git view's comma menu, starts its description with `[AI]`. The chat keys act on **the chat on the right** of the current tabpage — native Claude Code, native Codex or a CodeCompanion chat, whichever is shown there ([AI chats](#ai-chats-and-providers)) — so their descriptions name no agent. `ae`'s names the key profile it bills, and changes with `:AI key`; the Claude-only `aa` / `ad` and oil's `aS` say "Claude". A description ends in "…" when the key asks something before it acts (`an`, `al`, `ar`, `am`, `ae`, `ax`, `ap`); `aR` asks nothing, and the question every chat key may ask when nothing is on the right — which chat or agent — is not counted.
 
 | Key | Mode | Does |
 |-----|------|------|
 | `an` | n, x | New chat: pick a backend — native terminal, ACP chat or API chat (`:AI new`) |
 | `al` | n, x | Switch to another open chat (`:AI`) |
 | `ac` / `af` | n | Toggle / focus the chat on the right |
-| `ab` / `as` | n / x | Add the buffer / the selection to the chat on the right |
-| `ai` | n, x | [Edit the prompt in a buffer](#editing-the-prompt-in-a-buffer) |
+| `ab` / `as` | n / x | Add the file / the selection to the chat on the right |
+| `ai` | n, x | [Compose the prompt in a buffer](#editing-the-prompt-in-a-buffer) |
 | `ar` / `aR` | n | Native agent: resume a past session (picker) / continue the latest |
 | `am` | n | Native agent: select the model |
-| `at` / `aT` | n | Native agent: [read the transcript](#reading-past-output) / pick a past session |
+| `at` / `aT` | n | Native agent: [read the transcript](#reading-past-output) / browse past transcripts |
 | `av` / `aV` | n | [Review the changes since the round's baseline](docs/MANUAL.md#reviewing-a-round-of-agent-changes) / start a round now; every prompt starts one |
-| `aa` / `ad` | n | Accept / deny Claude's diff (once claudecode.nvim has loaded) |
-| `aS` | n (oil) | Add the file under the cursor to Claude Code on the right |
+| `aa` / `ad` | n | Accept / reject Claude's diff (once claudecode.nvim has loaded) |
+| `aS` | n (oil) | Add the file under the cursor to Claude on the right |
 | `ae` | n, x | Inline edit (`:CodeCompanion`) on the API key profile |
 | `ax` | n | Switch the API key profile (`:AI key`) |
 | `ap` | n, x | CodeCompanion action palette |
-| `ao` | n | Open a saved CodeCompanion chat |
+| `ao` | n | Browse saved CodeCompanion chats (a chat's `gh` is the same browser) |
 
 From Visual mode `an` and `al` take the selection to the chat they open. The
 native-agent keys act on the native agent on the right, else ask which one.
@@ -522,7 +522,7 @@ away.
 
 `<leader>at` renders the current project's newest session of the native agent
 on the right (else the one you pick) into a read-only Markdown buffer, and
-`<leader>aT` picks from that project's session history.
+`<leader>aT` browses that project's past transcripts.
 Inside the buffer, `R` re-reads from disk and `q` closes it. Prose is visible;
 thinking and tool calls are folded, so `zR` opens everything and `za` opens one.
 
