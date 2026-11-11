@@ -234,7 +234,6 @@ return {
   event = "VeryLazy",
   dependencies = {
     "echasnovski/mini.icons",
-    "nvim-tree/nvim-web-devicons",
   },
   opts = {
     -- Window preset. "classic" spans the full width along the bottom, which
@@ -243,9 +242,6 @@ return {
     -- everywhere except the direction the eye actually travels. "helix" caps
     -- the width instead, so the list is effectively one column and reads in
     -- order. Costs a corner of the editor while the popup is up.
-    --
-    -- The presets *plugin* below is unrelated: it documents built-in keys and
-    -- creates no mappings of its own.
     preset = "helix",
     -- Merged over the preset, which keeps the rest. Bottom-left, not helix's
     -- bottom-right: the AI panels own the right edge, so there the popup sat
@@ -279,15 +275,6 @@ return {
     triggers = {
       { "<auto>", mode = "nxso" },
       { "s", mode = "n" },
-    },
-    presets = {
-      operators = true,    -- adds help for operators like d, y, ... and registers them for motion / text object completion
-      motions = true,      -- adds help for motions
-      text_objects = true, -- help for text objects triggered after entering an operator
-      windows = true,      -- default bindings on <c-w>
-      nav = true,          -- misc bindings to work with windows
-      z = true,            -- bindings for folds, spelling and others prefixed with z
-      g = true,            -- bindings for prefixed with g
     },
     -- Section first, then groups (+xxx) within a section.
     --

@@ -19,7 +19,7 @@ local executables = {
   { "git",     "version control, gitsigns, snacks pickers",            true },
   { "rg",      "ripgrep — snacks grep/search",                         true },
   { "fd",      "snacks file finding, venv-selector",                   false },
-  { "node",    "AI ACP adapters, claudecode, markdown-preview, JS run", false },
+  { "node",    "AI ACP bridges, npm-based Mason servers, ,x runner and debugging for JS/TS", false },
   { "tmux",    "native AI TUI frame wrapper",                          false },
   { "go",      "go toolchain, ,x runner for Go",                       false },
   { "java",    "JDK 25+ runs jdtls; Java debugging",                   false },
@@ -72,14 +72,7 @@ local function installed_mason_names()
   if not ok then
     return nil
   end
-  if type(mr.get_installed_package_names) == "function" then
-    return mr.get_installed_package_names()
-  end
-  local names = {}
-  for _, p in ipairs(mr.get_installed_packages and mr.get_installed_packages() or {}) do
-    names[#names + 1] = p.name
-  end
-  return names
+  return mr.get_installed_package_names()
 end
 
 -- The review loop ---------------------------------------------------------
@@ -813,7 +806,7 @@ function M.check()
   health.start("config: mason packages")
   local names = installed_mason_names()
   if not names then
-    health.warn("mason-registry not available yet (open a file to load Mason)")
+    health.warn("mason.nvim is not installed (run :Lazy install)")
   else
     local set = {}
     for _, n in ipairs(names) do

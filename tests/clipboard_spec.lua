@@ -51,7 +51,7 @@ local ok, err = pcall(function()
   end
 
   -- Text on the clipboard is not an image. This is the case that matters: a
-  -- yank inside the composer must not look like a pending screenshot.
+  -- yank inside the prompt editor must not look like a pending screenshot.
   vim.fn.setreg("+", "a yanked line")
   t.ok(not clipboard.has_image(), "a text clipboard reports no image")
 

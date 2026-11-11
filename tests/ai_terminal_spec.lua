@@ -117,11 +117,11 @@ if vim.fn.executable("tmux") == 1 then
   remove_socket(socket)
 end
 
--- The Claude wrapper is where mouse reporting is turned on for that provider.
+-- The Claude wrapper is where mouse reporting is turned on for Claude.
 -- Without it the pane's clicks are Nvim's to handle, which is the Normal-mode
 -- surprise this spec exists for. Codex has always set it; the two must agree.
--- claudecode.nvim is declared under both providers, with `opts` a table built
--- at startup, so its wrapper command is checked whichever one this runs under.
+-- claudecode.nvim is declared whatever lua/ai/config.lua lists, with `opts` a
+-- table built at startup, so its wrapper command is always checked here.
 local claude_spec = require("lazy.core.config").spec.plugins["claudecode.nvim"]
 t.ok(claude_spec ~= nil and type(claude_spec.opts) == "table" and type(claude_spec.opts.terminal_cmd) == "string",
   "claudecode.nvim is declared with a static opts.terminal_cmd")
@@ -199,7 +199,7 @@ do
   local hook = require("ai.review.hook")
   local cmd = claude_spec and claude_spec.opts and claude_spec.opts.terminal_cmd or ""
   local settings = "--settings " .. vim.fn.shellescape(hook.claude_settings())
-  t.eq(config.provider_of_command(cmd), "claude", "the Claude command with its hooks still reads as Claude")
+  t.eq(config.agent_of_command(cmd), "claude", "the Claude command with its hooks still reads as Claude")
   if cmd:find("tmux", 1, true) then
     -- Inside the wrapper's own `sh -c '...'`, so every quote is re-quoted.
     local inner = settings:gsub("'", "'\\''")
@@ -223,7 +223,7 @@ do
     local at = vim.fn.index(wrapped, runner)
     t.eq(vim.list_slice(wrapped, at + 2, at + 1 + #codex_cmd), codex_cmd,
       "the Codex wrapper hands the whole command to agent-run")
-    t.eq(config.provider_of_command(wrapped), "codex", "and the wrapped command still reads as Codex")
+    t.eq(config.agent_of_command(wrapped), "codex", "and the wrapped command still reads as Codex")
   end
 end
 
@@ -238,7 +238,7 @@ end
 
 -- Claude starts where Codex does: the current file's Git root, the session
 -- root every review round is filed under. claude_cwd = "cwd" hands the choice
--- back to claudecode, which then uses Nvim's working directory as before.
+-- back to claudecode, which then uses Nvim's working directory.
 do
   local provider = claude_spec and claude_spec.opts and claude_spec.opts.terminal
     and claude_spec.opts.terminal.cwd_provider
@@ -254,7 +254,7 @@ do
     t.eq(provider({ cwd = "/" }), config.project_root(nil), "with no file, the working directory's root")
     local saved_review = vim.g.ai_review
     vim.g.ai_review = { claude_cwd = "cwd" }
-    t.eq(provider({ file = file, cwd = "/" }), nil, "claude_cwd = \"cwd\": no answer, so Nvim's directory as before")
+    t.eq(provider({ file = file, cwd = "/" }), nil, "claude_cwd = \"cwd\": no answer, so Nvim's directory")
     vim.g.ai_review = saved_review
     vim.fn.delete(vim.fs.dirname(repo), "rf")
   end
@@ -335,8 +335,9 @@ if teardown ~= "" and vim.fn.executable("tmux") == 1 and vim.fn.executable("perl
 end
 
 -- Two agents at once. Both CLIs can be running in one Nvim, and every
--- per-buffer rule follows the buffer's own agent, whichever is listed first. Stand-ins named after each CLI, so identity is decided exactly as
--- for the real ones, and nothing reaches the network or a real session.
+-- per-buffer rule follows the buffer's own agent. Stand-ins are named after
+-- each CLI, so identity is decided exactly as for the real ones, and nothing
+-- reaches the network or a real session.
 local agents_dir = vim.fn.tempname()
 vim.fn.mkdir(agents_dir, "p")
 for _, name in ipairs({ "claude", "codex" }) do
@@ -355,7 +356,7 @@ local codex_probe = panel({ agents_dir .. "/codex" })
 t.eq(util_term.agent_of(claude_term.buf), "claude", "a Claude terminal is Claude's")
 t.eq(util_term.agent_of(codex_probe.buf), "codex", "a Codex terminal is Codex's")
 t.ok(util_term.is_agent_buf(claude_term.buf) and util_term.is_agent_buf(codex_probe.buf),
-  "both are agent buffers, whichever is the default")
+  "both are agent buffers")
 t.eq(vim.fn.maparg("<Esc>", "t", false, true).buffer, 1, "and both get the panel input rules")
 vim.fn.jobstop(vim.bo[codex_probe.buf].channel)
 pcall(vim.api.nvim_buf_delete, codex_probe.buf, { force = true })

@@ -226,16 +226,15 @@ t.ok(pcall(config.build, DEFAULT_LIST), "the shipped list is accepted")
 
 -- A fresh Nvim: the same picker and keys, and no startup knob left. An old
 -- NVIM_AI_PROVIDER or vim.g.ai_provider only earns a warning -- even a value
--- that was never valid -- and Claude's watchdog waits for claudecode.
+-- that was never valid.
 local probe = [[
   vim.wait(200, function() return #_G.spec_notes > 0 end)
   local c = require("ai.config")
   local keys = {}
   for _, k in ipairs(vim.json.decode(vim.env.SPEC_LHS)) do keys[k] = vim.fn.maparg(k, "n", false, true).desc or vim.NIL end
-  local ok, watchdog = pcall(vim.api.nvim_get_autocmds, { group = "ClaudeTmuxWatchdog" })
   io.stdout:write(vim.json.encode({
     ids = vim.tbl_map(function(b) return b.id end, c.backends()), keys = keys,
-    watchdog = ok and #watchdog or 0, notes = _G.spec_notes,
+    notes = _G.spec_notes,
   }))
   vim.cmd("qa!")
 ]]
@@ -252,7 +251,6 @@ for _, case in ipairs({
   local what = case.warns and (case.warns .. " set") or "nothing set"
   t.eq(got.ids, ids, what .. ": the same picker")
   t.eq(got.keys, here, what .. ": every <leader>a key reads the same")
-  t.eq(got.watchdog, 0, what .. ": nothing waits for VimEnter to start Claude's watchdog")
   local said = vim.tbl_filter(function(n) return n.msg:find("is no longer read", 1, true) ~= nil end, got.notes or {})
   if case.warns then
     t.ok(#said == 1 and said[1].level == WARN and said[1].msg:find(case.warns, 1, true) ~= nil,
@@ -486,16 +484,16 @@ end
 -- Ownership by path and by command
 ---------------------------------------------------------------------------
 
-t.eq(config.provider_of_prompt("/tmp/claude-501/claude-prompt-1a2b-3c4d.md"), "claude", "a claude-prompt-*.md is Claude's")
-t.eq(config.provider_of_prompt(vim.env.HOME .. "/.codex/editor/0193.md"), "codex", "an editor/*.md under CODEX_HOME is Codex's")
-t.eq(config.provider_of_prompt("/tmp/somewhere/else.md"), nil, "anything else belongs to no agent")
+t.eq(config.agent_of_prompt("/tmp/claude-501/claude-prompt-1a2b-3c4d.md"), "claude", "a claude-prompt-*.md is Claude's")
+t.eq(config.agent_of_prompt(vim.env.HOME .. "/.codex/editor/0193.md"), "codex", "an editor/*.md under CODEX_HOME is Codex's")
+t.eq(config.agent_of_prompt("/tmp/somewhere/else.md"), nil, "anything else belongs to no agent")
 
-t.eq(config.provider_of_command({ "codex", "--no-alt-screen", "--yolo" }), "codex", "a Codex command is recognised")
-t.eq(config.provider_of_command(Config.spec.plugins["claudecode.nvim"].opts.terminal_cmd), "claude",
+t.eq(config.agent_of_command({ "codex", "--no-alt-screen", "--yolo" }), "codex", "a Codex command is recognised")
+t.eq(config.agent_of_command(Config.spec.plugins["claudecode.nvim"].opts.terminal_cmd), "claude",
   "the Claude wrapper command is recognised")
-t.eq(config.provider_of_command({ "tmux", "-L", "claude-nvim-1", "-L", "codex-nvim-1" }), nil,
+t.eq(config.agent_of_command({ "tmux", "-L", "claude-nvim-1", "-L", "codex-nvim-1" }), nil,
   "a socket name is not an agent")
-t.eq(config.provider_of_command({ vim.o.shell }), nil, "a shell is no agent")
+t.eq(config.agent_of_command({ vim.o.shell }), nil, "a shell is no agent")
 t.ok(config.is_native_command({ "claude" }) and config.is_native_command({ "codex" }),
   "is_native_command recognises every configured agent")
 

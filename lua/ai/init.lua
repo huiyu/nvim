@@ -3,7 +3,7 @@ local M = {}
 local config = require("ai.config")
 local did_setup = false
 
----@param name string a provider
+---@param name string an agent (TUI kind, a key of ai.config.agents)
 local function backend(name)
   return require("ai.backend." .. name)
 end
@@ -32,33 +32,31 @@ local function companion() return require("ai.companion") end
 local function notify(msg, level) vim.notify(msg, level or vim.log.levels.INFO, { title = "AI" }) end
 local WARN = vim.log.levels.WARN
 
--- Methods that put an agent's panel on screen: the ones that show it, and the
--- ones that feed it, which open or start the panel to deliver. Before one
+-- The methods reached through call() that put an agent's panel on screen:
+-- the ones that feed it, which open or start the panel to deliver. Before one
 -- runs, the AI slot (lua/ai/slot.lua) hides the other AI windows of this
 -- tabpage -- native panels and CodeCompanion chats alike, hidden and never
 -- stopped. A feed that stops short -- a prompt editor that never opens --
 -- has then hidden them with nothing in their place; hidden only, so they come
--- back the way any hidden chat does. The native-session keys make room their
--- own way (native_key), so a cancelled model question hides nothing.
-local REVEALS = {
-  toggle = true, focus = true, resume = true, continue = true, edit_prompt = true,
-  select_model = true, add_buffer = true, send_selection = true, tree_add = true,
-}
+-- back the way any hidden chat does. The native-session keys (native_key) and
+-- the slot's own keys make room their own way, so a cancelled model question
+-- hides nothing.
+local REVEALS = { edit_prompt = true, send_selection = true, tree_add = true }
 
----Make room for `provider`'s panel before `method` reveals it. Nothing yields
+---Make room for `agent`'s panel before `method` reveals it. Nothing yields
 ---while that panel is on screen in any tabpage: the method acts on it where it
 ---is. Neither moves tabpage nor starts anything from elsewhere -- these callers
 ---act where they were called from (review delivery has already gone to the
 ---right tabpage).
-local function make_room(method, provider)
+local function make_room(method, agent)
   if not REVEALS[method] then return end
-  slot().make_room(slot().native_item(provider), { jump = false, editor = false })
+  slot().make_room(slot().native_item(agent), { jump = false, editor = false })
 end
 
 ---Call `method` on one agent's backend, by name: a key that already knows
 ---which agent it acts on (the one on the right, Claude for its diffs), or
 ---review feedback for the agent whose round it is.
----@param name string provider
+---@param name string agent
 ---@param method string
 local function call(name, method, ...)
   local fn = backend(name)[method]
@@ -76,14 +74,14 @@ end
 ---it is (lua/ai/review). The room made is for that agent's panel, the one
 ---about to be revealed: every other AI window of this tabpage gives way to
 ---it, a chat shown here included.
----@param provider string
+---@param agent string an agent (TUI kind)
 ---@param method string
-function M.feed(provider, method, ...)
-  if not config.agents[provider] then
-    vim.notify(("Unknown AI provider %q"):format(tostring(provider)), WARN)
+function M.feed(agent, method, ...)
+  if not config.agents[agent] then
+    vim.notify(("Unknown AI agent %q"):format(tostring(agent)), WARN)
     return
   end
-  return call(provider, method, ...)
+  return call(agent, method, ...)
 end
 
 ---Run `fn(item, ...)` for a chat the slot resolved, under the same guard as a
@@ -252,14 +250,14 @@ end
 ---that exists. It runs after the prompt buffer closes because the agent drops
 ---pty input while it is blocked on the editor.
 ---@param paths string[]
----@param provider string the agent whose prompt the images belong to
-function M.attach_images(paths, provider)
-  if not config.agents[provider] then
+---@param agent string the agent whose prompt the images belong to
+function M.attach_images(paths, agent)
+  if not config.agents[agent] then
     -- No agent to guess at: an image sent to the wrong one is worse than none.
     for _, png in ipairs(paths or {}) do vim.fn.delete(png) end
     return notify("The images belong to no known agent's prompt: nothing was attached", WARN)
   end
-  return call(provider, "attach_images", paths)
+  return call(agent, "attach_images", paths)
 end
 
 local function visual() return vim.fn.mode():sub(1, 1):match("[vVsS\22\19]") ~= nil end

@@ -137,7 +137,6 @@ return {
         hint_diagnostic        = { fg = c.cyan, bg = c.bg_highlight },
         hint_diagnostic_visible = { fg = c.cyan, bg = c.bg_highlight },
         hint_diagnostic_selected = { fg = c.base4, bg = c.yellow, bold = true },
-        offset_separator       = { fg = c.bg_highlight, bg = c.bg },
       },
       options = {
         diagnostics = "nvim_lsp",

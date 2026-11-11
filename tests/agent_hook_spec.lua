@@ -208,7 +208,7 @@ local claude_want = { "--plugin-dir", plugin_dir, "--settings", hook.claude_sett
 for _, wrap in ipairs(tmux and { "0", "1" } or { "0" }) do
   local cmd = claude_terminal_cmd({ CLAUDE_WRAP_TMUX = wrap, CLAUDE_CHROME = "0", CLAUDE_PLUGIN_DIR = plugin_dir })
   local path = wrap == "1" and "tmux" or "direct"
-  t.eq(ai_config.provider_of_command(cmd), "claude", "Claude (" .. path .. "): provider_of_command still finds the agent")
+  t.eq(ai_config.agent_of_command(cmd), "claude", "Claude (" .. path .. "): agent_of_command still finds the agent")
   local argv, env = launch("claude", cmd .. " --resume abc-123", wrap == "1" and "claude-nvim-" .. vim.fn.getpid() or nil)
   t.eq(argv, claude_want, "Claude (" .. path .. "): --settings arrives byte for byte, appended arguments after it")
   t.eq(env, { EDITOR = wrapper, VISUAL = wrapper, NVIM = vim.v.servername },
@@ -223,7 +223,7 @@ for _, wrap in ipairs(tmux and { "0", "1" } or { "0" }) do
     return codex._terminal_command(codex._codex_command({ "resume", "--last" }))
   end)
   local path = wrap == "1" and "tmux" or "direct"
-  t.eq(ai_config.provider_of_command(cmd), "codex", "Codex (" .. path .. "): provider_of_command still finds the agent")
+  t.eq(ai_config.agent_of_command(cmd), "codex", "Codex (" .. path .. "): agent_of_command still finds the agent")
   local argv, env = launch("codex", cmd, wrap == "1" and "codex-nvim-" .. vim.fn.getpid() or nil)
   t.eq(argv, codex_want, "Codex (" .. path .. "): the TOML override arrives byte for byte, resume after it")
   if wrap == "1" then

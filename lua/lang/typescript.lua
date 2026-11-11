@@ -375,11 +375,10 @@ local function js_debug_configurations()
       -- --user-data-dir; without the latter a second Chrome hands the URL to the
       -- running instance and never opens the port.
       --
-      -- Ordinary pages only. Browser-extension debugging is *out-of-scope*
-      -- upstream ("I'm surprised it works at all" -- vscode-js-debug#1794), so
-      -- extensions belong in Chrome DevTools. vscode-js-debug#2361 is an open
-      -- community PR that implements it; spikes/chrome-extension-dap has the
-      -- measurements and what it would take.
+      -- Ordinary pages. Extension code pauses only under the webext build
+      -- that js_debug_command prefers (vscode-js-debug#2361, see its doc
+      -- comment above and spikes/chrome-extension-dap); mason's upstream
+      -- build never pauses there.
       name = "chrome: attach (port 9222)",
       type = "pwa-chrome",
       request = "attach",
@@ -452,16 +451,7 @@ return {
         },
         vtsls = {
           on_attach = on_attach,
-          filetypes = {
-            "javascript",
-            "javascriptreact",
-            "javascript.jsx",
-            "typescript",
-            "typescriptreact",
-            "typescript.tsx",
-          },
           settings = {
-            complete_function_calls = true,
             vtsls = {
               enableMoveToFileCodeAction = true,
               autoUseWorkspaceTsdk = true,

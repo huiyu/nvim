@@ -1,6 +1,6 @@
--- <leader>ai after the composer was retired.
+-- <leader>ai: the agent TUI's own prompt editor (ctrl+g), routed into this Nvim.
 --
--- It no longer opens a buffer of our own. It asks the agent's TUI to open the
+-- It opens no buffer of our own. It asks the agent's TUI to open the
 -- prompt editor both CLIs already have on ctrl+g, which scripts/agent-editor
 -- routes back into this Nvim (lua/ai/editor.lua). So what is under test here is
 -- the keystroke payload and the facade wiring, not a buffer.
@@ -19,15 +19,15 @@ t.eq(editor.EDIT_KEY, "\7", "UC-1: the edit key is 0x07 (ctrl+g)")
 local dir = vim.fn.tempname()
 vim.fn.mkdir(dir .. "/editor", "p")
 
--- A seed is for one agent: the provider is not optional.
-t.ok(not pcall(editor.stage_seed, "for nobody"), "stage_seed without a provider is refused")
-t.ok(not pcall(editor.stage_seed, "for nobody", { provider = "nope" }), "and so is one that is no agent")
+-- A seed is for one agent: the agent is not optional.
+t.ok(not pcall(editor.stage_seed, "for nobody"), "stage_seed without an agent is refused")
+t.ok(not pcall(editor.stage_seed, "for nobody", { agent = "nope" }), "and so is one that is no agent")
 
 -- UC-3: the selection reaches the prompt through the buffer, not through a
 -- paste racing the key. A staged seed lands in the file the agent hands over.
 local seeded = dir .. "/claude-prompt-seeded.md"
 vim.fn.writefile({ "" }, seeded)
-editor.stage_seed("picked lines", { provider = "claude" })
+editor.stage_seed("picked lines", { agent = "claude" })
 editor.open(seeded, seeded .. ".done")
 vim.wait(200, function() return false end)
 local shown
@@ -64,7 +64,7 @@ for _, w in ipairs(vim.api.nvim_list_wins()) do
   if vim.api.nvim_win_get_config(w).relative == "editor" then pcall(vim.api.nvim_win_close, w, true) end
 end
 vim.wait(200, function() return false end)
-editor.stage_seed("for claude", { provider = "claude" })
+editor.stage_seed("for claude", { agent = "claude" })
 local nobody = vim.fn.tempname() .. ".md"
 vim.fn.writefile({ "commit message" }, nobody)
 editor.open(nobody, nobody .. ".done")
@@ -82,7 +82,7 @@ local title = nobody_win and vim.api.nvim_win_get_config(nobody_win).title
 if type(title) == "table" then title = (title[1] or {})[1] end
 t.eq(title, " Prompt ", "and is titled for no agent")
 t.eq({ editor.open_here() }, { true, nil }, "open_here: a prompt is open here, owned by nobody")
-editor.stage_seed(nil, { provider = "claude" })
+editor.stage_seed(nil, { agent = "claude" })
 
 -- Close this one too: with a prompt open, compose() returns to it (UC-4 below)
 -- instead of reaching the backend that UC-1 stubs next.
@@ -96,9 +96,10 @@ vim.wait(200, function() return false end)
 -- UC-1/UC-3: the facade hands the backend a seed only when there is a selection.
 --
 -- Nothing is on the right, so <leader>ai asks which chat (lua/ai/slot.lua):
--- with none open, the new-chat picker, whose first entry is the active
--- provider's terminal. The answer is given here, and the agents on PATH are
--- stand-ins -- the stubbed edit_prompt below would start nothing anyway.
+-- with none open, the new-chat picker, whose first entry is the first listed
+-- provider's terminal (lua/ai/config.lua). The answer is given here, and the
+-- agents on PATH are stand-ins -- the stubbed edit_prompt below would start
+-- nothing anyway.
 local stand_ins = vim.fn.tempname()
 vim.fn.mkdir(stand_ins, "p")
 for _, name in ipairs({ "claude", "codex" }) do
@@ -138,8 +139,8 @@ ai.compose()
 t.eq(#seen, 1, "UC-3: compose reaches the backend once from Visual mode")
 answering = false
 t.ok(seen[1].seed ~= nil and seen[1].seed ~= "", "UC-3: a Visual selection seeds the prompt")
--- The composer this replaced left Visual by opening a buffer; sending bytes to a
--- terminal does not, so the mode has to be dropped explicitly.
+-- Sending bytes to a terminal does not leave Visual mode, so the mode has to be
+-- dropped explicitly.
 t.eq(vim.fn.mode():sub(1, 1), "n", "UC-3: Visual mode is left behind")
 
 -- UC-2 lives in the backends: with no terminal running they must start one
@@ -149,14 +150,13 @@ t.eq(type(require("ai.backend.claude").edit_prompt), "function",
 t.eq(type(require("ai.backend.codex").edit_prompt), "function",
   "UC-2: the Codex backend exposes edit_prompt")
 
--- UC-R1: <leader>as keeps its own path; retiring the composer must not take
--- ai.selection with it.
+-- UC-R1: <leader>as keeps its own path through ai.selection.
 t.eq(type(require("ai.selection").draft), "function", "UC-R1: ai.selection survives")
 
--- The retired modules are gone, not merely unreferenced.
+-- ai.composer stays gone: <leader>ai is the TUI's own prompt editor.
 t.eq(pcall(require, "ai.composer"), false, "ai.composer is removed")
--- ai.clipboard survived the composer: <C-v> in the prompt editor still stages
--- images through it, and the agent's own ctrl+v is still how they get attached.
+-- <C-v> in the prompt editor stages images through ai.clipboard, and the
+-- agent's own ctrl+v is still how they get attached.
 t.eq(pcall(require, "ai.clipboard"), true, "ai.clipboard is still in use")
 
 -- UC-4: with a prompt already open, <leader>ai goes back to it instead of
@@ -208,7 +208,7 @@ vim.fn.writefile({ "for claude" }, claude_prompt)
 editor.open(codex_prompt, codex_prompt .. ".done")
 vim.wait(200, function() return false end)
 local codex_win = float_titled("Codex")
-t.ok(codex_win ~= nil, "a Codex prompt is titled for Codex, whichever agent is the default")
+t.ok(codex_win ~= nil, "a Codex prompt is titled for Codex, whichever agent is listed first")
 
 -- <C-v> stages an image; :w returns the prompt; the image goes back to Codex.
 local routed = {}
@@ -300,7 +300,7 @@ end
 vim.cmd(("noautocmd tabnext %d"):format(vim.api.nvim_tabpage_get_number(first_tab)))
 
 ---------------------------------------------------------------------------
--- Seeds have an addressee: one slot per provider (review feedback)
+-- Seeds have an addressee: one slot per agent (review feedback)
 ---------------------------------------------------------------------------
 
 local function settle(ms) vim.wait(ms or 150, function() return false end, 10) end
@@ -327,9 +327,9 @@ local function stager(tag)
     on_expired = function() calls[#calls + 1] = tag .. ":expired" end,
   }
 end
-local function staged(text, provider, tag, ttl)
+local function staged(text, agent, tag, ttl)
   local opts = stager(tag)
-  opts.provider, opts.ttl_ms = provider, ttl
+  opts.agent, opts.ttl_ms = agent, ttl
   editor.stage_seed(text, opts)
 end
 
@@ -340,7 +340,7 @@ local claude_file = prompt_file("claude", { "typed first" })
 -- on_consumed runs once the text is in the buffer.
 local seen_in_buffer
 editor.stage_seed("for claude only", {
-  provider = "claude",
+  agent = "claude",
   on_consumed = function()
     seen_in_buffer = prompt_lines(claude_file)
     calls[#calls + 1] = "a:consumed"
@@ -369,10 +369,10 @@ staged("second", "claude", "new")
 t.eq(calls, { "old:expired" }, "a replaced seed fires its on_expired, never on_consumed")
 -- Clearing one slot leaves the other.
 staged("codex text", "codex", "cx")
-editor.stage_seed(nil, { provider = "claude" })
+editor.stage_seed(nil, { agent = "claude" })
 t.eq(calls, { "old:expired", "new:expired" }, "stage_seed(nil) clears that slot, with its on_expired")
 t.ok(editor._seed_pending("codex") and not editor._seed_pending("claude"), "and only that slot")
-editor.stage_seed(nil, { provider = "codex" })
+editor.stage_seed(nil, { agent = "codex" })
 
 -- A TTL drops a seed nobody took in time.
 calls = {}
@@ -390,9 +390,9 @@ calls = {}
 staged("no rush", "claude", "wait")
 settle(300)
 t.ok(editor._seed_pending("claude") and #calls == 0, "a seed without ttl_ms keeps waiting")
-editor.stage_seed(nil, { provider = "claude" })
+editor.stage_seed(nil, { agent = "claude" })
 
--- focus_open with a provider takes only that agent's prompt.
+-- focus_open with an agent takes only that agent's prompt.
 local codex_open = prompt_file("codex", { "codex prompt" })
 editor.open(codex_open, codex_open .. ".done")
 settle()
@@ -433,7 +433,7 @@ for _, name in ipairs({ "claude", "codex" }) do
   local source = table.concat(vim.fn.readfile("lua/ai/backend/" .. name .. ".lua"), "\n")
   local body = source:match("function M%.edit_prompt%(opts%)(.-)\nend\n") or ""
   local call = body:match("editor%.stage_seed%((.-)%)\n") or ""
-  t.ok(call:find(('provider = "%s"'):format(name), 1, true) ~= nil and call:find("on_consumed = opts.on_consumed", 1, true) ~= nil
+  t.ok(call:find(('agent = "%s"'):format(name), 1, true) ~= nil and call:find("on_consumed = opts.on_consumed", 1, true) ~= nil
     and call:find("on_expired = opts.on_expired", 1, true) ~= nil and call:find("ttl_ms = opts.ttl_ms", 1, true) ~= nil,
     name .. "'s edit_prompt stages its seed for itself, with the callbacks and the TTL")
 end

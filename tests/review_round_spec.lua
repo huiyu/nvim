@@ -958,7 +958,7 @@ local h, f = feed_case({ claude = "here" }, "codex")
 t.eq({ h, f }, { { "claude" }, { { "codex", "feedback" } } },
   "feeding Codex with Claude's panel here hides Claude's panel, and feeds Codex")
 h, f = feed_case({ codex = "here" }, "claude")
-t.eq({ h, f }, { { "codex" }, { { "claude", "feedback" } } }, "and the other way round, whichever is the default")
+t.eq({ h, f }, { { "codex" }, { { "claude", "feedback" } } }, "and the other way round")
 h = feed_case({ claude = "here", codex = "elsewhere" }, "codex")
 t.eq(h, {}, "a target already shown in another tabpage makes nothing yield")
 shown, hidden = { claude = "here" }, {}
@@ -966,7 +966,7 @@ ai.feed("codex", "running")
 t.eq(hidden, {}, "a method that reveals nothing hides nothing")
 notes, fed = {}, {}
 ai.feed("nope", "edit_prompt")
-t.ok(#notes == 1 and notes[1].level == WARN and #fed == 0, "an unknown provider is refused")
+t.ok(#notes == 1 and notes[1].level == WARN and #fed == 0, "an unknown agent is refused")
 for name, b in pairs(backends) do
   for k, fn in pairs(saved_fns[name]) do b[k] = fn end
 end

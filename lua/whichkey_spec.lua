@@ -39,7 +39,7 @@ local spec = {
   -- not "Buffer": buffer names the buffer list (<leader>b).
   { ",",             group = "File/view actions", mode = { "n", "x" } },
   { ",e",            group = "Extract",         mode = { "n", "x" } },
-  -- Just sessions now; the tooling half moved to <leader>m.
+  -- Sessions only; config and tooling live under <leader>m.
   { "<leader>s",     group = "Session",         mode = "n" },
   { "<leader>G",     group = "GitHub",          mode = { "n", "x" } },
   { "<leader>b",     group = "Buffer" },
@@ -188,7 +188,7 @@ local spec = {
       "          ,X discard hunk back to baseline",
       "  View and language sections can coexist.",
       "  [LSP] actions need a language server.",
-      "  , is also <localleader>; old \\ keys are gone.",
+      "  , is also <localleader>.",
       "",
       "  ── <leader> groups ──────────────────────",
       -- filled in below from the spec itself

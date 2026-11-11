@@ -73,8 +73,10 @@ end
 
 -- Directory listings: their selection names files, which claudecode reads off
 -- the live Visual selection (its tree integrations). Text drawn from it is
--- the listing, not code.
-local TREE_FILETYPES = { oil = true, NvimTree = true, ["neo-tree"] = true, minifiles = true, netrw = true }
+-- the listing, not code. oil is the only listing here (netrw is disabled);
+-- claudecode also reads nvim-tree, neo-tree, mini.files and netrw, should one
+-- be installed.
+local TREE_FILETYPES = { oil = true }
 
 ---A selection taken whole, before anything asks where it goes.
 ---

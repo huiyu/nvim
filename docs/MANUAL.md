@@ -556,8 +556,8 @@ files or intercept shell input.
 
 General editing keeps its keys: `,h`/`,l` dedent/indent, `,k` moves up, `,r` renames,
 `,c` runs codelens, and `,e…` extracts. The uppercase filetype keys, `,L…` and `,S…`
-keep those short keys free of new prefix waits. Former backslash bindings are
-removed; press `,` and wait for the current operation sections.
+keep those short keys free of new prefix waits. Press `,` and wait for the
+current operation sections.
 
 ### Search-and-replace panel: `,S`
 
@@ -566,7 +566,7 @@ search and replacement text; `Tab` / `Shift-Tab` move between input fields.
 Review the results before applying changes. In Normal mode, `,S` shows the
 panel's actions by operation type; `g?` opens its full help. These keys exist
 only in the search panel, preserving general comma editing keys in its editable
-results. Its former backslash shortcuts now use `,S` plus the same final letter.
+results.
 
 | Keys | Operation |
 |---|---|

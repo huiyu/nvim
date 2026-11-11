@@ -7,15 +7,12 @@ local SPECIAL_BUFTYPES = {
 }
 
 local SPECIAL_FILETYPES = {
-  'NvimTree', 'neo-tree', 'nerdtree', 'CHADTree', 'fern',    -- File explorers
-  'Outline', 'aerial', 'tagbar', 'vista', 'symbols-outline', -- Outline views
-  'fugitive', 'git', 'gitcommit',                            -- Git related
+  'aerial',                                                  -- Outline view
+  'git', 'gitcommit',                                        -- Git related
   'help',                                                    -- Help documentation
-  'qf', 'quickfix', 'locationlist',                          -- Quickfix/Location list
-  'snacks_picker_input', 'snacks_picker_list', 'snacks_picker_preview', 'fzf', -- Fuzzy finders
-  'dashboard', 'startify', 'alpha',                          -- Start pages
-  'lspinfo', 'mason', 'lazy', 'packer',                      -- Plugin/LSP management
-  'terminal', 'toggleterm',                                  -- Terminals
+  'qf',                                                      -- Quickfix/Location list
+  'snacks_picker_input', 'snacks_picker_list', 'snacks_picker_preview', -- Fuzzy finder
+  'mason', 'lazy',                                           -- Plugin/LSP management
   -- dapui names each element separately; there is no `dapui` filetype.
   'dap-repl', 'dapui_scopes', 'dapui_breakpoints',           -- Debugging
   'dapui_stacks', 'dapui_watches', 'dapui_console',
@@ -233,21 +230,6 @@ function M.toggle_zoom()
   vim.cmd.wincmd("_")
   vim.cmd.wincmd("|")
   vim.w[win].zoomed = true
-end
-
---- Restore fixed panels to their target sizes (no equalization).
---- Use after window open/close to enforce sidebar widths.
-function M.restore_fixed_panels()
-  for _, entry in ipairs(get_fixed_panels()) do
-    if vim.api.nvim_win_is_valid(entry.win) then
-      if entry.width then
-        vim.api.nvim_win_set_width(entry.win, entry.width)
-      end
-      if entry.height then
-        vim.api.nvim_win_set_height(entry.win, entry.height)
-      end
-    end
-  end
 end
 
 --- Filetypes that occupy the editor area without holding a real file buffer.

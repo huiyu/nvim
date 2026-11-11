@@ -11,10 +11,9 @@
 -- soft wrap render identically (both are a two-space-indented continuation
 -- line), so scraped text can never be reassembled reliably.
 --
--- This replaced a hand-written composer buffer that started empty and pasted
--- its result into the TUI. Round-tripping the TUI's own buffer removed the need
--- to clear the input box before sending -- leftover text used to be prepended to
--- whatever was sent.
+-- Editing the TUI's own buffer also means nothing has to clear the input box
+-- before sending: text pasted into a box that still held something would be
+-- prepended to it.
 --
 -- Images still go through the TUI's own ctrl+v, because only the CLI can put
 -- bytes into its request. <C-v> here stages them and replays that keystroke once
@@ -41,7 +40,7 @@ local ATTACH_DELAY_MS = 750
 M.EDIT_KEY = "\7"
 
 -- Text to add to the next prompt an agent hands this Nvim, one slot per
--- provider, consumed by the first open() of that provider's prompt.
+-- agent, consumed by the first open() of that agent's prompt.
 --
 -- Seeding used to be a bracketed paste sent just ahead of the edit key, on the
 -- reasoning that one channel write fixes their order. The bytes do arrive in
@@ -50,7 +49,7 @@ M.EDIT_KEY = "\7"
 -- empty with a Visual selection staged. Handing the text to the buffer instead
 -- has no ordering to lose, and needs no paste sanitising.
 --
--- Per provider because a seed has an addressee: review feedback staged for
+-- Per agent because a seed has an addressee: review feedback staged for
 -- Claude (lua/ai/review/feedback.lua) must never land in a prompt Codex opens
 -- meanwhile, and the other way round. The callbacks tell the stager whether
 -- its text arrived: on_consumed once it is in a prompt buffer, on_expired when
@@ -84,56 +83,56 @@ local function notify_stager(fn)
   end
 end
 
----Empty `provider`'s slot and hand back what was in it, with its timer
+---Empty `agent`'s slot and hand back what was in it, with its timer
 ---stopped. Its callbacks are the caller's to fire.
----@param provider string
+---@param agent string
 ---@return ai.editor.Seed?
-local function take(provider)
-  local slot = pending[provider]
-  pending[provider] = nil
+local function take(agent)
+  local slot = pending[agent]
+  pending[agent] = nil
   if slot then stop_timer(slot) end
   return slot
 end
 
----Stage text for the next prompt buffer `opts.provider` opens. Nil or ""
+---Stage text for the next prompt buffer `opts.agent` opens. Nil or ""
 ---stages nothing and only clears that slot.
 ---
----The provider is required: a seed has an addressee, and no agent is the one
+---The agent is required: a seed has an addressee, and no agent is the one
 ---a seed goes to by default. Whatever the slot held before is dropped with
 ---its on_expired, never its on_consumed. Without `ttl_ms` the seed waits for
----that provider's next prompt, as a <leader>ai selection always has; with it,
+---that agent's next prompt, as a <leader>ai selection always has; with it,
 ---a seed not taken in time is dropped through on_expired.
 ---@param text string?
----@param opts { provider: string, on_consumed?: fun(), on_expired?: fun(), ttl_ms?: integer }
+---@param opts { agent: string, on_consumed?: fun(), on_expired?: fun(), ttl_ms?: integer }
 function M.stage_seed(text, opts)
   opts = opts or {}
-  local provider = opts.provider
-  if type(provider) ~= "string" or not config.agents[provider] then
-    error(("stage_seed needs the agent the seed is for, not %s"):format(vim.inspect(provider)), 2)
+  local agent = opts.agent
+  if type(agent) ~= "string" or not config.agents[agent] then
+    error(("stage_seed needs the agent the seed is for, not %s"):format(vim.inspect(agent)), 2)
   end
-  local old = take(provider)
+  local old = take(agent)
   if old then notify_stager(old.on_expired) end
   if text == nil or text == "" then return end
 
   local slot = { text = text, on_consumed = opts.on_consumed, on_expired = opts.on_expired }
-  pending[provider] = slot
+  pending[agent] = slot
   if type(opts.ttl_ms) == "number" and opts.ttl_ms > 0 then
     local timer = assert(vim.uv.new_timer())
     slot.timer = timer
     timer:start(opts.ttl_ms, 0, vim.schedule_wrap(function()
       -- A slot taken or replaced meanwhile has had its answer already.
-      if pending[provider] ~= slot then return end
-      take(provider)
+      if pending[agent] ~= slot then return end
+      take(agent)
       notify_stager(slot.on_expired)
     end))
   end
 end
 
----Is a seed waiting for `provider`'s next prompt? For the specs.
----@param provider string
+---Is a seed waiting for `agent`'s next prompt? For the specs.
+---@param agent string
 ---@return boolean
-function M._seed_pending(provider)
-  return pending[provider] ~= nil
+function M._seed_pending(agent)
+  return pending[agent] ~= nil
 end
 
 -- Waiting for a freshly started CLI to reach its input box.
@@ -182,8 +181,7 @@ end
 ---Run `action` once the terminal `get_buf` returns is showing an input prompt.
 ---
 ---Starting a CLI takes seconds, and anything sent before its input box exists is
----swallowed with nothing on screen to show for it. Polling replaces the "press
----the key again once it appears" note that used to stand in for this.
+---swallowed with nothing on screen to show for it.
 ---@param get_buf fun(): integer|nil
 ---@param action fun(buf: integer)
 ---@param on_timeout fun()
@@ -278,7 +276,7 @@ local function present(path, sentinel, slot)
   -- waiting for them. Nil when the path tells nothing (a `git commit` run in
   -- an agent's pane): that prompt is edited like any other, but attaches no
   -- image, since it would go to an agent guessed at.
-  local owner = config.provider_of_prompt(path)
+  local owner = config.agent_of_prompt(path)
 
   -- Images staged by <C-v>, and whether the prompt was actually returned.
   -- Cancelling has to drop them: the box keeps its old text, so pushing images
@@ -499,24 +497,24 @@ end
 ---open, so <leader>ai checks here first. A Visual selection made in the
 ---meantime is appended to the prompt the way a seed would have been.
 ---
----Without `provider`, the prompt open in the current tabpage wins, else the
+---Without `agent`, the prompt open in the current tabpage wins, else the
 ---one opened last: no agent outranks the other, and any open prompt is
 ---preferred over sending a key nobody reads.
 ---
----With `provider`, only that agent's prompt counts: text addressed to one
+---With `agent`, only that agent's prompt counts: text addressed to one
 ---agent (review feedback) must not land in the other's prompt, so false then
 ---means "this agent has none open", whatever the other one has.
 ---@param text string? lines to append to the prompt
----@param provider string? the only agent whose prompt may be used
+---@param agent string? the only agent whose prompt may be used
 ---@return boolean focused false when no (such) prompt is open
-function M.focus_open(text, provider)
+function M.focus_open(text, agent)
   local tab = vim.api.nvim_get_current_tabpage()
   local chosen, rank
   for path, open in pairs(state.open) do
     if not vim.api.nvim_win_is_valid(open.win) then
       state.open[path] = nil
-    elseif provider then
-      if open.owner == provider then chosen = open end
+    elseif agent then
+      if open.owner == agent then chosen = open end
     else
       local here = vim.api.nvim_win_get_tabpage(open.win) == tab and 1 or 0
       if not rank or here > rank[1] or (here == rank[1] and open.seq > rank[2]) then
@@ -574,7 +572,7 @@ function M.open(path, sentinel)
     -- on. present() reports it consumed once the float is up; a prompt that
     -- fails to open never shows it, which its stager hears as expired. A
     -- prompt whose path names no agent takes no seed: every seed is for one.
-    local owner = config.provider_of_prompt(path)
+    local owner = config.agent_of_prompt(path)
     local slot = owner and take(owner) or nil
     local ok, err = pcall(present, path, sentinel, slot)
     if not ok then

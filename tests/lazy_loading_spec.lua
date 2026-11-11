@@ -18,9 +18,9 @@ for _, name in ipairs({ "mason-lspconfig.nvim", "nvim-lspconfig", "blink.cmp", "
   t.ok(not loaded(name), name .. " stays unloaded until it is first used")
 end
 t.ok(loaded("lualine.nvim"), "lualine is loaded for the first frame")
--- Both are declared whichever agent is the default, and wait for their first
--- command or key: the facade's mappings (lua/ai/init.lua) and :AI define no
--- plugin load.
+-- Both are declared always, whatever lua/ai/config.lua's providers list, and
+-- wait for their first command or key: the facade's mappings (lua/ai/init.lua)
+-- and :AI define no plugin load.
 for _, name in ipairs({ "claudecode.nvim", "codecompanion.nvim" }) do
   t.ok(require("lazy.core.config").plugins[name] ~= nil and not loaded(name), name .. " is declared and stays unloaded at startup")
 end

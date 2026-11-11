@@ -34,7 +34,7 @@ llama-server --fim-qwen-7b-default                 # 一次性：下载灰色补
 ```
 
 **语言工具链** — *只有想用对应的 Mason 包时才需要：*
-- **Go** — `gopls`、`gofumpt`、`gomodifytags`、`impl`、`delve` 都依赖
+- **Go** — `gopls`、`gofumpt`、`delve` 都依赖
 - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
 - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
 - **Rust（rustup）** — Mason 安装的 `rust-analyzer` 需要 `cargo`，格式化用的是工具链自带的 `rustfmt`（`rustup component add rustfmt`）；`rust-src` 由 rust-analyzer 自己通过 rustup 补装
@@ -262,8 +262,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 以及审阅键（`,C` 反馈、`,S` / `,U` 暂存 / 取消暂存一个 hunk、`,X` 把一个 hunk 丢弃回基线）。
 搜索替换面板的专用操作放在 `,S…` 子组。
 完整键表见[文件类型与视图操作](docs/MANUAL_CN.md#文件类型与视图操作)。
-Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 Nvim，
-以清除已打开 buffer 中的旧反斜杠映射。
+Local leader 共用逗号菜单，不额外占用一个前缀。
 
 值得记住的无前缀键：
 
@@ -798,3 +797,7 @@ gitignore 的文件；`.git/` 始终排除，`node_modules`、`target`、`.venv`
 
 `;i`（文件）和 `;?`（文本）遵守 `.gitignore`，仍显示隐藏文件，并取消额外的
 目录排除。管理组中的 `<leader>mf` 搜索这份配置，`<leader>mF` 搜索已安装插件的源码。
+
+## 许可
+
+本配置按原样提供，仅供个人使用。

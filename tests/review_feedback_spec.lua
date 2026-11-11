@@ -1322,7 +1322,7 @@ vim.cmd("stopinsert")
 t.eq(prompt_lines(), { "codex's own box" }, "feedback for Claude never lands in Codex's open prompt")
 t.ok(editor._seed_pending("claude") and #draft_lines() > 0, "it waits for Claude's, the draft kept")
 close_prompts()
-editor.stage_seed(nil, { provider = "claude" })
+editor.stage_seed(nil, { agent = "claude" })
 t.ok(noted("did not open its prompt editor") ~= nil and #draft_lines() > 0, "a cleared seed counts as not delivered")
 
 package.loaded["claudecode.terminal"] = saved_terminal

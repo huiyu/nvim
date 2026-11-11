@@ -34,7 +34,7 @@ llama-server --fim-qwen-7b-default                 # once: ghost-text model (~8 
 ```
 
 **Language toolchains** — *only if you want the matching Mason packages to install:*
-- **Go** — required for `gopls`, `gofumpt`, `gomodifytags`, `impl`, `delve`
+- **Go** — required for `gopls`, `gofumpt`, `delve`
 - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
 - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
 - **Rust (rustup)** — `rust-analyzer` (installed by Mason) needs `cargo`, and formats with the toolchain's `rustfmt` (`rustup component add rustfmt`); it adds `rust-src` through rustup itself
@@ -275,8 +275,7 @@ its panel, layout and conflict keys, and the review keys (`,C` feedback, `,S`
 / `,U` stage / unstage a hunk, `,X` discard a hunk back to baseline).
 The search-and-replace panel keeps its actions under `,S…`.
 See the [filetype and view actions](docs/MANUAL.md#filetype-and-view-actions) for the full key list.
-The local leader shares the comma menu; it is not a fifth prefix. Restart Nvim
-after updating to remove the old backslash bindings from existing buffers.
+The local leader shares the comma menu; it is not a fifth prefix.
 
 Unprefixed keys worth knowing:
 

@@ -228,20 +228,17 @@ local function show_and_focus(term)
   enter_insert(term)
 end
 
--- Delivery is asynchronous whenever the terminal had to be started, so this
--- reports failure through `opts.on_error` rather than a return value: by the
--- time the channel turns out to be missing, the caller has long since returned.
+-- Delivery is asynchronous whenever the terminal had to be started, so a
+-- failure is a WARN notification from the deferred callback rather than a
+-- return value: by the time the channel turns out to be missing, the caller
+-- has long since returned.
 local function send(text, opts)
   opts = opts or {}
   local term, created = ensure()
   local delay = created and 350 or 0
 
   local function fail(reason)
-    if opts.on_error then
-      opts.on_error(reason)
-    else
-      vim.notify(reason, vim.log.levels.WARN)
-    end
+    vim.notify(reason, vim.log.levels.WARN)
   end
 
   vim.defer_fn(function()
@@ -266,19 +263,6 @@ local function send(text, opts)
     if opts.submit then payload = payload .. "\r" end
     vim.api.nvim_chan_send(channel, payload)
   end, delay)
-end
-
-local function buffer_context()
-  local buf = vim.api.nvim_get_current_buf()
-  local path = vim.api.nvim_buf_get_name(buf)
-  if path == "" then
-    vim.notify("Current buffer has no file path", vim.log.levels.WARN)
-    return
-  end
-
-  local root = project_root(path)
-  local rel = vim.fs.relpath(root, path) or path
-  return buf, rel
 end
 
 ---Is a Codex session running in this Nvim, shown or not?
@@ -310,16 +294,6 @@ end
 ---and keeps the buffer, so the job and its tmux client stay.
 function M.hide()
   if M.visible() then current:hide() end
-end
-
-function M.toggle()
-  if active() then
-    current:toggle()
-    enter_insert(current)
-    return
-  end
-  local path = vim.api.nvim_buf_get_name(0)
-  start(codex_command(), project_root(path))
 end
 
 function M.focus()
@@ -394,7 +368,7 @@ function M.edit_prompt(opts)
     return channel and channel > 0 and channel or nil
   end
 
-  editor.stage_seed(opts.seed, { provider = "codex", on_consumed = opts.on_consumed, on_expired = opts.on_expired, ttl_ms = opts.ttl_ms })
+  editor.stage_seed(opts.seed, { agent = "codex", on_consumed = opts.on_consumed, on_expired = opts.on_expired, ttl_ms = opts.ttl_ms })
 
   if running then
     local channel = channel_of()
@@ -445,34 +419,13 @@ function M.add_path(path, modified)
   send("@" .. rel .. " ", { submit = false })
 end
 
-function M.add_buffer()
-  local buf = buffer_context()
-  if not buf then return end
-  M.add_path(vim.api.nvim_buf_get_name(buf), vim.bo[buf].modified)
-end
-
 ---Type `text` into the input box as one paste, not submitted, starting Codex
 ---when it is not running. What a selection captured before asking where it
----goes becomes (lua/ai/init.lua): send_selection reads the live selection.
+---goes becomes (lua/ai/init.lua): Codex CLI has file mentions but no editor
+---selection attachment API, so a selection travels as text.
 ---@param text string
 function M.send_text(text)
   send(text, { submit = false })
-end
-
--- Codex CLI has file mentions but no editor selection attachment API, so a
--- selection travels as text. The text itself is built by ai.selection, which
--- <leader>ai shares -- see that module for why it is not a backend concern.
-function M.send_selection()
-  local draft, err, notice = require("ai.selection").draft()
-  if not draft then
-    vim.notify(err, vim.log.levels.WARN)
-    return
-  end
-  if notice then
-    vim.notify(notice, vim.log.levels.INFO)
-  end
-
-  send(draft, { submit = false })
 end
 
 return M

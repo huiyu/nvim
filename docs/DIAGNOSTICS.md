@@ -7,11 +7,6 @@ How to diagnose problems with this Neovim configuration.
 anything bespoke. The only config-specific gap (is *this setup* wired up — deps,
 servers, versions?) is filled by a native health provider: `:checkhealth config`.
 
-> History: a custom `util.dev` / `util.performance` / `util.validate` /
-> `util.test` framework (`:Dev*` / `:Perf*`, ~1350 lines, gated behind
-> `NVIM_DEV=1`) previously covered this. It duplicated the built-ins and was
-> removed in favor of the table below.
-
 ## Quick reference
 
 | Symptom | Use |
@@ -155,7 +150,7 @@ plugin's own checks).
 - `:lua vim.lsp.log.get_filename()` — path to the server stderr / protocol log
 - Servers are declared per language in `lua/lang/*.lua` (`opts.servers`) and
   installed by mason-lspconfig (derived from that list). Verbose logging:
-  `:lua vim.lsp.set_log_level("debug")`.
+  `:lua vim.lsp.log.set_level("debug")`.
 
 On Nvim 0.12 the `:Lsp*` commands are gone: nvim-lspconfig's plugin file returns
 early once the builtin `:lsp` exists, so `:LspInfo`, `:LspLog` and `:LspRestart`
@@ -472,10 +467,7 @@ labels and the listing; its header lists what it depends on.
   terminals, ACP chats on the subscription, an API chat per key profile on API
   credits, each group in provider order); `<leader>al` switch chat;
   `<leader>ac` / `af` toggle / focus the chat on the right; `<leader>ae` inline; `<leader>ap` actions; `<leader>ao` /
-  `:CodeCompanionHistory` auto-saved history (also `gh` inside a chat). The
-  old `<leader>ap…` two-key forms are gone: `<leader>apc` now opens the action
-  palette with `c` typed into its filter, and `<leader>ag`/`aG`/`ah`/`aH` are
-  gone too: `<leader>an` starts either kind.
+  `:CodeCompanionHistory` auto-saved history (also `gh` inside a chat).
 - History restores the local transcript; use `/resume` in a fresh agent chat
   to reload a stateful agent session.
 - **`<leader>an` shows no backend (`No AI backend is available here`), or
@@ -685,18 +677,18 @@ rather than a broken viewer.
   not broken — they are shared query modules other languages inherit from, and
   nothing queries them directly.
 
-### Composer (`<leader>ai`)
+### Prompt editor (`<leader>ai`, `ctrl+g`)
 
-- **`:q` refuses to close** — intended. `buftype=acwrite` plus a modified buffer
-  raises `E37` so a half-written prompt is not lost by reflex. Use `<C-d>` or
+- **`:q` refuses to close** — intended. The prompt buffer is the agent's own
+  temp file with `bufhidden=wipe`, which a modified buffer cannot be abandoned
+  under, so `:q` raises `E37` and a notice says
+  `:wq keeps the edit · :q! or <C-c> leaves the box unchanged`. Use `<C-d>` or
   `:wq` to send, `<C-c>` or `:q!` to discard.
 - **`<C-s>` pressed once does nothing in Nvim** — expected. `C-s` is the tmux prefix
   here (`~/.config/tmux/tmux.conf`), so tmux consumes it before Nvim can see it.
-  A global `<C-s>` "Save file" mapping used to live in `lua/mappings.lua` and had
-  never once fired; it was removed rather than left as a key that silently does
-  nothing — use `:w`. Nvim's own Insert-mode default on that key,
-  `i_CTRL-S` for `vim.lsp.buf.signature_help()`, is unreachable for the same
-  reason; `gK` is the working path. CodeCompanion's own `<C-s>` (send) was
+  There is no `<C-s>` save mapping — use `:w`. Nvim's own Insert-mode
+  default on that key, `i_CTRL-S` for `vim.lsp.buf.signature_help()`, is
+  unreachable for the same reason; `gK` is the working path. CodeCompanion's own `<C-s>` (send) was
   moved for the same reason: a chat and the `:CodeCompanion` prompt float send
   with `<CR>`, or `<C-d>` from Insert mode. The pickers', oil's and the
   outline's `<C-s>` (open below) reach Nvim as `C-s C-s`, which that tmux
@@ -1211,12 +1203,10 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 
 ## Runtime errors & messages
 
-- **`;f` leaves a blank split below Oil or a GitHub issue** — the file-target
-  guard used to exclude these `acwrite` views and create a split as soon as the
-  picker opened, even if it was cancelled. It now reuses an unmodified Oil or
-  GitHub issue/PR window: confirming replaces the view with the file, cancelling
-  keeps the layout. A view with pending edits stays visible and gets a separate
-  file target.
+- **`;f` from Oil or a GitHub issue** — the file picker reuses an unmodified
+  Oil or GitHub issue/PR window: confirming replaces the view with the file,
+  cancelling keeps the layout. A view with pending edits stays visible and gets
+  a separate file target, so no blank split appears.
 - **GitHub issues show repeated `2`/`3` digits at the left** — these are native
   fold depth markers, visible even when all folds are open. The reading view
   disables line numbers but inherited the global one-column fold gutter. Its
@@ -1371,20 +1361,14 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 - `:verbose map <lhs>` / `:verbose nmap <lhs>` — where a mapping was set
 - `:verbose set <option>?` — where an option was last set
 - which-key popup (press a prefix and wait); `<leader>?` is the trigger cheatsheet
-- **Old backslash shortcuts stopped working** — `<localleader>` is now comma.
-  Restart Nvim to remove old live mappings, then press `,` in the relevant file
-  or view. Headings separate general editing from filetype and view actions.
-  Conflict-free replacements include C/C++ `,H`, Markdown `,m`, LaTeX `,K`/`,E`
-  and `,L…`, CodeDiff `,P`/`,B`/`,z`/`,I`/`,g…`, and search-panel actions
-  under `,S…`.
-  `[LSP]` entries still require a server;
-  use `:checkhealth vim.lsp` if those actions are unavailable.
-  The [manual](MANUAL.md#filetype-and-view-actions) lists every migrated action.
 - **A filetype or view section is missing from `,`** — check
   `:setlocal filetype? buftype?`, then `:verbose nmap ,v` (replace `,v` with the expected key).
   Headings classify existing mappings; they do not create actions. Python and
   LaTeX share `,v` with different meanings, and terminal digits require a terminal
-  buffer in Normal mode.
+  buffer in Normal mode. `[LSP]` entries require a server; use
+  `:checkhealth vim.lsp` if those actions are unavailable. The
+  [manual](MANUAL.md#filetype-and-view-actions) lists every filetype and view
+  action.
   A CodeDiff view adds its panel, layout and conflict keys and the review keys
   (`,C`, and `,S`/`,U`/`,X` where the view can do them) beside the language
   section, and gives every key back on close. Section metadata lives in

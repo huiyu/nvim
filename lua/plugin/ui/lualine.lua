@@ -77,9 +77,9 @@ return {
 						-- wrapped). Collapse them to the label of the agent the
 						-- terminal runs.
 						local info = vim.b.snacks_terminal
-						local provider = info and ai.provider_of_command(info.cmd)
-						if provider then
-							return " " .. ai.agents[provider].label
+						local agent = info and ai.agent_of_command(info.cmd)
+						if agent then
+							return " " .. ai.agents[agent].label
 						end
 						return " " .. (vim.b.term_title or "terminal")
 					end,

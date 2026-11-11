@@ -111,14 +111,13 @@ return {
       }
     },
     config = function(_, opts)
-      -- Nvim 0.11's default gr* maps (grr, gri, grt, gra, grn, gO) are left
-      -- alone on purpose. Every action they provide already has a shorter
-      -- binding below -- gd, gr, gb, gy, ,a, ,r and ;s -- so overriding them only
-      -- duplicated the same six actions behind a longer prefix. Leaving the
-      -- defaults intact keeps stock-Nvim muscle memory working here and keeps
-      -- ":help lsp-defaults" an accurate description of this config. Only
-      -- their descs change, in place (lua/mappings.lua), so the popup shows
-      -- words rather than "vim.lsp.buf.references()".
+      -- Nvim's default gr* maps (grr, gri, grt, gra, grn, grx) are not
+      -- remapped, but the nowait `gr` below shadows them in an LSP buffer (see
+      -- there). Each has a shorter binding here -- gr, gb, gy, ,a, ,r and ,c --
+      -- so nothing is lost. gO (document symbols) is not gr-prefixed and keeps
+      -- working, beside ;s. Only their descs change, in place
+      -- (lua/mappings.lua), so the popup shows words rather than
+      -- "vim.lsp.buf.references()".
 
       -- Buffer-local LSP mappings via LspAttach (for non-default keybindings)
       vim.api.nvim_create_autocmd("LspAttach", {
@@ -202,7 +201,7 @@ return {
       -- Advertise blink.cmp's enhanced client capabilities to every server
       -- (snippet support, auto-import via resolveSupport/additionalTextEdits,
       -- lazy documentation/detail resolution). blink does not inject these on
-      -- its own, and per-server `capabilities` (c/yaml) deep-merge on top.
+      -- its own, and per-server `capabilities` (c) deep-merge on top.
       vim.lsp.config("*", {
         capabilities = require("blink.cmp").get_lsp_capabilities(nil, true),
       })

@@ -38,9 +38,9 @@ local M = {}
 -- fully retained, versus 68 ms and 21 MB streamed into a bounded ring.
 local ENTRY_CAP = 5000
 
--- Indirection so tests can substitute an adapter, and so provider knowledge
+-- Indirection so tests can substitute an adapter, and so agent knowledge
 -- stops here. Mirrors how lua/ai/init.lua resolves backends.
----@param agent string a provider
+---@param agent string a native agent (TUI kind)
 M._adapter = function(agent)
   return require("ai.transcript." .. agent)
 end
@@ -153,7 +153,7 @@ local function show(agent, session)
 end
 
 ---Open `agent`'s most recent session for the current project.
----@param agent string a provider
+---@param agent string a native agent (TUI kind)
 function M.open_current(agent)
   check(agent)
   local root = config.project_root("")
@@ -169,7 +169,7 @@ function M.open_current(agent)
 end
 
 ---Pick from `agent`'s recorded sessions for this project.
----@param agent string a provider
+---@param agent string a native agent (TUI kind)
 function M.pick(agent)
   check(agent)
   local root = config.project_root("")

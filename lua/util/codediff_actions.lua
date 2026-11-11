@@ -514,8 +514,7 @@ end
 --- final newline), as { old start, old count, new start, new count } each.
 ---@return integer[][]?
 local function diff_hunks(old, new, greedy)
-  local diff = vim.text and vim.text.diff or vim.diff
-  local ok, result = pcall(diff, table.concat(old, "\n"), table.concat(new, "\n"), diff_options(greedy))
+  local ok, result = pcall(vim.text.diff, table.concat(old, "\n"), table.concat(new, "\n"), diff_options(greedy))
   return ok and type(result) == "table" and result or nil
 end
 
