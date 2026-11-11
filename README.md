@@ -110,7 +110,7 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
 | [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator, the buffer's git change counts (from gitsigns) and its language servers (a spinner while one is busy) |
 | [incline](https://github.com/b0o/incline.nvim) | Top-right filename labels in file windows; pink for the focused window, `[+]` for unsaved changes |
-| [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick; `<leader>bh` closes the buffers no window shows, in any tabpage |
+| [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick (`;B` picks one by its tab letter); `<leader>bh` closes the buffers no window shows, in any tabpage |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | Sticky function/class header (`<leader>uC`) |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
@@ -290,6 +290,7 @@ Unprefixed keys worth knowing:
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
 | `g` · `[` / `]` · `z` | Goto+LSP (from the symbol under the cursor) · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
+| `q` · `g?` · `<C-s>` / `<C-v>` / `<C-t>` · `<M-p>` | In a picker, oil or the outline: close · list its keys · open below / beside / in a tab (the outline has no tab) · toggle the preview (picker, oil). Hidden files: `<M-.>` in a picker, `g.` in oil |
 | `jk` (except lazygit) · `<C-]>` / `<C-\>` | Input-safe Escape; in Normal, use its input source |
 
 Diff views live under `<leader>g`, each in a tabpage of its own (CodeDiff):
@@ -305,7 +306,9 @@ Diff views live under `<leader>g`, each in a tabpage of its own (CodeDiff):
 
 `gd` / `gD` stay gitsigns' diff of the current file, in a split or inline;
 either closes on a second press, and `gq` closes the split as well.
-Inside a view `;` and `s` are disabled, since a picker or a window key would
+Inside a view `;`, `s` and the keys that switch a window's buffer (`H` / `L`,
+`[b` / `]b`, `<C-^>`, and `-` outside the status view's file panel, where it
+stages) are disabled, since a picker, a buffer switch or a window key would
 break its panes; `q` in its file panel closes it too. The
 [manual](docs/MANUAL.md#git) has what each view's `,` keys do.
 
@@ -665,8 +668,17 @@ take the same place on the right as the native terminals:
 - `<leader>as` adds a Visual selection to the chat on the right as a fenced
   code block, without submitting it; `<leader>ai` puts the cursor in its
   prompt (from Visual, after adding the selection).
+- In a chat, `<CR>` sends (`<C-d>` from Insert mode) and `<C-c>` stops the
+  reply. `q` hides the chat, as `<leader>ac` does, which brings it back;
+  `,q` ends it, and CodeCompanion shows another open chat in its window.
+  `,X` clears the messages, `,z` folds the code blocks, `,s` saves the chat,
+  `gf` opens the file under the cursor and `?` / `g?` list every key.
+  Insert `<C-c>` leaves Insert mode, `gx` opens a URL and `{` / `}` move by
+  paragraph, as everywhere; another chat is `<leader>al`.
 - `<leader>ae` opens `:CodeCompanion ` (with the range, from Visual mode) on
-  the key profile; `<leader>ap` is the action palette.
+  the key profile, and `<C-c>` stops its request; with no prompt it asks in a
+  float, where `<CR>` (or `<C-d>` from Insert mode) sends and `q` / `<Esc>`
+  close. `<leader>ap` is the action palette.
 - A missing key is caught before anything starts: `<leader>an` leaves out an
   API chat whose `NVIM_*` key is unset and an agent chat whose bridge is
   missing, and `<leader>ae` says so instead of a request that fails with 401.
@@ -685,7 +697,8 @@ take the same place on the right as the native terminals:
 codecompanion-history saves every chat, of either kind, when a message is
 sent and when a reply finishes. Open one with `<leader>ao` (or
 `:CodeCompanionHistory`); inside a chat, `gh` opens the same browser. Entries
-use the Snacks picker and can be renamed; model-generated titles are off to
+use the Snacks picker: `r` renames one, `dd` (or `<C-x>` while typing)
+deletes it, as in the buffer picker; model-generated titles are off to
 avoid an extra request. History restores CodeCompanion's local transcript. To
 continue the agent's actual stateful session, use `/resume` in a fresh agent
 chat.

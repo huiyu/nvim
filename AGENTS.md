@@ -95,13 +95,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   and still counts as shown here: a key delivers to that copy where it is,
   and nothing opens a second window beside it or jumps away from it. The one
   copy `<leader>ac` closes is a chat's whose own window is in another
-  tabpage (`<C-c>`'s successor, below): the chat stays on screen there.
+  tabpage (the successor `,q` leaves there, below): the chat stays on screen
+  there.
   `<leader>ac` never hides a tabpage's only window. Hide comes first, show
   second, except when the windows to hide are all the tabpage has (E444). A
   `BufWinEnter` guard holds the rule for upstream's own paths (`<leader>ao`,
-  a typed `:CodeCompanionChat`/`:ClaudeCode`, the action palette, `}`/`{`,
-  claudecode's re-show after a diff); it records the tabpage when the event
-  fires, ignores floats, and the latest AI window entered in a tick wins.
+  a typed `:CodeCompanionChat`/`:ClaudeCode`, the action palette, the
+  successor CodeCompanion shows after `,q`, claudecode's re-show after a
+  diff); it records the tabpage when the event fires, ignores floats, and
+  the latest AI window entered in a tick wins.
   Between two chats the window is handed over in place; a terminal window
   cannot take another buffer (Snacks' fixbuf), so between a terminal and
   anything else one window closes and another opens.
@@ -484,6 +486,14 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   (`lua/util/codediff_actions.lua`). Terminal digits only map Normal mode.
   grug-far's editable search panel uses `,S...`; its plugin
   defaults also use localleader and must not overwrite general comma actions.
+  A CodeCompanion chat (`interactions.chat.keymaps` in
+  `lua/plugin/lsp/codecompanion.lua`) puts upstream's acts that took keys
+  meaning something else everywhere on `,`: `,s` save (codecompanion-history),
+  `,X` clear, `,q` end the chat, `,z` fold code blocks, beside `,m` render;
+  `gx` and `gf` open what is under the cursor again, `s` stays the window
+  prefix and `{`/`}` paragraph motions (`tests/companion_spec.lua`).
+  CodeCompanion deep-merges these with its defaults, so the spec's `config`
+  removes `close`'s Insert `<C-c>` from the live config after setup.
   Filetype scope and view scope can coexist; a shared suffix
   may differ between filetypes, but a view must not steal language/general keys.
 - LSP navigation that starts from the symbol under the cursor belongs on `g`,
@@ -503,7 +513,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   that sits in any other prefix's popup carries an `[AI]` prefix in its `desc`
   -- today `,C` (review feedback) in the Git views' comma menu. Keys local to
   an AI buffer (the prompt editor's `<C-d>`, the agent panel's terminal keys)
-  and Insert-mode `<C-l>` (ghost text) open no popup and need none.
+  and Insert-mode `<C-l>` (ghost text) open no popup and need none; a chat's
+  own comma keys (`,s`, `,X`, `,q`, `,z`) show only in the chat, under the
+  `Chat ·` heading, which already names it, and keep upstream's descs.
 - The buffer-local `gr` (References) sets `nowait`. Nvim 0.11's default
   `grr`/`gri`/`grt`/`gra`/`grn`/`grx` are longer candidates, so without it every
   `gr` press waits out `timeoutlen` before firing. The cost is that `gr*` takes
@@ -516,6 +528,33 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   after `timeoutlen`. Flash owns `f`/`F` in Normal and Visual only -- never
   operator-pending, where the builtin motions must survive so `df-` and `ct)`
   keep working.
+- A Visual-mode mapping uses mode `"x"`, never `"v"`: `"v"` also maps Select
+  mode, where a snippet placeholder (vim.snippet, blink.cmp) must be replaced
+  by the first printable key typed -- with `"v"`, `<`/`>` indented the line
+  and a leading `,` or `<Space>` started a mapping. A key that does not read
+  the selection is Normal only (`<leader>t*`, `<leader>d*` but `dw`/`dW`).
+  which-key groups likewise take `{ "n", "x" }` or `"n"`, never `"v"`.
+  `tests/select_mode_spec.lua` holds every printable lhs to it.
+- Keys no popup explains (Ctrl/Meta chords, single letters in a panel,
+  Insert and terminal keys) are strict: one act, one key, in every view, and
+  never shadowing window navigation `<C-h/j/k/l>`, Insert `<C-w>`/`<C-u>`,
+  redo `<C-r>`, or macro `q` anywhere but a panel's own buffer. The
+  lexicon: close or leave a panel `q` (a float also `<Esc>`); cancel an
+  in-flight request `<C-c>` (a chat's reply, `<leader>ae`'s inline request
+  -- never Insert `<C-c>`, which leaves Insert mode); submit a draft `<C-d>` (the prompt editor, the
+  review draft, a chat and the `:CodeCompanion` prompt float from Insert
+  mode; `<C-s>` is the tmux prefix); open below / beside / in a tab
+  `<C-s>`/`<C-v>`/`<C-t>` (pickers, oil, aerial; oil's `<C-v>` Normal mode
+  only, so `v<C-v>` still reaches blockwise Visual); delete a list item
+  `<C-x>` in a picker's input, `dd` in a list (the buffer and saved-chat
+  pickers); refresh `R` (`gR` in oil, whose listing is edited text); preview
+  `<M-p>`; hidden files `<M-.>` (tmux takes `<M-h>`; oil keeps its `g.`);
+  help `g?`, with `?` kept where it already was (a chat, the pickers,
+  aerial, neotest's summary); next/prev on `]x`/`[x` families. `q` never
+  ends a conversation: a chat's `q` is `<leader>ac`, and ending it is `,q`.
+  `tests/panel_keys_spec.lua` pins oil, aerial, the picker and edgy;
+  `tests/companion_spec.lua` the chat, the inline request, the prompt float
+  and the saved-chat picker.
 - `<leader>` carries global semantics only, so which-key popups stay truthful
   everywhere. A buffer-local map may add a key inside an existing group, but
   never repurpose one that already means something else. Anything meaningful in
@@ -535,6 +574,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   pane, which ends the session. The block also swallows the next key when it
   comes within 'timeoutlen', so `so` opens no line and `;f` starts no flash
   jump; `<C-w>` stays available, and the comma action menu stays active.
+  The keys off `;` that put another buffer in the window are blocked too,
+  since neither the panes nor the panels are 'winfixbuf': `H`/`L`,
+  `[b`/`]b` and `<C-^>` (so `<C-6>` too) in every window, panels included,
+  and oil's `-` everywhere but the status view's explorer, where it stages.
+  Same `nowait` and hint, through util.codediff's `set_keys`, handed back on
+  close; only `;` and `s` swallow the next key, these are whole keys. Picking
+  a buffer by its tab letter is `;B` (bufferline), so the `;` block covers it.
 - The debug view is the other multi-window view with a tabpage of its own, and
   it is deliberately the opposite case: its keys stay global. Debugging has an
   event stream, so `<leader>d` has to work from the editor tabpage too -- you
@@ -563,6 +609,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   through the edgebar. Never collapse panels with edgy's `hide` or
   `edgebar:close()` to make room: both drop a non-pinned window for good,
   and `open()` restores only pinned views, of which this config has none.
+  No keystroke reaches them either: edgy's panel keys `<c-q>` (hide) and `Q`
+  (close the edgebar) are off in `opts.keys` (`lua/plugin/editor/edgy.lua`),
+  with its `]w`/`[w`/`]W`/`[W` window cycling, which took the global warning
+  jumps; `q` and the `<c-w>` resizers stay.
 - The first tabpage stays a page the global prefixes work in
   (`util.window.protect_first_tab`, driven by `TabClosed` and
   `SessionLoadPost`). Views open after it on their own -- `tab split`
@@ -695,13 +745,15 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   given a window by `ui:open()` once the slot has made room; it is not
   upstream's `last_chat` until first entered. Nothing here calls
   `Chat.open` without a window. Upstream's own paths still can (`<leader>ao`,
-  a typed `:CodeCompanionChat`, the action palette, `}`/`{`), and may hide a
+  a typed `:CodeCompanionChat`, the action palette), and may hide a
   chat in another tabpage on the way; the slot's guard keeps this tabpage to
-  one AI window afterwards. `<C-c>` shows its successor in the closed chat's
-  window, which becomes the successor's own (`ui.winnr`), and leaves the
-  successor's buffer in the window of the tabpage that showed it: there it is
-  still the chat on the right, shown in a window that is not its own, which
-  `show` and `focus_prompt` use where it is and `<leader>ac` closes.
+  one AI window afterwards (`next_chat`/`previous_chat`, upstream's `}`/`{`,
+  are off: switching chats is `<leader>al`). `,q` (upstream's `close`) shows
+  its successor in the closed chat's window, which becomes the successor's
+  own (`ui.winnr`), and leaves the successor's buffer in the window of the
+  tabpage that showed it: there it is still the chat on the right, shown in
+  a window that is not its own, which `show` and `focus_prompt` use where it
+  is and `<leader>ac` closes.
   `ai.slot` reaches chats only through `ai.companion` (`chats`, `chat_of`,
   `key`, `buf`, `label`, `name`, `win`, `where`, `busy`, `hide`, `create`,
   `focus_prompt`), which reads them in a pcall and checks what it gets. A

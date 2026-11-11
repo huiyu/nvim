@@ -933,7 +933,11 @@ count of the rest.
 
 What every view gets on its own, from each key pass: `;` and `s` blocked on
 every buffer (`nowait`, a notice, and the next key swallowed when it comes
-within 'timeoutlen'); wheel scrolling that moves both panes, hovered or
+within 'timeoutlen'); `H`/`L`/`[b`/`]b`/`<C-^>`, the keys that put another
+buffer in the window, blocked on every buffer too (`nowait` and a notice, the
+next key left alone); `-` (oil's parent directory) blocked the same way on
+the panes, and on the panel too unless the status explorer's stage key is
+installed there; wheel scrolling that moves both panes, hovered or
 focused; `q` closing the view from the explorer and history panels; in the
 status view, the explorer's `-`/`S`/`U`/`X`; and a buffer-local which-key
 group `Conflict` where `,go` exists. Each pass then fires
@@ -1275,10 +1279,11 @@ Snacks' hide, CodeCompanion's `ui:hide`): never a stop, close or wipe, never
 edgy's hide/close, never another tabpage. A window its owner cannot hide
 (claudecode's copy of its terminal in a diff tabpage) is left alone and still
 counts as shown here. A `BufWinEnter` guard holds the rule for upstream's own
-paths (`<leader>ao`, a typed `:CodeCompanionChat`, the action palette, `}`/`{`
-in a chat, claudecode re-showing its terminal, a model picked at claudecode's
-question): it records the tabpage when the event fires, ignores floats, and
-the latest AI window entered in a tick wins.
+paths (`<leader>ao`, a typed `:CodeCompanionChat`, the action palette, the
+chat CodeCompanion shows in place of one ended with `,q`, claudecode
+re-showing its terminal, a model picked at claudecode's question): it
+records the tabpage when the event fires, ignores floats, and the latest AI
+window entered in a tick wins.
 
 #### API Reference
 
@@ -1328,7 +1333,7 @@ slot.make_room(item, opts?) --> "here" | "elsewhere" | "room" | nil
 slot.cover(keep?)         -- hide every AI window here an owner can hide, but keep's
 slot.jump(item, opts?)    -- to the tabpage showing it; says so unless quiet
 slot.went(item, from)     -- "Sent to X (tab N)" when a delivery changed tabpage
-slot.toggle(), slot.focus()  -- <leader>ac / <leader>af
+slot.toggle(), slot.focus()  -- <leader>ac (and q in a chat) / <leader>af
 
 -- The pieces the facade (ai) and ai.companion build on.
 slot.native_item(agent), slot.chat_item(chat)  -- an item for one agent / chat

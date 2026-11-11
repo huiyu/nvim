@@ -105,7 +105,7 @@ nvim
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
 | [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识、当前 buffer 的 git 改动行数（取自 gitsigns）和语言服务器（忙碌时显示转圈） |
 | [incline](https://github.com/b0o/incline.nvim) | 文件窗口右上角的文件名标签；当前窗口显示粉色，`[+]` 表示未保存的修改 |
-| [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择）；`<leader>bh` 关掉所有 tabpage 里都没有窗口在显示的 buffer |
+| [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择，`;B` 按标签字母选一个）；`<leader>bh` 关掉所有 tabpage 里都没有窗口在显示的 buffer |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | 粘性函数/类头（`<leader>uC`） |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
@@ -278,6 +278,7 @@ Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 
 | `<S-h>` / `<S-l>` · `[b` / `]b` | 上/下一个 buffer |
 | `g` · `[` / `]` · `z` | 跳转+LSP（从光标下的符号出发）· 上/下一个某物 · 折叠与拼写 |
 | `-` | 用 oil 打开当前目录（可当文本编辑） |
+| `q` · `g?` · `<C-s>` / `<C-v>` / `<C-t>` · `<M-p>` | 在 picker、oil 或大纲里：关闭 · 列出它的键 · 在下方 / 旁边 / 新 tab 打开（大纲没有 tab）· 开关预览（picker、oil）。隐藏文件：picker 里 `<M-.>`，oil 里 `g.` |
 | `jk`（lazygit 除外）· `<C-]>` / `<C-\>` | 输入法安全退出；在 Normal 中切回其输入源 |
 
 Diff 视图都在 `<leader>g` 下，各自开在独立的 tabpage 里（CodeDiff）：
@@ -292,8 +293,9 @@ Diff 视图都在 `<leader>g` 下，各自开在独立的 tabpage 里（CodeDiff
 | `gq` | 关闭本 tab 的 diff 视图 |
 
 `gd` / `gD` 仍是 gitsigns 对当前文件的 diff，分别以分屏和行内显示；再按一次即关闭，
-分屏也可以用 `gq` 关闭。视图里 `;` 和 `s`
-被禁用，因为 picker 或窗口键会弄坏它的窗格；在它的文件面板里按 `q` 也能关闭视图。
+分屏也可以用 `gq` 关闭。视图里 `;`、`s` 和会换掉窗口 buffer 的键（`H` / `L`、
+`[b` / `]b`、`<C-^>`，以及状态视图文件面板以外的 `-`——在那里它是暂存）都被禁用，
+因为 picker、切换 buffer 或窗口键会弄坏它的窗格；在它的文件面板里按 `q` 也能关闭视图。
 每种视图的 `,` 键做什么，见[使用手册](docs/MANUAL_CN.md#git)。
 
 **→ [docs/MANUAL_CN.md](docs/MANUAL_CN.md) 有完整讲解**，从键位背后的组合规则讲起。
@@ -590,8 +592,15 @@ CodeCompanion 的 Chat 是一个 Neovim buffer，分两种。打开后看起来�
   地交接。
 - `<leader>as` 把 Visual 选区作为带围栏的代码块加进右侧的 Chat，不会提交；
   `<leader>ai` 把光标放进它的输入区（从 Visual 模式调用时先加入选区）。
+- 在 Chat 里，`<CR>` 发送（Insert 模式下用 `<C-d>`），`<C-c>` 停止回复。`q`
+  隐藏 Chat，与 `<leader>ac` 相同，再按 `<leader>ac` 即可带回；`,q` 结束它，
+  CodeCompanion 会在它的窗口里显示另一个打开着的 Chat。`,X` 清空消息，`,z` 折叠
+  代码块，`,s` 保存 Chat，`gf` 打开光标下的文件，`?` / `g?` 列出全部键。Insert 中的
+  `<C-c>` 退出 Insert 模式，`gx` 打开 URL，`{` / `}` 按段落移动，与别处一致；换到
+  另一个 Chat 用 `<leader>al`。
 - `<leader>ae` 打开 `:CodeCompanion `（在 Visual 模式下带上范围），用的是 key
-  profile；`<leader>ap` 是操作面板。
+  profile，`<C-c>` 停止它的请求；不写提示词时会弹出浮窗，`<CR>`（Insert 模式下
+  `<C-d>`）发送，`q` / `<Esc>` 关闭。`<leader>ap` 是操作面板。
 - 缺 key 会在启动任何东西之前被发现：`NVIM_*` key 没设置的 API Chat、ACP bridge
   不在的 Agent Chat，`<leader>an` 都不会列出；`<leader>ae` 会直接提示，而不是发出
   请求再收到 401。从历史恢复的 Chat、操作面板（`<leader>ap`）里的 *Inline prompt*，
@@ -606,7 +615,8 @@ CodeCompanion 的 Chat 是一个 Neovim buffer，分两种。打开后看起来�
 
 codecompanion-history 会在发送消息和回复结束时保存每个 Chat，两种都存。用
 `<leader>ao`（或 `:CodeCompanionHistory`）打开；Chat buffer 内也可按 `gh`。历史
-列表使用 Snacks picker，可以重命名；为避免额外的模型请求，自动生成标题已关闭。
+列表使用 Snacks picker：`r` 重命名，`dd`（输入时用 `<C-x>`）删除，与 buffer picker
+一致；为避免额外的模型请求，自动生成标题已关闭。
 History 恢复的是 CodeCompanion 本地的 transcript；要继续 agent 真正的有状态会话，
 请在新的 Agent Chat 中使用 `/resume`。
 
