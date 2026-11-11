@@ -78,6 +78,8 @@ return {
           -- something else everywhere: q hides as in every panel, <C-c>
           -- cancels, gx/gf open what is under the cursor, s is the window
           -- prefix and {/} are paragraph motions. What remains is upstream's.
+          -- Descriptions are this config's wording where a key is ours or sits
+          -- in the comma menu (sentence case, no articles).
           keymaps = {
             -- A chat's adapter is fixed when it is created; another backend
             -- is another chat (<leader>an).
@@ -88,12 +90,12 @@ return {
             copilot_stats = false, -- gS is splitjoin; no Copilot adapter here
             options = { modes = { n = { "?", "g?" } } },
             -- <C-d> submits, as in the prompt editor and the review draft.
-            send = { modes = { n = "<CR>", i = "<C-d>" } },
-            stop = { modes = { n = "<C-c>" } },
+            send = { modes = { n = "<CR>", i = "<C-d>" }, description = "Send message" },
+            stop = { modes = { n = "<C-c>" }, description = "Stop request" },
             -- Ends the chat (CodeCompanion shows another in its window).
             -- Normal mode only: upstream's Insert <C-c> is removed in `config`
             -- below, so it leaves Insert mode as everywhere (lua/mappings.lua).
-            close = { modes = { n = "<localleader>q" } },
+            close = { modes = { n = "<localleader>q" }, description = "Close chat (ends it)" },
             -- Exactly <leader>ac from inside the chat: the slot hides it and
             -- keeps it as this tabpage's last chat, so <leader>ac brings it
             -- back. Left out of the chat's action palette, which only runs
@@ -105,8 +107,8 @@ return {
               opts = { chat = { show_in_action_palette = false } },
             },
             clear = { modes = { n = "<localleader>X" }, description = "Clear chat messages" },
-            fold_code = { modes = { n = "<localleader>z" } },
-            goto_file_under_cursor = { modes = { n = "gf" } },
+            fold_code = { modes = { n = "<localleader>z" }, description = "Fold code blocks" },
+            goto_file_under_cursor = { modes = { n = "gf" }, description = "Go to file under cursor" },
           },
           -- Agent and API chats look alike once open, and bill differently,
           -- so every reply's header names both the backend and the kind:
@@ -162,6 +164,9 @@ return {
             auto_generate_title = false,
             -- In the chat; upstream's `sc` sat inside the s window prefix.
             save_chat_keymap = "<localleader>s",
+            save_chat_keymap_description = "Save chat",
+            -- The chat's gh and <leader>ao are one browser, worded alike.
+            keymap_description = "Browse saved Companion chats",
             -- The saved-chat picker (<leader>ao): delete as in Snacks' own
             -- pickers (dd, <C-x>). Both modes are required -- the extension
             -- indexes each and setup deep-merges, so neither can be dropped --

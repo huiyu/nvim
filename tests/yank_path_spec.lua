@@ -39,7 +39,7 @@ for lhs, mode in pairs({ ["<leader>yl"] = { "n", "x" }, ["<leader>yg"] = { "n", 
   end
 end
 t.eq(vim.fn.maparg("<leader>yl", "n", false, true).desc, "Yank path:line", "<leader>yl has its desc")
-t.eq(vim.fn.maparg("<leader>yg", "n", false, true).desc, "Yank git permalink", "<leader>yg has its desc")
+t.eq(vim.fn.maparg("<leader>yg", "n", false, true).desc, "Yank Git permalink", "<leader>yg has its desc")
 
 local dir = vim.fn.tempname()
 vim.fn.mkdir(dir, "p")

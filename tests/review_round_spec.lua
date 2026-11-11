@@ -976,7 +976,7 @@ end
 ---------------------------------------------------------------------------
 
 local function keymap(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true) end
-local DESCS = { [" av"] = "Review changes since round baseline", [" aV"] = "Start a review round" }
+local DESCS = { [" av"] = "Review changes since round baseline", [" aV"] = "Start review round" }
 for lhs, desc in pairs(DESCS) do
   t.eq(keymap(lhs).desc, desc, ("%s: %q, naming no agent"):format(lhs, desc))
   t.eq(keymap(lhs, "x"), {}, lhs .. " is Normal-mode only")

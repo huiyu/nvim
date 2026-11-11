@@ -16,15 +16,18 @@ vim.cmd("Lazy! load mini.ai nvim-treesitter-textobjects")
 -- UC-2: every documented syntax-aware object has a which-key entry in both
 -- Visual and Operator-pending mode, worded like which-key's own presets
 -- ("inner word" / "word with ws") rather than like the plugin's mapping desc.
+-- mini.ai's objects, and the `al`/`il`/`an`/`in` prefixes whose own descs
+-- read "Around last textobject" / "Select parent (outer) node", are desc-only
+-- entries.
 local want = {
-  ["if"] = "inner function",
-  af = "function",
-  ic = "inner class",
-  ac = "class",
   ia = "inner argument",
   aa = "argument with separator",
   io = "inner block/conditional/loop",
   ao = "block/conditional/loop",
+  al = "last textobject (al + object key)",
+  il = "inner last textobject (il + object key)",
+  an = "parent node",
+  ["in"] = "child node",
 }
 local found = {}
 for _, entry in ipairs(require("whichkey_spec").spec) do
@@ -33,13 +36,21 @@ for _, entry in ipairs(require("whichkey_spec").spec) do
     found[entry[1]] = { desc = entry.desc, modes = modes }
   end
 end
-for _, lhs in ipairs({ "if", "af", "ic", "ac", "ia", "aa", "io", "ao" }) do
+for _, lhs in ipairs({ "ia", "aa", "io", "ao", "al", "il", "an", "in" }) do
   local got = found[lhs]
   t.ok(got ~= nil, "UC-2: whichkey_spec describes " .. lhs)
   if got then
     t.eq(got.desc, want[lhs], "UC-2: " .. lhs .. " uses the shared wording")
     t.ok(vim.tbl_contains(got.modes, "o") and vim.tbl_contains(got.modes, "x"),
       "UC-2: " .. lhs .. " is listed after an operator and in Visual")
+  end
+end
+-- treesitter-textobjects' own objects carry the same words as real descs: a
+-- desc-only entry would outrank VimTeX's `ac`/`ic` (a command) in TeX buffers.
+for lhs, desc in pairs({ ["if"] = "inner function", af = "function", ic = "inner class", ac = "class" }) do
+  t.ok(found[lhs] == nil, "UC-2: " .. lhs .. " has no desc-only entry")
+  for _, mode in ipairs({ "x", "o" }) do
+    t.eq(vim.fn.maparg(lhs, mode, false, true).desc, desc, ("UC-2: %s %s is described as %q"):format(mode, lhs, desc))
   end
 end
 
@@ -70,7 +81,8 @@ end
 
 -- UC-R4: `g[f`/`g]f` go through mini.ai's custom treesitter `f`, not its
 -- function-call default -- the reason that custom object stays even though
--- treesitter-textobjects owns `af`/`if` (lua/whichkey_spec.lua "g]f = fn end").
+-- treesitter-textobjects owns `af`/`if` (lua/whichkey_spec.lua "g]f = function
+-- end").
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
   "local function outer(x)",
   "  local y = call(x, 1)",

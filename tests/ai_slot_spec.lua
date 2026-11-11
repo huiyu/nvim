@@ -945,7 +945,7 @@ local function terminals_only(question)
   local lines = vim.tbl_filter(function(line) return line ~= "New chat…" end, question and question.shown or {})
   return #lines > 0 and #vim.tbl_filter(function(line) return not line:find(" · terminal · ", 1, true) end, lines) == 0
 end
-t.eq(asked[1] and asked[1].prompt, "Add buffer to", "<leader>ab with nothing on the right asks")
+t.eq(asked[1] and asked[1].prompt, "Add file to", "<leader>ab with nothing on the right asks, worded as its desc")
 t.ok(terminals_only(asked[1]), "among the native agents only (" .. table.concat(asked[1] and asked[1].shown or {}, " | ") .. ")")
 t.ok(terminals_only(asked[2]), "and its New chat… offers the terminals only")
 t.eq(#companion.chats(), chats_before, "no chat is created for it")
@@ -1240,8 +1240,8 @@ t.ok(noted("Only Claude Code takes files from a directory listing") ~= nil, "and
 -- only Claude Code on the right takes the file under the cursor: the cursor is
 -- read where it is, so nothing asks.
 local tree_key = vim.fn.maparg(" aS", "n", false, true)
-t.ok(tree_key.buffer == 1 and tree_key.desc == "Add file under cursor to Claude Code",
-  "<leader>aS is mapped in the listing, naming Claude Code")
+t.ok(tree_key.buffer == 1 and tree_key.desc == "Add file under cursor to Claude",
+  "<leader>aS is mapped in the listing, naming Claude")
 notes = {}
 tree_key.callback()
 t.ok(noted("Only Claude Code takes files from a directory listing") ~= nil and #cc_calls.tree_adds == 0,

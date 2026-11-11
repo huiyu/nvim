@@ -102,7 +102,7 @@ end
 local function on_attach(client, buf)
   preload_projects(client)
   vim.keymap.set("n", "gs", function() goto_source_definition(client, buf) end,
-    { buffer = buf, desc = "[LSP] Goto source definition" })
+    { buffer = buf, desc = "[LSP] Source definition" })
 end
 
 ---Entry point for js-debug, preferring a build that can debug browser extensions.

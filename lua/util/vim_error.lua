@@ -22,7 +22,7 @@ end
 --- Notify that line at WARN: a refusal of the current state is something to
 --- act on, not a fault.
 ---@param err any the error value `pcall` returned
----@param context string? the action, prefixed as "Run current file: ..."
+---@param context string? the action, prefixed as "Run file: ..."
 function M.notify(err, context)
   local line = M.message(err)
   vim.notify(context and (context .. ": " .. line) or line, vim.log.levels.WARN)

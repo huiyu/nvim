@@ -189,12 +189,12 @@ end
 
 local function diff_ref()
   local root, reason = repo_root()
-  if not root then return warn("Diff against commit/branch", reason) end
+  if not root then return warn("Diff against baseline/ref", reason) end
   -- Fuzzy pick a baseline or a git ref (branches, tags, recent commits), then
   -- diff the working tree against it. Goes through vim.ui.select, which
   -- snacks.picker (ui_select=true) intercepts.
   local refs, err = ref_items(root)
-  if not refs then return warn("Diff against commit/branch", err) end
+  if not refs then return warn("Diff against baseline/ref", err) end
   baseline_items(root, function(items)
     vim.ui.select(vim.list_extend(items, refs), {
       prompt = "Diff against",
@@ -202,7 +202,7 @@ local function diff_ref()
     }, function(choice)
       if not choice then return end
       local sha, why = commit_of(root, choice.rev)
-      if not sha then return warn("Diff against commit/branch", why) end
+      if not sha then return warn("Diff against baseline/ref", why) end
       require("util.codediff").open({
         root = root,
         args = { sha },
@@ -494,9 +494,9 @@ return {
       mode = "n",
     },
     { "<leader>gm", diff_main,    desc = "Diff against main branch",   mode = "n" },
-    { "<leader>gM", diff_ref,     desc = "Diff against commit/branch", mode = "n" },
-    { "<leader>gk", compare_two,  desc = "Compare two: worktree / index / baseline / ref", mode = "n" },
-    { "<leader>gK", save_baseline, desc = "Save current code as a baseline", mode = "n" },
+    { "<leader>gM", diff_ref,     desc = "Diff against baseline/ref…", mode = "n" },
+    { "<leader>gk", compare_two,  desc = "Compare two (working tree/index/baseline/ref)…", mode = "n" },
+    { "<leader>gK", save_baseline, desc = "Save baseline…", mode = "n" },
     { "<leader>gV", file_history, desc = history_desc("File history"), mode = "n" },
     { "<leader>gH", repo_history, desc = history_desc("Repo history"), mode = "n" },
   },

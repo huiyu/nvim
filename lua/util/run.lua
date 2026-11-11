@@ -31,7 +31,7 @@ function M.run_current()
   end
   local path = vim.fn.expand("%:p")
   if path == "" then
-    vim.notify("Run current file: buffer is not backed by a file on disk", vim.log.levels.WARN)
+    vim.notify("Run file: buffer is not backed by a file on disk", vim.log.levels.WARN)
     return
   end
   -- `:update`, not `:write`: only unsaved edits need flushing, so a read-only
@@ -40,7 +40,7 @@ function M.run_current()
   -- terminal does not open on stale contents.
   local ok, err = pcall(vim.cmd, "update")
   if not ok then
-    vim_error.notify(err, "Run current file")
+    vim_error.notify(err, "Run file")
     return
   end
   -- A plain :split, so 'splitbelow' (lua/options.lua) puts the output under

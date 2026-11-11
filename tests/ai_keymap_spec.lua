@@ -20,15 +20,17 @@ t.ok(mapped(" as", "x"), "UC-R1: <leader>as still lives in Visual mode")
 -- No key names an agent: the chat keys reach whatever the tabpage shows on
 -- its right (lua/ai/slot.lua), the native keys the native agent there, else
 -- the one asked for. n/l open a picker, from Visual mode taking the selection
--- along; both are leaves.
+-- along; both are leaves. "…" marks a key that asks something of its own
+-- before it acts (a choice, typed input): not aR, whose only question is the
+-- shared which-agent one, nor aT/ao, whose list is where they go.
 local FIXED = {
   [" an"] = "New AI chat…", [" al"] = "Switch AI chat…", [" ac"] = "Toggle AI chat", [" af"] = "Focus AI chat",
-  [" ab"] = "Add buffer to AI chat", [" ai"] = "Edit prompt for AI chat",
-  [" ar"] = "Resume native agent…", [" aR"] = "Continue native agent…", [" am"] = "Select native agent model",
-  [" at"] = "Read native agent transcript", [" aT"] = "Native agent session history",
-  [" ax"] = "Switch API key profile",
-  [" av"] = "Review changes since round baseline", [" aV"] = "Start a review round",
-  [" ap"] = "Companion actions", [" ao"] = "Open saved Companion chat",
+  [" ab"] = "Add file to AI chat", [" ai"] = "Compose prompt for AI chat",
+  [" ar"] = "Resume native agent…", [" aR"] = "Continue native agent", [" am"] = "Select native agent model…",
+  [" at"] = "Read native agent transcript", [" aT"] = "Browse native agent transcripts",
+  [" ax"] = "Switch API key profile…",
+  [" av"] = "Review changes since round baseline", [" aV"] = "Start review round",
+  [" ap"] = "Companion actions…", [" ao"] = "Browse saved Companion chats",
 }
 local function desc(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true).desc or "" end
 for lhs, want in pairs(FIXED) do
@@ -109,13 +111,13 @@ t.eq(review_calls, { "open", "start" }, "<leader>av reaches ai.review.open, <lea
 -- <leader>ae alone names something that changes: the key profile it bills,
 -- relabelled by :AI key. Nothing else moves with it.
 local c = require("ai.config")
-t.eq(desc(" ae", "x"), ("Inline edit · %s (HTTP)"):format(c.key.label), "<leader>ae names the key profile")
+t.eq(desc(" ae", "x"), ("Inline edit · %s (HTTP)…"):format(c.key.label), "<leader>ae names the key profile")
 local real_notify = vim.notify
 vim.notify = function() end
 local was = c.key_setting()
 local other = c.key.name == "anthropic" and "openai" or "anthropic"
 require("ai.switch").key(other)
-t.eq(desc(" ae"), ("Inline edit · %s (HTTP)"):format(c.key_profiles[other].label),
+t.eq(desc(" ae"), ("Inline edit · %s (HTTP)…"):format(c.key_profiles[other].label),
   "after :AI key " .. other .. ", <leader>ae names " .. c.key_profiles[other].label)
 for lhs, want in pairs(FIXED) do
   t.eq(desc(lhs), want, "after :AI key <leader>" .. lhs:sub(2) .. " is still " .. want)

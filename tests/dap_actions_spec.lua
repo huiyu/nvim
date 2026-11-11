@@ -220,4 +220,27 @@ for _, name in ipairs({ "DapStopped", "DapBreakpoint", "DapBreakpointCondition",
   end
 end
 
+-- The <leader>d and <leader>t popups read like every other group: sentence
+-- case, verb first, and "…" on exactly the keys that ask before they act
+-- (typed input or a choice).
+for suffix, want in pairs({
+  dA = "Attach to running target…", dB = "Set conditional breakpoint…", dC = "Run to cursor",
+  dD = "Disconnect (keep target running)", dL = "Set logpoint…", dO = "Step over", dP = "Pause",
+  dR = "Restart session", dW = "Add watch expression…", da = "Run with args…", db = "Toggle breakpoint",
+  dc = "Run/continue", de = "Set exception breakpoints…", df = "Debug file", dg = "Go to line (no execute)",
+  di = "Step into", dj = "Stack frame down", dk = "Stack frame up", dl = "Run last", ["do"] = "Step out",
+  dq = "List breakpoints (quickfix)", dr = "Toggle REPL", ds = "Debug sessions", dt = "Terminate",
+  du = "Toggle debug view", dw = "Evaluate expression", dx = "Clear all breakpoints",
+  tm = "Run nearest test", tf = "Run tests in file", td = "Debug nearest test", tF = "Debug tests in file",
+  tS = "Toggle test summary", tD = "Show test diagnostics", th = "Hide test diagnostics",
+}) do
+  t.eq(vim.fn.maparg("<leader>" .. suffix, "n", false, true).desc, want, "<leader>" .. suffix .. " is " .. want)
+end
+t.eq(vim.fn.maparg("<leader>dw", "x", false, true).desc, "Evaluate selection",
+  "Visual <leader>dw names the selection it evaluates")
+-- Read through :command, which prints the desc as given. nvim_get_commands()
+-- returns it with the 0x80 byte of "…" escaped (K_SPECIAL), so it never matches.
+t.ok(vim.api.nvim_exec2("command DapAttach", { output = true }).output:find("Attach to running target…", 1, true),
+  ":DapAttach is described like <leader>dA")
+
 t.done()

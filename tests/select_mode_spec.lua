@@ -48,8 +48,8 @@ for _, keys in ipairs({
   "<", ">",       -- Indent left/right (Visual)
   ",f", ",F",     -- Format, Search and replace
   " yy", " yc",   -- Yank selection to register/clipboard
-  " db", " dc",   -- Toggle breakpoint, Run/Continue
-  " tm", " tS",   -- Test current method, Toggle test summary
+  " db", " dc",   -- Toggle breakpoint, Run/continue
+  " tm", " tS",   -- Run nearest test, Toggle test summary
 }) do
   local before, line = type_into_placeholder(keys)
   typed[#typed + 1] = { keys = keys, before = before, line = line }
@@ -88,17 +88,20 @@ for lhs, desc in pairs({
   ["<leader>yc"] = "Yank selection to clipboard",
   [",f"] = "Format",
   [",F"] = "Search and replace",
-  ["<leader>dw"] = "Evaluate Expression / Selection",
-  ["<leader>dW"] = "Add Watch Expression",
+  ["<leader>dw"] = "Evaluate selection",
+  ["<leader>dW"] = "Add watch expression…",
   ["<C-a>"] = "Increment",
   ["<C-x>"] = "Decrement",
-  ["g<C-a>"] = "Increment",
-  ["g<C-x>"] = "Decrement",
+  ["g<C-a>"] = "Increment (progressive)",
+  ["g<C-x>"] = "Decrement (progressive)",
 }) do
   local visual = map(lhs, "x")
   t.eq({ visual.desc, visual.mode }, { desc, "x" }, lhs .. " is a Visual-mode (x) key")
   t.eq(map(lhs, "s"), {}, lhs .. " is not mapped in Select mode")
 end
+-- dw evaluates the selection in Visual mode and <cexpr> in Normal mode, and
+-- each popup says which.
+t.eq(map("<leader>dw", "n").desc, "Evaluate expression", "<leader>dw names its Normal-mode input")
 
 -- Ignore the selection: Normal only. dw/dW above are the debug keys that read it.
 for _, suffix in ipairs({

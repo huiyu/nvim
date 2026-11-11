@@ -175,12 +175,16 @@ return {
       local select = require("nvim-treesitter-textobjects.select")
       local move = require("nvim-treesitter-textobjects.move")
 
-      -- Select mappings (visual + operator-pending).
+      -- Select mappings (visual + operator-pending). Worded like which-key's
+      -- text-object preset ("word with ws" / "inner word"), whose rows they sit
+      -- among after `da` or `vi`. Real descs, not desc-only which-key entries:
+      -- VimTeX maps its own `ac`/`ic` (a command) in TeX buffers, and a global
+      -- which-key entry would outrank that buffer's own desc.
       local select_maps = {
-        ["af"] = { "@function.outer", "Select outer part of a function region" },
-        ["if"] = { "@function.inner", "Select inner part of a function region" },
-        ["ac"] = { "@class.outer", "Select outer part of a class region" },
-        ["ic"] = { "@class.inner", "Select inner part of a class region" },
+        ["af"] = { "@function.outer", "function" },
+        ["if"] = { "@function.inner", "inner function" },
+        ["ac"] = { "@class.outer", "class" },
+        ["ic"] = { "@class.inner", "inner class" },
       }
       for lhs, spec in pairs(select_maps) do
         vim.keymap.set({ "x", "o" }, lhs, function()
@@ -200,23 +204,28 @@ return {
         end
       end
 
+      -- The descs live here rather than in whichkey_spec's BRACKET_DESCS: a
+      -- global which-key entry outranks every buffer-local desc, and these keys
+      -- have buffer-local twins -- CodeDiff's ]c/[c "Next hunk", Python's and
+      -- VimTeX's ]m/]M (lua/whichkey_spec.lua, FILETYPE_DESCS) -- whose own
+      -- descs must show there. ]c/[c name their diff fallback above.
       local move_maps = {
-        { "]m", "@function.outer", move.goto_next_start },
-        { "]c", "@class.outer",    move.goto_next_start },
-        { "]M", "@function.outer", move.goto_next_end },
-        { "]C", "@class.outer",    move.goto_next_end },
-        { "[m", "@function.outer", move.goto_previous_start },
-        { "[c", "@class.outer",    move.goto_previous_start },
-        { "[M", "@function.outer", move.goto_previous_end },
-        { "[C", "@class.outer",    move.goto_previous_end },
+        { "]m", "@function.outer", move.goto_next_start,     "Next function start" },
+        { "]c", "@class.outer",    move.goto_next_start,     "Next class start (diff: next hunk)" },
+        { "]M", "@function.outer", move.goto_next_end,       "Next function end" },
+        { "]C", "@class.outer",    move.goto_next_end,       "Next class end" },
+        { "[m", "@function.outer", move.goto_previous_start, "Prev function start" },
+        { "[c", "@class.outer",    move.goto_previous_start, "Prev class start (diff: prev hunk)" },
+        { "[M", "@function.outer", move.goto_previous_end,   "Prev function end" },
+        { "[C", "@class.outer",    move.goto_previous_end,   "Prev class end" },
       }
       for _, m in ipairs(move_maps) do
-        local lhs, capture, fn = m[1], m[2], m[3]
+        local lhs, capture, fn, desc = m[1], m[2], m[3], m[4]
         vim.keymap.set(
           { "n", "x", "o" },
           lhs,
           diff_aware(fn, capture, lhs),
-          { desc = capture }
+          { desc = desc }
         )
       end
     end,

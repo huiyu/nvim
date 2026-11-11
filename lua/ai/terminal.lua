@@ -84,7 +84,7 @@ local function keep_terminal_mode_on_click(buf)
       expr = true,
       nowait = true,
       silent = true,
-      desc = "Stay in Terminal-mode when clicking inside the agent panel",
+      desc = "Stay in Terminal-mode on click inside agent panel",
     })
   end
 end
@@ -104,7 +104,7 @@ local function pass_esc_to_agent(buf)
     nowait = true,
     noremap = true,
     silent = true,
-    desc = "Send Esc to the agent (double Esc is the agent's own shortcut)",
+    desc = "Send Esc to agent (double Esc is agent's own shortcut)",
   })
 end
 
@@ -143,7 +143,7 @@ local function forward_scrollback(buf)
     end, {
       buffer = buf,
       silent = true,
-      desc = "Scroll the agent's tmux history",
+      desc = "Scroll agent's tmux history",
     })
   end
 end

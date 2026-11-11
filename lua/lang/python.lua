@@ -8,7 +8,7 @@ vim.api.nvim_create_autocmd("FileType", {
   group = vim.api.nvim_create_augroup("python_keymaps", { clear = true }),
   callback = function(ev)
     vim.keymap.set("n", "<localleader>o", lsp.action["source.organizeImports"],
-      { buffer = ev.buf, desc = "[LSP] Organize Imports" })
+      { buffer = ev.buf, desc = "[LSP] Organize imports" })
   end,
 })
 
@@ -130,7 +130,7 @@ return {
       }
     end,
     keys = {
-      { "<localleader>v", "<cmd>VenvSelect<cr>", desc = "Select virtualenv", ft = "python" },
+      { "<localleader>v", "<cmd>VenvSelect<cr>", desc = "Select virtualenv…", ft = "python" },
     },
   },
   {
