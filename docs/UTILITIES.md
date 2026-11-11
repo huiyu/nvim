@@ -574,8 +574,8 @@ local terminal = require("util.terminal")
 terminal.fix_drift(win)   -- win defaults to the current window
 
 -- Which native coding agent buf runs ("claude" / "codex"), or nil for any
--- other buffer. Any configured agent counts, whatever the default backend:
--- both can be running, and each panel keeps its own rules.
+-- other buffer. Every agent a provider offers counts: several can be
+-- running, and each panel keeps its own rules.
 terminal.agent_of(buf)
 
 -- True when buf belongs to any configured native coding agent.
@@ -1072,41 +1072,114 @@ llama.log()            -- <dir>/server.log, rewritten at each server start
 
 ## AI State (`ai.config`, `ai.switch`)
 
-Two settings, neither persisted. The **default backend** is fixed for the
-process: `NVIM_AI_PROVIDER` > `vim.g.ai_provider` > `claude` (`claude` or
-`codex`, any case; empty means unset in both places, and anything else stops
-startup naming the knob it came from). It only decides defaults -- the
-new-chat picker's first entry, the agent a native-only key offers first, what
-the `auto` key profile resolves to, CodeCompanion's chat adapter for its own
-paths that name none, whether Claude's watchdog starts at VimEnter, and error
-or warning in `:checkhealth config` -- never where a key acts. The HTTP **key
-profile** (inline edits and command prompts, on API credits) is `auto`,
-following the default backend's vendor, until `:AI key` pins one. Every
-consumer holds the one `ai.config` table and reads it per call, so a key
-switch mutates it in place.
+The ways to chat are an ordered `providers` list in `lua/ai/config.lua`,
+written like CodeCompanion's adapters; the HTTP **key profile** is the one
+setting `:AI key` switches in-process. Nothing is persisted. A provider has a
+`name`, a `label`, an optional `cli_api_key` (the variable its CLIs bill
+against instead of the subscription login: the picker and `:checkhealth
+config` warn while it is set) and the parts it offers; a part left out is not
+offered:
+
+- `tui = { kind }` -- its native terminal agent. `kind` is one this config
+  implements, `claude` or `codex`, each offered at most once: a new kind needs
+  code (a backend module, a tmux wrapper, the prompt hooks, a transcript
+  reader), not just an entry.
+- `acp = { adapter, command, auth_method? }` -- its CLI driven by
+  CodeCompanion over ACP, on the subscription. `auth_method` becomes the
+  adapter's default; Codex's is `"chat-gpt"`, since codex-acp's own default
+  bills `OPENAI_API_KEY`.
+- `api = { adapter, label?, api_key, model?, name? }` -- a CodeCompanion HTTP
+  chat on API credits, and a key profile. `api_key` names an `NVIM_*`
+  variable, never a CLI's own. The profile's name, `api.name` (default
+  `api.adapter`), must be unique: it is also the CodeCompanion adapter it
+  registers, so a chat restored from history finds its key again.
+
+The defaults are `claude` (terminal `claude`, ACP `claude_code` through
+`claude-agent-acp`, API `anthropic` on `NVIM_ANTHROPIC_API_KEY`), then `codex`
+(terminal `codex`, ACP `codex` through `codex-acp` on the ChatGPT login, API
+`openai` on `NVIM_OPENAI_API_KEY`). A second key on one API is one more
+provider with only an `api` part; the file has a commented example. `build`
+checks the list at load, and a bad entry stops startup naming the provider.
+
+The order is the only preference; no backend is the default. The new-chat
+picker lists every available terminal, then every ACP chat, then every API
+chat, each group in provider order. A key only a native agent answers acts on
+the native agent on the right, else asks among the installed terminals in
+that order (with one installed, that one). CodeCompanion's own paths that
+name no adapter (a typed `:CodeCompanionChat`, the action palette) use the
+first `acp` in provider order, else the first `api`. The key profile is
+`auto` -- the first profile whose `NVIM_*` key is set, else the first --
+until `:AI key` pins one (`NVIM_AI_KEY_PROFILE` > `vim.g.ai_key_profile` at
+startup).
+
+Some of CodeCompanion's built-in adapters are set up whatever the list holds,
+since a chat restored from history or an upstream path can name one that no
+provider offers: `anthropic` and `openai` read `NVIM_ANTHROPIC_API_KEY` /
+`NVIM_OPENAI_API_KEY` (`builtin_http_keys`), never a CLI's own variable, and
+the `codex` ACP adapter uses the ChatGPT login (`builtin_acp_auth`). A
+provider's `api` that keeps a built-in's name (no `api.name` of its own) sets
+its own `NVIM_*` key there, and an `acp.auth_method` overrides the login.
+
+`NVIM_AI_PROVIDER` and `vim.g.ai_provider` are no longer read: a leftover
+value earns one warning, not a failed start. Every consumer holds the one
+`ai.config` table and reads it per call, so a key switch mutates it in place.
 
 #### API Reference
 
 ```lua
 local config = require("ai.config")
 
-config.default         -- "claude" / "codex", fixed at startup
-config.default_source  -- "NVIM_AI_PROVIDER", "vim.g.ai_provider" or "built-in"
-config.codecompanion   -- { acp_adapter (the default's, fixed), http_adapter, api_key, model }
-config.key             -- { name, label, auto }
-config.providers, config.key_profiles          -- the agents and the key profiles
-config.names(), config.key_names()             -- their names, sorted
+config.providers       -- the list, in order, as written
+config.agents          -- the native terminals offered, by kind: { name (the
+                       -- kind), provider, label, command, prompt_pattern,
+                       -- capabilities, cli_api_key? }
+config.agent_names()   -- their kinds, in provider order
+config.acp             -- the ACP chats offered, in order: { provider, label,
+                       -- adapter, command, auth_method?, cli_api_key? }
+config.key_profiles    -- the key profiles, by name: { name, provider, adapter
+                       -- (the built-in it extends), label, api_key, model? }
+config.key_names()     -- their names, in provider order
+config.auto_key()      -- what `auto` stands for now: the first profile whose
+                       -- key is set, else the first; nil when no provider offers `api`
+config.builtin_http_keys -- { anthropic = "NVIM_ANTHROPIC_API_KEY", openai = "NVIM_OPENAI_API_KEY" }
+config.builtin_acp_auth  -- { codex = "chat-gpt" }
+config.codecompanion   -- { acp_adapter, chat_adapter, http_adapter, api_key, model }
+config.key             -- { name, label, auto }; name nil (label "none") when
+                       -- no provider offers `api`
 config.panel.width     -- 90 columns, shared by both agent panels and the chat window
 
+-- codecompanion.acp_adapter is the adapter of the first `acp` in provider
+-- order (nil when no provider offers one); chat_adapter, what CodeCompanion's
+-- own chats use, is acp_adapter, else the first key profile, else nil
+-- (CodeCompanion's own default). Both are fixed at load. http_adapter,
+-- api_key and model are the key profile's and follow :AI key.
+
+-- Check a provider list and derive the tables above from it. Pure: nothing
+-- is assigned, so a spec can feed it any list. Raises at level 0, with
+-- "AI providers: …" saying which entry, on an empty list, a missing name or
+-- label, a name listed twice, a provider with no part, a cli_api_key that is
+-- not a string, a tui.kind not implemented or already offered, an acp
+-- without adapter and command, an api without adapter, or an adapter or api
+-- name used twice; and through check_key_profile on an api_key that is not
+-- NVIM_*.
+config.build(list)  --> { providers, agents, agent_names, key_profiles, key_names, acp }
+
+-- Specs only: run with another list in-process, as if lua/ai/config.lua held
+-- it. `auto` resolves again, and a pinned key the new list lacks falls back
+-- to it; what a plugin read at its load (CodeCompanion's adapters) stays.
+config._set_providers(list)
+
 -- Every way to start a chat, available or not, for the new-chat picker:
--- the native terminals, the ACP chats, one API chat per key profile, the
--- default's entry first in each group. Reads PATH and the environment only.
---   { id, kind = "native"|"acp"|"http", vendor, agent?, adapter?, command?,
+-- the terminals, then the ACP chats, then the API chats, each in provider
+-- order. Reads PATH and the environment only; loads no plugin.
+--   { id = "claude"|"codex"|"acp:<adapter>"|"api:<profile>",
+--     kind = "native"|"acp"|"http", provider, agent?, adapter?, command?,
 --     profile?, api_key?, model?, label, available, why?, warn? }
--- `label` names transport and billing ("Codex · terminal · subscription",
--- "OpenAI · CodeCompanion API · API credits"); `why` says what is missing;
--- `warn` names a CLI billing variable that is set.
-config.backends(default?)  -- default: config.default
+-- `provider` is the providers entry's name; `label` names transport and
+-- billing ("Codex · terminal · subscription", "OpenAI · CodeCompanion API ·
+-- API credits"); `why` says what is missing; `warn` names a CLI billing
+-- variable that is set.
+config.backends()
 
 -- The directory an agent session belongs to: the Git root of `path`'s
 -- directory ("" or nil: of the cwd), else the cwd. Codex starts there, and
@@ -1114,17 +1187,17 @@ config.backends(default?)  -- default: config.default
 -- relative to it, and the transcripts find their project by it.
 config.project_root(path)
 
-config.use_key(name)       -- "auto" follows the default backend, a profile name pins it
+config.use_key(name)       -- "auto" resolves now (auto_key), a profile name pins it
 config.key_setting()       -- "auto" or the pinned profile name
 config.http_adapter_spec() -- inline/cmd adapter: name, or { name, model }
 config.check_key_profile(name, profile) -- error unless api_key is NVIM_*, never a CLI's own
 
--- Which agent a terminal command runs (any configured CLI), and which agent
--- handed over a prompt file, from the temp path its CLI chose: nil for a path
--- neither uses (an agent's pane running `git commit`). Nothing falls back to
--- the default.
-config.provider_of_command(cmd)  -- "claude" / "codex" / nil
-config.provider_of_prompt(path)  -- "claude" / "codex" / nil
+-- Which native agent a terminal command runs (any CLI a provider's `tui`
+-- offers), and which agent handed over a prompt file, from the temp path its
+-- CLI chose: nil for a path none uses (an agent's pane running `git commit`).
+-- Nothing falls back to a provider picked for the user.
+config.provider_of_command(cmd)  -- the TUI kind ("claude" / "codex") or nil
+config.provider_of_prompt(path)  -- the TUI kind ("claude" / "codex") or nil
 config.is_native_command(cmd)
 
 local switch = require("ai.switch")
@@ -1134,18 +1207,21 @@ switch.info()               -- :AI info / :AIInfo
 ```
 
 `:AI` is the chat switcher (`<leader>al`), `:AI new` the new-chat picker
-(`<leader>an`); `:AI provider` is gone and says so, pointing at `:AI new`. A
-key switch runs `use_key`, then `require("ai").apply_keymaps()` (relabels
+(`<leader>an`); `:AI provider` is gone and says so, pointing at `:AI new` and
+the order of `lua/ai/config.lua`. A key switch runs `use_key`, then
+`require("ai").apply_keymaps()` (relabels
 `<leader>ae`, the one key whose description names a profile), then
 `require("ai.companion").sync()` (CodeCompanion's live inline and cmd
 adapters), then fires `User AIStateChanged` with `data = { axis = "key",
 from, to }` -- lualine listens to it. An invalid name is an error
 notification and changes nothing. CodeCompanion's `opts` is a function, so a
 plugin loaded after a switch starts from the switched key; its chat adapter is
-the default backend's ACP agent, set then and never changed, and nothing
-writes `vim.g.codecompanion_adapter`. `:AI info` loads no plugin: it lists the
-default and where it came from, the key, every profile's variable (set or
-not), the CLIs' own key variables, and every open chat with where it is.
+`codecompanion.chat_adapter`, set then and never changed, and nothing writes
+`vim.g.codecompanion_adapter`. `:AI info` loads no plugin: it lists the
+providers in order with the parts each offers (terminal · ACP · API, `✗`
+where one cannot start here), the adapter CodeCompanion's own chats use, the
+key, every profile's variable (set or not), the CLIs' own key variables, and
+every open chat with where it is.
 
 Both native backends answer `running()`, `buf()`, `window()` (any tabpage),
 `visible()` (current tabpage), `hide()` (current tabpage only; the job stays)
@@ -1179,7 +1255,9 @@ ai.feed("claude", "edit_prompt", { seed = text, on_consumed = fn, on_expired = f
 -- nothing, saying so.
 ai.attach_images(paths, provider)
 
-ai.info()  -- the data :AI info prints: default, key, profiles, cli_keys, chats
+ai.info()  -- the data :AI info prints: providers (in order, each part with
+           -- whether it can start here), key, profiles, cli_keys,
+           -- codecompanion (its own chats' and inline adapters), chats
 ```
 
 Both backends' `edit_prompt(opts)` take `{ seed?, on_consumed?, on_expired?,
@@ -1227,12 +1305,14 @@ slot.target_now()         -- the one shown here (of several, the current
 slot.shown_here()         -- also from a view, without asking or moving (the
                           -- review loop's owner fallbacks)
 slot.native_target(cb, opts?) -- the native agent on the right, else asks which
-                          -- (the default first; none asked with one installed)
+                          -- (installed ones in provider order; none asked with
+                          -- one installed)
 
 -- Asking.
-slot.pick_new(cb, opts?)  -- the new-chat picker: available backends, the
-                          -- default's first; a native entry is that agent's one
-                          -- session ("running", "● here"), never a second
+slot.pick_new(cb, opts?)  -- the new-chat picker: available backends in
+                          -- ai.config.backends() order; a native entry is that
+                          -- agent's one session ("running", "● here"), never a
+                          -- second
 slot.switch(cb, opts?)    -- the switcher: open chats (here first, then by use)
                           -- and "New chat…"
 
@@ -1293,12 +1373,14 @@ it does, and that is what loads the plugin.
 ```lua
 local companion = require("ai.companion")
 
-companion.adapter_name(kind)   -- "acp": the default backend's ACP agent; "http":
-                               -- the key profile's adapter
+companion.adapter_name(kind)   -- "acp": the first ACP agent in provider order;
+                               -- "http": the key profile's adapter; nil when no
+                               -- provider offers that kind
 companion.preflight(what)      -- false (and an ERROR) when an "http" backend's
                                -- NVIM_* key is unset or an "acp" bridge is missing;
                                -- `what` is one ai.config.backends() entry, or a
-                               -- kind on its default adapter (<leader>ae: "http")
+                               -- kind on adapter_name(kind) (<leader>ae: "http"),
+                               -- which raises when no provider offers it
 companion.create(spec, extra?) -- a chat on one ai.config.backends() entry, created
                                -- hidden from the editor window and announced
                                -- ("New chat: <label>"); nil when refused

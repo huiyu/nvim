@@ -83,15 +83,15 @@ the update checker runs silently once a day (`bootstrap.lua`).
   floor is an error — no parser can install or update
 - The macOS Normal-mode input source and whether it came from
   `NVIM_ENGLISH_INPUT_SOURCE` or the system keyboard-layout fallback
-- *config: AI backends*: the default backend and where it came from
-  (`NVIM_AI_PROVIDER`, `vim.g.ai_provider` or the built-in default) and the
-  HTTP key profile; both agents' native CLIs and ACP bridges, since
-  `<leader>an` offers every backend (missing ones are an error for the default
-  backend, a warning for the other, which the new-chat picker then leaves
-  out); every key profile's variable (`NVIM_ANTHROPIC_API_KEY` /
-  `NVIM_OPENAI_API_KEY`; unset is a warning for the current profile,
-  information for the rest); and a warning while either CLI's own
-  `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is set
+- *config: AI backends*: the HTTP key profile; every native CLI, then every
+  ACP bridge, that the providers of `lua/ai/config.lua` offer, in their order
+  (a missing one is a warning: the new-chat picker leaves it out and the rest
+  still work); every key profile's variable
+  (`NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` by default; unset is a
+  warning for the current profile, information for the rest); an error only
+  when nothing at all is available -- no agent CLI, ACP bridge or API key; and
+  a warning while a provider's own CLI variable (`ANTHROPIC_API_KEY` /
+  `OPENAI_API_KEY`) is set
 - Inline completion: `llama-server`, whether its model is in the Hugging Face
   cache (the server starts `--offline`, so a missing model is a failed start),
   and whether the shared server is answering
@@ -318,24 +318,31 @@ labels and the listing; its header lists what it depends on.
 
 ## AI and CodeCompanion
 
-- **`nvim --claude` / `nvim --codex` reports an unknown option.** These are
-  leading options of the Zsh `vi` launcher in `~/.config/zsh/functions.zsh`,
-  not native Neovim flags: use `vi --claude` / `vi --codex`. Open a new shell
-  after changing that file. In another shell, use
-  `NVIM_AI_PROVIDER=claude nvim` or
-  `NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim`. Put native options
-  after the flag, for example `vi --codex -c 'set number' file.lua`. The flag
-  only sets the default backend; `<leader>an` starts either agent, or a chat,
-  in any Nvim.
-- **Nvim refuses to start: `Invalid NVIM_AI_PROVIDER="…"`** (or
-  `vim.g.ai_provider`). The default backend takes `claude` or `codex`, any
-  case; an empty value counts as unset. Fix the variable or the `let`.
+- **`vi --claude` / `vi --codex` reports an unknown option.** The launcher
+  flags are gone: `vi` in `~/.config/zsh/functions.zsh` is plain `nvim`
+  (open a new shell after updating that file), and nothing chooses an agent
+  at launch. Start Nvim and pick the agent or chat in `<leader>an`
+  (`:AI new`): every terminal, then every ACP chat, then every API chat, each
+  group in the order of the `providers` list in `lua/ai/config.lua`; reorder
+  that list to change which comes first.
+- **`NVIM_AI_PROVIDER is no longer read`** (or `vim.g.ai_provider`) at
+  startup. A value left over from when it chose a default backend; it changes
+  nothing and Nvim starts. Remove the export or the `let`.
+- **Nvim refuses to start: `AI providers: …`.** The `providers` list in
+  `lua/ai/config.lua` is invalid, and the message names the entry: an empty
+  list, no name or label, a name listed twice, none of `tui`, `acp`,
+  `api`, a `cli_api_key` that is not a string, a `tui.kind` that is not
+  `claude` or `codex` or that another provider already offers, an `acp`
+  without `adapter` and `command`, an `api` without `adapter`, or an adapter
+  or `api` name used twice (a second key on one API needs its own
+  `api.name`). A new terminal kind needs code, not just an entry.
 - `:AI info` (or `:AIInfo`) prints, loading no plugin:
 
   ```text
-  Default   Claude Code (built-in default) · fixed at startup
-            first in :AI new · CodeCompanion's own chats on claude_code (ACP)
-  Key       Anthropic · auto (follows the default)
+  Providers Claude Code · terminal · ACP · API
+            Codex · terminal · ACP ✗ · API ✗
+            CodeCompanion's own chats on claude_code (ACP)
+  Key       Anthropic · auto (first API key set)
             inline and command prompts on anthropic (HTTP)
   Profiles  anthropic  NVIM_ANTHROPIC_API_KEY set
             openai     NVIM_OPENAI_API_KEY not set
@@ -345,10 +352,14 @@ labels and the listing; its header lists what it depends on.
             Anthropic · API · API credits · #12 · tab 2
   ```
 
-  Every open chat is listed with where it is: *● here* (on the right of this
-  tabpage), *tab N*, or *hidden* (running, shown nowhere). Variables are
+  The providers come in the order of `lua/ai/config.lua`, each with the
+  parts it offers; `✗` marks one that cannot start here (its CLI or bridge is
+  not on `PATH`, or its `NVIM_*` key is unset), which `<leader>an` leaves
+  out. Every open chat is listed with where it is: *● here* (on the right of
+  this tabpage), *tab N*, or *hidden* (running, shown nowhere). Variables are
   reported as set or not, never their values.
-- `:AI provider` is gone and says so. There is no active provider: each key
+- `:AI provider` is gone and says so, pointing at `:AI new` and the order of
+  `lua/ai/config.lua`. There is no active or default provider: each key
   acts on the chat on the right of the tabpage, `<leader>an` (`:AI new`)
   starts a chat on any backend, and `<leader>al` (`:AI`) shows another open
   one. `:AI key` (`<leader>ax`) is the one in-process switch, and it moves
@@ -392,8 +403,10 @@ labels and the listing; its header lists what it depends on.
   transcript?". Nothing is on the right of this tabpage (or, from a CodeDiff
   view, of the page the view came from), or several AI windows are there and
   the current window is none of them. Nothing is ever delivered to a hidden
-  chat, another tabpage's or the default backend without asking. Cancel
-  delivers nothing and, from a CodeDiff view, goes back to it.
+  chat or another tabpage's without asking, and no provider stands in for the
+  chat on the right; "Which native agent?" lists the installed terminals in
+  the order of `lua/ai/config.lua`. Cancel delivers nothing and, from a
+  CodeDiff view, goes back to it.
 - **Where did the selection (or the buffer) go?** To the chat on the right of
   the tabpage the key was pressed in — from a CodeDiff view, of the page the
   view came from, which becomes current. When that meant going to another
@@ -443,13 +456,14 @@ labels and the listing; its header lists what it depends on.
   or `NVIM_AI_KEY_PROFILE`); click it (or `<leader>ax`) to change it. It
   disappears with `:AI key auto`.
 - **Inline prompts use the "wrong" key.** The key profile was pinned with
-  `:AI key <name>`; `:AI key auto` makes it follow the default backend again.
+  `:AI key <name>`; `:AI key auto` goes back to the first profile in
+  `lua/ai/config.lua` whose `NVIM_*` key is set (else the first).
   An API chat keeps the profile its `<leader>an` entry named.
 - `:checkhealth config` — native CLIs plus `claude-agent-acp`/`codex-acp`
 - Keys: `<leader>an` new chat (every available backend: the native
   terminals, ACP chats on the subscription, an API chat per key profile on API
-  credits); `<leader>al` switch chat; `<leader>ac` / `af` toggle / focus the
-  chat on the right; `<leader>ae` inline; `<leader>ap` actions; `<leader>ao` /
+  credits, each group in provider order); `<leader>al` switch chat;
+  `<leader>ac` / `af` toggle / focus the chat on the right; `<leader>ae` inline; `<leader>ap` actions; `<leader>ao` /
   `:CodeCompanionHistory` auto-saved history (also `gh` inside a chat). The
   old `<leader>ap…` two-key forms are gone: `<leader>apc` now opens the action
   palette with `c` typed into its filter, and `<leader>ag`/`aG`/`ah`/`aH` are
@@ -460,7 +474,8 @@ labels and the listing; its header lists what it depends on.
   leaves one out.** The picker lists only what can start here, read from
   this Nvim's `PATH` and environment each time it opens, and loads nothing to
   decide: a native terminal needs its CLI (`claude`, `codex`), an ACP chat its
-  bridge, an API chat its profile's `NVIM_*` variable. `:checkhealth config`,
+  bridge, an API chat its profile's `NVIM_*` variable; a part a provider
+  leaves out of `lua/ai/config.lua` is never offered. `:checkhealth config`,
   *AI backends*, names each one missing. A CLI installed later is found at
   the next press; a variable exported in another shell is not, until Nvim is
   started from a shell that has it. The keys that take only a native agent
@@ -481,8 +496,11 @@ labels and the listing; its header lists what it depends on.
   still end in a 401.
 - **An ACP chat is missing from `<leader>an`.** Its bridge
   (`claude-agent-acp` or `codex-acp`) is not on `PATH`; reinstall it (last
-  item of this section). Codex's ACP adapter always uses the ChatGPT login,
-  whichever agent is the default.
+  item of this section). Codex's ACP chat uses the ChatGPT login:
+  CodeCompanion's `codex` ACP adapter is given `auth_method = "chat-gpt"`
+  whatever the providers list holds (a restored chat or a typed
+  `:CodeCompanionChat` can name it), since codex-acp's own default bills
+  `OPENAI_API_KEY`; a provider's `acp.auth_method` overrides it.
 - **Which chat is this?** The switcher (`<leader>al`) and `:AI info` label
   each chat with its backend and billing, and a reply header says the kind:
   `CodeCompanion (Claude Code · ACP)` or `CodeCompanion (Anthropic · API)`. A
@@ -500,8 +518,9 @@ labels and the listing; its header lists what it depends on.
   Codex or a chat on the right the `<leader>a` keys never send it to Claude.
   Only a Claude session that runs has it; quitting Claude ends it.
 - **Nvim refuses to start: `AI key profile "…" must read an NVIM_* variable`.**
-  A `key_profiles` entry in `lua/ai/config.lua` names a CLI's own variable (or
-  something not `NVIM_*`). Give it an `NVIM_*` variable of its own.
+  A provider's `api` in `lua/ai/config.lua` names a CLI's own variable (or
+  something not `NVIM_*`) as its `api_key`. Give it an `NVIM_*` variable of
+  its own.
 - **The agent bills the API although you have a subscription.** Check
   `:checkhealth config` for *ANTHROPIC_API_KEY is set* (or `OPENAI_API_KEY`).
   Those are the CLIs' own variables and can take precedence over the login;
@@ -546,7 +565,7 @@ labels and the listing; its header lists what it depends on.
 minuet (`lua/plugin/lsp/minuet.lua`) draws the grey suggestions; they come from
 a local `llama-server` that `util.llama` starts on the first Insert in a
 buffer that can show them, and that every Nvim shares. None of it depends on
-`NVIM_AI_PROVIDER`.
+the providers in `lua/ai/config.lua` or on the chat on the right.
 
 - **No suggestions anywhere.** `:checkhealth config` → *inline completion*
   names the missing piece: `llama-server` itself (`brew install llama.cpp`) or
@@ -1397,19 +1416,18 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 Confirm the config loads with no errors — the same check used while developing it:
 
 ```sh
-nvim --headless -u init.lua -c "lua print('errmsg=['..vim.v.errmsg..']')" +qa
-NVIM_AI_PROVIDER=codex nvim --headless -u init.lua -i NONE +qa
+nvim --headless -u init.lua -i NONE -c "lua print('errmsg=['..vim.v.errmsg..']')" +qa
 ```
 
-A clean run prints `errmsg=[]` and no tracebacks.
+A clean run prints `errmsg=[]` and no tracebacks. One startup covers every
+provider: none is chosen at launch.
 
 ## Environment variables
 
 | Variable | Effect |
 |----------|--------|
-| `NVIM_AI_PROVIDER` | Default backend, `claude` (default) or `codex`, fixed at startup: the new-chat picker's first entry, the `auto` key, CodeCompanion's own chats; an invalid value stops startup |
-| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile (`auto` by default, following the default backend); an unknown name warns and falls back to `auto`; `:AI key` switches it |
-| `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key of the `anthropic` / `openai` profile, for CodeCompanion API chat and Inline/command prompts; unset, those keys refuse instead of sending |
+| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile (`auto` by default: the first profile in `lua/ai/config.lua` whose `NVIM_*` key is set, else the first); an unknown name warns and falls back to `auto`; `:AI key` switches it |
+| `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key of the default `anthropic` / `openai` profile, and of CodeCompanion's built-in `anthropic` / `openai` adapters even when no provider lists them, for CodeCompanion API chat and Inline/command prompts; unset, those keys refuse instead of sending |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Override the macOS keyboard layout used in Normal and Terminal-Normal modes |
 | `NVIM_MACISM_WAIT_TIME_MS` | Set macism's CJK workaround wait; `0` disables its temporary focus window |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |

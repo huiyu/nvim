@@ -763,9 +763,15 @@ Ctrl-l       （Insert）接受灰色的 AI 建议
 tabpage 上次显示的那个）就能把它找回来。右侧什么都没有时，键会先问发到哪里；它从不
 自作主张发给隐藏的 Chat。在 CodeDiff 视图里，这些键作用于打开该视图的那个页面。
 
-启动选项（`vi --claude`、`vi --codex`）只决定*默认后端*：`<Space>an` 的第一项，以及
-键需要询问时排在第一的 agent。`:AI info` 列出每个已打开的 Chat 和它在哪里，以及 Inline
-prompt 会用哪个 API key。详见 [AI Chat 与默认后端](../README_CN.md#ai-chat-与默认后端)。
+没有哪个 agent 是默认的，启动时也不选。*provider*——开箱即有 Claude 和 Codex——是
+`lua/ai/config.lua` 里的一个有序列表，这个顺序就是唯一的偏好：`<Space>an` 先列出所有
+终端，再列所有 Agent Chat，最后列所有 API Chat，每组内都按这个顺序；只有 native agent
+响应的键（`ar`、`am`、`at` 等）作用于右侧的 native agent，没有时按同样的顺序在已安装的
+agent 里询问（只装了一个就直接用它）。列表里去掉的 provider 不会出现，某个部分在本机
+缺 CLI 或缺 key 的，那一项也不会出现。Inline prompt 用排在最前、`NVIM_*` key 已设置的
+那个 provider 的 key，除非 `<Space>ax` 固定了别的。`:AI info` 按顺序列出各 provider
+及其提供的部分、每个已打开的 Chat 和它在哪里，以及 Inline prompt 会用哪个 API key。
+详见 [AI Chat 与 provider](../README_CN.md#ai-chat-与-provider)。
 
 要让 agent 看某段代码，`<Space>yl` 复制相对仓库根目录的 `path:12`（Visual 模式下是
 选中几行的 `path:12-18`）。agent 的 prompt 认这种写法，`gF` 和终端里的链接也认。

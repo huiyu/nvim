@@ -867,11 +867,19 @@ brings it back. With nothing on the right a key asks where to go; it never
 sends to a hidden chat on its own. In a CodeDiff view the keys act on the page
 the view was opened from.
 
-The launch option (`vi --claude`, `vi --codex`) only picks the *default
-backend*: the first entry of `<Space>an`, and the agent offered first when a
-key has to ask. `:AI info` lists every open chat and where it is, and which API
-key the inline prompts would use. Details: [AI chats and the default
-backend](../README.md#ai-chats-and-the-default-backend).
+No agent is the default, and nothing at startup picks one. The *providers* —
+Claude and Codex out of the box — are an ordered list in `lua/ai/config.lua`,
+and that order is the only preference there is: `<Space>an` lists every
+terminal, then every agent chat, then every API chat, each group in that
+order; a key only a native agent answers (`ar`, `am`, `at` and the like) acts
+on the native agent on the right, else asks among the installed ones in the
+same order (with one installed, it uses that one). A provider left out of the
+list is not offered, nor is any part of one whose CLI or key is missing here.
+Inline prompts bill the key of the first provider whose `NVIM_*` key is set,
+unless `<Space>ax` pins another. `:AI info` shows the providers in order with
+what each offers, every open chat and where it is, and which API key the
+inline prompts would use. Details: [AI chats and
+providers](../README.md#ai-chats-and-providers).
 
 To point an agent at some code, `<Space>yl` copies `path:12` (in Visual mode
 `path:12-18` for the selected lines), relative to the repository root. Agent

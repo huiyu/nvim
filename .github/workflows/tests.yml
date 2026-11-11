@@ -109,12 +109,8 @@ jobs:
       - name: Spec suite
         run: ./tests/run.sh
 
-      - name: Start with Claude as the default backend
-        run: NVIM_AI_PROVIDER=claude nvim --headless -u init.lua -i NONE "$FAIL_ON_ERRMSG" +qa
-        env: { FAIL_ON_ERRMSG: '+lua if vim.v.errmsg ~= "" then vim.cmd("cquit 1") end' }
-
-      - name: Start with Codex as the default backend
-        run: NVIM_AI_PROVIDER=codex nvim --headless -u init.lua -i NONE "$FAIL_ON_ERRMSG" +qa
+      - name: Start
+        run: nvim --headless -u init.lua -i NONE "$FAIL_ON_ERRMSG" +qa
         env: { FAIL_ON_ERRMSG: '+lua if vim.v.errmsg ~= "" then vim.cmd("cquit 1") end' }
 
       # No trailing-whitespace gate here on purpose. AGENTS.md's local
