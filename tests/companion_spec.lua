@@ -1,22 +1,26 @@
--- CodeCompanion's two chat kinds behind the facade's <leader>a keys
--- (lua/ai/companion.lua, lua/ai/init.lua): agent chat (ACP, the provider, on
--- the subscription) on g/G and API chat (HTTP, the key profile, on API credits)
--- on h/H, plus the inline prompt on e.
+-- CodeCompanion chats behind the facade (lua/ai/companion.lua, lua/ai/init.lua):
+-- created by backend from the new-chat picker (<leader>an) -- an ACP agent on
+-- the subscription, or a key profile's API on API credits -- and shown as
+-- exactly that chat; plus the inline prompt on <leader>ae, which bills the key
+-- profile :AI key picks.
 --
--- What is pinned: each key reaches a chat of its own kind and the current
--- adapter, never upstream's `last_chat` of either kind; the kinds share one
--- chat window; a missing key or ACP bridge refuses before anything starts; and
--- an upgrade that breaks the internals falls back to the upstream commands.
+-- What is pinned: a chat is created on the adapter (and model) its backend
+-- names, never upstream's `last_chat` or default; chats share one window; a
+-- missing key or ACP bridge refuses before anything starts, and the picker does
+-- not offer what would refuse; a broken internal is reported, never routed to
+-- an upstream command aimed at another chat; and the internals the slot relies
+-- on behave as it expects.
 --
 -- CodeCompanion's own code review is off: review rounds (lua/ai/review)
 -- replace it, and two baseline systems must not run side by side.
 --
 -- Nothing is sent. No ACP chat is ever created -- that would spawn the bridge
--- -- so the ACP side runs on its refusal path and on stubbed chat lists. HTTP
--- chats are created with fake NVIM_* values set here, are never submitted
--- (codecompanion-history saves on submit and on a finished request, not on
--- creation), and CodeCompanion's curl layer is stubbed before the first one,
--- because creating an API chat already fetches the provider's model list.
+-- -- so the ACP side runs on its refusal path. HTTP chats are created with fake
+-- NVIM_* values set here, are never submitted (codecompanion-history saves on
+-- submit and on a finished request, not on creation), and CodeCompanion's curl
+-- layer is stubbed before the first one, because creating an API chat already
+-- fetches the provider's model list. Questions are answered by a stand-in
+-- vim.ui.select.
 local t = dofile("tests/helper.lua")
 
 local config = require("ai.config")
@@ -48,28 +52,49 @@ local function fake_keys()
 end
 fake_keys()
 
--- Start from Claude with the anthropic key, whatever started this Nvim; the
--- other combinations are :AI's business (tests/ai_switch_spec.lua).
-local start_provider = config.provider
-vim.cmd("silent AI provider claude")
+-- Inline edits on the anthropic key, whatever the shell pinned; switching it
+-- is :AI's business (tests/ai_switch_spec.lua).
+local start_key = config.key_setting()
 vim.cmd("AI key anthropic")
+
+-- Questions: each answered by the next entry queued -- a backend id for the
+-- new-chat picker, a chat for the switcher. With nothing queued, a question
+-- cancels. `offered` keeps what the last one listed.
+local answers, offered = {}, {}
+local real_select = vim.ui.select
+vim.ui.select = function(items, _, on_choice)
+  offered = items
+  local want = table.remove(answers, 1)
+  for _, item in ipairs(items) do
+    if want ~= nil and (item.id == want or item.chat == want) then return on_choice(item) end
+  end
+  on_choice(nil)
+end
+local function backend(id)
+  return vim.iter(config.backends()):find(function(b) return b.id == id end)
+end
+local function offers(id)
+  return vim.iter(offered):any(function(item) return item.id == id end)
+end
 
 ---------------------------------------------------------------------------
 -- Refusals come first, and need nothing loaded
 ---------------------------------------------------------------------------
 
 t.ok(not loaded(), "the chat keys exist before CodeCompanion loads")
-t.eq(key(" ah").desc, "API chat · Anthropic (HTTP)", "<leader>ah names the key profile it reaches")
-t.eq(key(" ag").desc, "Agent chat · Claude Code (ACP)", "<leader>ag names the agent it reaches")
+for _, lhs in ipairs({ " ag", " aG", " ah", " aH" }) do
+  t.eq(key(lhs), {}, "<leader>" .. lhs:sub(2) .. " is gone: <leader>an starts a chat of either kind")
+end
 
 vim.env.NVIM_ANTHROPIC_API_KEY = nil
 notes = {}
-press(" ah")
-press(" aH")
-t.eq(#errors(), 2, "<leader>ah and <leader>aH refuse while the profile's variable is unset")
-t.ok(errors()[1].msg:find("NVIM_ANTHROPIC_API_KEY is not set", 1, true) ~= nil, "naming the variable")
+press(" an")
+t.ok(not offers("api:anthropic") and offers("api:openai"),
+  "the new-chat picker leaves out an API chat whose profile's variable is unset")
+t.eq(companion.create(backend("api:anthropic")), nil, "and creating one anyway is refused")
+t.ok(errors()[1] and errors()[1].msg:find("NVIM_ANTHROPIC_API_KEY is not set", 1, true) ~= nil, "naming the variable")
 t.eq(key(" ae").callback(), "<Ignore>", "<leader>ae refuses before the command line opens")
-t.eq(#errors(), 3, "and says so too, once the textlock is gone")
+t.eq(#errors(), 2, "and says so too, once the textlock is gone")
 t.ok(not loaded(), "a refusal loads nothing")
 
 -- The ACP side only ever takes its refusal path here. PATH is cut down to the
@@ -77,16 +102,16 @@ t.ok(not loaded(), "a refusal loads nothing")
 -- even if the refusal failed.
 local real_path = vim.env.PATH
 vim.env.PATH = "/usr/bin:/bin"
-local bridge = config.codecompanion.acp_command
-if vim.fn.executable(bridge) == 1 then
-  print("skip - " .. bridge .. " is installed in a system directory")
+local acp = backend("acp:" .. config.codecompanion.acp_adapter)
+if vim.fn.executable(acp.command) == 1 then
+  print("skip - " .. acp.command .. " is installed in a system directory")
 else
   notes = {}
-  press(" ag")
-  press(" aG")
-  t.eq(#errors(), 2, "<leader>ag and <leader>aG refuse without the ACP bridge")
-  t.ok(errors()[1].msg:find(bridge .. " not found", 1, true) ~= nil, "naming the bridge")
-  t.ok(not loaded(), "and load nothing either")
+  press(" an")
+  t.ok(not offers(acp.id), "the new-chat picker leaves out an ACP chat whose bridge is missing")
+  t.eq(companion.create(acp), nil, "and creating one anyway is refused")
+  t.ok(errors()[1] and errors()[1].msg:find(acp.command .. " not found", 1, true) ~= nil, "naming the bridge")
+  t.ok(not loaded(), "and loads nothing either")
 end
 vim.env.PATH = real_path
 fake_keys()
@@ -160,10 +185,11 @@ local function shown(chat) return chat.ui:is_visible() and not chat.ui:is_visibl
 local function text(chat) return table.concat(vim.api.nvim_buf_get_lines(chat.bufnr, 0, -1, false), "\n") end
 
 local base_windows = windows()
-press(" ah")
-local anthropic = companion.find("http")
-t.ok(anthropic ~= nil and #chats() == 1, "<leader>ah starts an API chat when there is none")
-t.eq({ anthropic.adapter.type, anthropic.adapter.name }, { "http", "anthropic" }, "on the active key profile")
+answers = { "api:anthropic" }
+press(" an")
+local anthropic = chats()[1]
+t.ok(anthropic ~= nil and #chats() == 1, "<leader>an starts the API chat picked")
+t.eq({ anthropic.adapter.type, anthropic.adapter.name }, { "http", "anthropic" }, "on the profile its entry names")
 t.ok(shown(anthropic) and vim.api.nvim_get_current_win() == anthropic.ui.winnr, "on screen here, and focused")
 t.eq(windows(), base_windows + 1, "in one window")
 local llm_role = require("codecompanion.config").interactions.chat.roles.llm
@@ -174,39 +200,42 @@ t.eq(llm_role(require("codecompanion.adapters").resolve("claude_code")), "CodeCo
 local slot = anthropic.ui.winnr
 
 vim.api.nvim_set_current_win(editor_win)
-press(" ah")
-t.ok(not shown(anthropic) and #chats() == 1, "<leader>ah again hides it, and starts nothing")
-press(" ah")
+press(" ac")
+t.ok(not shown(anthropic) and #chats() == 1, "<leader>ac hides it, and starts nothing")
+press(" ac")
 t.ok(shown(anthropic) and #chats() == 1, "and again brings the same chat back")
 slot = anthropic.ui.winnr
 
--- Another profile is another chat, in the same window.
-vim.cmd("AI key openai")
-t.eq(key(" ah").desc, "API chat · OpenAI (HTTP)", "a key switch relabels <leader>ah")
-press(" ah")
-local openai = companion.find("http")
-t.ok(openai ~= nil and openai ~= anthropic and openai.adapter.name == "openai",
-  "after :AI key openai, <leader>ah finds no OpenAI chat and starts one")
+-- Another profile is another chat, in the same window -- whatever :AI key
+-- says, which is about inline edits.
+answers = { "api:openai" }
+press(" an")
+local openai = vim.iter(chats()):find(function(c) return c ~= anthropic end)
+t.ok(openai ~= nil and openai.adapter.name == "openai" and config.key.name == "anthropic",
+  "<leader>an starts an OpenAI chat, with the key profile still on Anthropic")
 t.ok(shown(openai) and not shown(anthropic), "which takes the place of the Anthropic chat")
 t.eq({ openai.ui.winnr, windows() }, { slot, base_windows + 1 }, "in the same window")
 
-vim.cmd("AI key anthropic")
-press(" ah")
-t.eq(companion.find("http"), anthropic, "back on anthropic, <leader>ah finds that profile's chat")
-t.ok(shown(anthropic) and not shown(openai) and #chats() == 2, "and swaps it back in, starting nothing")
+answers = { anthropic }
+press(" al")
+t.ok(shown(anthropic) and not shown(openai) and #chats() == 2, "<leader>al swaps the Anthropic chat back in, starting nothing")
 t.eq({ anthropic.ui.winnr, windows() }, { slot, base_windows + 1 }, "still in the one window")
 
 -- A pinned model reaches the new chat with the profile.
-config.key_profiles.spec_pinned = { adapter = "anthropic", label = "Spec", api_key = "NVIM_ANTHROPIC_API_KEY", model = "spec-model" }
-config.use_key("spec_pinned")
+local providers = vim.deepcopy(config.providers)
+local with_pinned = vim.deepcopy(providers)
+with_pinned[#with_pinned + 1] = { name = "spec_pinned", label = "Spec",
+  api = { name = "spec_pinned", adapter = "anthropic", api_key = "NVIM_ANTHROPIC_API_KEY", model = "spec-model" } }
+config._set_providers(with_pinned)
+local pinned = backend("api:spec_pinned")
+t.ok(pinned ~= nil and pinned.available, "every key profile has an API chat entry")
 local params
 local real_chat = require("codecompanion").chat
 require("codecompanion").chat = function(args) params = args.params end
-companion.new("http")
+companion.create(pinned)
 require("codecompanion").chat = real_chat
 t.eq(params, { adapter = "spec_pinned", model = "spec-model" }, "a profile's pinned model goes along with its adapter")
-config.key_profiles.spec_pinned = nil
-vim.cmd("AI key anthropic")
+config._set_providers(providers)
 
 -- A chat that comes back with earlier turns (what codecompanion-history
 -- restores) renders the custom header, and the buffer still parses: the next
@@ -223,121 +252,117 @@ local parser = require("codecompanion.interactions.chat.parser")
 t.eq(parser.messages(restored, parser.headers(restored) + 1), { content = "next question" },
   "and the next question still parses on its own")
 restored:close()
-press(" ah")
+companion.show(anthropic)
 t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
 
 ---------------------------------------------------------------------------
--- Visual mode: the selection goes to the chat of the key's kind and profile
+-- Upstream internals the slot relies on (lua/ai/companion.lua show/create)
+---------------------------------------------------------------------------
+
+-- A chat created hidden: rendered, announced, not on screen, and not
+-- upstream's last chat until it is entered.
+local events = {}
+local event_group = vim.api.nvim_create_augroup("companion_spec_events", { clear = true })
+for _, pattern in ipairs({ "CodeCompanionChatCreated", "CodeCompanionChatOpened", "CodeCompanionChatHidden" }) do
+  vim.api.nvim_create_autocmd("User", { group = event_group, pattern = pattern,
+    callback = function(ev) events[#events + 1] = { pattern, ev.data and ev.data.bufnr } end })
+end
+local last_before = Chats.last_chat()
+vim.api.nvim_set_current_win(editor_win)
+local hidden = require("codecompanion").chat({ params = { adapter = "openai" }, hidden = true })
+t.ok(hidden ~= nil and not hidden.ui:is_visible(), "chat({ hidden = true }) makes a chat that is not on screen")
+t.ok(hidden ~= nil and vim.iter(events):any(function(e) return e[1] == "CodeCompanionChatCreated" and e[2] == hidden.bufnr end),
+  "and announces it")
+t.ok(hidden and vim.api.nvim_buf_line_count(hidden.bufnr) > 1, "with its buffer rendered all the same")
+t.eq(Chats.last_chat(), last_before, "it is not upstream's last chat until it is entered")
+-- Handed the window of the chat shown here: hide with keep_window, then
+-- Chat.open with that window, which is ui:show_in_win.
+local here_win = anthropic.ui.winnr
+events = {}
+anthropic.ui:hide({ keep_window = true })
+t.ok(vim.api.nvim_win_is_valid(here_win), "ui:hide({ keep_window = true }) leaves the window for the next chat")
+Chats.open({ ui = hidden.ui, winnr = here_win })
+t.eq({ hidden.ui.winnr, vim.api.nvim_win_get_buf(here_win) }, { here_win, hidden.bufnr },
+  "Chat.open({ ui, winnr }) shows the chat in exactly that window")
+t.ok(not anthropic.ui:is_visible(), "which the other chat no longer has")
+t.eq(vim.bo[hidden.bufnr].filetype, "codecompanion", "as a chat buffer")
+t.eq(events, { { "CodeCompanionChatHidden", anthropic.bufnr }, { "CodeCompanionChatOpened", hidden.bufnr } },
+  "hidden and opened, as upstream's own swap reports them")
+t.eq(windows(), base_windows + 1, "one window throughout")
+-- With no chat window here, ui:open() splits one of its own.
+hidden.ui:hide()
+t.eq(windows(), base_windows, "ui:hide() closes the window")
+hidden.ui:open()
+t.ok(shown(hidden) and windows() == base_windows + 1, "ui:open() opens one here")
+t.eq(vim.api.nvim_win_get_cursor(hidden.ui.winnr)[1], vim.api.nvim_buf_line_count(hidden.bufnr),
+  "following the conversation to its end")
+vim.api.nvim_del_augroup_by_id(event_group)
+hidden:close()
+vim.api.nvim_set_current_win(editor_win)
+companion.show(anthropic)
+t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
+
+---------------------------------------------------------------------------
+-- Visual mode: the selection goes to the chat on the right, or a new one
 ---------------------------------------------------------------------------
 
 -- last_chat is the Anthropic chat now. Upstream's Add would append there; the
--- OpenAI key must reach the OpenAI chat instead, hidden or not.
+-- OpenAI chat on the right gets it instead.
 t.eq(Chats.last_chat(), anthropic, "upstream's last chat is the Anthropic one")
-vim.cmd("AI key openai")
+companion.show(openai)
 vim.api.nvim_set_current_win(editor_win)
 vim.api.nvim_win_set_cursor(0, { 2, 0 })
-vim.api.nvim_feedkeys("Vj ah", "x", false)
+vim.api.nvim_feedkeys("Vj as", "x", false)
 t.eq(vim.fn.mode(), "n", "the selection is let go of")
 t.ok(text(openai):find("```lua\nlocal bc = 2\nlocal d = 3\n```", 1, true) ~= nil,
-  "a linewise selection lands in the OpenAI chat, fenced with its filetype")
+  "a linewise selection lands in the OpenAI chat on the right, fenced with its filetype")
 t.ok(text(openai):find("Here is some code from " .. vim.api.nvim_buf_get_name(source), 1, true) ~= nil,
   "with the source path")
 t.ok(text(anthropic):find("local bc = 2", 1, true) == nil, "and not in upstream's last chat")
-t.ok(shown(openai) and vim.api.nvim_get_current_win() == openai.ui.winnr, "which comes on screen, focused")
+t.ok(shown(openai) and vim.api.nvim_get_current_win() == openai.ui.winnr, "which stays on screen, focused")
 t.eq(windows(), base_windows + 1, "in the same window")
 
 vim.api.nvim_set_current_win(editor_win)
 vim.api.nvim_win_set_cursor(0, { 2, 6 })
-vim.api.nvim_feedkeys("vl ah", "x", false)
+vim.api.nvim_feedkeys("vl as", "x", false)
 t.ok(text(openai):find("```lua\nbc\n```", 1, true) ~= nil, "a characterwise selection keeps its columns")
 t.eq(#chats(), 2, "adding to a chat starts none")
 
--- With no chat of the kind yet, adding starts one, without the selection
--- inserted twice.
+-- From Visual mode <leader>an starts the chat and gives it the selection,
+-- inserted once.
 openai:close()
-t.eq(companion.find("http"), nil, "with the OpenAI chat closed there is none to add to")
 vim.api.nvim_set_current_win(editor_win)
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
-vim.api.nvim_feedkeys("V ah", "x", false)
-local fresh = companion.find("http")
-t.ok(fresh ~= nil and fresh.adapter.name == "openai" and #chats() == 2,
-  "a selection with no chat of its profile starts one")
-local _, count = text(fresh):gsub("local a = 1", "")
+answers = { "api:openai" }
+vim.api.nvim_feedkeys("V an", "x", false)
+local fresh = vim.iter(chats()):find(function(c) return c ~= anthropic end)
+t.ok(fresh ~= nil and fresh.adapter.name == "openai" and #chats() == 2, "Visual <leader>an starts the chat picked")
+local _, count = text(fresh or anthropic):gsub("local a = 1", "")
 t.eq(count, 1, "holding the selection once")
-
--- An unset key refuses here too, before a chat is started for it.
+t.eq(vim.fn.mode(), "n", "leaving Visual all the same")
 fresh:close()
-vim.env.NVIM_OPENAI_API_KEY = nil
+
+---------------------------------------------------------------------------
+-- A broken internal is reported, not routed to another chat
+---------------------------------------------------------------------------
+
+-- Upstream's :'<,'>CodeCompanionChat Add appends to last_chat, which need not
+-- be the chat on the right: nothing falls back to it.
+companion.show(anthropic)
+local real_capture, real_cmd = companion.add_capture, vim.cmd
+local ran = {}
+companion.add_capture = function() error("spec: add broke") end
 notes = {}
 vim.api.nvim_set_current_win(editor_win)
-vim.api.nvim_feedkeys("V ah", "x", false)
-t.eq(#errors(), 1, "adding a selection refuses while the key is unset")
-t.ok(companion.find("http") == nil, "and starts no chat")
-t.eq(vim.fn.mode(), "n", "leaving Visual all the same")
-fake_keys()
-vim.cmd("AI key anthropic")
-
----------------------------------------------------------------------------
--- Agent chats: found by kind and adapter, from a stubbed chat list
----------------------------------------------------------------------------
-
-local function fake(adapter_type, name, opts)
-  opts = opts or {}
-  local chat = { bufnr = vim.api.nvim_create_buf(false, true), adapter = { type = adapter_type, name = name } }
-  chat.ui = {
-    is_visible = function() return opts.visible == true end,
-    is_visible_non_curtab = function() return false end,
-    hide = function() chat.hidden_by_spec = true end,
-  }
-  return chat
-end
-local cc = require("codecompanion")
-local real_list, real_last = cc.buf_get_chat, cc.last_chat
-local list, last = {}, nil
-cc.buf_get_chat = function() return vim.tbl_map(function(c) return { chat = c } end, list) end
-cc.last_chat = function() return last end
-
-local older = fake("acp", "claude_code")
-local newer = fake("acp", "claude_code")
-local codex = fake("acp", "codex", { visible = true })
-local api = fake("http", "claude_code", { visible = true }) -- same name, other kind
-list = { codex, api, older, newer }
-t.eq(companion.find("acp"), newer, "agent chat: the newest Claude chat, not one of another agent or kind")
-last = older
-t.eq(companion.find("acp"), older, "upstream's last chat wins among those of the right kind")
-local visible = fake("acp", "claude_code", { visible = true })
-list[#list + 1] = visible
-t.eq(companion.find("acp"), visible, "and one on screen here wins over both")
-companion.toggle("acp")
-t.ok(visible.hidden_by_spec == true, "<leader>ag on a shown agent chat hides it")
-
-config.use_provider("codex")
-t.eq(companion.find("acp"), codex, "with Codex active, the Codex agent chat is the one")
-config.use_provider("claude")
-config.use_key("anthropic")
-list = { older }
-last = nil
-t.eq(companion.find("http"), nil, "an agent chat is never taken for an API chat")
-cc.buf_get_chat, cc.last_chat = real_list, real_last
-
----------------------------------------------------------------------------
--- A broken internal falls back to upstream, with a warning
----------------------------------------------------------------------------
-
-local real_toggle, real_add = companion.toggle, companion.add_selection
-local real_cmd = vim.cmd
-local ran = {}
-companion.toggle = function() error("spec: toggle broke") end
-companion.add_selection = function() error("spec: add broke") end
-notes = {}
-vim.cmd = function(command) ran[#ran + 1] = command end
-press(" ah")
-press(" ag", "x")
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+vim.cmd = setmetatable({}, { __call = function(_, command) ran[#ran + 1] = command end, __index = real_cmd })
+vim.api.nvim_feedkeys("V as", "x", false)
 vim.cmd = real_cmd
-companion.toggle, companion.add_selection = real_toggle, real_add
-t.eq(ran, { "CodeCompanionChat Toggle", "'<,'>CodeCompanionChat Add" }, "a failing toggle or add runs the upstream command")
-t.ok(#notes == 2 and notes[1].level == WARN and notes[1].msg:find("spec: toggle broke", 1, true) ~= nil,
-  "and says why, as a warning")
+companion.add_capture = real_capture
+t.eq(vim.tbl_filter(function(c) return type(c) == "string" and c:find("CodeCompanion", 1, true) end, ran), {},
+  "a failing add runs no upstream command")
+t.ok(#errors() == 1 and errors()[1].msg:find("spec: add broke", 1, true) ~= nil, "and says why, as an error")
+t.ok(text(anthropic):find("local a = 1", 1, true) == nil, "adding nothing anywhere")
 
 ---------------------------------------------------------------------------
 -- Nothing was sent or saved
@@ -353,6 +378,7 @@ t.eq(store_listing(), stores_before, "no chat history or session was written")
 
 for _, chat in ipairs(chats()) do chat:close() end
 for _, var in ipairs(VARS) do vim.env[var] = saved[var] end
-vim.cmd("silent AI provider " .. start_provider)
+vim.cmd("silent AI key " .. start_key)
+vim.ui.select = real_select
 vim.notify = real_notify
 t.done()

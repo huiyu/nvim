@@ -105,39 +105,65 @@ end
 t.eq(#vim.api.nvim_list_tabpages(), tabs, "and none of them opens a view")
 vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 
--- <leader>at when the transcript view fails.
+-- <leader>at when the transcript view fails. With no native agent on the
+-- right it asks whose transcript, among the agents installed -- stand-ins on
+-- PATH here -- in provider order; the second is answered, so the agent read
+-- is the one picked, not the first listed.
 local transcript = require("ai.transcript")
-local real_open = transcript.open_current
-transcript.open_current = function() error("boom") end
+local ai_config = require("ai.config")
+local real_open, real_select, real_path = transcript.open_current, vim.ui.select, vim.env.PATH
+local stand_ins = vim.fn.tempname()
+vim.fn.mkdir(stand_ins, "p")
+for _, name in ipairs({ "claude", "codex" }) do
+  vim.fn.writefile({ "#!/bin/sh", "exec cat" }, stand_ins .. "/" .. name)
+  vim.fn.setfperm(stand_ins .. "/" .. name, "rwx------")
+end
+vim.env.PATH = stand_ins .. ":" .. real_path
+local asked_for
+transcript.open_current = function(agent)
+  asked_for = agent
+  error("boom")
+end
+local offered
+vim.ui.select = function(items, _, on_choice)
+  offered = items
+  on_choice(items[2])
+end
 reset()
 ok = pcall(require("ai").transcript)
+vim.ui.select, vim.env.PATH = real_select, real_path
+vim.fn.delete(stand_ins, "rf")
 t.ok(ok, "<leader>at does not raise when the transcript view fails")
 t.eq(last() and last().level, vim.log.levels.ERROR, "it reports the failure")
 t.ok(said("boom"), "with its cause")
+t.eq(offered, ai_config.agent_names(), "it offers the agents in provider order")
+t.eq(asked_for, ai_config.agent_names()[2], "and reads the agent picked, not the first listed")
 transcript.open_current = real_open
 
--- :AI with a name it does not know.
-local ai_config = require("ai.config")
-local provider_before = ai_config.provider
+-- :AI with a subcommand or a name it does not know, and the one it no longer
+-- has.
+local key_before = ai_config.key_setting()
 reset()
-ok = pcall(vim.cmd, "AI provider nope")
-t.ok(ok, ":AI provider with an unknown name does not raise")
+ok = pcall(vim.cmd, "AI key nope")
+t.ok(ok, ":AI key with an unknown name does not raise")
 t.eq(#notified, 1, "it notifies once")
-t.ok(last() and last().level == vim.log.levels.ERROR and said("Unknown AI provider"), "with the reason, as an error")
-t.eq(ai_config.provider, provider_before, "and the provider is unchanged")
+t.ok(last() and last().level == vim.log.levels.ERROR and said("Unknown AI key profile"), "with the reason, as an error")
+t.eq(ai_config.key_setting(), key_before, "and the key profile is unchanged")
+reset()
+ok = pcall(vim.cmd, "AI provider codex")
+t.ok(ok and #notified == 1 and last().level == vim.log.levels.ERROR and said(":AI new"),
+  ":AI provider is gone, and says where its job went")
 
--- <leader>aa answers Claude's diffs whichever provider is active, so a failure
--- there is reported against Claude, not against the active provider.
+-- <leader>aa answers Claude's diffs whatever is on the right, so a failure
+-- there is reported against Claude.
 local claude_backend = require("ai.backend.claude")
 local real_accept = claude_backend.accept_diff
 claude_backend.accept_diff = function() error("no pending diff") end
-ai_config.use_provider("codex")
 reset()
 ok = pcall(require("ai").accept_diff)
 t.ok(ok, "<leader>aa does not raise when the diff command fails")
 t.ok(said("Claude Code accept_diff failed") and said("no pending diff"),
-  "it names Claude, whose diff it was, even with Codex active")
-ai_config.use_provider(provider_before)
+  "it names Claude, whose diff it was, whatever is on the right")
 claude_backend.accept_diff = real_accept
 
 vim.notify = real_notify

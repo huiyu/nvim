@@ -1,11 +1,12 @@
 -- Turns the current visual selection into text an agent can consume.
 --
--- This lives outside the backends because the two providers attach selections
+-- This lives outside the backends because the destinations take a selection
 -- through different channels. Codex has no editor-selection API, so its
--- <leader>as pastes text. Claude's <leader>as goes over the IDE WebSocket
--- (:ClaudeCodeSend) and produces no text at all. <leader>ai needs text under
--- both providers to seed the agent's input box, so the text form has exactly one
--- producer: this module.
+-- <leader>as pastes text. Claude's <leader>as is a mention of the captured
+-- lines over the IDE WebSocket (claudecode's send_at_mention) and produces no
+-- text at all; a CodeCompanion chat gets a fenced block (ai.companion
+-- add_capture). <leader>ai needs text for either native agent to seed its
+-- input box, so the text form has exactly one producer: this module.
 --
 -- Nothing here notifies. The caller owns how a failure or a fallback is shown,
 -- because <leader>as and <leader>ai surface them differently.
@@ -68,6 +69,63 @@ function M.draft()
   end
 
   return draft, nil, notice
+end
+
+-- Directory listings: their selection names files, which claudecode reads off
+-- the live Visual selection (its tree integrations). Text drawn from it is
+-- the listing, not code.
+local TREE_FILETYPES = { oil = true, NvimTree = true, ["neo-tree"] = true, minifiles = true, netrw = true }
+
+---A selection taken whole, before anything asks where it goes.
+---
+---vim.ui.select is asynchronous: by the time its choice arrives Visual mode is
+---long gone and the current buffer may be another one, so every route a
+---selection can take is computed here, from plain Neovim API, while it is
+---live. CodeCompanion's utils.context.get is no substitute afterwards: it
+---reads the current buffer's '< and '> marks and another buffer's lines.
+---@class ai.Capture
+---@field buf integer
+---@field win integer
+---@field mode string "v", "V" or "\22"
+---@field l1 integer first line, 1-based
+---@field l2 integer last line
+---@field lines string[] exactly the selected text, columns and blocks kept
+---@field path string the buffer's name, "" for none
+---@field modified boolean the buffer has unsaved changes: a file mention would miss them
+---@field filetype string
+---@field tree boolean a directory listing, whose selection only a live Visual can turn into files
+---@field draft? string ai.selection.draft()'s text, for a terminal agent's input box
+---@field err? string why there is no draft
+---@field notice? string what the draft had to fall back to
+
+---Capture the live Visual selection and leave Visual mode, '< and '> set.
+---@return ai.Capture|nil capture
+---@return string|nil err
+function M.capture()
+  local mode = vim.fn.mode():sub(1, 1)
+  local visual = ({ v = "v", V = "V", ["\22"] = "\22", s = "v", S = "V", ["\19"] = "\22" })[mode]
+  if not visual then return nil, "No visual selection is active" end
+  local buf, win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
+  local anchor, cursor = vim.fn.getpos("v"), vim.fn.getpos(".")
+  local ok, lines = pcall(vim.fn.getregion, anchor, cursor, { type = visual })
+  local draft, err, notice = M.draft()
+  vim.cmd("normal! \27")
+  if not ok or type(lines) ~= "table" or #lines == 0 then return nil, "Could not read the visual selection" end
+  return {
+    buf = buf, win = win, mode = visual,
+    l1 = math.min(anchor[2], cursor[2]), l2 = math.max(anchor[2], cursor[2]),
+    lines = lines, path = vim.api.nvim_buf_get_name(buf), modified = vim.bo[buf].modified,
+    filetype = vim.bo[buf].filetype,
+    tree = TREE_FILETYPES[vim.bo[buf].filetype] == true,
+    draft = draft, err = err, notice = notice,
+  }
+end
+
+---Is the current buffer a directory listing (see ai.Capture.tree)?
+---@param buf integer?
+---@return boolean
+function M.is_tree(buf)
+  return TREE_FILETYPES[vim.bo[buf or 0].filetype] == true
 end
 
 return M

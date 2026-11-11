@@ -1384,13 +1384,19 @@ function chat_ui:hide()
   if self:is_visible() then api.nvim_win_close(self.winnr, true) end
   self.winnr = nil
 end
--- Upstream's single-slot open, standing in: a split in this tabpage.
+-- Upstream's own window for a chat, standing in: ui:open splits one in this
+-- tabpage, and Chat.open with a window (the handoff from another chat,
+-- lua/ai/companion.lua show) takes that one.
+function chat_ui:open()
+  vim.cmd("botright split")
+  api.nvim_win_set_buf(0, chat_buf)
+  self.winnr = api.nvim_get_current_win()
+end
 local saved_chat_mod = package.loaded["codecompanion.interactions.chat"]
 package.loaded["codecompanion.interactions.chat"] = {
   open = function(args)
-    vim.cmd("botright split")
-    api.nvim_win_set_buf(0, chat_buf)
-    args.ui.winnr = api.nvim_get_current_win()
+    api.nvim_win_set_buf(args.winnr, chat_buf)
+    args.ui.winnr = args.winnr
   end,
 }
 vim.fn.chdir(root)
@@ -1515,6 +1521,32 @@ feedback.hide(feedback._buf(revs_draft))
 cd.close(hist_tab)
 vim.wait(3000, function() return not api.nvim_tabpage_is_valid(hist_tab) end, 20)
 tab, s = saved_tab, saved_s
+
+---------------------------------------------------------------------------
+-- From a view whose agent is on screen nowhere: the page the view came from
+---------------------------------------------------------------------------
+
+-- Two views opened in a row after the editor tabpage (each opens right after
+-- the page it comes from): delivery from the second goes to the page both
+-- came from, as the AI slot's keys do (util.window.origin_tab) -- not to the
+-- first view, the tabpage numbered one less.
+do
+  local hidden_buf = api.nvim_create_buf(false, true)
+  api.nvim_set_current_tabpage(editor_tab)
+  vim.cmd("tabnew")
+  local view_a = api.nvim_get_current_tabpage()
+  vim.t.blocks_global_prefixes = true
+  vim.cmd("tabnew")
+  local view_b = api.nvim_get_current_tabpage()
+  vim.t.blocks_global_prefixes = true
+  feedback._switch_tab({ buf = hidden_buf })
+  t.eq(api.nvim_get_current_tabpage(), editor_tab, "delivery from the second of two views goes to the page both came from")
+  for _, tp in ipairs({ view_b, view_a }) do
+    api.nvim_set_current_tabpage(tp)
+    vim.cmd("tabclose")
+  end
+  api.nvim_buf_delete(hidden_buf, { force = true })
+end
 
 ---------------------------------------------------------------------------
 -- comment() never raises

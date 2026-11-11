@@ -25,6 +25,7 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | No / wrong highlight | `:checkhealth nvim-treesitter` · `:checkhealth config` (tree-sitter CLI) · `:InspectTree` · `:Inspect` |
 | Formatting does nothing | `:ConformInfo` · then `:checkhealth conform` |
 | CodeCompanion chat refuses or fails | `:AI info` · `:checkhealth config` · `<leader>mnh` (notification history) |
+| `<leader>an` lists no backend, or an AI key acts somewhere unexpected | `:AI info` (open chats and where they are) · `:checkhealth config` (AI backends) · [AI and CodeCompanion](#ai-and-codecompanion) |
 | No grey AI suggestions | `:checkhealth config` (inline completion) · `~/.local/state/nvim/llama/server.log` |
 | GitHub picker/status fails | `gh auth status` · `:checkhealth config` · `<leader>mnh` (notification history) |
 | A diff view (`<leader>gv`, `gm`, `gk`, …) errors or never opens | `:checkhealth config` (CodeDiff) · `:CodeDiff install!` · [Diff views](#diff-views-codediff) |
@@ -82,12 +83,15 @@ the update checker runs silently once a day (`bootstrap.lua`).
   floor is an error — no parser can install or update
 - The macOS Normal-mode input source and whether it came from
   `NVIM_ENGLISH_INPUT_SOURCE` or the system keyboard-layout fallback
-- Active AI provider and HTTP key profile, and what each started as; both
-  providers' native CLIs and ACP bridges (missing ones are an error for the
-  active provider, a warning for the other); every key profile's variable
-  (`NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY`; unset is a warning for the
-  active profile, information for the rest); and a warning while either CLI's
-  own `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is set
+- *config: AI backends*: the HTTP key profile; every native CLI, then every
+  ACP bridge, that the providers of `lua/ai/config.lua` offer, in their order
+  (a missing one is a warning: the new-chat picker leaves it out and the rest
+  still work); every key profile's variable
+  (`NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` by default; unset is a
+  warning for the current profile, information for the rest); an error only
+  when nothing at all is available -- no agent CLI, ACP bridge or API key; and
+  a warning while a provider's own CLI variable (`ANTHROPIC_API_KEY` /
+  `OPENAI_API_KEY`) is set
 - Inline completion: `llama-server`, whether its model is in the Hugging Face
   cache (the server starts `--offline`, so a missing model is a failed start),
   and whether the shared server is answering
@@ -314,27 +318,130 @@ labels and the listing; its header lists what it depends on.
 
 ## AI and CodeCompanion
 
-- **`nvim --claude` / `nvim --codex` reports an unknown option.** These are
-  leading options of the Zsh `vi` launcher in `~/.config/zsh/functions.zsh`,
-  not native Neovim flags: use `vi --claude` / `vi --codex`. Open a new shell
-  after changing that file. In another shell, use
-  `NVIM_AI_PROVIDER=claude nvim` or
-  `NVIM_AI_PROVIDER=codex CODEX_HOME="$HOME/.codex" nvim`. Put native options
-  after the provider flag, for example `vi --codex -c 'set number' file.lua`.
-- `:AI info` (or `:AIInfo`) — active provider and key profile and what they
-  started as, the resolved adapters (native CLI, agent chat over ACP, API chat
-  and Inline over HTTP), whether each profile's variable and each CLI's own key
-  variable is set (never the value), each native agent's state, and — once
-  CodeCompanion is loaded — its chats per adapter. It loads no plugin to
-  answer.
-- `:AI provider` / `:AI key` (`<leader>ax`) switch in-process. A switch moves
-  only what the *next* session uses: running agents, open chats and their
-  adapters stay as they are.
-- **The agent panel vanished after `:AI provider`.** It was hidden, not
-  stopped: opening the active provider's panel hides the other agent's panel in
-  that tabpage, and `<leader>ab` / `as` / `am` open it to deliver as well.
-  `:AI info` lists it as *running, not shown here*; switch back and press
-  `<leader>ac`.
+- **`vi --claude` / `vi --codex` reports an unknown option.** The launcher
+  flags are gone: `vi` in `~/.config/zsh/functions.zsh` is plain `nvim`
+  (open a new shell after updating that file), and nothing chooses an agent
+  at launch. Start Nvim and pick the agent or chat in `<leader>an`
+  (`:AI new`): every terminal, then every ACP chat, then every API chat, each
+  group in the order of the `providers` list in `lua/ai/config.lua`; reorder
+  that list to change which comes first.
+- **`NVIM_AI_PROVIDER is no longer read`** (or `vim.g.ai_provider`) at
+  startup. A value left over from when it chose a default backend; it changes
+  nothing and Nvim starts. Remove the export or the `let`.
+- **Nvim refuses to start: `AI providers: …`.** The `providers` list in
+  `lua/ai/config.lua` is invalid, and the message names the entry: an empty
+  list, no name or label, a name listed twice, none of `tui`, `acp`,
+  `api`, a `cli_api_key` that is not a string, a `tui.kind` that is not
+  `claude` or `codex` or that another provider already offers, an `acp`
+  without `adapter` and `command`, an `api` without `adapter`, or an adapter
+  or `api` name used twice (a second key on one API needs its own
+  `api.name`). A new terminal kind needs code, not just an entry.
+- `:AI info` (or `:AIInfo`) prints, loading no plugin:
+
+  ```text
+  Providers Claude Code · terminal · ACP · API
+            Codex · terminal · ACP ✗ · API ✗
+            CodeCompanion's own chats on claude_code (ACP)
+  Key       Anthropic · auto (first API key set)
+            inline and command prompts on anthropic (HTTP)
+  Profiles  anthropic  NVIM_ANTHROPIC_API_KEY set
+            openai     NVIM_OPENAI_API_KEY not set
+  CLI keys  ANTHROPIC_API_KEY not set · OPENAI_API_KEY not set
+  Chats     Claude Code · terminal · subscription · hidden
+            Codex · terminal · subscription · ● here
+            Anthropic · API · API credits · #12 · tab 2
+  ```
+
+  The providers come in the order of `lua/ai/config.lua`, each with the
+  parts it offers; `✗` marks one that cannot start here (its CLI or bridge is
+  not on `PATH`, or its `NVIM_*` key is unset), which `<leader>an` leaves
+  out. Every open chat is listed with where it is: *● here* (on the right of
+  this tabpage), *tab N*, or *hidden* (running, shown nowhere). Variables are
+  reported as set or not, never their values.
+- `:AI provider` is gone and says so, pointing at `:AI new` and the order of
+  `lua/ai/config.lua`. There is no active or default provider: each key
+  acts on the chat on the right of the tabpage, `<leader>an` (`:AI new`)
+  starts a chat on any backend, and `<leader>al` (`:AI`) shows another open
+  one. `:AI key` (`<leader>ax`) is the one in-process switch, and it moves
+  only inline edits and command prompts.
+- **An agent or chat vanished from the right.** It was hidden, not stopped:
+  the right of a tabpage shows one AI window, and showing another hides the
+  rest there. `:AI info` lists it as *hidden*; `<leader>al` brings it back,
+  and `<leader>ac` brings back the last one this tabpage showed.
+- **A chat disappeared from another tabpage.** Upstream's own paths — a
+  typed `:CodeCompanionChat` or `:CodeCompanionChat Toggle`, the action
+  palette (`<leader>ap`), `<leader>ao`, `}`/`{` in a chat — open a chat
+  without naming a window, and CodeCompanion then closes its last chat
+  wherever it is shown, another tabpage included. Nothing is lost (`:AI info`
+  lists it as *hidden*); `<leader>al` shows it again. The chat keys (`an`,
+  `al`, `ac`, `af`, `ab`, `as`, `ai`) never take that path; `<leader>ap` and
+  `<leader>ao` are upstream's own, and do.
+- **Two AI windows on the right of one tabpage.** Showing a chat hides the
+  others through their owners, and a `BufWinEnter` guard does the same for
+  paths that never come through the facade. Neither touches a window its owner
+  cannot hide, and the guard gives up when another tabpage is current by the
+  time it runs. What `<leader>ac` says tells which case it is:
+  - *This is Claude Code's diff tabpage* — a window on Claude Code's
+    terminal that is not the terminal's own. Usually claudecode's copy beside
+    a proposed diff, in a tabpage of its own: answer the diff (`<leader>aa` /
+    `<leader>ad`) and the tabpage closes. A `:split` of the terminal says the
+    same; close that window (`sd`).
+  - *… is shown here in a window it cannot hide* — the same for Codex or a
+    chat: a second window on its buffer, typically a `:split` of it. Close
+    that window (`sd`).
+  - *… is this tabpage's only window* — `<leader>ac` refuses to leave the
+    tabpage with nothing in it. Open a file beside it first.
+  - Otherwise `<leader>ac` hides every AI window here, and pressed again
+    brings back the last one this tabpage showed: one window again.
+  `<C-c>` in a chat shows the next chat in its window, and CodeCompanion may
+  leave that chat's buffer in a window of another tabpage too; `<leader>ac`
+  there closes the copy (the chat stays on screen where it is its own).
+  `AI slot guard failed:` with a traceback means the guard itself raised
+  (usually a CodeCompanion update; see *A key fails* below).
+- **A key asked instead of acting** — "Add selection to", "Add buffer to",
+  "Edit prompt for", "Switch AI chat", "Which native agent?", "Whose
+  transcript?". Nothing is on the right of this tabpage (or, from a CodeDiff
+  view, of the page the view came from), or several AI windows are there and
+  the current window is none of them. Nothing is ever delivered to a hidden
+  chat or another tabpage's without asking, and no provider stands in for the
+  chat on the right; "Which native agent?" lists the installed terminals in
+  the order of `lua/ai/config.lua`. Cancel delivers nothing and, from a
+  CodeDiff view, goes back to it.
+- **Where did the selection (or the buffer) go?** To the chat on the right of
+  the tabpage the key was pressed in — from a CodeDiff view, of the page the
+  view came from, which becomes current. When that meant going to another
+  tabpage the notice says so: `Sent to Codex (tab 2)`. Nothing is submitted:
+  - Claude Code gets a file mention of the selected lines (`<leader>as`) or
+    of the file (`<leader>ab`), through claudecode as `:ClaudeCodeSend` and
+    `:ClaudeCodeAdd` would. It reads the saved file: a buffer with unsaved
+    changes is sent with a warning, a buffer with no file is refused
+    (`<leader>ai` takes the selected text itself).
+  - Codex gets `@path lines X-Y ` (or `@path ` for `<leader>ab`) typed into
+    its input box; from a buffer with no file or with unsaved changes
+    `<leader>as` types the exact selection instead, fenced (saying so for the
+    unsaved changes), and `<leader>ab` warns that Codex reads the saved file.
+  - A chat gets the selection as a fenced block at the end of its prompt.
+    `The chat is replying: nothing was added` while it is mid-turn (a tool
+    loop included). `<leader>ab` sends a chat nothing: it takes a selection,
+    or `#{buffer}` in its own prompt.
+  A Visual selection in oil goes only to Claude Code on the right, and
+  nowhere when anything else is there: a listing's selection cannot wait for
+  a question.
+- **`<leader>ar`, `aR` or `am` only showed the agent.** Each native agent has
+  one session per Nvim (claudecode keeps one terminal, and so does the Codex
+  backend), so a running one is shown and left as it is: `Claude Code is
+  already running: use /resume in it, or exit it first` (`use /model in it`
+  for `am`, `this is its session` for `aR`; Codex: `A Codex session is
+  already active; exit it before resuming another` for `ar`, and the same
+  two for `am`/`aR`). Nothing is typed into its input box, which may hold a
+  draft or an approval an Enter would answer. `<leader>an` offers that
+  session too, labelled *running* or *● here*, and shows it rather than start
+  a second. Use `/resume` or `/model` inside, or exit the agent and press the
+  key again. A session these keys or `<leader>an` start is announced (`Started
+  Codex · terminal · subscription to resume a session`, `New chat: …`). A cold
+  start begins from the editor window, so the agent's root is the edited
+  file's; with none in this tabpage it refuses: `No editor window in this tab
+  to start the agent from`.
 - **The agent session is alive, but its panel disappeared after clicking a file
   tab.** bufferline's default `:buffer` ran in the focused panel; Snacks' window
   protection could close that window when no ordinary file window was available
@@ -343,48 +450,77 @@ labels and the listing; its header lists what it depends on.
   visible. In an older running Nvim, `<leader>af` restores the native panel;
   restart Nvim to load the fix.
 - **`<leader>aa` / `<leader>ad` are missing.** They answer Claude's diffs and
-  exist while Claude is active or once claudecode.nvim has loaded. In a
-  Codex-started Nvim that never used Claude there is no diff to answer.
-- **The statusline shows `󰚩 … · 󰌆 …`.** Either setting differs from how this
-  Nvim started; click it (or `<leader>ax`) to switch again. It disappears once
-  both are back where they started.
-- **API chat or inline prompts use the "wrong" key after a provider switch.**
-  The key profile was pinned with `:AI key <name>`; `:AI key auto` makes it
-  follow the provider again.
-- `:checkhealth config` — native CLI plus `claude-agent-acp`/`codex-acp`
-- Keys: `<leader>ag` / `<leader>aG` agent chat (ACP, the provider, on the
-  subscription); `<leader>ah` / `<leader>aH` API chat (HTTP, the key profile,
-  on API credits); `<leader>ae` inline; `<leader>ap` actions; `<leader>ao` /
+  exist once claudecode.nvim has loaded, whatever is on the right. Before
+  Claude was ever started there is no diff to answer.
+- **The statusline shows `󰌆 …`.** The key profile is pinned (`:AI key <name>`
+  or `NVIM_AI_KEY_PROFILE`); click it (or `<leader>ax`) to change it. It
+  disappears with `:AI key auto`.
+- **Inline prompts use the "wrong" key.** The key profile was pinned with
+  `:AI key <name>`; `:AI key auto` goes back to the first profile in
+  `lua/ai/config.lua` whose `NVIM_*` key is set (else the first).
+  An API chat keeps the profile its `<leader>an` entry named.
+- `:checkhealth config` — native CLIs plus `claude-agent-acp`/`codex-acp`
+- Keys: `<leader>an` new chat (every available backend: the native
+  terminals, ACP chats on the subscription, an API chat per key profile on API
+  credits, each group in provider order); `<leader>al` switch chat;
+  `<leader>ac` / `af` toggle / focus the chat on the right; `<leader>ae` inline; `<leader>ap` actions; `<leader>ao` /
   `:CodeCompanionHistory` auto-saved history (also `gh` inside a chat). The
   old `<leader>ap…` two-key forms are gone: `<leader>apc` now opens the action
-  palette with `c` typed into its filter.
+  palette with `c` typed into its filter, and `<leader>ag`/`aG`/`ah`/`aH` are
+  gone too: `<leader>an` starts either kind.
 - History restores the local transcript; use `/resume` in a fresh agent chat
   to reload a stateful agent session.
-- **`<leader>ah` / `aH` / `ae` say `NVIM_… is not set` and nothing opens.**
-  The active key profile's variable is unset, so the request is refused before
-  it is sent rather than answered with a 401. Set it as in
+- **`<leader>an` shows no backend (`No AI backend is available here`), or
+  leaves one out.** The picker lists only what can start here, read from
+  this Nvim's `PATH` and environment each time it opens, and loads nothing to
+  decide: a native terminal needs its CLI (`claude`, `codex`), an ACP chat its
+  bridge, an API chat its profile's `NVIM_*` variable; a part a provider
+  leaves out of `lua/ai/config.lua` is never offered. `:checkhealth config`,
+  *AI backends*, names each one missing. A CLI installed later is found at
+  the next press; a variable exported in another shell is not, until Nvim is
+  started from a shell that has it. The keys that take only a native agent
+  (`<leader>ab`, `ar`, `aR`, `am`, `at`, `aT`) say `No native agent is
+  installed (claude, codex)` instead. An entry ending in `⚠ ANTHROPIC_API_KEY
+  is set — it may bill the API` (or `OPENAI_API_KEY`) is listed, but its
+  "subscription" may not hold: see *The agent bills the API* below.
+- **An API chat is missing from `<leader>an`, or `<leader>ae` says
+  `NVIM_… is not set`.** The picker lists only backends that can start, and
+  an API chat needs its profile's variable; `<leader>ae` refuses before the
+  command line opens rather than end in a 401. Set it as in
   [README → API keys](../README.md#api-keys) and restart Nvim from a new
   shell, or `:AI key <profile>` to one whose key is set (`:AI info` lists
-  which). Agent chat is unaffected: it uses the agent's own login. A chat
-  restored from history, the action palette (`<leader>ap`, whose *Inline
-  prompt* runs on the key profile) and `:CodeCompanion` / `:CodeCompanionCmd`
-  typed by hand skip this check and can still end in a 401.
-- **`<leader>ag` / `aG` say `claude-agent-acp not found` (or `codex-acp`).**
-  The active provider's ACP bridge is not on `PATH`; reinstall it (last item
-  of this section). Codex's ACP adapter always uses the ChatGPT login,
-  whichever provider started Nvim.
-- **`<leader>ah` opened a different chat than the one on screen.** Each key
-  reaches the chat of its own kind for the *current* provider or key profile;
-  after `:AI key`, the previous profile's chat is still there under that
-  profile. The reply header says which one you are in:
-  `CodeCompanion (Claude Code · ACP)` or `CodeCompanion (Anthropic · API)`.
-- **A warning says `Companion toggle fell back to :CodeCompanionChat Toggle`.**
+  which). ACP chats and the native terminals are unaffected: they use the
+  agent's own login. A chat restored from history, the action palette
+  (`<leader>ap`, whose *Inline prompt* runs on the key profile) and
+  `:CodeCompanion` / `:CodeCompanionCmd` typed by hand skip this check and can
+  still end in a 401.
+- **An ACP chat is missing from `<leader>an`.** Its bridge
+  (`claude-agent-acp` or `codex-acp`) is not on `PATH`; reinstall it (last
+  item of this section). Codex's ACP chat uses the ChatGPT login:
+  CodeCompanion's `codex` ACP adapter is given `auth_method = "chat-gpt"`
+  whatever the providers list holds (a restored chat or a typed
+  `:CodeCompanionChat` can name it), since codex-acp's own default bills
+  `OPENAI_API_KEY`; a provider's `acp.auth_method` overrides it.
+- **Which chat is this?** The switcher (`<leader>al`) and `:AI info` label
+  each chat with its backend and billing, and a reply header says the kind:
+  `CodeCompanion (Claude Code · ACP)` or `CodeCompanion (Anthropic · API)`. A
+  chat keeps the adapter it was created with.
+- **A key fails with `AI chat … failed` and a traceback.**
   `lua/ai/companion.lua` reaches into CodeCompanion's chat internals, and an
-  update changed one; the key used the upstream command instead, which only
-  knows the last chat of either kind. The warning carries the error to fix.
+  update changed one. Nothing falls back to an upstream command, which would
+  aim at its last chat instead; the error names what to fix.
+- **Claude Code still sees the selection while it is hidden.** Expected.
+  claudecode's selection tracking (its `track_selection`, on by default and
+  not changed here) reports the editor's selection to a running Claude over
+  its IDE connection whatever the right shows, as it does for a shown panel,
+  so a prompt sent to Claude may refer to it. That is Claude's own editor
+  context, not a delivery: nothing is typed into its input box, and with
+  Codex or a chat on the right the `<leader>a` keys never send it to Claude.
+  Only a Claude session that runs has it; quitting Claude ends it.
 - **Nvim refuses to start: `AI key profile "…" must read an NVIM_* variable`.**
-  A `key_profiles` entry in `lua/ai/config.lua` names a CLI's own variable (or
-  something not `NVIM_*`). Give it an `NVIM_*` variable of its own.
+  A provider's `api` in `lua/ai/config.lua` names a CLI's own variable (or
+  something not `NVIM_*`) as its `api_key`. Give it an `NVIM_*` variable of
+  its own.
 - **The agent bills the API although you have a subscription.** Check
   `:checkhealth config` for *ANTHROPIC_API_KEY is set* (or `OPENAI_API_KEY`).
   Those are the CLIs' own variables and can take precedence over the login;
@@ -429,7 +565,7 @@ labels and the listing; its header lists what it depends on.
 minuet (`lua/plugin/lsp/minuet.lua`) draws the grey suggestions; they come from
 a local `llama-server` that `util.llama` starts on the first Insert in a
 buffer that can show them, and that every Nvim shares. None of it depends on
-`NVIM_AI_PROVIDER`.
+the providers in `lua/ai/config.lua` or on the chat on the right.
 
 - **No suggestions anywhere.** `:checkhealth config` → *inline completion*
   names the missing piece: `llama-server` itself (`brew install llama.cpp`) or
@@ -571,9 +707,21 @@ rather than a broken viewer.
   Code: across the same edit its pane went 17 non-blank lines → 0 → 17, while
   Codex held at 18 → 18 → 18 and kept its TUI on screen throughout.
 - **`<leader>ai` appears to do nothing** — the agent was not running. It starts
-  the CLI and notifies instead of firing the keystroke, because a `ctrl+g` aimed
-  at a TUI that is still booting is swallowed silently. Press `<leader>ai` again
-  once the prompt appears.
+  the CLI and waits, up to 45 s, for its input box before sending `ctrl+g`,
+  because a `ctrl+g` aimed at a TUI that is still booting is swallowed
+  silently. A box that never shows (a trust or login prompt still waiting for
+  an answer) ends in `… did not reach its prompt — press <leader>ai again`.
+  With nothing on the right it asks first (*Edit prompt for*); on a
+  CodeCompanion chat it opens no float at all and puts the cursor in the
+  chat's own prompt, in Insert mode unless the chat is replying (`The chat is
+  replying: type once it is done`).
+- **The float's title is just ` Prompt `, and `<C-v>` refuses** (`No agent is
+  known to have handed over this prompt`). The file's path names neither
+  agent — Claude Code's are `claude-prompt-*.md`, Codex's
+  `$CODEX_HOME/editor/*.md` — typically a `git commit` run in an agent's pane,
+  which uses the same `$EDITOR`. It is edited and returned like any other, but
+  takes no staged text (a `<leader>ai` selection, review feedback) and
+  attaches no image: either would go to an agent guessed at.
 - **The prompt opens in a second Nvim inside the terminal** — the `$EDITOR`
   handoff did not reach the pane, so the CLI fell back to running `nvim` itself.
   Check `:checkhealth config` for the wrapper, then inside the agent terminal:
@@ -616,14 +764,15 @@ from this Nvim's panel have the hooks; nothing is written to `~/.claude` or
      a source turned on after Claude's first start needs a restart.
   4. Claude: its `/hooks` menu does not list hooks given through
      `--settings` (checked with Claude Code 2.1), so ours never show there.
-     Nvim shows instead whether they run: with Claude open in this root,
-     `<leader>aV` from a file names `Conversation: Claude Code session …`
-     once the `SessionStart` hook has reported, and "No conversation yet"
-     when it has not. Not running: Claude was started with `--bare` (which
-     skips hooks), managed settings set `disableAllHooks` or
-     `allowManagedHooksOnly`, or the folder's trust prompt has not been
-     accepted — Claude holds hooks back until it is. For a log, quit Claude
-     and start it from Nvim with
+     Nvim shows instead whether they run: with Claude in this root on the
+     right of the tabpage, `<leader>aV` from a file (or in its panel) names
+     `Conversation: Claude Code session …` once the `SessionStart` hook has
+     reported, and "No conversation yet" when it has not — or when Claude is
+     hidden, since a file's round goes to the chat on the right only. Not
+     running: Claude was started with `--bare` (which skips hooks), managed
+     settings set `disableAllHooks` or `allowManagedHooksOnly`, or the
+     folder's trust prompt has not been accepted — Claude holds hooks back
+     until it is. For a log, quit Claude and start it from Nvim with
      `:ClaudeCode --debug=hooks --debug-file /tmp/claude-hooks.log`.
   5. Codex: `/hooks` → `UserPromptSubmit` lists ours with source *Session
      flags* and trust *Trusted*. Listed as needing review ("hooks need review
@@ -1267,19 +1416,18 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 Confirm the config loads with no errors — the same check used while developing it:
 
 ```sh
-nvim --headless -u init.lua -c "lua print('errmsg=['..vim.v.errmsg..']')" +qa
-NVIM_AI_PROVIDER=codex nvim --headless -u init.lua -i NONE +qa
+nvim --headless -u init.lua -i NONE -c "lua print('errmsg=['..vim.v.errmsg..']')" +qa
 ```
 
-A clean run prints `errmsg=[]` and no tracebacks.
+A clean run prints `errmsg=[]` and no tracebacks. One startup covers every
+provider: none is chosen at launch.
 
 ## Environment variables
 
 | Variable | Effect |
 |----------|--------|
-| `NVIM_AI_PROVIDER` | Startup provider, `claude` (default) or `codex`, for Native AI and agent chat; `:AI provider` switches it |
-| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile (`auto` by default, following the provider); an unknown name warns and falls back to `auto`; `:AI key` switches it |
-| `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key of the `anthropic` / `openai` profile, for CodeCompanion API chat and Inline/command prompts; unset, those keys refuse instead of sending |
+| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile (`auto` by default: the first profile in `lua/ai/config.lua` whose `NVIM_*` key is set, else the first); an unknown name warns and falls back to `auto`; `:AI key` switches it |
+| `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key of the default `anthropic` / `openai` profile, and of CodeCompanion's built-in `anthropic` / `openai` adapters even when no provider lists them, for CodeCompanion API chat and Inline/command prompts; unset, those keys refuse instead of sending |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Override the macOS keyboard layout used in Normal and Terminal-Normal modes |
 | `NVIM_MACISM_WAIT_TIME_MS` | Set macism's CJK workaround wait; `0` disables its temporary focus window |
 | `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |

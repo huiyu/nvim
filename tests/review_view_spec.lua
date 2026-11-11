@@ -9,7 +9,7 @@
 -- is stubbed through package.loaded, so ,C records what it would hand over.
 -- Pinned here:
 --   * the round <leader>av picks, through the real select_round: the current
---     buffer's conversation, the active provider's session, this process's
+--     buffer's conversation, the chat on the right's session, this process's
 --     newest, the newest there at all;
 --   * one review tab per root: the same round is focused (its explorer),
 --     another round replaces it -- three rounds in a row leave one tab -- and
@@ -348,7 +348,7 @@ t.eq(vim.t[tab].codediff_label, ("Review · Manual · round %s → working tree"
 t.ok(said("No conversation: delivering feedback asks where it goes") ~= nil, "and says it has no owner " .. heard())
 
 ---------------------------------------------------------------------------
--- ... the active provider's session; the current buffer's conversation
+-- ... the session on the right; the current buffer's conversation
 ---------------------------------------------------------------------------
 
 local terminals = {}
@@ -368,34 +368,49 @@ local function agent_terminal(agent, session)
   rounds._state().native[agent].session = session
   return buf
 end
-local active = config.provider
-local other = active == "claude" and "codex" or "claude"
-local active_term = agent_terminal(active, "s-active")
+-- Either agent can be the one on the right: the first listed here, and the
+-- other is registered beside it.
+local right = config.agent_names()[1]
+local other = config.agent_names()[2]
+local right_term = agent_terminal(right, "s-right")
 local other_term = agent_terminal(other, "s-other")
 t.ok(rounds.conversation_of(other_term) == other .. ":s-other", "the stand-in terminals are registered")
 
 local O = save_round(R, { Source = other, Conversation = other .. ":s-other" })
-local A = save_round(R, { Source = active, Conversation = active .. ":s-active" })
+local A = save_round(R, { Source = right, Conversation = right .. ":s-right" })
 local P2
 rounds.submit({ source = "manual", root = R, force = true, on_round = function(round) P2 = round end })
 vim.wait(10000, function() return P2 ~= nil end, 20)
 edit(R)
 
+-- ai.slot reads the chat on the right off the windows, and knows a native
+-- agent by its backend: the stand-in is that backend's terminal here.
+local right_backend = require("ai.backend." .. right)
+local backend_saved = { running = right_backend.running, buf = right_backend.buf }
+right_backend.running = function() return vim.api.nvim_buf_is_valid(right_term) end
+right_backend.buf = function() return right_term end
 vim.api.nvim_set_current_tabpage(editor_tab)
 vim.api.nvim_set_current_buf(file_buf)
+vim.cmd("botright vsplit")
+local right_win = vim.api.nvim_get_current_win()
+vim.api.nvim_win_set_buf(right_win, right_term)
+vim.cmd("stopinsert")
+vim.cmd("wincmd p")
 tab = review(A.id)
-t.ok(tab ~= nil, "from a file, the active provider's session's newest round, over a newer one of this process " .. heard())
+t.ok(tab ~= nil, "from a file, the newest round of the session on the right, over a newer one of this process " .. heard())
 t.eq(review_tabs(R), { tab }, "still one review tab")
 
 vim.api.nvim_set_current_tabpage(editor_tab)
 vim.api.nvim_set_current_buf(other_term)
 tab = review(O.id)
-t.ok(tab ~= nil, "from an agent terminal, its own session's newest round, over the active provider's " .. heard())
+t.ok(tab ~= nil, "from an agent terminal, its own session's newest round, over the one on the right's " .. heard())
 t.eq(review_tabs(R), { tab }, "still one review tab")
 t.eq(vim.t[tab].codediff_label, ("Review · %s · round %s → working tree"):format(
   other == "claude" and "Claude" or "Codex", when(O.time)), "labelled by the owner's agent")
 t.eq(layout(bystander), bystander_layout, "another tabpage keeps its windows throughout")
 local round_tab = tab
+pcall(vim.api.nvim_win_close, right_win, true)
+for k, fn in pairs(backend_saved) do right_backend[k] = fn end
 
 ---------------------------------------------------------------------------
 -- ,C on a round view

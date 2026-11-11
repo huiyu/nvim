@@ -49,7 +49,6 @@ local function child(args, opts)
   local result = vim.system(command, {
     cwd = base, text = true, stdin = opts.stdin,
     env = {
-      NVIM_AI_PROVIDER = opts.provider or require("ai.config").provider,
       CWD_PROBE = probe, CWD_EDIT = opts.edit or "", CWD_NEXT = opts.next and "1" or "",
     },
   }):wait(20000)
@@ -59,12 +58,10 @@ local function child(args, opts)
   return ok and decoded or {}
 end
 
-for _, provider in ipairs({ "claude", "codex" }) do
-  local result = child({ file }, { provider = provider, edit = other })
-  t.eq(result.cwd, repo, provider .. ": a file starts in its Git root")
-  t.eq(result.agent_root, repo, provider .. ": the agent uses the same project")
-  t.eq(result.later_cwd, repo, provider .. ": editing another repository leaves cwd alone")
-end
+local started = child({ file }, { edit = other })
+t.eq(started.cwd, repo, "a file starts in its Git root")
+t.eq(started.agent_root, repo, "the agents use the same project")
+t.eq(started.later_cwd, repo, "editing another repository leaves cwd alone")
 
 t.eq(child({ "project with spaces/src/one.txt" }).cwd, repo, "relative paths resolve before cwd changes")
 t.eq(child({ repo .. "/src/new/deeper/file.txt" }).cwd, repo, "a new file with missing parents finds its repository")

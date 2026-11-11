@@ -38,12 +38,19 @@ for lhs, modes in pairs({
   ["<leader>gD"] = { n = true },
   ["<leader>bh"] = { n = true },
   ["<leader>ax"] = { n = true },
-  -- CodeCompanion: Normal goes to a chat, Visual takes the selection along;
-  -- "new chat" and saved chats have nothing to take.
-  ["<leader>ag"] = { n = true, x = true },
-  ["<leader>aG"] = { n = true },
-  ["<leader>ah"] = { n = true, x = true },
-  ["<leader>aH"] = { n = true },
+  -- The chat on the right: the pickers take a Visual selection along, toggle
+  -- and focus take none.
+  ["<leader>an"] = { n = true, x = true },
+  ["<leader>al"] = { n = true, x = true },
+  ["<leader>ac"] = { n = true },
+  ["<leader>af"] = { n = true },
+  -- CodeCompanion: inline edits and actions take a Visual range; saved chats
+  -- have nothing to take. The per-kind chat keys are gone: <leader>an starts a
+  -- chat of any kind.
+  ["<leader>ag"] = {},
+  ["<leader>aG"] = {},
+  ["<leader>ah"] = {},
+  ["<leader>aH"] = {},
   ["<leader>ae"] = { n = true, x = true },
   ["<leader>ap"] = { n = true, x = true },
   ["<leader>ao"] = { n = true },

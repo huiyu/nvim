@@ -13,23 +13,28 @@ return {
     "nvim-treesitter/nvim-treesitter",
     "ravitemer/codecompanion-history.nvim",
   },
-  -- No `keys`: the <leader>a chat keys belong to the AI facade
-  -- (lua/ai/init.lua), which relabels them on every :AI switch. They still load
-  -- the plugin on first use -- through `require`, which lazy autoloads -- and
-  -- the commands above cover everything typed.
+  -- No `keys`: the <leader>a keys belong to the AI facade (lua/ai/init.lua),
+  -- which relabels <leader>ae on :AI key. They still load the plugin on first
+  -- use -- through `require`, which lazy autoloads -- and the commands above
+  -- cover everything typed.
   --
-  -- A function, so the plugin starts from the state lua/ai/switch.lua left
-  -- behind when it first loads; after that, switching writes the live config
-  -- (lua/ai/companion.lua, sync).
+  -- A function, so the plugin starts from the key profile :AI key left behind
+  -- when it first loads; after that, :AI key writes the live inline/cmd
+  -- adapters (lua/ai/companion.lua, sync).
   opts = function()
     local ai = require("ai.config")
 
     -- Every key profile reads its own NVIM_* variable, never the one the agent
-    -- CLIs bill against (lua/ai/config.lua). Both built-in adapters are
-    -- redirected whichever provider started this Nvim, because either can be
-    -- the active key profile after a switch.
+    -- CLIs bill against (lua/ai/config.lua). The two built-in adapters are
+    -- redirected whichever providers are listed, so a restored chat or an
+    -- upstream path naming one never reads a CLI's variable; a provider's
+    -- `api` naming the built-in itself sets its own key over that.
     local http = { extend = {} }
-    for name, profile in pairs(ai.key_profiles) do
+    for adapter, var in pairs(ai.builtin_http_keys) do
+      http.extend[adapter] = { env = { api_key = var } }
+    end
+    for _, name in ipairs(ai.key_names()) do
+      local profile = ai.key_profiles[name]
       if name == profile.adapter then
         http.extend[name] = { env = { api_key = profile.api_key } }
       else
@@ -45,23 +50,31 @@ return {
       end
     end
 
+    -- The subscription login for the built-in ACP adapters whichever
+    -- providers are listed (Codex: `chat-gpt`; its own default, `api-key`,
+    -- would bill OPENAI_API_KEY), then each provider's own `acp.auth_method`.
+    local acp_extend = {}
+    for adapter, method in pairs(ai.builtin_acp_auth) do
+      acp_extend[adapter] = { defaults = { auth_method = method } }
+    end
+    for _, acp in ipairs(ai.acp) do
+      if acp.auth_method then acp_extend[acp.adapter] = { defaults = { auth_method = acp.auth_method } } end
+    end
+
     return {
       adapters = {
-        acp = {
-          extend = {
-            -- Unconditional: a Claude-started Nvim reaches Codex too, and the
-            -- adapter's own default (`api-key`) would bill OPENAI_API_KEY
-            -- instead of the ChatGPT login.
-            codex = { defaults = { auth_method = "chat-gpt" } },
-          },
-        },
+        acp = { extend = acp_extend },
         http = http,
       },
       interactions = {
         chat = {
-          adapter = ai.codecompanion.acp_adapter,
-          -- A chat's adapter is fixed when it is created; choosing another is
-          -- :AI's job (lua/ai/switch.lua), and applies to the next chat.
+          -- Only for CodeCompanion's own paths that name no adapter (a typed
+          -- :CodeCompanionChat, the action palette): the first `acp` in
+          -- lua/ai/config.lua's provider order, else the first `api`. Every
+          -- chat <leader>an starts names its own.
+          adapter = ai.codecompanion.chat_adapter,
+          -- A chat's adapter is fixed when it is created; another backend is
+          -- another chat (<leader>an).
           keymaps = { change_adapter = false },
           -- Agent and API chats look alike once open, and bill differently,
           -- so every reply's header names both the backend and the kind:

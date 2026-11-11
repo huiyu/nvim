@@ -1,14 +1,13 @@
 local M = {}
 
+local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
+
 local function command(cmd)
   vim.cmd(cmd)
 end
 
 function M.toggle() command("ClaudeCode") end
 function M.focus() command("ClaudeCodeFocus") end
-function M.resume() command("ClaudeCode --resume") end
-function M.continue() command("ClaudeCode --continue") end
-function M.select_model() command("ClaudeCodeSelectModel") end
 function M.add_buffer() command("ClaudeCodeAdd %") end
 function M.send_selection() command("ClaudeCodeSend") end
 function M.accept_diff() command("ClaudeCodeDiffAccept") end
@@ -30,6 +29,121 @@ end
 ---@return boolean
 function M.running()
   return panel() ~= nil
+end
+
+---The session's terminal buffer, while one runs.
+---@return integer|nil
+function M.buf()
+  local term = panel()
+  return term and term.buf or nil
+end
+
+---A window of the current tabpage that shows the session: its own, else
+---the copy claudecode puts beside a proposed diff in a tabpage of its own.
+---@return integer|nil
+function M.window_here()
+  local buf = M.buf()
+  if not buf then return nil end
+  if M.visible() then return M.window() end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(win).relative == "" and vim.api.nvim_win_get_buf(win) == buf then return win end
+  end
+end
+
+---Show the session here and focus it, starting it when none runs. Shown here
+---already -- in its own window, or in the copy of a diff tabpage -- it is
+---focused where it is. Else this is claudecode's open, not its toggles: it
+---reuses the one terminal (cc_show) and never hides it, and it judges "shown"
+---by the terminal's own window, so it would open a second one beside a copy.
+---Through the command until the plugin has loaded -- the command is what
+---loads it -- and the module function after, which is also what a spec
+---stands in for.
+---@param args string? CLI arguments for a session it starts; a running one ignores them
+function M.reveal(args)
+  local here = M.window_here()
+  if here then
+    vim.api.nvim_set_current_win(here)
+    vim.cmd("startinsert")
+    return
+  end
+  if package.loaded["claudecode"] then
+    require("claudecode.terminal").open({}, args)
+  else
+    command("ClaudeCodeOpen" .. (args and (" " .. args) or ""))
+  end
+end
+
+local function already(what)
+  vim.notify("Claude Code is already running: " .. what, INFO, { title = "AI" })
+end
+
+-- These start a session with their arguments. One that is running already is
+-- shown and left as it is: claudecode keeps one terminal, and its toggles
+-- would drop the arguments and hide a shown panel instead.
+function M.resume()
+  if M.running() then
+    M.reveal()
+    return already("use /resume in it, or exit it first")
+  end
+  M.reveal("--resume")
+end
+function M.continue()
+  if M.running() then
+    M.reveal()
+    return already("this is its session")
+  end
+  M.reveal("--continue")
+end
+-- What a cold start asks before it shows anything: claudecode's model
+-- question, which can be cancelled. The slot hides nothing for it until the
+-- terminal does show (lua/ai/init.lua, native_key).
+M.asks_first = { select_model = true }
+
+function M.select_model()
+  if M.running() then
+    M.reveal()
+    -- Nothing is typed for it: "/model" would land after a half-typed prompt
+    -- -- no command there -- and its Enter would submit that prompt, or answer
+    -- a permission dialog the TUI is showing.
+    return already("use /model in it")
+  end
+  command("ClaudeCodeSelectModel")
+end
+
+---Mention a file, as <leader>ab does for the current buffer: claudecode's
+---public send_at_mention, which queues the mention while the TUI connects.
+---Not :ClaudeCodeAdd, which splits its argument on whitespace and keeps the
+---backslashes fnameescape adds, so "a repo/x.lua", "[id]/page.tsx" or
+---"$post.tsx" never arrived. Warns when `modified`: Claude reads the saved
+---file, as Codex does.
+---@param path string
+---@param modified boolean?
+function M.add_path(path, modified)
+  if vim.fn.filereadable(path) == 0 and vim.fn.isdirectory(path) == 0 then
+    return vim.notify("Claude Code reads files from disk, and this one is not saved: " .. path, WARN, { title = "AI" })
+  end
+  if modified then
+    vim.notify("Claude Code reads the saved file; this buffer has unsaved changes", WARN, { title = "AI" })
+  end
+  local ok, err = require("claudecode").send_at_mention(path, nil, nil, "ClaudeCodeAdd")
+  if not ok then
+    vim.notify("Claude Code did not take the file: " .. tostring(err), WARN, { title = "AI" })
+  end
+end
+
+---Mention lines `l1`..`l2` (1-based) of `path`: what :ClaudeCodeSend makes of
+---a selection, without needing that selection to be live -- the facade has
+---captured it before asking where it goes (lua/ai/init.lua). claudecode's
+---public send_at_mention, which queues the mention while the TUI is still
+---connecting.
+---@param path string
+---@param l1 integer
+---@param l2 integer
+function M.send_range(path, l1, l2)
+  local ok, err = require("claudecode").send_at_mention(path, l1 - 1, l2 - 1, "ClaudeCodeSend")
+  if not ok then
+    vim.notify("Claude Code did not take the selection: " .. tostring(err), vim.log.levels.WARN, { title = "AI" })
+  end
 end
 
 ---The panel's window, in whichever tabpage shows it; nil while hidden.
@@ -103,7 +217,14 @@ function M.edit_prompt(opts)
 
   editor.stage_seed(opts.seed, { provider = "claude", on_consumed = opts.on_consumed, on_expired = opts.on_expired, ttl_ms = opts.ttl_ms })
 
-  terminal.ensure_visible()
+  -- Shown here already, in its own window or the copy of a diff tabpage: it
+  -- stays as it is -- open() would put a second window beside a copy. A
+  -- hidden session is shown through open(): ensure_visible counts any window
+  -- on the terminal as shown, a copy in another tabpage too, and would open
+  -- nothing here, where the slot just made room for it (lua/ai/slot.lua).
+  if not M.window_here() then
+    if M.running() and not M.window() then terminal.open() else terminal.ensure_visible() end
+  end
 
   if running then
     vim.api.nvim_chan_send(running, editor.EDIT_KEY)

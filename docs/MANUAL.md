@@ -599,7 +599,7 @@ is open beside your code.
 | `<Space>d` | Debug | breakpoints, step, inspect |
 | `<Space>t` | Test | run file / nearest / debug, output panel |
 | `<Space>x` | Diagnostics | error list, quickfix, location list |
-| `<Space>a` | AI | Claude / Codex panels, prompts, transcript, agent and API chats (`ag` / `ah`), review rounds (`av` / `aV`), switch provider / API key (`ax`) |
+| `<Space>a` | AI | the chat on the right — Claude / Codex panels and CodeCompanion chats (`an` new, `al` switch, `ac` / `af`), prompts, transcript, review rounds (`av` / `aV`), API key (`ax`) |
 | `<Space>b` | Buffer | delete, pin, close others, close the hidden ones (`bh`) |
 | `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
@@ -845,24 +845,41 @@ were showing.
 Ctrl-/       toggle a terminal
 3<Ctrl-/>    select terminal 3 from a file (Normal mode)
 ,1 … ,9      choose terminal 1-9 from a terminal buffer (jk first)
-<Space>ac    open the AI panel
+<Space>an    start an AI chat: Claude Code, Codex, or a CodeCompanion chat
+<Space>al    switch to another open chat
+<Space>ac    hide the chat on the right, or bring it back
 <Space>ai    write a prompt in a real Neovim buffer
 <Space>av    review what changed since your last prompt
-<Space>ax    switch between Claude Code and Codex (or the API key)
 Ctrl-l       (Insert) take the grey AI suggestion
 ```
 
 `Ctrl-]` leaves terminal input without disturbing the program running in it —
 useful because `Esc` belongs to the AI CLIs themselves.
 
-The launch option picks the agent (`vi --claude` for Claude Code, `vi --codex`
-for Codex), and `<Space>ax` (`:AI`) changes it without restarting. Switching only
-changes where the `<Space>a` keys go next — which-key's menu shows the new
-name — and stops nothing. The agent you left keeps running; when you open the
-new one's panel, the old panel in that tabpage steps aside, and switching back
-then `<Space>ac` brings it back. `:AI info` shows which agents are running and
-which API key the HTTP prompts would use. Details: [AI provider
-selection](../README.md#ai-provider-selection).
+The right side of a tabpage holds one AI window — the *chat on the right*:
+Claude Code's or Codex's terminal, or a CodeCompanion chat. `<Space>an` starts
+one on any backend you have (the list says how each is billed), `<Space>al`
+switches to another open one, and the `<Space>a` keys that send something —
+`as`, `ab`, `ai` — go to whichever is on the right. Showing one hides the
+others in that tabpage without stopping them: an agent keeps working while it
+is hidden, and `<Space>al` (or `<Space>ac`, for the last one shown here)
+brings it back. With nothing on the right a key asks where to go; it never
+sends to a hidden chat on its own. In a CodeDiff view the keys act on the page
+the view was opened from.
+
+No agent is the default, and nothing at startup picks one. The *providers* —
+Claude and Codex out of the box — are an ordered list in `lua/ai/config.lua`,
+and that order is the only preference there is: `<Space>an` lists every
+terminal, then every agent chat, then every API chat, each group in that
+order; a key only a native agent answers (`ar`, `am`, `at` and the like) acts
+on the native agent on the right, else asks among the installed ones in the
+same order (with one installed, it uses that one). A provider left out of the
+list is not offered, nor is any part of one whose CLI or key is missing here.
+Inline prompts bill the key of the first provider whose `NVIM_*` key is set,
+unless `<Space>ax` pins another. `:AI info` shows the providers in order with
+what each offers, every open chat and where it is, and which API key the
+inline prompts would use. Details: [AI chats and
+providers](../README.md#ai-chats-and-providers).
 
 To point an agent at some code, `<Space>yl` copies `path:12` (in Visual mode
 `path:12-18` for the selected lines), relative to the repository root. Agent
@@ -886,15 +903,18 @@ screen.
 
 ### Three ways to ask an AI
 
-The `<Space>a` menu reaches three different things. What they can do
-overlaps; where the request goes, and who pays for it, does not:
+`<Space>an` offers three different things. What they can do overlaps; where
+the request goes, and who pays for it, does not:
 
 | | Native panel | Agent chat | API chat |
 |---|---|---|---|
-| Keys | `<Space>ac`, `ai`, `as`, `ab` | `<Space>ag`, `aG` | `<Space>ah`, `aH`, `ae` |
+| `<Space>an` entry | `Claude Code · terminal · subscription` | `Claude Code · CodeCompanion ACP · subscription` | `Anthropic · CodeCompanion API · API credits` |
 | What it is | The agent's own terminal app | The same agent in a Neovim chat buffer (CodeCompanion over ACP) | A model's API in the same kind of buffer (CodeCompanion over HTTP) |
 | Paid by | Subscription | Subscription | API credits |
-| Follows | Provider | Provider | API key profile |
+
+Each has its Codex or OpenAI twin. Once started, all three are reached the same
+way: they take turns on the right, and `as`, `ai`, `ac` and `af` act on
+whichever is there.
 
 Pick by what you are doing:
 
@@ -905,28 +925,25 @@ Pick by what you are doing:
   buffer.
 - **Work through something in a buffer: the agent chat.** The same agent on
   the same subscription, but the conversation is a Markdown buffer you can
-  search, yank from and edit like any other. In Visual mode `<Space>ag` adds
+  search, yank from and edit like any other. In Visual mode `<Space>as` adds
   the selection to it.
 - **Ask a model directly: the API chat.** No agent in between, billed to the
   API key (setup: [API keys](../README.md#api-keys)). It has CodeCompanion's
   own `@` tools, `/save` to keep a chat as a session and `/compact` for long
   ones. `<Space>ae` is its one-shot form: an instruction for the selection,
-  or for the cursor position, typed on the command line.
+  or for the cursor position, typed on the command line, billed to the key
+  profile `<Space>ax` picks.
 
 Inside either chat, write below the last `## Me` heading and press `Enter` in
 Normal mode (or `Ctrl-s`) to send; nothing goes out before that. The reply's
 heading says which kind you are in — `CodeCompanion (Claude Code · ACP)` or
-`CodeCompanion (Anthropic · API)` — and so do the menu headings, *ACP chat ·
-subscription* and *HTTP · API credits*.
+`CodeCompanion (Anthropic · API)` — and so do `<Space>al`'s labels. The keys
+that spend API credits sit under the menu heading *HTTP · API credits*.
 
-The two chats share one window. `<Space>ag` and `<Space>ah` each show or hide
-their own kind and start one when there is none; the capitals always start a
-new chat. `<Space>ao` reopens a saved chat of either kind.
-
-`<Space>ax` moves both: after switching to Codex, `<Space>ag` reaches a Codex
-agent chat; after `:AI key openai`, `<Space>ah` reaches an OpenAI one. Chats
-already open keep what they started with. If the API key is not set,
-`<Space>ah` and `<Space>ae` say so and send nothing.
+Two chats on the right hand the one window over in place. A chat keeps the
+backend it was started on; another backend is another chat, from `<Space>an`.
+`<Space>ao` reopens a saved chat of either kind. An API chat whose key is not
+set is not offered, and `<Space>ae` says so and sends nothing.
 
 Approving an edit and reviewing one are different things. `<Space>aa` /
 `<Space>ad` answer one edit Claude *proposes*, before it reaches the disk; only
@@ -964,8 +981,8 @@ Every kind of conversation starts rounds the same way:
 
 | Conversation | A round starts when |
 |---|---|
-| Native Claude or Codex (`<Space>ac`) | you submit a prompt in the panel |
-| Agent chat (`<Space>ag`) or API chat (`<Space>ah`) | you send a message, or regenerate a reply |
+| Native Claude or Codex (`<Space>an`) | you submit a prompt in the panel |
+| Agent chat or API chat (`<Space>an`) | you send a message, or regenerate a reply |
 | None in particular | you press `<Space>aV` |
 
 The prompt waits for its snapshot, up to 2.5 s; on an ordinary repository the
@@ -1015,7 +1032,8 @@ CodeDiff view, the one it compares), otherwise the working directory's. Which
 round, the first that exists:
 
 1. the newest round of the conversation in the current panel or chat;
-2. the newest round of the active provider's agent session;
+2. the newest round of the chat on the right (in a CodeDiff view, of the page
+   the view came from);
 3. the newest round this Nvim started in that repository;
 4. the newest round there at all.
 
@@ -1098,8 +1116,8 @@ typed in the other goes beside it as `<round>.conflict.md` (then
 
 `<C-d>` sends the draft, without its markers, to the conversation that owns the
 round. It first switches to the tab that shows that agent's panel or chat —
-from the review tab otherwise to the tab before it, the one it was opened
-from.
+otherwise, from a CodeDiff view, to the tab the view was opened from (the
+nearest one before it that is not a view itself).
 
 - **Native Claude or Codex.** The feedback opens in that agent's own prompt
   editor — the float `<Space>ai` opens — after whatever was already typed in
@@ -1205,13 +1223,14 @@ keeps recording its rounds where it started, and says so once.
 - `<Space>aV` (*Start a review round*) takes a round now, without a prompt — say,
   before you edit by hand or before a task you start some other way. It
   belongs to the conversation of the panel or chat you press it in; else to the
-  active provider's agent, when that runs in this repository and has reported
-  its session; else to nobody, and `<C-d>` asks where its feedback goes. When
+  chat on the right, when it works in this repository and is a conversation
+  this Nvim knows (an agent that has reported its session, or a chat); else to
+  nobody, and `<C-d>` asks where its feedback goes. When
   nothing changed since that owner's last round, it says that round is already
   the current state.
 - `<Space>gK` (*Save current code as a baseline*) saves a named snapshot that
   belongs to no conversation — "before refactor". It offers the name of the
-  agent session at work in this repository (the active provider's first);
+  agent session at work in this repository (the chat on the right first);
   edit it, or clear it for the time. Each worktree keeps its newest 10, and a
   notice names any it removes.
 - `<Space>gk` (*Compare two*) compares any two ends. Pick an older round's

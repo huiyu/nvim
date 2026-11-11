@@ -1,10 +1,10 @@
 local ai_config = require("ai.config")
 
--- Declared under both providers, lazy and command-triggered: `:AI provider
--- claude` in a Codex-started Nvim needs the plugin, and nothing loads it before
--- the first Claude key does. Never make this spec conditional on the provider:
--- lazy then prunes its lock line and lists the plugin in `to_clean`, so
--- `:Lazy clean` / `:Lazy sync` from a Codex process deletes it.
+-- Declared always, lazy and command-triggered: nothing loads the plugin
+-- before the first Claude key does. Never make this spec conditional on the
+-- providers (lua/ai/config.lua): lazy then prunes its lock line and lists the
+-- plugin in `to_clean`, so `:Lazy clean` / `:Lazy sync` from a config without
+-- Claude's `tui` deletes it.
 
 -- Whether to wrap claude in a dedicated tmux server when launching the
 -- terminal. Precedence: env var > vim.g > default.
@@ -233,9 +233,9 @@ end
 -- immune to the SIGHUP cascade. Also sweeps stale servers from prior crashes
 -- when it starts, leftovers included.
 --
--- Started once per Nvim: at VimEnter in a Claude-started process, as before,
--- and otherwise when claudecode.nvim first loads -- after a switch, which is
--- long after VimEnter has fired.
+-- Started once per Nvim, when claudecode.nvim first loads: the first Claude
+-- this Nvim starts, as Codex's starts with its first spawn. The sweep of stale
+-- servers from earlier crashes runs then too.
 local watchdog_started = false
 local function ensure_watchdog()
   if watchdog_started or vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then return end
@@ -274,15 +274,6 @@ local function claude_cwd(ctx)
   return ai_config.project_root(ctx.file)
 end
 
--- A Claude-started Nvim keeps its startup sweep of stale servers.
-if ai_config.is("claude") then
-  vim.api.nvim_create_autocmd("VimEnter", {
-    group = vim.api.nvim_create_augroup("ClaudeTmuxWatchdog", { clear = true }),
-    once = true,
-    callback = ensure_watchdog,
-  })
-end
-
 return {
   {
     "coder/claudecode.nvim",
@@ -295,12 +286,15 @@ return {
       -- switching sources.claude off later still drops the events (ai.review.hook).
       opts.terminal_cmd = build_terminal_cmd()
       require("claudecode").setup(opts)
-      -- <leader>aa/ad exist once a Claude diff can arrive, whichever provider
-      -- is active (lua/ai/init.lua).
+      -- <leader>aa/ad exist once a Claude diff can arrive, whatever is on the
+      -- right (lua/ai/init.lua).
       require("ai").apply_keymaps()
     end,
     cmd = {
       "ClaudeCode",
+      -- Shows or starts the session and never hides it: the AI slot's reveal
+      -- (lua/ai/backend/claude.lua) goes through it until the plugin has loaded.
+      "ClaudeCodeOpen",
       "ClaudeCodeFocus",
       "ClaudeCodeSelectModel",
       "ClaudeCodeAdd",
@@ -318,7 +312,10 @@ return {
         cwd_provider = claude_cwd,
         snacks_win_opts = {
           width = ai_config.panel.width,
-          wo = { winfixwidth = true },
+          -- No winbar: Snacks titles every split terminal "<n>: <term
+          -- title>" unless told otherwise, a line of the panel that only
+          -- repeats the command it runs. The agent draws its own header.
+          wo = { winfixwidth = true, winbar = "" },
           -- Claude reads a quick double Esc itself; Snacks' own <esc>
           -- double-tap would swallow it. lua/ai/terminal.lua puts Esc back on
           -- the wire and keeps `jk` / <C-]> / <C-\> as the way out of Terminal-mode.

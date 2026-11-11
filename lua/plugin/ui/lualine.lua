@@ -75,27 +75,26 @@ return {
 						end
 						-- Agent terminal commands can be very long (Claude is tmux-
 						-- wrapped). Collapse them to the label of the agent the
-						-- terminal runs, which after a switch need not be the
-						-- active provider.
+						-- terminal runs.
 						local info = vim.b.snacks_terminal
 						local provider = info and ai.provider_of_command(info.cmd)
 						if provider then
-							return " " .. ai.providers[provider].label
+							return " " .. ai.agents[provider].label
 						end
 						return " " .. (vim.b.term_title or "terminal")
 					end,
 				},
 			},
 			lualine_x = {
-				-- Only once :AI has moved either axis away from how this Nvim
-				-- started: the startup state is what the shell alias says, so it
-				-- needs no reminder. A click reopens the switcher.
+				-- The API key profile, only while one is pinned (:AI key <name>,
+				-- NVIM_AI_KEY_PROFILE): `auto` is the first provider whose key is
+				-- set, so it needs no reminder. A click reopens the key picker.
 				{
 					function()
-						return ("󰚩 %s · 󰌆 %s"):format(ai.label, ai.key.label)
+						return ("󰌆 %s"):format(ai.key.label)
 					end,
-					cond = ai.switched,
-					on_click = function() vim.cmd("AI") end,
+					cond = function() return not ai.key.auto end,
+					on_click = function() vim.cmd("AI key") end,
 				},
 				-- Language servers attached to this buffer, with a spinner while
 				-- one reports progress (indexing, loading the workspace). Idle
@@ -145,7 +144,7 @@ return {
 			group = vim.api.nvim_create_augroup("lualine_ai_state", { clear = true }),
 			pattern = "AIStateChanged",
 			callback = function() lualine.refresh({ place = { "statusline" } }) end,
-			desc = "Show or update the switched AI provider / key in the statusline",
+			desc = "Show or update the pinned API key profile in the statusline",
 		})
 	end,
 }

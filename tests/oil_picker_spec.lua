@@ -19,7 +19,7 @@ local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
 root = vim.uv.fs_realpath(root)
 vim.fn.writefile({ "picked file" }, root .. "/picked.txt")
-local bin = root .. "/" .. require("ai.config").native.command
+local bin = root .. "/" .. require("ai.config").agents[require("ai.config").agent_names()[1]].command
 vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin)
 vim.fn.setfperm(bin, "rwx------")
 

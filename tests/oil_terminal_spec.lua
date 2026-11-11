@@ -8,7 +8,7 @@ vim.cmd("Lazy! load oil.nvim")
 local root = vim.fn.tempname()
 vim.fn.mkdir(root .. "/child", "p")
 root = vim.uv.fs_realpath(root)
-local bin = root .. "/" .. config.native.command
+local bin = root .. "/" .. config.agents[config.agent_names()[1]].command
 vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin)
 vim.fn.setfperm(bin, "rwx------")
 vim.fn.writefile({ "original editor" }, root .. "/original.txt")
@@ -34,7 +34,7 @@ local function panel()
   settle()
   vim.api.nvim_set_current_win(term.win)
   vim.cmd("stopinsert")
-  t.ok(require("util.terminal").is_agent_buf(term.buf), "the panel has the active provider's identity")
+  t.ok(require("util.terminal").is_agent_buf(term.buf), "the panel has the default agent's identity")
   t.eq(vim.fn.maparg("-", "t"), "", "typing - in terminal input still belongs to the agent")
   return term
 end

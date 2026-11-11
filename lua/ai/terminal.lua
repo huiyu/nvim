@@ -160,8 +160,8 @@ function M.attach(buf)
   end
 end
 
----Install the TermOpen hook that calls `attach` on every agent panel, the
----active provider's or not. Both backends open through Snacks, so one hook
+---Install the TermOpen hook that calls `attach` on every agent panel,
+---whichever agent it runs. Both backends open through Snacks, so one hook
 ---covers both; the per-backend alternative would need a callback threaded
 ---through claudecode.nvim's own terminal provider.
 function M.setup()

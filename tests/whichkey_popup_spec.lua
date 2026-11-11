@@ -181,10 +181,15 @@ for _, case in ipairs({
   { ";", "c", "positions" }, { ";", "j", "positions" }, { ";", "m", "positions" },
   { "<leader>y", "l", "path" }, { "<leader>y", "g", "path" },
   { "<leader>g", "D", "diff" }, { "<leader>b", "h", "delete" },
-  { "<leader>a", "x", "session" }, { "<leader>a", "c", "session" },
-  { "<leader>a", "g", "ACP chat · subscription" }, { "<leader>a", "G", "ACP chat · subscription" },
-  { "<leader>a", "h", "HTTP · API credits" }, { "<leader>a", "H", "HTTP · API credits" },
-  { "<leader>a", "e", "HTTP · API credits" },
+  -- The chat on the right: new, switch, toggle, focus; what goes to it.
+  { "<leader>a", "n", "chats" }, { "<leader>a", "l", "chats" },
+  { "<leader>a", "c", "chats" }, { "<leader>a", "f", "chats" },
+  { "<leader>a", "b", "context" }, { "<leader>a", "i", "context" },
+  { "<leader>a", "r", "native session" }, { "<leader>a", "R", "native session" },
+  { "<leader>a", "m", "native session" },
+  { "<leader>a", "t", "history" }, { "<leader>a", "T", "history" },
+  -- The keys that spend API credits: inline edits and the profile they bill.
+  { "<leader>a", "e", "HTTP · API credits" }, { "<leader>a", "x", "HTTP · API credits" },
   { "<leader>a", "p", "companion" }, { "<leader>a", "o", "companion" },
   { "<leader>a", "v", "review" }, { "<leader>a", "V", "review" },
 }) do
@@ -197,12 +202,13 @@ if next(vim.fn.maparg("<leader>aa", "n", false, true)) ~= nil then
     t.eq(owner_of("<leader>a", key), "Claude diffs", "<leader>a" .. key .. " sits under Claude diffs")
   end
 end
--- The two chat kinds bill differently, so their headings say how; <leader>ap is
--- a leaf now, not the old +CodeCompanion group.
+-- The keys that spend API credits say so in their heading; the chats' billing
+-- is in the new-chat picker's entries. <leader>ap is a leaf now, not the old
+-- +CodeCompanion group.
 local ai_headings = headings(popup("<leader>a"))
 t.ok(#ai_headings >= 6, ("<leader>a popup is sectioned (%s)"):format(table.concat(ai_headings, ", ")))
-t.ok(vim.tbl_contains(ai_headings, "ACP chat · subscription") and vim.tbl_contains(ai_headings, "HTTP · API credits"),
-  "the chat headings name what they bill")
+t.ok(vim.tbl_contains(ai_headings, "HTTP · API credits") and not vim.tbl_contains(ai_headings, "ACP chat · subscription"),
+  "the API-credit keys have a billing heading, and no per-kind chat heading is left")
 t.ok(not vim.tbl_contains(ai_headings, "others"), "every <leader>a key is declared in a section")
 t.ok(not vim.iter(Spec.spec):any(function(entry) return entry[1] == "<leader>ap" end),
   "<leader>ap is not declared as a group")

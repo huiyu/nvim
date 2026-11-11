@@ -1,7 +1,6 @@
 -- As-you-type AI ghost text from the local model behind util.llama, accepted
--- with <C-l>. It is a service of its own: NVIM_AI_PROVIDER (vi's launch flags) picks
--- the agent and CodeCompanion's backend and never changes where these
--- suggestions come from.
+-- with <C-l>. It is a service of its own: the AI providers (lua/ai/config.lua)
+-- and the chat on the right never change where these suggestions come from.
 --
 -- minuet's llama.cpp recipe sends a /v1/completions prompt with the FIM tokens
 -- around the cursor. What differs here was measured against the 7B server:

@@ -457,6 +457,19 @@ local window = require("util.window")
 -- Notifies instead of moving when there is no target. Backs :WindowFocusEditor.
 window.focus_editor()
 
+-- The editor window of the current tabpage, without moving to it: the current
+-- window when it is one, else the one the cursor last left, else the widest;
+-- nil when there is none. focus_editor toggles (pressed in the editor it jumps
+-- back out), so code that needs "the edited file's window" -- a native agent's
+-- cold start, a new chat -- asks here instead.
+window.editor_win()  --> win | nil
+
+-- The tabpage a prefix-blocking view (CodeDiff) was opened from: the nearest
+-- one before it that is no such view itself, so a second view opened from the
+-- first still finds the page both came from. nil when `tabpage` is no view.
+-- The AI keys and review feedback both go there from a view.
+window.origin_tab(tabpage)  --> tabpage | nil
+
 -- Record the current window as the last editor window when it qualifies.
 -- Driven by a WinLeave autocmd (not WinEnter: a fresh `split` still shows a
 -- file buffer when WinEnter fires and only becomes a terminal afterwards).
@@ -561,8 +574,8 @@ local terminal = require("util.terminal")
 terminal.fix_drift(win)   -- win defaults to the current window
 
 -- Which native coding agent buf runs ("claude" / "codex"), or nil for any
--- other buffer. Any configured agent counts, not only the active provider:
--- after :AI provider both can be running, and each panel keeps its own rules.
+-- other buffer. Every agent a provider offers counts: several can be
+-- running, and each panel keeps its own rules.
 terminal.agent_of(buf)
 
 -- True when buf belongs to any configured native coding agent.
@@ -1057,28 +1070,116 @@ llama.url("/infill")   -- "http://127.0.0.1:8012/infill"
 llama.log()            -- <dir>/server.log, rewritten at each server start
 ```
 
-## AI Provider State (`ai.config`, `ai.switch`)
+## AI State (`ai.config`, `ai.switch`)
 
-Two axes, both switchable in-process and neither persisted: the **provider**
-(native agent panel and CodeCompanion's agent chat over ACP, on the
-subscription) and the HTTP **key profile** (CodeCompanion's API chat, Inline
-and command prompts, on API credits). `auto` follows the provider. Every consumer holds the one
-`ai.config` table and reads it per call, so a switch mutates it in place.
+The ways to chat are an ordered `providers` list in `lua/ai/config.lua`,
+written like CodeCompanion's adapters; the HTTP **key profile** is the one
+setting `:AI key` switches in-process. Nothing is persisted. A provider has a
+`name`, a `label`, an optional `cli_api_key` (the variable its CLIs bill
+against instead of the subscription login: the picker and `:checkhealth
+config` warn while it is set) and the parts it offers; a part left out is not
+offered:
+
+- `tui = { kind }` -- its native terminal agent. `kind` is one this config
+  implements, `claude` or `codex`, each offered at most once: a new kind needs
+  code (a backend module, a tmux wrapper, the prompt hooks, a transcript
+  reader), not just an entry.
+- `acp = { adapter, command, auth_method? }` -- its CLI driven by
+  CodeCompanion over ACP, on the subscription. `auth_method` becomes the
+  adapter's default; Codex's is `"chat-gpt"`, since codex-acp's own default
+  bills `OPENAI_API_KEY`.
+- `api = { adapter, label?, api_key, model?, name? }` -- a CodeCompanion HTTP
+  chat on API credits, and a key profile. `api_key` names an `NVIM_*`
+  variable, never a CLI's own. The profile's name, `api.name` (default
+  `api.adapter`), must be unique: it is also the CodeCompanion adapter it
+  registers, so a chat restored from history finds its key again.
+
+The defaults are `claude` (terminal `claude`, ACP `claude_code` through
+`claude-agent-acp`, API `anthropic` on `NVIM_ANTHROPIC_API_KEY`), then `codex`
+(terminal `codex`, ACP `codex` through `codex-acp` on the ChatGPT login, API
+`openai` on `NVIM_OPENAI_API_KEY`). A second key on one API is one more
+provider with only an `api` part; the file has a commented example. `build`
+checks the list at load, and a bad entry stops startup naming the provider.
+
+The order is the only preference; no backend is the default. The new-chat
+picker lists every available terminal, then every ACP chat, then every API
+chat, each group in provider order. A key only a native agent answers acts on
+the native agent on the right, else asks among the installed terminals in
+that order (with one installed, that one). CodeCompanion's own paths that
+name no adapter (a typed `:CodeCompanionChat`, the action palette) use the
+first `acp` in provider order, else the first `api`. The key profile is
+`auto` -- the first profile whose `NVIM_*` key is set, else the first --
+until `:AI key` pins one (`NVIM_AI_KEY_PROFILE` > `vim.g.ai_key_profile` at
+startup).
+
+Some of CodeCompanion's built-in adapters are set up whatever the list holds,
+since a chat restored from history or an upstream path can name one that no
+provider offers: `anthropic` and `openai` read `NVIM_ANTHROPIC_API_KEY` /
+`NVIM_OPENAI_API_KEY` (`builtin_http_keys`), never a CLI's own variable, and
+the `codex` ACP adapter uses the ChatGPT login (`builtin_acp_auth`). A
+provider's `api` that keeps a built-in's name (no `api.name` of its own) sets
+its own `NVIM_*` key there, and an `acp.auth_method` overrides the login.
+
+`NVIM_AI_PROVIDER` and `vim.g.ai_provider` are no longer read: a leftover
+value earns one warning, not a failed start. Every consumer holds the one
+`ai.config` table and reads it per call, so a key switch mutates it in place.
 
 #### API Reference
 
 ```lua
 local config = require("ai.config")
 
-config.provider, config.label, config.native   -- active provider, its label, native CLI data
-config.codecompanion  -- { acp_adapter, acp_command, http_adapter, api_key, model }
-config.key            -- { name, label, auto }
-config.startup        -- { provider, key } as this Nvim started
-config.providers, config.key_profiles          -- the data both axes choose from
-config.names(), config.key_names()             -- their names, sorted
-config.is(name)                                -- is `name` the active provider?
-config.cli_api_key    -- the active CLI's own billing variable (ANTHROPIC_API_KEY / OPENAI_API_KEY)
-config.panel.width    -- 90 columns, shared by both agent panels and the chat window
+config.providers       -- the list, in order, as written
+config.agents          -- the native terminals offered, by kind: { name (the
+                       -- kind), provider, label, command, prompt_pattern,
+                       -- capabilities, cli_api_key? }
+config.agent_names()   -- their kinds, in provider order
+config.acp             -- the ACP chats offered, in order: { provider, label,
+                       -- adapter, command, auth_method?, cli_api_key? }
+config.key_profiles    -- the key profiles, by name: { name, provider, adapter
+                       -- (the built-in it extends), label, api_key, model? }
+config.key_names()     -- their names, in provider order
+config.auto_key()      -- what `auto` stands for now: the first profile whose
+                       -- key is set, else the first; nil when no provider offers `api`
+config.builtin_http_keys -- { anthropic = "NVIM_ANTHROPIC_API_KEY", openai = "NVIM_OPENAI_API_KEY" }
+config.builtin_acp_auth  -- { codex = "chat-gpt" }
+config.codecompanion   -- { acp_adapter, chat_adapter, http_adapter, api_key, model }
+config.key             -- { name, label, auto }; name nil (label "none") when
+                       -- no provider offers `api`
+config.panel.width     -- 90 columns, shared by both agent panels and the chat window
+
+-- codecompanion.acp_adapter is the adapter of the first `acp` in provider
+-- order (nil when no provider offers one); chat_adapter, what CodeCompanion's
+-- own chats use, is acp_adapter, else the first key profile, else nil
+-- (CodeCompanion's own default). Both are fixed at load. http_adapter,
+-- api_key and model are the key profile's and follow :AI key.
+
+-- Check a provider list and derive the tables above from it. Pure: nothing
+-- is assigned, so a spec can feed it any list. Raises at level 0, with
+-- "AI providers: …" saying which entry, on an empty list, a missing name or
+-- label, a name listed twice, a provider with no part, a cli_api_key that is
+-- not a string, a tui.kind not implemented or already offered, an acp
+-- without adapter and command, an api without adapter, or an adapter or api
+-- name used twice; and through check_key_profile on an api_key that is not
+-- NVIM_*.
+config.build(list)  --> { providers, agents, agent_names, key_profiles, key_names, acp }
+
+-- Specs only: run with another list in-process, as if lua/ai/config.lua held
+-- it. `auto` resolves again, and a pinned key the new list lacks falls back
+-- to it; what a plugin read at its load (CodeCompanion's adapters) stays.
+config._set_providers(list)
+
+-- Every way to start a chat, available or not, for the new-chat picker:
+-- the terminals, then the ACP chats, then the API chats, each in provider
+-- order. Reads PATH and the environment only; loads no plugin.
+--   { id = "claude"|"codex"|"acp:<adapter>"|"api:<profile>",
+--     kind = "native"|"acp"|"http", provider, agent?, adapter?, command?,
+--     profile?, api_key?, model?, label, available, why?, warn? }
+-- `provider` is the providers entry's name; `label` names transport and
+-- billing ("Codex · terminal · subscription", "OpenAI · CodeCompanion API ·
+-- API credits"); `why` says what is missing; `warn` names a CLI billing
+-- variable that is set.
+config.backends()
 
 -- The directory an agent session belongs to: the Git root of `path`'s
 -- directory ("" or nil: of the cwd), else the cwd. Codex starts there, and
@@ -1086,114 +1187,235 @@ config.panel.width    -- 90 columns, shared by both agent panels and the chat wi
 -- relative to it, and the transcripts find their project by it.
 config.project_root(path)
 
-config.use_provider(name)  -- validate, then switch; an auto key follows
-config.use_key(name)       -- "auto" follows the provider, a profile name pins it
+config.use_key(name)       -- "auto" resolves now (auto_key), a profile name pins it
 config.key_setting()       -- "auto" or the pinned profile name
-config.switched()          -- has either axis moved since startup?
 config.http_adapter_spec() -- inline/cmd adapter: name, or { name, model }
 config.check_key_profile(name, profile) -- error unless api_key is NVIM_*, never a CLI's own
 
--- Which agent a terminal command runs (any configured CLI), and which agent
--- handed over a prompt file -- from its temp path, falling back to the active
--- provider.
-config.provider_of_command(cmd)  -- "claude" / "codex" / nil
-config.provider_of_prompt(path)
+-- Which native agent a terminal command runs (any CLI a provider's `tui`
+-- offers), and which agent handed over a prompt file, from the temp path its
+-- CLI chose: nil for a path none uses (an agent's pane running `git commit`).
+-- Nothing falls back to a provider picked for the user.
+config.provider_of_command(cmd)  -- the TUI kind ("claude" / "codex") or nil
+config.provider_of_prompt(path)  -- the TUI kind ("claude" / "codex") or nil
 config.is_native_command(cmd)
 
 local switch = require("ai.switch")
-switch.provider(name)       -- :AI provider [name]; nil opens the picker
-switch.key(name)            -- :AI key [name]
-switch.pick(axis)           -- vim.ui.select over "provider", "key" or both (nil)
+switch.key(name)            -- :AI key [name]; nil opens the picker
+switch.pick()               -- vim.ui.select over auto and every profile (<leader>ax)
 switch.info()               -- :AI info / :AIInfo
 ```
 
-A switch runs `use_*`, then `require("ai").apply_keymaps()` (relabels the
-`<leader>a` keys, CodeCompanion's included, and adds or removes
-`<leader>aa`/`ad` and oil's `<leader>aS`), then
-`require("ai.companion").sync()`, then fires `User AIStateChanged` with
-`data = { axis = "provider"|"key", from, to }` -- lualine listens to it. An
-invalid name is an error notification and changes nothing. CodeCompanion's
-`opts` is a function, so a plugin loaded after a switch starts from the
-switched state; after that only `companion.sync` writes it, and never
-`vim.g.codecompanion_adapter`.
+`:AI` is the chat switcher (`<leader>al`), `:AI new` the new-chat picker
+(`<leader>an`); `:AI provider` is gone and says so, pointing at `:AI new` and
+the order of `lua/ai/config.lua`. A key switch runs `use_key`, then
+`require("ai").apply_keymaps()` (relabels
+`<leader>ae`, the one key whose description names a profile), then
+`require("ai.companion").sync()` (CodeCompanion's live inline and cmd
+adapters), then fires `User AIStateChanged` with `data = { axis = "key",
+from, to }` -- lualine listens to it. An invalid name is an error
+notification and changes nothing. CodeCompanion's `opts` is a function, so a
+plugin loaded after a switch starts from the switched key; its chat adapter is
+`codecompanion.chat_adapter`, set then and never changed, and nothing writes
+`vim.g.codecompanion_adapter`. `:AI info` loads no plugin: it lists the
+providers in order with the parts each offers (terminal · ACP · API, `✗`
+where one cannot start here), the adapter CodeCompanion's own chats use, the
+key, every profile's variable (set or not), the CLIs' own key variables, and
+every open chat with where it is.
 
-Both native backends answer `running()`, `window()` (any tabpage),
-`visible()` (current tabpage) and `hide()` (current tabpage only; the job
-stays), without loading claudecode.nvim. The facade uses them for the
-one-panel-per-tabpage rule: before `toggle`, `focus`, `resume`, `continue`,
-the prompt editor, or a key that feeds the agent (`select_model`,
-`add_buffer`, `send_selection`, `tree_add`, which open or start the panel to
-deliver) reveals the active provider's panel, the other provider's panel in
-the current tabpage is hidden -- unless the active panel is already on screen
-somewhere, in which case nothing opens here and nothing yields. A feed that
-stops short (no file name, a cancelled model picker) has still hidden it.
-`require("ai").attach_images(paths, provider)` sends images to the agent that
-owns the prompt, not to whichever provider is active.
+Both native backends answer `running()`, `buf()`, `window()` (any tabpage),
+`visible()` (current tabpage), `hide()` (current tabpage only; the job stays)
+and `reveal()` (show here and focus, starting it when none runs; never
+hides), without loading claudecode.nvim -- what the slot (`ai.slot`, below)
+is built on. `add_path(path, modified)` mentions a file, warning when the
+buffer has unsaved changes, since both agents read the saved file. Claude's
+`send_range(path, l1, l2)` mentions captured lines through claudecode's
+`send_at_mention`, and Codex's `send_text(text)` types a captured draft into
+its box as one paste; neither submits. A backend's `asks_first` names the
+methods whose cold start asks something before it shows a window (Claude's
+`select_model`, claudecode's model question): nothing is hidden for them
+until the terminal shows.
 
 ```lua
 local ai = require("ai")
 
--- Call one agent's backend method by name, whichever provider is active, and
--- make room for *that* agent's panel: the revealed panel decides, so a feed
--- to the inactive agent hides the active one's panel in this tabpage (unless
--- its own is on screen somewhere already). Review feedback reaches the
--- round's agent this way. An unknown provider or a
--- method its backend lacks is a WARN; a method that raises, an ERROR.
+-- Call one agent's backend method by name, whatever is on the right, and
+-- make room for *that* agent's panel: every other AI window of this tabpage
+-- gives way to it (unless it is on screen somewhere already). Review feedback
+-- reaches the round's agent this way. An unknown provider or a method its
+-- backend lacks is a WARN; a method that raises, an ERROR.
 ai.feed(provider, method, ...)
 
 -- What review feedback sends: the backend stages `seed` for that provider
 -- (ai.editor.stage_seed) and presses the TUI's own ctrl+g.
 ai.feed("claude", "edit_prompt", { seed = text, on_consumed = fn, on_expired = fn, ttl_ms = 10000 })
+
+-- Images go to the agent that owns the prompt, never to one guessed at: a
+-- prompt that names no agent (nil) has its staged files deleted, attached to
+-- nothing, saying so.
+ai.attach_images(paths, provider)
+
+ai.info()  -- the data :AI info prints: providers (in order, each part with
+           -- whether it can start here), key, profiles, cli_keys,
+           -- codecompanion (its own chats' and inline adapters), chats
 ```
 
 Both backends' `edit_prompt(opts)` take `{ seed?, on_consumed?, on_expired?,
 ttl_ms? }` and pass them to `stage_seed` with their own provider; `<leader>ai`
 passes only `seed`.
 
+## AI Slot (`ai.slot`)
+
+Per tabpage the right shows at most one AI window: native Claude, native
+Codex or a CodeCompanion chat -- a "chat" in the keys' words. What is open is
+computed from live state on every call, never registered; nothing here loads
+claudecode.nvim or CodeCompanion to answer. Showing one hides the others in
+the current tabpage through their own owner's hide (claudecode's `cc_hide`,
+Snacks' hide, CodeCompanion's `ui:hide`): never a stop, close or wipe, never
+edgy's hide/close, never another tabpage. A window its owner cannot hide
+(claudecode's copy of its terminal in a diff tabpage) is left alone and still
+counts as shown here. A `BufWinEnter` guard holds the rule for upstream's own
+paths (`<leader>ao`, a typed `:CodeCompanionChat`, the action palette, `}`/`{`
+in a chat, claudecode re-showing its terminal, a model picked at claudecode's
+question): it records the tabpage when the event fires, ignores floats, and
+the latest AI window entered in a tick wins.
+
+#### API Reference
+
+```lua
+local slot = require("ai.slot")
+
+-- Items: { id = "native:<agent>" | "cc:<buf>:<chat id>", kind = "native"|"chat",
+--          agent?, chat?, win? }
+slot.list()               -- every open chat: running agents, then live chats
+slot.shown(tab?)          -- the items a non-floating window shows in `tab`
+slot.label(item)          -- "Codex · terminal · subscription", a chat's adapter,
+                          -- kind and name
+slot.where(item)          -- "● here", "tab N" or "hidden"
+slot.state(item)          -- the owner's window: "here", "elsewhere" or "hidden"
+
+-- The chat on the right, read off the windows: the one shown here; from a
+-- prefix-blocking view (CodeDiff), the one shown in util.window.origin_tab --
+-- which becomes the current tabpage; of several, the current window's.
+slot.target(cb, opts?)    -- cb(item, from); else asks: the switcher, or the
+                          -- new-chat picker when none is open. A cancel calls
+                          -- nothing and goes back to the tabpage it came from.
+slot.target_now()         -- the one shown here (of several, the current
+                          -- window's), without asking; nil otherwise
+slot.shown_here()         -- also from a view, without asking or moving (the
+                          -- review loop's owner fallbacks)
+slot.native_target(cb, opts?) -- the native agent on the right, else asks which
+                          -- (installed ones in provider order; none asked with
+                          -- one installed)
+
+-- Asking.
+slot.pick_new(cb, opts?)  -- the new-chat picker: available backends in
+                          -- ai.config.backends() order; a native entry is that
+                          -- agent's one session ("running", "● here"), never a
+                          -- second
+slot.switch(cb, opts?)    -- the switcher: open chats (here first, then by use)
+                          -- and "New chat…"
+
+-- Showing and hiding.
+slot.reveal(item)         -- show here and focus (terminal input, chat prompt);
+                          -- one shown in another tabpage is gone to
+slot.make_room(item, opts?) --> "here" | "elsewhere" | "room" | nil
+                          -- before a backend shows `item`: go where it is
+                          -- shown, or hide the rest here; a cold start goes to
+                          -- util.window.editor_win first; nil when refused.
+                          -- opts: jump, editor, hide (false: leave the rest to
+                          -- the guard), quiet (no "went there" notice)
+slot.cover(keep?)         -- hide every AI window here an owner can hide, but keep's
+slot.jump(item, opts?)    -- to the tabpage showing it; says so unless quiet
+slot.went(item, from)     -- "Sent to X (tab N)" when a delivery changed tabpage
+slot.toggle(), slot.focus()  -- <leader>ac / <leader>af
+
+-- The pieces the facade (ai) and ai.companion build on.
+slot.native_item(agent), slot.chat_item(chat)  -- an item for one agent / chat
+slot.buf_of(item)         -- its buffer; nil once it is gone
+slot.item_of_buf(buf)     -- the item `buf` shows, if it is an AI buffer
+slot.home()               --> shown, from: the items on the right of the tabpage
+                          -- the keys act in (this one, or a view's origin,
+                          -- which becomes current) and the tabpage pressed in
+slot.victims(keep?)       -- { item, win? } for each AI window here an owner
+                          -- can hide, but keep's
+slot.chat_window_here(item) -- another chat's window here, for `item` (a chat)
+                          -- to take over in place
+slot.hide(item, opts?)    -- through its owner; a chat mid-turn says so.
+                          -- opts.keep_window: leave a chat's window for the next
+slot.around(keep, open)   -- run open() with the rest hidden: before it, or after
+                          -- it when they are all this tabpage has (E444)
+slot.remember(item)       -- vim.t.ai_slot_last = item.id
+slot.setup()              -- the BufWinEnter guard and the approval notice
+```
+
+`vim.t.ai_slot_last` remembers the last chat a tabpage showed, for
+`<leader>ac`/`af` to bring back -- never to deliver to. Hiding a chat that is
+replying or waiting for a tool approval says so, and a hidden chat that asks
+for an approval (`User CodeCompanionToolApprovalRequested`) is announced.
+Hide comes first and show second, except when the windows to hide are all the
+tabpage has (E444), when the order turns round. `tests/ai_slot_spec.lua`
+pins it with stand-in agents and real API chats that never send.
+
 ## AI Companion Chats (`ai.companion`)
 
-CodeCompanion's two chat kinds, as the facade's `<leader>a` keys reach them:
-`acp` (agent chat: the active provider over ACP, on the subscription) and
-`http` (API chat: the active key profile over HTTP, on API credits).
-Upstream's Toggle and Add only know `last_chat`, whatever its kind, so this
-module finds the chat of the asked-for kind on the current adapter itself and
-hands it to upstream's single-slot open, which lets both kinds share one
-window. The module requires nothing from CodeCompanion at load; the first
-call that needs it does, and that is what loads the plugin.
+CodeCompanion's two chat kinds, as the slot puts them on screen: `acp` (an
+agent CLI over ACP, on the subscription) and `http` (a key profile over HTTP,
+on API credits). Upstream's Toggle and Add only know `last_chat`, so this
+module creates a chat of exactly the backend asked for and shows exactly the
+chat asked for. It never calls upstream's `Chat.open` without a window: that
+path closes `last_chat` wherever it is shown, another tabpage included. The
+module requires nothing from CodeCompanion at load; the first call that needs
+it does, and that is what loads the plugin.
 
 #### API Reference
 
 ```lua
 local companion = require("ai.companion")
 
-companion.adapter_name(kind)   -- adapter a new chat of "acp"/"http" gets now
-companion.preflight(kind)      -- false (and an ERROR) when the profile's NVIM_* key
-                               -- is unset ("http") or the ACP bridge is missing ("acp")
-companion.find(kind)           -- chat of that kind on the current adapter, or nil:
-                               -- on screen here > upstream's last chat > most recent
-companion.new(kind, extra?)    -- preflight, then CodeCompanion.chat on that adapter
-                               -- (and the profile's pinned model); extra is merged in
-companion.toggle(kind)         -- hide it if shown here, else show it here, else new()
-companion.add_selection(kind)  -- leave Visual, add the selection as a fenced block;
-                               -- starts a chat only after preflight; never submits
+companion.adapter_name(kind)   -- "acp": the first ACP agent in provider order;
+                               -- "http": the key profile's adapter; nil when no
+                               -- provider offers that kind
+companion.preflight(what)      -- false (and an ERROR) when an "http" backend's
+                               -- NVIM_* key is unset or an "acp" bridge is missing;
+                               -- `what` is one ai.config.backends() entry, or a
+                               -- kind on adapter_name(kind) (<leader>ae: "http"),
+                               -- which raises when no provider offers it
+companion.create(spec, extra?) -- a chat on one ai.config.backends() entry, created
+                               -- hidden from the editor window and announced
+                               -- ("New chat: <label>"); nil when refused
+companion.show(chat, opts?)    -- shown here: focus; shown in another tabpage: go
+                               -- there; else take a chat window here in place, or
+                               -- split one after the slot made room.
+                               -- opts: focus (default true), toggled, quiet
+companion.hide(chat, opts?)    --> ok, err: ui:hide, never raising; keep_window
+                               -- leaves the window for the next chat
+companion.chats()              -- every live chat, with buf_get_chat()'s entry
+companion.chat_of(buf), companion.key(chat), companion.buf(chat)
+companion.label(chat), companion.name(chat)
+companion.win(chat), companion.win_here(chat), companion.where(chat)
+companion.add_capture(chat, cap) --> true | false, why
+                               -- a captured selection (ai.selection.capture),
+                               -- fenced with its source; never submits
+companion.focus_prompt(chat, insert?) -- show it, cursor at the end of its prompt;
+                               -- Insert mode unless it is replying
 companion.inline_keys()        -- ":CodeCompanion " or "<Ignore>" (the <leader>ae expr)
-companion.sync()               -- write the live interactions.*.adapter defaults
+companion.sync()               -- write the live inline/cmd adapters, never the chat's
 
--- For review feedback, aimed at one exact chat rather than a kind:
+-- For review feedback, aimed at one exact chat:
 companion.busy(chat)           -- mid-turn: a request in flight, a tool loop between
                                -- two steps, or a buffer that is not modifiable
 companion.add_text(chat, text) --> true | false, "gone"|"busy"|"failed", err?
                                -- append to that chat's prompt; never submits
-companion.show_input(chat)     -- show it in this tabpage, cursor at the end of
-                               -- its prompt, in Insert mode
+companion.show_input(chat)     -- focus_prompt(chat, true)
 ```
 
 `add_text` writes to the chat CodeCompanion still keeps for `chat.bufnr`
-with the same `chat.id` -- never `find(kind)`'s pick, never a newer chat that
-reuses the buffer -- and refuses, changing nothing, while that chat is busy
-or gone. `prompt:add` writes at the buffer's last column, so text that is to
-follow what the user already typed starts with `"\n"`; review feedback always
-does. A chat whose buffer is gone is not busy, it is gone.
+with the same `chat.id` -- never a newer chat that reuses the buffer -- and
+refuses, changing nothing, while that chat is busy or gone. `prompt:add`
+writes at the buffer's last column, so text that is to follow what the user
+already typed starts with `"\n"`; review feedback always does. A chat whose
+buffer is gone is not busy, it is gone.
 
 `preflight` only guards what starts something: creating a chat (an agent chat
 spawns its bridge at once, an API chat already fetches the model list with the
@@ -1201,23 +1423,22 @@ key) and the inline prompt. Showing, hiding or adding to an existing chat
 sends nothing. Its notification is scheduled, because `<leader>ae` asks from an
 expr mapping, under textlock.
 
-`toggle`, `find` and `add_selection` read CodeCompanion internals
-(`chat.adapter`, `chat.ui`, `chat.prompt:add`, `interactions.chat.open`,
-`utils.context.get`). The facade wraps toggle and add and, when one raises,
-runs `:CodeCompanionChat Toggle` / `:'<,'>CodeCompanionChat Add` with a WARN;
-`tests/companion_spec.lua` pins both paths. A chat shown in another tabpage
-is moved here, the way `:CodeCompanionChat Toggle` moves it. `busy`,
-`add_text` and `show_input` read `chat.current_request`, `chat.ui` and the
-private `chat._turn_in_progress`: between two steps of a tool loop
-`current_request` is already nil and the buffer editable again, and only that
-flag is still set. It is read in a pcall, so a rename upstream loses that one
-signal; `tests/review_feedback_spec.lua` pins the mid-loop refusal.
+The module reads CodeCompanion's internals: `chat.adapter`, `chat.ui`
+(`is_visible`, `is_visible_non_curtab`, `open`, `hide({ keep_window })`,
+`winnr`), `chat.title`, `chat.bufnr`, `chat.id`, `chat.prompt:add`,
+`interactions.chat.open({ ui, winnr })`, the `hidden` chat argument and
+`buf_get_chat()`'s entries; `busy`, `add_text` and `show_input` also read
+`chat.current_request` and the private `chat._turn_in_progress`: between two
+steps of a tool loop `current_request` is already nil and the buffer editable
+again, and only that flag is still set. Each is read in a pcall, so a rename
+upstream loses one signal rather than raising. `tests/companion_spec.lua`
+pins the module and `tests/review_feedback_spec.lua` the mid-loop refusal.
 
 ## AI Panel Input (`ai.terminal`)
 
-Buffer-local input rules for every native agent panel -- the active
-provider's or not -- applied through one `TermOpen` hook because both
-providers open through Snacks — the per-backend
+Buffer-local input rules for every native agent panel -- whichever agent
+runs in it -- applied through one `TermOpen` hook because both
+agents open through Snacks — the per-backend
 alternative would need a callback threaded through claudecode.nvim's own
 terminal provider. Ordinary `:terminal` buffers are untouched.
 
@@ -1272,10 +1493,12 @@ bottom. This used to live in `ai.backend.codex`, so Claude never had it.
 ## AI Selection (`ai.selection`)
 
 Builds agent-ready text from the live visual selection. It sits outside the
-backends because the two providers attach selections through different channels:
-Codex pastes text, while Claude's `<leader>as` goes over the IDE WebSocket and
-produces no text at all. `<leader>ai` needs text under both providers to seed the
-agent's input box, so the text form has exactly one producer.
+backends because the two agents attach selections through different channels:
+Codex pastes text, while Claude's `<leader>as` goes over the IDE WebSocket as a
+mention of the lines and produces no text at all. `<leader>ai` needs text for
+both agents to seed the input box, so the text form has exactly one producer.
+`capture()` takes the selection whole, once, for every route it may take
+after a question: Claude's lines, Codex's draft, a chat's fenced block.
 
 #### API Reference
 
@@ -1286,6 +1509,14 @@ local selection = require("ai.selection")
 ---@return string|nil err     reason, set only when draft is nil
 ---@return string|nil notice  informational message the caller may surface
 local draft, err, notice = selection.draft()
+
+-- The selection taken whole, before anything asks where it goes, then out of
+-- Visual mode: { buf, win, mode, l1, l2, lines, path, modified, filetype,
+-- tree, draft?, err?, notice? }. vim.ui.select is asynchronous, so a key that
+-- asks captures first; CodeCompanion's utils.context.get is no substitute
+-- afterwards (it reads the current buffer's marks).
+local cap, err = selection.capture()
+selection.is_tree(buf?)  -- a directory listing, whose selection names files
 ```
 
 Must be called while Visual mode is active — it reads `mode()` and the `v` mark,
@@ -1358,14 +1589,17 @@ editor.EDIT_KEY              -- the byte both TUIs bind to "edit in $EDITOR" (0x
 editor.tui_ready(buf)        -- has the agent TUI in buf drawn its input prompt?
 editor.when_ready(get_buf, action, on_timeout)
 
--- Text to add to the next prompt `opts.provider` (default: the active one)
--- hands this Nvim. One slot per provider; nil or "" only clears that slot.
+-- Text to add to the next prompt `opts.provider` hands this Nvim. The
+-- provider is required: a seed has an addressee, and no agent gets one by
+-- default. One slot per provider; nil or "" only clears that slot.
 editor.stage_seed(text, { provider = ..., on_consumed = fn, on_expired = fn, ttl_ms = ... })
 
 -- Bring an already-open prompt float back into focus, appending `text`.
--- With `provider`, only that agent's prompt counts; without, the active
--- provider's wins over the other's. false when no (such) prompt is open.
+-- With `provider`, only that agent's prompt counts; without, the one open in
+-- this tabpage wins, else the one opened last -- no agent outranks the other.
+-- false when no (such) prompt is open.
 editor.focus_open(text, provider)  --> boolean
+editor.open_here()                 --> open, owner?: a prompt float in this tabpage
 editor.is_prompt_win(win)          -- is `win` one of the open prompt floats?
 
 -- Absolute paths to the shell helpers the agent terminals need.
@@ -1420,10 +1654,10 @@ image bytes into its request. On return, the staged files are replayed through
 the TUI's own `ctrl+v` (`ai.attach_images`), and the CLI writes its own
 `[Image #N]` marker. They go to the agent that owns the prompt, read from the
 temp path its CLI chose (`config.provider_of_prompt`: `claude-prompt-*.md` for
-Claude, `$CODEX_HOME/editor/*.md` for Codex), so a Codex prompt opened before a
-switch to Claude still hands its images to Codex. The float's title names the
-same owner, and `<leader>ai` with both agents' prompts open returns to the
-active provider's.
+Claude, `$CODEX_HOME/editor/*.md` for Codex), so a Codex prompt hands its images
+to Codex whatever is on the right. The float's title names the same owner. A
+prompt whose path names neither agent (a `git commit` run in an agent's pane)
+has no owner: it takes no seed, `<C-v>` refuses, and its title is " Prompt ".
 
 The replay is deferred until after the buffer closes. Measured: while the prompt
 is open the agent is blocked on the editor and discards pty input, so a `ctrl+v`
@@ -1610,12 +1844,12 @@ always called, exactly once, also when the submit is dropped; `on_round(round,
 reused)` hears the round opened or kept.
 
 `select_round`: the newest round of the current buffer's conversation, then of
-the active provider's terminal session, then the newest this process opened in
-`root`, then the newest there at all; `why` is `"buffer"`, `"active"`,
-`"process"` or `"latest"`. `conversation_of` answers an agent terminal's
+the chat on the right's (`ai.slot.shown_here`), then the newest this process
+opened in `root`, then the newest there at all; `why` is `"buffer"`,
+`"right"`, `"process"` or `"latest"`. `conversation_of` answers an agent terminal's
 current session or a chat's id, `bound` being true for such a buffer even
 before its terminal reported a session. `live_conversations` lists running
-agent terminals (the active provider's first) and open chats in `root`: `{
+agent terminals and open chats in `root`, the chat on the right first: `{
 kind = "native"|"cc", conversation?, agent?, chat?, buf, root, label,
 session_known?, dirty? }`. `toplevel` takes the nearest ancestor holding a
 `.git` directory or file, or the directory itself outside Git.
@@ -1711,15 +1945,18 @@ round from retention.
 
 ## AI Transcript (`ai.transcript`)
 
-Renders the active provider's recorded sessions into a read-only buffer.
+Renders one native agent's recorded sessions into a read-only buffer: the
+agent on the right, else the one asked for (`ai.slot.native_target`).
 
 #### API Reference
 
 ```lua
 local transcript = require("ai.transcript")
 
-transcript.open_current()  -- newest session for the project (<leader>at)
-transcript.pick()          -- Snacks picker over this project's sessions (<leader>aT)
+-- `agent` is required ("claude" / "codex"); anything else is an error,
+-- "a transcript belongs to a native agent". Nothing falls back to a default.
+transcript.open_current(agent)  -- newest session for the project (<leader>at)
+transcript.pick(agent)          -- Snacks picker over this project's sessions (<leader>aT)
 transcript.refresh(buf)    -- re-read and re-render in place (`R` in the buffer)
 ```
 

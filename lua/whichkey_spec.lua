@@ -480,20 +480,25 @@ local sections = {
   },
 
   ["<leader>a"] = {
-    -- `x` switches which agent the rest of these keys reach (:AI).
-    { "session",   icon = "󰚩 ", color = "green",  keys = { "c", "f", "r", "R", "m", "x" } },
-    -- `s` only exists in Visual mode and `S` only in oil buffers.
+    -- The chat on the right, whatever it is (lua/ai/slot.lua): open a new one,
+    -- switch to another, hide or bring it back, go into it. Billing is named
+    -- in the new-chat picker's entries and the switcher's labels.
+    { "chats",     icon = "󰍩 ", color = "blue",   keys = { "n", "l", "c", "f" } },
+    -- What goes to the chat on the right. `s` only exists in Visual mode and
+    -- `S` only in oil buffers.
     { "context",   icon = "󰈔 ", color = "cyan",   keys = { "b", "i", "s", "S" } },
+    -- A native agent's own session: the one on the right, else the one asked
+    -- for.
+    { "native session", icon = "󰚩 ", color = "green", keys = { "r", "R", "m" } },
+    { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T" } },
     -- Claude's own proposals, answered before they reach the disk.
     { "Claude diffs", icon = "󰓡 ", color = "orange", keys = { "a", "d" } },
     -- What changed since a round baseline, and starting a new round.
     { "review",    icon = "󰄹 ", color = "red",    keys = { "v", "V" } },
-    { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T" } },
-    -- CodeCompanion. Billing is in the heading on purpose: the two chat kinds
-    -- look alike once open, and only one of them spends API credits.
-    { "ACP chat · subscription", icon = "󰭹 ", color = "blue",   keys = { "g", "G" } },
-    { "HTTP · API credits",      icon = "󰌆 ", color = "yellow", keys = { "h", "H", "e" } },
-    { "companion",               icon = "󰒓 ", color = "azure",  keys = { "p", "o" } },
+    -- Inline edits and the key profile they bill. The heading names the
+    -- billing on purpose: these are the keys that spend API credits.
+    { "HTTP · API credits", icon = "󰌆 ", color = "yellow", keys = { "e", "x" } },
+    { "companion", icon = "󰒓 ", color = "azure",  keys = { "p", "o" } },
   },
 
   ["<leader>m"] = {

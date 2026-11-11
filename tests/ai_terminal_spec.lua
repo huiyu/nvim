@@ -14,7 +14,7 @@ local util_term = require("util.terminal")
 -- so a script named after the provider is indistinguishable from the agent as
 -- far as ai.config.is_native_command is concerned -- and it will not try to
 -- reach the network or a real session.
-local bin = vim.fn.tempname() .. "/" .. config.native.command
+local bin = vim.fn.tempname() .. "/" .. config.agents[config.agent_names()[1]].command
 vim.fn.mkdir(vim.fn.fnamemodify(bin, ":h"), "p")
 vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin)
 vim.fn.setfperm(bin, "rwx------")
@@ -151,7 +151,7 @@ do
   t.ok(not wraps or cmd:find("set-option -g extended-keys-format csi-u", 1, true) ~= nil,
     "and emits them as CSI u, the form both TUIs parse")
 end
-if config.is("codex") and vim.fn.executable("tmux") == 1 then
+if vim.fn.executable("tmux") == 1 then
   local joined = table.concat(require("ai.backend.codex")._terminal_command({ "codex" }), " ")
   t.ok(joined:find("set-option -g extended-keys always", 1, true) ~= nil,
     "the Codex wrapper keeps modified Enter chords (extended-keys always)")
@@ -176,7 +176,7 @@ t.ok(failed:find("boom", 1, true) ~= nil, "and keeps the agent's own output")
 t.ok(failed:find("exited with status 7", 1, true) ~= nil, "and names the status")
 
 -- Both wrappers have to route the pane through it.
-if config.is("codex") and vim.fn.executable("tmux") == 1 then
+if vim.fn.executable("tmux") == 1 then
   local cmd = require("ai.backend.codex")._terminal_command({ "codex" })
   local at = vim.fn.index(cmd, runner)
   t.ok(at >= 0, "the Codex wrapper runs the pane through agent-run")
@@ -215,7 +215,7 @@ do
   t.eq(vim.list_slice(codex_cmd, 1, 5), { "codex", "--no-alt-screen", "--yolo", "-c", hook.codex_override() },
     "Codex keeps its flags and gets the hook override before its arguments")
   t.eq(codex_cmd[6], "resume", "and resume / resume --last still follow")
-  if config.is("codex") and vim.fn.executable("tmux") == 1 then
+  if vim.fn.executable("tmux") == 1 then
     local saved_wrap = vim.env.CODEX_WRAP_TMUX
     vim.env.CODEX_WRAP_TMUX = "1"
     local wrapped = codex_backend._terminal_command(codex_cmd)
@@ -272,7 +272,7 @@ local editor = require("ai.editor")
 local teardown = editor.teardown and editor.teardown() or ""
 t.eq(vim.fn.executable(teardown), 1, "scripts/agent-teardown is present and executable")
 
-if config.is("codex") and vim.fn.executable("tmux") == 1 then
+if vim.fn.executable("tmux") == 1 then
   local cmd = require("ai.backend.codex")._terminal_command({ "codex" })
   local joined = table.concat(cmd, " ")
   t.ok(joined:find("destroy-unattached off", 1, true) ~= nil,
@@ -334,9 +334,8 @@ if teardown ~= "" and vim.fn.executable("tmux") == 1 and vim.fn.executable("perl
   remove_socket(sock)
 end
 
--- Two agents at once. After :AI provider both CLIs can be running in one Nvim,
--- and every per-buffer rule follows the buffer's own agent, not the active
--- provider. Stand-ins named after each CLI, so identity is decided exactly as
+-- Two agents at once. Both CLIs can be running in one Nvim, and every
+-- per-buffer rule follows the buffer's own agent, whichever is listed first. Stand-ins named after each CLI, so identity is decided exactly as
 -- for the real ones, and nothing reaches the network or a real session.
 local agents_dir = vim.fn.tempname()
 vim.fn.mkdir(agents_dir, "p")
@@ -356,162 +355,63 @@ local codex_probe = panel({ agents_dir .. "/codex" })
 t.eq(util_term.agent_of(claude_term.buf), "claude", "a Claude terminal is Claude's")
 t.eq(util_term.agent_of(codex_probe.buf), "codex", "a Codex terminal is Codex's")
 t.ok(util_term.is_agent_buf(claude_term.buf) and util_term.is_agent_buf(codex_probe.buf),
-  "both are agent buffers, whichever provider is active")
+  "both are agent buffers, whichever is the default")
 t.eq(vim.fn.maparg("<Esc>", "t", false, true).buffer, 1, "and both get the panel input rules")
 vim.fn.jobstop(vim.bo[codex_probe.buf].channel)
 pcall(vim.api.nvim_buf_delete, codex_probe.buf, { force = true })
 
--- One panel per tabpage. The real backends drive this: Codex through its own
--- Snacks terminal (unwrapped, from the stand-in on PATH), Claude through the
--- one claudecode.nvim would manage -- looked up from a stand-in of its module,
--- so the plugin itself, its WebSocket server and lockfile stay out of it.
-local saved = { path = vim.env.PATH, wrap = vim.env.CODEX_WRAP_TMUX, provider = config.provider,
-  cc = package.loaded["claudecode"], cc_terminal = package.loaded["claudecode.terminal"] }
-vim.env.PATH = agents_dir .. ":" .. vim.env.PATH
-vim.env.CODEX_WRAP_TMUX = "0"
-package.loaded["claudecode"] = saved.cc or {}
-package.loaded["claudecode.terminal"] = { get_active_terminal_bufnr = function() return claude_term.buf end }
-local real_notify = vim.notify
-vim.notify = function() end
+-- One AI window per tabpage -- which panel yields to which, and when -- is
+-- the AI slot's rule now, and tests/ai_slot_spec.lua drives it with these
+-- same stand-ins through the real backends.
 
-local ai = require("ai")
-local claude, codex = require("ai.backend.claude"), require("ai.backend.codex")
-local function alive(term) return vim.fn.jobwait({ vim.bo[term.buf].channel }, 0)[1] == -1 end
-local function shown_here(buf)
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if vim.api.nvim_win_get_buf(win) == buf then return true end
+-- Neither agent panel carries Snacks' "<n>: <term title>" winbar: Claude's
+-- through claudecode's snacks_win_opts, Codex's through its terminal opts,
+-- opened here as a real Snacks terminal running `cat`.
+t.eq(vim.tbl_get(claude_spec, "opts", "terminal", "snacks_win_opts", "wo", "winbar"), "",
+  "the Claude panel has no winbar")
+do
+  local opts = require("ai.backend.codex")._terminal_opts(vim.fn.getcwd())
+  t.eq(opts.win.wo.winbar, "", "the Codex panel asks for no winbar")
+  local term = Snacks.terminal.open({ "cat" }, opts)
+  t.ok(term and term:win_valid() and vim.wo[term.win].winbar == "",
+    "and a split terminal opened with its options has none (" .. tostring(term and vim.wo[term.win].winbar) .. ")")
+  local plain = Snacks.terminal.open({ "cat" }, { win = { position = "right" } })
+  t.ok(plain and plain:win_valid() and vim.wo[plain.win].winbar ~= "",
+    "while Snacks gives one to a split terminal by default (" .. tostring(plain and vim.wo[plain.win].winbar) .. ")")
+  for _, tm in ipairs({ term, plain }) do
+    if tm then
+      pcall(vim.fn.jobstop, vim.bo[tm.buf].channel)
+      pcall(function() tm:close() end)
+    end
   end
-  return false
 end
 
-if vim.fn.exepath("codex") ~= agents_dir .. "/codex" then
-  t.ok(false, "codex resolves to the stand-in, so the single-slot checks never start the real CLI")
-else
-  require("ai.switch").provider("codex")
-  t.ok(claude.visible() and not codex.running(), "start: the Claude panel is shown, Codex is not running")
-
-  -- Revealing the active panel hides the other one in this tabpage.
-  ai.toggle()
-  local codex_buf = codex.window() and vim.api.nvim_win_get_buf(codex.window())
-  t.ok(codex.visible(), "<leader>ac opens the Codex panel")
-  t.ok(not shown_here(claude_term.buf), "and the Claude panel in this tabpage made room for it")
-  t.ok(alive(claude_term), "hidden, not stopped: Claude's job is still running")
-
-  -- The keys that feed the agent run for real here, into the stand-in. What
-  -- they write to Codex's channel is recorded on the way through rather than
-  -- read off its screen: the panels stacked by now leave that terminal a row
-  -- or two, which keeps only the tail of a long line.
-  local sample = vim.fn.tempname() .. "_feed.txt"
-  vim.fn.writefile({ "fed to the agent" }, sample)
-  local function edit_sample()
-    local editor_win
-    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-      if vim.bo[vim.api.nvim_win_get_buf(win)].buftype == "" and vim.api.nvim_win_get_config(win).relative == "" then
-        editor_win = win
-        break
-      end
-    end
-    if editor_win then vim.api.nvim_set_current_win(editor_win) else vim.cmd("topleft vnew") end
-    vim.cmd("edit " .. vim.fn.fnameescape(sample))
+-- lua/ai/backend/claude.lua drives claudecode through a few of its module
+-- functions (AGENTS.md lists them with the other internals readers), which
+-- tests/ai_slot_spec.lua stands in for so the plugin never loads. Pin them
+-- against the pinned plugin's source -- read, not required: a require would
+-- load claudecode.nvim, its WebSocket server and lockfile.
+do
+  local dir = require("lazy.core.config").plugins["claudecode.nvim"].dir
+  local function source(rel)
+    local ok, lines = pcall(vim.fn.readfile, dir .. "/lua/claudecode/" .. rel)
+    return ok and table.concat(lines, "\n") or ""
   end
-  local sent = {}
-  local real_chan_send = vim.api.nvim_chan_send
-  vim.api.nvim_chan_send = function(chan, data)
-    if codex_buf and chan == vim.bo[codex_buf].channel then sent[#sent + 1] = data end
-    return real_chan_send(chan, data)
-  end
-  local function delivered(text)
-    return #vim.tbl_filter(function(data) return data:find(text, 1, true) ~= nil end, sent)
-  end
-  local function arrives(text, before)
-    return vim.wait(2000, function() return delivered(text) > before end, 20)
-  end
-
-  -- Placed side by side by hand, neither hides the other -- not for a key that
-  -- shows the active panel, nor for one that feeds it.
-  claude_term:show()
-  vim.cmd("stopinsert")
-  ai.focus()
-  t.ok(claude.visible() and codex.visible(), "with the active panel already shown, nothing yields")
-  vim.cmd("stopinsert")
-  edit_sample()
-  local before = delivered(vim.fs.basename(sample))
-  ai.add_buffer()
-  t.ok(arrives(vim.fs.basename(sample), before), "<leader>ab writes the buffer to the shown panel")
-  t.ok(claude.visible() and codex.visible(), "and rearranges nothing")
-
-  -- A key that feeds the agent opens its panel to deliver, so it makes room
-  -- like any other key that reveals it.
-  for _, case in ipairs({
-    { "<leader>ab", ai.add_buffer, vim.fs.basename(sample) },
-    { "<leader>am", ai.select_model, "/model" },
+  local terminal, init = source("terminal.lua"), source("init.lua")
+  for _, want in ipairs({
+    { terminal, "function M.open(opts_override, cmd_args)" },
+    { terminal, "function M.ensure_visible(" },
+    { terminal, "function M.get_active_terminal_bufnr()" },
+    { init, "function M.send_at_mention(file_path, start_line, end_line, context)" },
+    { init, '"ClaudeCodeOpen"' },
   }) do
-    codex.hide()
-    claude_term:show()
-    vim.cmd("stopinsert")
-    edit_sample()
-    t.ok(claude.visible() and not codex.visible(), case[1] .. ": only the Claude panel is shown")
-    before = delivered(case[3])
-    case[2]()
-    t.ok(vim.wait(2000, codex.visible, 20), case[1] .. " opens the Codex panel to deliver")
-    t.ok(not shown_here(claude_term.buf), case[1] .. ": the Claude panel in this tabpage made room for it")
-    t.ok(alive(claude_term), case[1] .. ": hidden, not stopped")
-    t.ok(arrives(case[3], before), case[1] .. ": and wrote to Codex")
-    vim.cmd("stopinsert")
+    t.ok(want[1]:find(want[2], 1, true) ~= nil, "claudecode still has " .. want[2])
   end
-  vim.api.nvim_chan_send = real_chan_send
-  codex.hide()
-  claude_term:show()
-  vim.cmd("stopinsert")
-  vim.fn.delete(sample)
-
-  -- Another tabpage is left alone.
-  local first_tab = vim.api.nvim_get_current_tabpage()
-  vim.cmd("tabnew")
-  ai.toggle()
-  t.ok(codex.visible(), "<leader>ac opens Codex in a second tabpage")
-  t.ok(claude.window() ~= nil and vim.api.nvim_win_get_tabpage(claude.window()) == first_tab,
-    "while Claude stays shown in the first one")
-
-  -- And the other way round: Claude active, Codex hidden here for it.
-  require("ai.switch").provider("claude")
-  vim.api.nvim_set_current_tabpage(first_tab)
-  claude.hide()
-  vim.cmd("tabnext")
-  local real_toggle = claude.toggle
-  -- claudecode's own toggle would start the real CLI; showing the stand-in's
-  -- window is the part under test.
-  claude.toggle = function() claude_term:show() end
-  ai.toggle()
-  claude.toggle = real_toggle
-  t.ok(claude.visible() and not codex.visible(), "revealing Claude hides Codex in this tabpage")
-  t.ok(codex_buf and vim.fn.jobwait({ vim.bo[codex_buf].channel }, 0)[1] == -1, "and Codex keeps running")
-
-  -- Claude is shown in the second tabpage; Codex comes up in the first. A
-  -- toggle there acts on Claude's window where it is and opens nothing in the
-  -- first tabpage, so Codex has no reason to yield.
-  vim.api.nvim_set_current_tabpage(first_tab)
-  codex.focus()
-  vim.cmd("stopinsert")
-  claude.toggle = function() end
-  ai.toggle()
-  claude.toggle = real_toggle
-  t.ok(codex.visible(), "a panel shown in another tabpage takes no room from this one")
-
-  if codex_buf and vim.api.nvim_buf_is_valid(codex_buf) then
-    vim.fn.jobstop(vim.bo[codex_buf].channel)
-    pcall(vim.api.nvim_buf_delete, codex_buf, { force = true })
-  end
-  vim.cmd("silent! tabonly")
+  t.ok(not require("lazy.core.config").plugins["claudecode.nvim"]._.loaded, "and reading it loaded nothing")
 end
 
 vim.fn.jobstop(vim.bo[claude_term.buf].channel)
 pcall(vim.api.nvim_buf_delete, claude_term.buf, { force = true })
-package.loaded["claudecode"], package.loaded["claudecode.terminal"] = saved.cc, saved.cc_terminal
-vim.env.PATH, vim.env.CODEX_WRAP_TMUX = saved.path, saved.wrap
-config.use_provider(saved.provider)
-ai.apply_keymaps()
-vim.notify = real_notify
 vim.fn.delete(agents_dir, "rf")
 
 t.done()

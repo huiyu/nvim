@@ -358,8 +358,8 @@ local CODEX_SHAPE =
 local SOURCES = {
   { "claude", "native Claude" },
   { "codex", "native Codex" },
-  { "codecompanion_acp", "agent chat (<leader>ag)" },
-  { "codecompanion_http", "API chat (<leader>ah)" },
+  { "codecompanion_acp", "ACP chats (<leader>an)" },
+  { "codecompanion_http", "API chats (<leader>an)" },
 }
 
 -- Static checks only: the strings ai.review.hook generates are parsed and
@@ -688,30 +688,31 @@ function M.check()
   end
 
   local ai = require("ai.config")
-  health.start("config: AI provider")
-  local function moved(now, startup) return now ~= startup and (" (started as %s)"):format(startup) or "" end
-  health.ok(("%s active (provider=%s%s), :AI provider switches it")
-    :format(ai.label, ai.provider, moved(ai.provider, ai.startup.provider)))
-  health.ok(("HTTP key profile %s (%s%s), :AI key switches it")
-    :format(ai.key.label, ai.key_setting(), moved(ai.key_setting(), ai.startup.key)))
+  health.start("config: AI backends")
+  health.info("Providers, in the order of lua/ai/config.lua; <leader>an lists every available one")
+  health.ok(("HTTP key profile %s (%s), :AI key switches it"):format(ai.key.label, ai.key_setting()))
 
-  -- Both providers, because either can become active with :AI. Only the
-  -- active one's absence is an error: the other is unavailable, not broken.
-  for _, name in ipairs(ai.names()) do
-    local provider = ai.providers[name]
-    local report = name == ai.provider and health.error or health.warn
-    local command = provider.native.command
-    if vim.fn.executable(command) == 1 then
-      health.ok(("%s found — %s native agent available"):format(command, provider.label))
-    else
-      report(("%s not found — %s native agent unavailable"):format(command, provider.label))
-    end
-    local acp = provider.codecompanion.acp_command
-    if vim.fn.executable(acp) == 1 then
-      health.ok(("%s found — agent chat (<leader>ag) can use %s over ACP"):format(acp, provider.label))
-    else
-      report(("%s not found — agent chat with %s refuses to start"):format(acp, provider.label))
-    end
+  -- Every part each provider offers. A missing one is a warning: the picker
+  -- leaves it out and the rest still work. Only nothing at all is an error.
+  local any, label = false, {}
+  for _, provider in ipairs(ai.providers) do label[provider.name] = provider.label end
+  for _, b in ipairs(ai.backends()) do
+    local name = label[b.provider]
+    if b.kind == "native" then
+      if b.available then
+        any = true
+        health.ok(("%s found — %s native agent available"):format(b.command, name))
+      else
+        health.warn(("%s not found — %s native agent unavailable"):format(b.command, name))
+      end
+    elseif b.kind == "acp" then
+      if b.available then
+        any = true
+        health.ok(("%s found — <leader>an can start %s over ACP"):format(b.command, name))
+      else
+        health.warn(("%s not found — no %s chat over ACP"):format(b.command, name))
+      end
+    end -- API chats: the key checks below
   end
 
   -- The agents' ctrl+g ("edit this prompt in $EDITOR") is pointed at this
@@ -730,30 +731,35 @@ function M.check()
   for _, name in ipairs(ai.key_names()) do
     local var = ai.key_profiles[name].api_key
     if is_set(var) then
-      health.ok(("%s found — key profile %s can run API chat and inline/command prompts"):format(var, name))
+      any = true
+      health.ok(("%s found — key profile %s can run API chats and inline/command prompts"):format(var, name))
     elseif name == ai.key.name then
-      health.warn(("%s not set — agent chat works; API chat and inline edits refuse until it is set"):format(var),
+      health.warn(("%s not set — native and ACP chats work; inline edits refuse until it is set"):format(var),
         { "See README.md, API keys" })
     else
-      health.info(("%s not set — key profile %s unavailable until it is"):format(var, name))
+      health.info(("%s not set — no %s API chat until it is"):format(var, name))
     end
   end
 
+  if not any then
+    health.error("No AI backend is available: no agent CLI, ACP bridge or API key found",
+      { "Install claude or codex, or set an NVIM_* API key; see README.md" })
+  end
+
   -- An agent's own variable outranks its subscription login, so an export
-  -- meant for something else silently moves the native terminal and agent chat
-  -- onto API billing. Both are checked: either agent can be started from here.
-  for _, name in ipairs(ai.names()) do
-    local provider = ai.providers[name]
+  -- meant for something else silently moves the native terminal and ACP chat
+  -- onto API billing. Every provider is checked: any of them can be started.
+  for _, provider in ipairs(ai.providers) do
     local cli_key = provider.cli_api_key
-    if is_set(cli_key) then
+    if cli_key and is_set(cli_key) then
       health.warn(("%s is set — %s started from this Nvim can bill the API instead of the subscription")
         :format(cli_key, provider.label), { "Unset it unless API billing is intended; Nvim reads NVIM_* keys" })
-    else
+    elseif cli_key then
       health.ok(("%s not set — %s uses its subscription login"):format(cli_key, provider.label))
     end
   end
 
-  -- Independent of the provider above: ghost text always comes from the local
+  -- Independent of the backends above: ghost text always comes from the local
   -- server that util.llama starts on the first Insert.
   local llama = require("util.llama")
   health.start("config: inline completion")

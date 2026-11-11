@@ -17,24 +17,59 @@ for _, lhs in ipairs({ " ac", " af", " ar", " aR", " am", " ab" }) do
 end
 t.ok(mapped(" as", "x"), "UC-R1: <leader>as still lives in Visual mode")
 
--- <leader>ax opens :AI's switcher, Normal mode only.
-t.eq(vim.fn.maparg(" ax", "n", false, true).desc, "Switch AI provider / API key", "<leader>ax switches provider / key")
+-- No key names an agent: the chat keys reach whatever the tabpage shows on
+-- its right (lua/ai/slot.lua), the native keys the native agent there, else
+-- the one asked for. n/l open a picker, from Visual mode taking the selection
+-- along; both are leaves.
+local FIXED = {
+  [" an"] = "New AI chat…", [" al"] = "Switch AI chat…", [" ac"] = "Toggle AI chat", [" af"] = "Focus AI chat",
+  [" ab"] = "Add buffer to AI chat", [" ai"] = "Edit prompt for AI chat",
+  [" ar"] = "Resume native agent…", [" aR"] = "Continue native agent…", [" am"] = "Select native agent model",
+  [" at"] = "Read native agent transcript", [" aT"] = "Native agent session history",
+  [" ax"] = "Switch API key profile",
+  [" av"] = "Review changes since round baseline", [" aV"] = "Start a review round",
+  [" ap"] = "Companion actions", [" ao"] = "Open saved Companion chat",
+}
+local function desc(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true).desc or "" end
+for lhs, want in pairs(FIXED) do
+  t.eq(desc(lhs), want, "<leader>" .. lhs:sub(2) .. " is " .. want)
+end
+t.eq(desc(" as", "x"), "Add selection to AI chat", "<leader>as is Add selection to AI chat")
+for _, lhs in ipairs({ " an", " al", " ai" }) do
+  t.ok(mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " also works from Visual mode")
+end
+for _, mode in ipairs({ "n", "x" }) do
+  local longer = {}
+  for _, m in ipairs(vim.api.nvim_get_keymap(mode)) do
+    local keys = vim.fn.keytrans(vim.keycode(m.lhs))
+    if keys:find("^<Space>a[nl].") then longer[#longer + 1] = keys end
+  end
+  t.eq(longer, {}, "no <leader>an* / <leader>al* mapping in " .. mode .. " mode")
+end
+
+-- <leader>ax picks the API key profile, Normal mode only.
 for _, mode in ipairs({ "x", "o", "i", "t" }) do
   t.ok(not mapped(" ax", mode), "<leader>ax is Normal-mode only (" .. mode .. ")")
 end
 
--- CodeCompanion keys sit directly under <leader>a, owned by the facade so a
--- switch can relabel them: g/G agent chat (ACP), h/H API chat (HTTP), e inline,
--- p actions, o saved chats. Visual mode takes the selection along.
-for _, lhs in ipairs({ " ag", " aG", " ah", " aH", " ae", " ap", " ao", " ax" }) do
+-- The per-kind chat keys are gone: a new chat of any kind comes from
+-- <leader>an, whose entries name their billing, and Visual <leader>as adds to
+-- the one on the right.
+for _, lhs in ipairs({ " ag", " aG", " ah", " aH" }) do
+  for _, mode in ipairs({ "n", "x" }) do
+    t.ok(not mapped(lhs, mode), "<leader>" .. lhs:sub(2) .. " is gone (" .. mode .. ")")
+  end
+end
+
+-- CodeCompanion keys sit directly under <leader>a, owned by the facade: e
+-- inline, p actions, o saved chats. Visual mode takes the selection along.
+for _, lhs in ipairs({ " ae", " ap", " ao", " ax" }) do
   t.ok(mapped(lhs), "<leader>" .. lhs:sub(2) .. " exists in Normal mode")
 end
-for _, lhs in ipairs({ " ag", " ah", " ae", " ap" }) do
+for _, lhs in ipairs({ " ae", " ap" }) do
   t.ok(mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " exists in Visual mode")
 end
-for _, lhs in ipairs({ " aG", " aH", " ao" }) do
-  t.ok(not mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " is Normal-mode only")
-end
+t.ok(not mapped(" ao", "x"), "<leader>ao is Normal-mode only")
 -- <leader>ap is a leaf now: the old two-level keys are gone, and nothing longer
 -- may make <leader>ap wait out 'timeoutlen'.
 for _, lhs in ipairs({ " apc", " apt", " apa", " api", " apb", " aph" }) do
@@ -52,10 +87,8 @@ t.ok(require("lazy.core.config").plugins["codecompanion.nvim"]._.loaded == nil,
   "defining them loaded no CodeCompanion")
 
 -- Review rounds: <leader>av opens the review, <leader>aV starts a round. Normal
--- mode only, and named for no agent: a round belongs to a conversation.
-local REVIEW = { [" av"] = "Review changes since round baseline", [" aV"] = "Start a review round" }
-for lhs, want in pairs(REVIEW) do
-  t.eq(vim.fn.maparg(lhs, "n", false, true).desc, want, "<leader>" .. lhs:sub(2) .. " is " .. want)
+-- mode only: a round belongs to a conversation.
+for _, lhs in ipairs({ " av", " aV" }) do
   for _, mode in ipairs({ "x", "o", "i", "t" }) do
     t.ok(not mapped(lhs, mode), "<leader>" .. lhs:sub(2) .. " is Normal-mode only (" .. mode .. ")")
   end
@@ -73,45 +106,28 @@ vim.fn.maparg(" aV", "n", false, true).callback()
 package.loaded["ai.review"], package.loaded["ai.review.rounds"] = nil, nil
 t.eq(review_calls, { "open", "start" }, "<leader>av reaches ai.review.open, <leader>aV ai.review.rounds.start")
 
--- The descriptions name what each key reaches, and follow a switch: the agent
--- for g/G, the key profile for h/H/e.
+-- <leader>ae alone names something that changes: the key profile it bills,
+-- relabelled by :AI key. Nothing else moves with it.
 local c = require("ai.config")
-local function desc(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true).desc or "" end
-t.eq(desc(" ag"), ("Agent chat · %s (ACP)"):format(c.label), "<leader>ag names the agent")
-t.eq(desc(" ah"), ("API chat · %s (HTTP)"):format(c.key.label), "<leader>ah names the key profile")
 t.eq(desc(" ae", "x"), ("Inline edit · %s (HTTP)"):format(c.key.label), "<leader>ae names the key profile")
 local real_notify = vim.notify
 vim.notify = function() end
-local start = c.provider
-local other = start == "claude" and "codex" or "claude"
-local was_auto = c.key.auto
-require("ai.switch").provider(other)
-for _, lhs in ipairs({ " ag", " aG", " ai", " at", " aT" }) do
-  t.ok(desc(lhs):find(c.providers[other].label, 1, true) ~= nil, "after a switch " .. lhs .. " names " .. c.label)
+local was = c.key_setting()
+local other = c.key.name == "anthropic" and "openai" or "anthropic"
+require("ai.switch").key(other)
+t.eq(desc(" ae"), ("Inline edit · %s (HTTP)"):format(c.key_profiles[other].label),
+  "after :AI key " .. other .. ", <leader>ae names " .. c.key_profiles[other].label)
+for lhs, want in pairs(FIXED) do
+  t.eq(desc(lhs), want, "after :AI key <leader>" .. lhs:sub(2) .. " is still " .. want)
 end
-t.ok(desc(" ag", "x"):find(c.providers[other].label, 1, true) ~= nil, "and so does Visual <leader>ag")
-for lhs, want in pairs(REVIEW) do
-  t.eq(desc(lhs), want, "after a switch <leader>" .. lhs:sub(2) .. " keeps its description")
-end
-if was_auto then
-  t.ok(desc(" ah"):find(c.key.label, 1, true) ~= nil and desc(" aH"):find(c.key.label, 1, true) ~= nil,
-    "an auto key takes <leader>ah/aH along to " .. c.key.label)
-end
-require("ai.switch").provider(start)
+require("ai.switch").key(was)
 vim.notify = real_notify
 
 -- The facade must expose the methods those mappings call.
 local ai = require("ai")
-for _, method in ipairs({ "compose", "transcript", "transcript_pick", "review", "new_round", "feed" }) do
+for _, method in ipairs({ "compose", "transcript", "transcript_pick", "review", "new_round", "feed", "new_chat",
+  "switch_chat", "tree_add" }) do
   t.ok(type(ai[method]) == "function", "facade exposes " .. method .. "()")
-end
-
--- Descriptions carry the provider label so which-key stays truthful about which
--- agent a key talks to.
-local label = require("ai.config").label
-for _, lhs in ipairs({ " ai", " at", " aT" }) do
-  local desc = vim.fn.maparg(lhs, "n", false, true).desc or ""
-  t.ok(desc:find(label, 1, true) ~= nil, lhs .. " describes the active provider")
 end
 
 -- UC-R9 is deferred with issue #14: the unrelated terminal-mode maps remain

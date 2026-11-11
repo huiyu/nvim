@@ -246,8 +246,9 @@ function M.describe(entries, cb, opts)
   vim.defer_fn(finish, opts.budget_ms or M.BUDGET_MS)
 end
 
----The name of the session working in `root` -- the active provider's agent
----terminal first, as ai.review.rounds lists them -- for <leader>gK to offer:
+---The name of the session working in `root` -- the chat on the right first,
+---as ai.review.rounds lists them, then the agent terminals by name -- for
+---<leader>gK to offer:
 ---`cb(name)`, or `cb(nil)` when no agent terminal there has reported its
 ---session, it has no name yet, or the records take longer than
 ---`opts.budget_ms`. Loads nothing when no agent terminal was ever opened.

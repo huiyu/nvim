@@ -19,6 +19,18 @@ local function tmpfile(lines)
   return path
 end
 
+-- A prompt file named the way Claude Code names it, which is how a prompt
+-- float knows whose it is; tmpfile's names belong to no agent.
+local owned_dir = vim.fn.tempname()
+vim.fn.mkdir(owned_dir, "p")
+local owned_n = 0
+local function owned(lines)
+  owned_n = owned_n + 1
+  local path = ("%s/claude-prompt-%d.md"):format(owned_dir, owned_n)
+  vim.fn.writefile(lines, path)
+  return path
+end
+
 -- vim.schedule defers the window work off the RPC handler, so the callbacks
 -- have to be drained before the float can be observed.
 local function settle()
@@ -148,7 +160,7 @@ local function press_ctrl_v()
 end
 
 -- An empty clipboard stages nothing rather than creating a junk file.
-local path5 = tmpfile({ "prompt" })
+local path5 = owned({ "prompt" })
 editor.open(path5, path5 .. ".done")
 settle()
 vim.api.nvim_set_current_win(float_win())
@@ -163,7 +175,7 @@ t.eq(attached, nil, "UC-8: nothing is attached when the clipboard holds no image
 -- Cancelling must drop staged images: the box keeps its old text, so attaching
 -- would bolt them onto a prompt that was just thrown away.
 has_image = true
-local path6 = tmpfile({ "prompt" })
+local path6 = owned({ "prompt" })
 editor.open(path6, path6 .. ".done")
 settle()
 vim.api.nvim_set_current_win(float_win())
@@ -189,8 +201,39 @@ t.eq(attached, nil, "UC-8: cancelling attaches nothing")
 t.eq(vim.tbl_filter(function(png) return vim.fn.filereadable(png) == 1 end, staged), {},
   "UC-8: cancelling deletes the staged file")
 
+-- A prompt whose path names no agent (a `git commit` run in an agent's pane)
+-- stages no image: it could only go to an agent guessed at. Its title names
+-- no agent either.
+local nobody = tmpfile({ "prompt" })
+editor.open(nobody, nobody .. ".done")
+settle()
+local nobody_win = float_win()
+local nobody_title = vim.api.nvim_win_get_config(nobody_win).title
+if type(nobody_title) == "table" then nobody_title = (nobody_title[1] or {})[1] end
+t.eq(nobody_title, " Prompt ", "UC-8: a prompt that names no agent is titled for none")
+vim.api.nvim_set_current_win(nobody_win)
+saved = {}
+press_ctrl_v()
+t.eq(saved, {}, "UC-8: <C-v> there stages nothing")
+attached = nil
+vim.api.nvim_feedkeys(vim.keycode("<C-d>"), "x", false)
+vim.wait(1200, function() return attached ~= nil end)
+t.eq(attached, nil, "UC-8: and returning it attaches nothing")
+local owned_title = (function()
+  local p = owned({ "prompt" })
+  editor.open(p, p .. ".done")
+  settle()
+  local w = float_win()
+  local title = vim.api.nvim_win_get_config(w).title
+  vim.api.nvim_win_close(w, true)
+  settle()
+  if type(title) == "table" then title = (title[1] or {})[1] end
+  return title
+end)()
+t.eq(owned_title, " Prompt · Claude Code ", "UC-8: Claude's prompt is titled for Claude Code")
+
 -- Returning the prompt hands the staged images over.
-local path7 = tmpfile({ "prompt" })
+local path7 = owned({ "prompt" })
 editor.open(path7, path7 .. ".done")
 settle()
 vim.api.nvim_set_current_win(float_win())

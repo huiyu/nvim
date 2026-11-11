@@ -430,6 +430,57 @@ local not_repo = find(section(out_msgs, "config: review baselines"), "is not in 
 t.eq(not_repo and not_repo.level, "info", "outside a repository the baseline section says so")
 t.ok(not_repo and not_repo.msg:find(outside, 1, true), "naming the directory")
 
+-- AI backends ---------------------------------------------------------------
+
+-- There is no default backend: a missing agent CLI or ACP bridge is a
+-- warning -- unavailable, not broken, and left out of the new-chat picker --
+-- whichever provider offers it. Only nothing at all to start a chat with is an
+-- error.
+local ai = require("ai.config")
+local stand_ins = root .. "/no agents"
+vim.fn.mkdir(stand_ins, "p")
+local cut = stand_ins .. ":/usr/bin:/bin"
+local backends = section(run(cut, "with no agent on PATH"), "config: AI backends")
+t.ok(#backends > 0, "the AI backends section has lines")
+local head = backends[1]
+t.ok(head and head.level == "info" and head.msg:find("in the order of lua/ai/config.lua", 1, true) ~= nil,
+  "it opens with the providers' order, naming no default: " .. tostring(head and head.msg))
+t.eq(find(backends, "default backend"), nil, "and no line names a default backend")
+t.eq(level_of(backends, ":AI provider"), nil, "and no longer offers :AI provider")
+-- Judged on the same PATH the check ran on: a CLI in /usr/bin is found.
+local real_path = vim.env.PATH
+vim.env.PATH = cut
+local missing = {}
+for _, b in ipairs(ai.backends()) do
+  if b.kind ~= "http" and not b.available then missing[#missing + 1] = b.command end
+end
+vim.env.PATH = real_path
+t.ok(#missing > 0, "some agent CLI or bridge is missing on that PATH, to check against")
+for _, exe in ipairs(missing) do
+  t.eq(level_of(backends, exe .. " not found"), "warn", exe .. " missing: a warning, whichever provider offers it")
+end
+-- Nothing at all: no CLI, no bridge and no NVIM_* key.
+local saved_keys = {}
+for _, name in ipairs(ai.key_names()) do
+  local var = ai.key_profiles[name].api_key
+  saved_keys[var] = vim.env[var]
+  vim.env[var] = nil
+end
+local none = section(run(cut, "with nothing available"), "config: AI backends")
+t.eq(level_of(none, "No AI backend is available"), "error", "nothing to start a chat with is an error")
+vim.env[ai.key_profiles[ai.key_names()[1]].api_key] = "spec"
+local one_key = section(run(cut, "with one API key"), "config: AI backends")
+t.eq(find(one_key, "No AI backend is available"), nil, "one API key is enough to start a chat")
+for var, value in pairs(saved_keys) do vim.env[var] = value end
+local g_before = vim.g.ai_review
+vim.g.ai_review = { sources = { codecompanion_acp = false, codecompanion_http = false } }
+local hooks_off = section(run(nil, "with the chat sources off"), "config: review hooks")
+vim.g.ai_review = g_before
+t.ok(find(hooks_off, "sources.codecompanion_acp = false — ACP chats (<leader>an)") ~= nil
+  and find(hooks_off, "sources.codecompanion_http = false — API chats (<leader>an)") ~= nil,
+  "a chat source switched off is named by the key that starts those chats")
+t.eq(find(hooks_off, "<leader>ag") or find(hooks_off, "<leader>ah"), nil, "never by the retired <leader>ag/ah")
+
 -- Cleanup -------------------------------------------------------------------
 
 vim.cmd.cd(vim.fn.fnameescape(CONFIG_DIR))

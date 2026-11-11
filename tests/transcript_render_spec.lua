@@ -61,4 +61,31 @@ t.eq(#empty_lines, #empty_folds, "an empty session keeps lines and folds aligned
 -- foldexpr must survive being called with no buffer state attached.
 t.eq(render.foldexpr(), 0, "foldexpr defaults to 0 when no fold table is attached")
 
+-- A long session folds in linear time. foldexpr runs once per line; reading
+-- the levels out of a buffer variable copied the whole table on every call,
+-- and a 42k-line transcript took 13 s to open. 30k lines took about 6.5 s
+-- that way and take well under a tenth of a second now: the bound is loose
+-- for a slow CI runner and still far below the quadratic time.
+local big = vim.api.nvim_create_buf(false, true)
+local n = 30000
+local big_lines, big_levels = {}, {}
+for i = 1, n do
+  big_lines[i] = "line " .. i
+  big_levels[i] = i % 10 == 0 and 0 or 1
+end
+vim.api.nvim_buf_set_lines(big, 0, -1, false, big_lines)
+render.set_folds(big, big_levels)
+vim.cmd("tabnew")
+vim.api.nvim_win_set_buf(0, big)
+vim.wo.foldmethod = "expr"
+vim.wo.foldexpr = "v:lua.require'ai.transcript.render'.foldexpr()"
+local started = vim.uv.hrtime()
+vim.cmd("normal! zx")
+local took = (vim.uv.hrtime() - started) / 1e6
+t.ok(took < 2000, ("folding %d lines takes linear time (%d ms)"):format(n, took))
+t.eq({ vim.fn.foldlevel(1), vim.fn.foldlevel(10) }, { 1, 0 }, "and reads each line's own level")
+vim.cmd("tabclose")
+vim.api.nvim_buf_delete(big, { force = true })
+t.eq(render.folds(big), nil, "a wiped buffer's levels are dropped")
+
 t.done()
