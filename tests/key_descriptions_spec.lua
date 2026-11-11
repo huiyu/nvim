@@ -148,7 +148,7 @@ expect({
 t.eq(desc("<S-CR>", "t"), "Send Shift+Enter (newline) to terminal", "terminal <S-CR> has a desc")
 local scratch = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_set_current_buf(scratch)
-vim.bo[scratch].filetype = "startuptime"
+vim.bo[scratch].filetype = "neotest-output"
 local q = vim.fn.maparg("q", "n", false, true)
 t.ok(q.buffer == 1 and q.desc == "Close window", "close_with_q's q has a desc")
 local guide = vim.fn.maparg("<leader>?", "n", false, true)
