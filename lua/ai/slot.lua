@@ -16,7 +16,7 @@
 -- buffer shown in a second window. Such a copy still counts as shown here:
 -- a key delivers to it where it is and opens nothing beside it. Only
 -- <leader>ac closes one, a chat's whose own window is in another tabpage
--- (the successor <C-c> leaves there), since the chat stays on screen. Hiding
+-- (the successor ,q leaves there), since the chat stays on screen. Hiding
 -- comes first and showing second, so a terminal is not squeezed and redrawn
 -- for nothing; when the windows to hide are all the tabpage has, the order
 -- turns round (E444).
@@ -28,10 +28,10 @@
 --
 -- A BufWinEnter guard holds the rule for every path that never comes through
 -- here: <leader>ao (history), a typed :CodeCompanionChat or :ClaudeCode, the
--- action palette, `}`/`{` in a chat, the chat CodeCompanion puts in the place
--- of one closed with <C-c>, claudecode showing its terminal again after a
--- diff. It records the tabpage when the event fires, and gives up if that is
--- no longer the current one when its scheduled half runs.
+-- action palette, the chat CodeCompanion puts in the place of one closed with
+-- ,q (its `close`), claudecode showing its terminal again after a diff. It
+-- records the tabpage when the event fires, and gives up if that is no longer
+-- the current one when its scheduled half runs.
 --
 -- "The chat on the right" (target) is read off the windows alone: the one
 -- shown in this tabpage; from a CodeDiff view, the one shown in the tabpage
@@ -643,7 +643,7 @@ local function bring_back(cb, back)
 end
 
 ---Close this tabpage's copies of chats whose own window is in another
----tabpage: <C-c> shows its successor in the closed chat's window, which
+---tabpage: ,q shows its successor in the closed chat's window, which
 ---becomes the successor's own, and leaves the successor's buffer in the
 ---window that showed it before. The chat stays on screen in its own window,
 ---so nothing is hidden, stopped or wiped; never the last window here.
@@ -675,7 +675,8 @@ local function into(shown, from)
   return M.switch(M.reveal, { items = shown, new = false, back = from })
 end
 
----<leader>ac: hide what is on the right, or bring a chat back.
+---<leader>ac, and q in a chat (lua/plugin/lsp/codecompanion.lua): hide what is
+---on the right, or bring a chat back.
 function M.toggle()
   local shown, from = home()
   if #shown == 0 then return bring_back(M.reveal, from) end

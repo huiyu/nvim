@@ -524,8 +524,9 @@ return {
         stage_hunk = false,
         unstage_hunk = false,
         discard_hunk = false,
-        -- `-` is oil's parent directory; util.codediff gives it back to the
-        -- status view's explorer only.
+        -- `-` is oil's parent directory outside a view; util.codediff gives it
+        -- to the status view's explorer as stage/unstage and blocks it in
+        -- every other buffer of a view, where oil would swap a pane.
         toggle_stage = false,
         toggle_staged_view = false, -- gS is splitjoin
         align_move = false,         -- gm is a builtin

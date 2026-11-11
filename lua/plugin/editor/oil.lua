@@ -93,17 +93,25 @@ return {
       { "size", highlight = "String" },
       { "mtime", highlight = "Keyword" },
     },
-    -- oil's defaults claim three keys this config already owns globally:
-    -- <C-h>/<C-l> are window navigation everywhere (lua/mappings.lua) and must
-    -- keep working inside an oil buffer, and `gx` opens the URL under the
-    -- cursor. Turn those off and put oil's actions on keys that are free here.
+    -- oil's defaults claim keys this config already owns globally: <C-h>/<C-l>
+    -- are window navigation everywhere (lua/mappings.lua) and must keep
+    -- working inside an oil buffer, and `gx` opens the URL under the cursor.
+    -- Its split and preview chords are the Snacks picker's: <C-s> below,
+    -- <C-v> beside, <C-t> tab, <M-p> preview (aerial shares the two splits
+    -- and has no tab or preview key). <C-v> is Normal mode only, so
+    -- `v<C-v>` still reaches blockwise Visual for column edits of names. The
+    -- listing is edited as text, so redo keeps <C-r> and refresh sits in
+    -- oil's own g family (gR; bare R is Replace mode). <C-x> stays decrement.
     use_default_keymaps = true,
     keymaps = {
       ["<C-h>"] = false,
       ["<C-l>"] = false,
+      ["<C-p>"] = false,
       ["gx"] = false,
-      ["<C-x>"] = { "actions.select", opts = { horizontal = true } },
-      ["<C-r>"] = "actions.refresh",
+      ["<C-s>"] = { "actions.select", opts = { horizontal = true } },
+      ["<C-v>"] = { "actions.select", opts = { vertical = true }, mode = "n" },
+      ["<M-p>"] = "actions.preview",
+      ["gR"] = { "actions.refresh", mode = "n" },
       ["go"] = "actions.open_external",
       ["q"] = { "actions.close", mode = "n" },
     },

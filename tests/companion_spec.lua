@@ -8,8 +8,10 @@
 -- names, never upstream's `last_chat` or default; chats share one window; a
 -- missing key or ACP bridge refuses before anything starts, and the picker does
 -- not offer what would refuse; a broken internal is reported, never routed to
--- an upstream command aimed at another chat; and the internals the slot relies
--- on behave as it expects.
+-- an upstream command aimed at another chat; the internals the slot relies
+-- on behave as it expects; and the chat's, the inline request's, the prompt
+-- float's and the saved-chat picker's keys stay off keys that mean something
+-- else everywhere (Insert <C-c> leaves Insert mode, gx opens a URL).
 --
 -- CodeCompanion's own code review is off: review rounds (lua/ai/review)
 -- replace it, and two baseline systems must not run side by side.
@@ -301,6 +303,95 @@ hidden:close()
 vim.api.nvim_set_current_win(editor_win)
 companion.show(anthropic)
 t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
+
+---------------------------------------------------------------------------
+-- Keys: upstream's defaults moved off keys that mean something else
+-- everywhere (lua/plugin/lsp/codecompanion.lua)
+---------------------------------------------------------------------------
+
+-- As resolved in the live config.
+local chat_keys = cc_config.interactions.chat.keymaps
+local function modes(name) return type(chat_keys[name]) == "table" and chat_keys[name].modes or nil end
+for name, want in pairs({
+  close = { n = "<localleader>q" },
+  stop = { n = "<C-c>" },
+  hide = { n = "q" },
+  send = { n = "<CR>", i = "<C-d>" },
+  clear = { n = "<localleader>X" },
+  fold_code = { n = "<localleader>z" },
+  goto_file_under_cursor = { n = "gf" },
+  options = { n = { "?", "g?" } },
+  ["Save Current Chat"] = { n = "<localleader>s" },
+}) do
+  t.eq(modes(name), want, "chat keymap " .. name)
+end
+for _, name in ipairs({ "next_chat", "previous_chat", "copilot_stats", "change_adapter" }) do
+  t.eq(chat_keys[name], nil, "chat keymap " .. name .. " is off")
+end
+t.eq(cc_config.interactions.inline.keymaps.stop.modes, { n = "<C-c>" },
+  "an inline request stops on <C-c>, leaving q to macro recording in the edited file")
+t.eq(cc_config.display.input.keymaps.send.modes, { n = "<CR>", i = "<C-d>" },
+  "the prompt float sends on <CR>, and <C-d> from Insert mode")
+
+-- As mapped in a real chat buffer.
+vim.api.nvim_set_current_win(anthropic.ui.winnr)
+local function own(lhs, mode)
+  local map = key(lhs, mode)
+  return map.buffer == 1 and map.desc or nil
+end
+for _, case in ipairs({
+  { "q", "Hide chat" },
+  { "<C-c>", "Stop the current request" },
+  { ",q", "Close the chat buffer" },
+  { ",X", "Clear chat messages" },
+  { ",z", "Fold all codeblocks" },
+  { ",s", "Save current chat" },
+  { "gf", "Open the file path under the cursor" },
+  { "?", "Options" },
+  { "g?", "Options" },
+  { "<CR>", "Send the message to the LLM" },
+  { "<C-d>", "Send the message to the LLM", "i" },
+}) do
+  t.eq(own(case[1], case[3]), case[2], ("the chat maps %s%s"):format(case[3] and "Insert " or "", case[1]))
+end
+for _, case in ipairs({ { "<C-c>", "i" }, { "<C-s>", "i" }, { "<C-s>" }, { "gx" }, { "gR" }, { "}" }, { "{" },
+  { "gS" }, { "sc" }, { "ga" } }) do
+  t.eq(own(case[1], case[2]), nil, ("the chat leaves %s%s alone"):format(case[2] and "Insert " or "", case[1]))
+end
+t.eq(key("gx").desc, "Open URL / local file", "gx in the chat opens the URL under the cursor, as everywhere")
+t.eq(key("<C-c>", "i").desc, "Exit insert mode", "Insert <C-c> in the chat is the global one")
+local general = vim.tbl_filter(function(map) return map.lhs:match("^,[hjklrce]") ~= nil end,
+  vim.api.nvim_buf_get_keymap(anthropic.bufnr, "n"))
+t.eq(general, {}, "and the general comma actions (,h ,j ,k ,l ,r ,c ,e…) keep their meaning")
+-- Pressed: Insert <C-c> leaves Insert mode, and the chat stays.
+local open_before = #chats()
+vim.api.nvim_win_set_cursor(0, { vim.api.nvim_buf_line_count(anthropic.bufnr), 0 })
+vim.api.nvim_feedkeys("A" .. vim.keycode("<C-c>"), "x", false)
+t.eq(vim.fn.mode(), "n", "Insert <C-c> in the chat leaves Insert mode")
+t.ok(shown(anthropic) and #chats() == open_before, "and the chat is still open, on screen")
+
+-- codecompanion-history's saved-chat picker (<leader>ao), built around one
+-- stand-in entry and caught before Snacks opens it: nothing is read or saved.
+local Storage = require("codecompanion._extensions.history.storage")
+local snacks_picker = require("snacks.picker")
+local real_get_chats, real_pick = Storage.get_chats, snacks_picker.pick
+local picked
+Storage.get_chats = function() return { spec = { save_id = "spec", title = "spec", updated_at = 0 } } end
+snacks_picker.pick = function(opts) picked = opts end
+vim.cmd("CodeCompanionHistory")
+Storage.get_chats, snacks_picker.pick = real_get_chats, real_pick
+for _, win in ipairs({ "input", "list" }) do
+  local keys = {}
+  for lhs, spec in pairs(picked and picked.win[win].keys or {}) do keys[spec.mode .. " " .. lhs] = spec[1] end
+  t.eq({ keys["n dd"], keys["i <C-x>"], keys["n r"] }, { "delete_item", "delete_item", "rename_item" },
+    ("the saved-chat picker's %s deletes on dd / <C-x> and renames on r"):format(win))
+  t.ok(keys["n d"] == nil and keys["i <M-d>"] == nil and keys["i <M-r>"] == nil,
+    ("and no longer on d, <M-d> (inspect) or <M-r> (toggle_regex) in its %s"):format(win))
+  local insert_rename = vim.tbl_filter(function(k) return keys[k] == "rename_item" and k:sub(1, 2) == "i " end, vim.tbl_keys(keys))
+  t.eq(insert_rename, { "i <Plug>(codecompanion-history-rename)" }, ("its %s has no Insert key a user types to rename"):format(win))
+end
+
+vim.api.nvim_set_current_win(editor_win)
 
 ---------------------------------------------------------------------------
 -- Visual mode: the selection goes to the chat on the right, or a new one

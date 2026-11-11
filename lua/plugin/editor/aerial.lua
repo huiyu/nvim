@@ -27,5 +27,12 @@ return {
       -- so aerial lands between editor and the AI pane when triggered from editor.
       placement = "window",
     },
+    -- <C-j>/<C-k> are window navigation everywhere (lua/mappings.lua), as in
+    -- oil, which turns off <C-h>/<C-l> for the same reason. j/k plus `p`
+    -- (scroll to the symbol) still do what the defaults combined.
+    keymaps = {
+      ["<C-j>"] = false,
+      ["<C-k>"] = false,
+    },
   },
 }

@@ -51,6 +51,11 @@ for lhs, want in pairs({
 }) do
   t.eq(mapping(lhs).desc, want, lhs .. " covers a gr* default that nowait hides")
 end
+-- ,a takes a Visual range (as gra does), but not in Select mode: there a `,`
+-- typed into a snippet placeholder must replace it (tests/select_mode_spec.lua).
+t.eq({ mapping(",a", "x").desc, mapping(",a", "x").mode }, { "[LSP] Code action", "x" },
+  ",a acts on a Visual selection")
+t.eq(mapping(",a", "s"), {}, ",a is not mapped in Select mode")
 
 -- Vim's own g keys must survive: gi/gI insert, gc comments. Implementation and
 -- incoming calls took free letters precisely so these stayed builtin.

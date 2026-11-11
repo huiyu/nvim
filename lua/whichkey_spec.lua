@@ -23,7 +23,11 @@ local spec = {
   -- Manage covers the editor itself: config/plugin files, help, man, keymaps,
   -- commands, message and notification history, Lazy, Mason, and LSP
   -- status/restart.
-  { "<leader>m",     group = "Manage",          mode = { "n", "v" } },
+  --
+  -- Groups that hold Visual keys say "x", never "v": "v" adds Select mode,
+  -- where which-key would make <Space> a prefix inside a snippet placeholder
+  -- (tests/select_mode_spec.lua). Manage and Test hold no Visual key at all.
+  { "<leader>m",     group = "Manage",          mode = "n" },
   -- `,` is the twin of `;`: where `;` answers "which file do I want to be in?",
   -- `,` answers "what can I do in this file or view?" -- general editing,
   -- language tools and view actions share a menu with contextual headings.
@@ -35,20 +39,20 @@ local spec = {
   { ",e",            group = "Extract",         mode = { "n", "x" } },
   -- Just sessions now; the tooling half moved to <leader>m.
   { "<leader>s",     group = "Session",         mode = "n" },
-  { "<leader>G",     group = "GitHub",          mode = { "n", "v" } },
+  { "<leader>G",     group = "GitHub",          mode = { "n", "x" } },
   { "<leader>b",     group = "Buffer" },
-  { "<leader>d",     group = "Debug",           mode = { "n", "v" } },
-  { "<leader>g",     group = "Git",             mode = { "n", "v" } },
-  { "<leader>t",     group = "Test",            mode = { "n", "v" } },
+  { "<leader>d",     group = "Debug",           mode = { "n", "x" } },
+  { "<leader>g",     group = "Git",             mode = { "n", "x" } },
+  { "<leader>t",     group = "Test",            mode = "n" },
   { "<leader>u",     group = "Toggle/UI" },
   { "<leader>x",     group = "Diagnostics",     mode = "n" },
-  { "<leader>a",     group = "AI",              mode = { "n", "v" } },
+  { "<leader>a",     group = "AI",              mode = { "n", "x" } },
   { "<leader>q",     group = "Quit",            mode = "n" },
   { "s",             group = "Window",          mode = "n" },
   -- Yank/paste in one place. <leader>y and <leader>Y used to mean two unrelated
   -- things depending on mode -- a file path in Normal, the selection in Visual
   -- -- which read as one key with two meanings rather than a group.
-  { "<leader>y",     group = "Yank",            mode = { "n", "v" } },
+  { "<leader>y",     group = "Yank",            mode = { "n", "x" } },
   { "<leader>mn",    group = "Messages" },
   { "<leader><tab>", group = "Tab" },
   -- Nvim 0.11's own LSP prefix, left unmodified. It is only reachable where no
@@ -117,6 +121,7 @@ local spec = {
       "  ;;               Resume last picker",
       "  ;f / ;F          Find file (cwd / buffer dir)",
       "  ;r / ;b / ;g     Recent / Buffers / Git files",
+      "  ;B               Pick buffer by its tab letter",
       "  ;p               Switch project",
       "  ;i / ;?          Files / grep respecting gitignore",
       "  ;o / -           Oil float / Oil parent dir (edit dir as text)",
@@ -156,7 +161,8 @@ local spec = {
       "  Python: ,o imports / ,v virtualenv",
       "  C/C++: ,H source/header",
       "  Markdown: ,p preview / ,m render",
-      "  Chat: ,m render (CodeCompanion)",
+      "  Chat: ,s save / ,X clear / ,q close",
+      "        ,z fold code / ,m render",
       "  Search panel: ,S* actions / g? help",
       "  Java: ,dt test method / ,dT test class",
       "  Dart/Flutter: ,dr reload / ,dR restart",
@@ -225,8 +231,16 @@ local spec = {
       "  <C-S-l>          Redraw TUI (terminal mode)",
       "",
       "  ── Alt / Shift ──────────────────────────",
-      "  (Alt belongs to tmux -- see huiyu/nvim#12)",
+      "  (tmux takes M-1..9, M-n, M-h/j/k/l: #12)",
       "  <S-h> / <S-l>    Prev / Next buffer",
+      "",
+      "  ── In a list view / panel ───────────────",
+      "  q / g?           Close / list its keys",
+      "  <C-s>/<C-v>/<C-t> Open below / beside / tab",
+      "  <M-p> / <M-.>    Preview / hidden files",
+      "  dd / <C-x>       Delete item (list / typing)",
+      "  R                Refresh (gR in oil)",
+      "  <C-c> / <C-d>    Stop AI request / send draft",
       "",
       "  ── Yanky ────────────────────────────────",
       "  y / p / P        Yank / Put (with history)",
@@ -513,7 +527,7 @@ local sections = {
   ["<leader>b"] = {
     { "pin",    icon = "󰐃 ", color = "cyan", keys = { "p", "P" } },
     { "delete", icon = "󰈆 ", color = "red",  keys = { "d", "D", "o", "h", "l", "r", "x" } },
-    -- `j` (Pick buffer) is the only one left; it goes under others.
+    -- Picking a buffer is navigation, on ;B.
   },
 
   ["<leader>x"] = {
@@ -555,7 +569,7 @@ local sections = {
 
   [";"] = {
     { "files",   icon = "󰈔 ", color = "cyan",
-      keys = { "<space>", "f", "F", "i", "r", "b", "g", "a", "o", "P", "p" } },
+      keys = { "<space>", "f", "F", "i", "r", "b", "B", "g", "a", "o", "P", "p" } },
     { "search",  icon = "󰍉 ", color = "green",
       keys = { "/", "?", "w", "D", "l" } },
     { "symbols", icon = "󰅱 ", color = "azure",  keys = { "s", "S" } },
@@ -602,7 +616,8 @@ local sections = {
     { "LaTeX · preview / tools", icon = "󰈈 ", color = "purple", filetype = { "tex", "plaintex", "bib" }, keys = { "v", "t", "L" },
       labels = { L = "VimTeX" } },
     { "Markdown · preview", icon = "󰍔 ", color = "cyan", filetype = { "markdown" }, keys = { "p", "m" } },
-    { "Chat · rendering", icon = "󰍔 ", color = "cyan", filetype = { "codecompanion" }, keys = { "m" } },
+    { "Chat · conversation / rendering", icon = "󰍔 ", color = "cyan", filetype = { "codecompanion" },
+      keys = { "s", "X", "q", "z", "m" } },
     { "CodeDiff · panels / layout / conflicts", icon = "󰓡 ", color = "orange", keys = { "P", "B", "g", "z", "I" } },
     { "Review · feedback / stage / discard", icon = "󰄹 ", color = "red", keys = { "C", "u", "U", "X" } },
     { "Terminal · sessions", icon = "󰆍 ", color = "yellow", buftype = "terminal",

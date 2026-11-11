@@ -133,7 +133,7 @@ function M.where(chat)
 end
 
 ---A window of this tabpage showing the chat: its own, else another one.
----<C-c> shows its successor in the closed chat's window, which becomes the
+---,q shows its successor in the closed chat's window, which becomes the
 ---successor's own, and leaves the successor's buffer in the window that
 ---showed it before -- in another tabpage, a window that is not its own.
 ---@param chat table

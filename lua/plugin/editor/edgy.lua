@@ -25,6 +25,21 @@ return {
     return {
       animate = { enabled = false },
       wo = { winbar = false },
+      -- edgy maps these on every panel buffer that does not map them itself.
+      -- `<c-q>` (win:hide) and `Q` (edgebar:close) drop a non-pinned window for
+      -- good -- the operations window sizing must never use -- and this config
+      -- pins none; `<c-q>` goes back to blockwise Visual. `]w`/`[w` are the
+      -- global warning jumps, and windows are reached with <C-h/j/k/l>, so the
+      -- window cycling on `]w`/`[w`/`]W`/`[W` goes too. `q` and the `<c-w>`
+      -- resizers stay.
+      keys = {
+        ["<c-q>"] = false,
+        ["Q"] = false,
+        ["]w"] = false,
+        ["[w"] = false,
+        ["]W"] = false,
+        ["[W"] = false,
+      },
       options = {
         -- edgy owns the final say on right-sidebar geometry: it re-applies these
         -- sizes on BufWinEnter/WinResized, overriding whatever snacks or
