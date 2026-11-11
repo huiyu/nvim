@@ -1,11 +1,11 @@
--- Covers UC-1/UC-11/UC-12 (new entry points) and UC-R1 (nothing moved).
+-- Covers UC-1/UC-11/UC-12 (prompt editor and transcript keys) and UC-R1 (nothing moved).
 local t = dofile("tests/helper.lua")
 
 local function mapped(lhs, mode)
   return next(vim.fn.maparg(lhs, mode or "n", false, true)) ~= nil
 end
 
--- New entry points.
+-- The prompt editor and transcript keys.
 t.ok(mapped(" ai"), "UC-1: <leader>ai opens the agent's prompt editor")
 t.ok(mapped(" ai", "x"), "UC-3: <leader>ai also works from Visual mode, to seed from a selection")
 t.ok(mapped(" at"), "UC-11: <leader>at opens the transcript")

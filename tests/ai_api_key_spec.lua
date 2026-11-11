@@ -55,31 +55,31 @@ local adapters = {
   openai = { cli = "OPENAI_API_KEY", own = "NVIM_OPENAI_API_KEY" },
 }
 
-for _, provider in ipairs({ "claude,codex", "codex,claude", "codex", "claude" }) do
+for _, order in ipairs({ "claude,codex", "codex,claude", "codex", "claude" }) do
   local both = resolve({
     NVIM_AI_KEY_PROFILE = "",
     ANTHROPIC_API_KEY = "cli-anthropic", NVIM_ANTHROPIC_API_KEY = "nvim-anthropic",
     OPENAI_API_KEY = "cli-openai", NVIM_OPENAI_API_KEY = "nvim-openai",
     NVIM_SPEC_WORK_KEY = "nvim-spec-work",
-  }, provider)
+  }, order)
   for name in pairs(adapters) do
     t.eq(both[name], { name = name, type = "http", key = "nvim-" .. name },
-      ("%s: the %s adapter reads %s"):format(provider, name, adapters[name].own))
+      ("%s: the %s adapter reads %s"):format(order, name, adapters[name].own))
   end
   t.eq(both.spec_work, { name = "spec_work", type = "http", key = "nvim-spec-work" },
-    ("%s: a custom key profile is an adapter of its own, reading its own variable"):format(provider))
+    ("%s: a custom key profile is an adapter of its own, reading its own variable"):format(order))
   t.eq(both.codex_auth, "chat-gpt",
-    ("%s: the Codex ACP adapter uses the ChatGPT login, not OPENAI_API_KEY"):format(provider))
-  t.eq(both.codecompanion_adapter, vim.NIL, ("%s: vim.g.codecompanion_adapter stays unset"):format(provider))
+    ("%s: the Codex ACP adapter uses the ChatGPT login, not OPENAI_API_KEY"):format(order))
+  t.eq(both.codecompanion_adapter, vim.NIL, ("%s: vim.g.codecompanion_adapter stays unset"):format(order))
 
   local cli_only = resolve({
     NVIM_AI_KEY_PROFILE = "",
     ANTHROPIC_API_KEY = "cli-anthropic", NVIM_ANTHROPIC_API_KEY = "",
     OPENAI_API_KEY = "cli-openai", NVIM_OPENAI_API_KEY = "",
-  }, provider)
+  }, order)
   for name, vars in pairs(adapters) do
     t.ok(cli_only[name] and cli_only[name].name == name and cli_only[name].key ~= "cli-" .. name,
-      ("%s: %s alone is never used by the %s adapter"):format(provider, vars.cli, name))
+      ("%s: %s alone is never used by the %s adapter"):format(order, vars.cli, name))
   end
 end
 

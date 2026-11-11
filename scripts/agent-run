@@ -1,11 +1,12 @@
 #!/bin/sh
-# Launcher for the native agent terminals, used inside the tmux wrapper.
+# Launcher for the native agent terminals, used inside both tmux wrappers.
 #
 # Without it, an agent that fails on startup just makes the panel vanish. The
-# wrapper's teardown -- `exit-empty on` plus the `client-detached -> kill-server`
-# hook -- means the tmux client exits 0 no matter how the pane's command ended,
-# so nvim's :terminal job reports success, Snacks' `auto_close` closes the
-# window, and the agent's own error text dies with the tmux server. Measured:
+# wrappers' teardown -- `exit-empty on` plus the `client-detached` hook that runs
+# scripts/agent-teardown (falling back to kill-server) -- means the tmux client
+# exits 0 no matter how the pane's command ended, so nvim's :terminal job
+# reports success, Snacks' `auto_close` closes the window, and the agent's own
+# error text dies with the tmux server. Measured:
 # `sh -c 'exit 1'` through the real wrapper reaches nvim as status 0.
 #
 # The exit status cannot be recovered on nvim's side, so the message is kept

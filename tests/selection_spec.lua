@@ -4,7 +4,8 @@ local sel = require("ai.selection")
 
 -- draft() reads the *live* visual selection, so it has to be called from inside
 -- Visual mode. Driving it through an x-mode mapping is also the production path:
--- <leader>as is an x-mode mapping (lua/ai/init.lua:63).
+-- <leader>as is an x-mode mapping (M.send_selection in lua/ai/init.lua's KEYS,
+-- applied by apply_keymaps), which captures through ai.selection.capture.
 -- Checked first, while the session is still cleanly in Normal mode. Leaving
 -- Visual mode afterwards is unreliable headless, and the guard being wrong is
 -- exactly what would let <leader>ai seed a draft the user never selected.

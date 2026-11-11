@@ -115,10 +115,12 @@ popup**, and breakpoints pause.
 | Q3 | Does WXT's sourcemap resolve to real `.ts` files? | **YES, for `wxt dev` only.** 31/31 sources resolved, `sourcesContent` complete. **`wxt build -m development` emits no sourcemap at all** — a build-mode trap. |
 | Q4 | Does a breakpoint bind and hit? | **Plain page: YES** — stopped at `app.js:2`, `loadedSources: 1` with the real on-disk path. **Extension page: NO** — target owned (thread `Tactify — Saved Tabs`, React confirmed mounted) but `loadedSources: 0`. **Service worker: NO** — no session spawned. |
 
-Configurations tried against the extension page, none of which changed
-`loadedSources: 0`: `sourceMapPathOverrides`, `pathMapping`, `outFiles`,
-`resolveSourceMapLocations: null`, `urlFilter`, `__workspaceFolder`, and forcing
-all of them into the child session rather than only the root.
+Configurations tried against the extension page (`dap-v4.mjs`, `dap-v5.mjs`),
+none of which changed `loadedSources: 0`: `sourceMapPathOverrides`,
+`pathMapping`, `outFiles`, `resolveSourceMapLocations: null`, `urlFilter`,
+`__workspaceFolder`, and forcing all of them into the child session rather than
+only the root. Those runs had the dev server stopped (`dap-v6.mjs` says so), so
+under the method notes below they measured an empty page and are void.
 
 ## The finding that outranks all of the above
 
@@ -164,7 +166,9 @@ been stopped, so "the breakpoint does not bind" was measuring an empty page.
 2. `loadedSources` was validated as a judgment criterion on the known-good control
    (returns 1 real path there), so the extension's `0` is a real measurement.
 3. Everything before `dap-v3.mjs`, and every extension run before the dev server
-   was restarted, is void.
+   was restarted, is void. The v1–v2 harnesses were removed for that reason;
+   `dap-v4.mjs`/`dap-v5.mjs` stay as the record of the configurations listed
+   under Answers.
 
 ## Reproduce
 
@@ -172,22 +176,36 @@ been stopped, so "the breakpoint does not bind" was measuring an empty page.
 # 1. dev build WITH sourcemaps, dev server left RUNNING (both matter)
 cd ~/Code/knotmark/tactify/apps/extension && npx wxt   # `wxt dev` parses "dev" as the root arg
 
-# 2. positive control - proves the harness can hit a breakpoint
+# 2. round 1 - Q1: does --load-extension still install it? (paths, port inside)
+./probe-targets.sh
+#    Q1b/Q2: install over CDP instead, then list the extension's targets
+node cdp-load-unpacked.mjs <cdpPort> <extOutDir>
+node cdp-targets.mjs <cdpPort> <extOutDir>
+
+# 3. positive control - proves the harness can hit a breakpoint
 node dap-v3.mjs <dapPort> <cdpPort> ./web/app.js 2 web ./web http://127.0.0.1:8790/index.html
 
-# 3. the subject
+# 4. the subject
 node dap-v6.mjs <dapPort> <cdpPort> <extOutDir> ~/Code/knotmark/tactify page
 node dap-v6.mjs <dapPort> <cdpPort> <extOutDir> ~/Code/knotmark/tactify worker
 
-# 4. round 2 - service worker via a PATCHED adapter copy. Patch is one line:
+# 5. round 2 - service worker via a PATCHED adapter copy. Patch is one line:
 #    wa=r=>e=>e.type==="page"&&…   ->   (e.type==="page"||e.type==="service_worker")&&…
 #    Run the patched copy's dapDebugServer.js, then:
 node sw-probe.mjs <dapPort> <cdpPort> <extOutDir> ~/Code/knotmark/tactify automatic
 #    webRoot must be the BUILD OUTPUT dir, and build output must sit inside the
 #    project (see the webRoot gotcha) or relative sources clamp and lose a segment.
 
-# 5. round 3 - no js-debug at all; raw CDP pauses the worker
+# 6. round 3 - no js-debug at all; raw CDP pauses the worker
 node cdp-direct-breakpoint.mjs <cdpPort> <extOutDir> <0-based line in background.js>
+
+# 7. round 5 - attach mode against the PR #2361 build (its dapDebugServer.js),
+#    passing only extensionPath
+node pr-probe.mjs <dapPort> <cdpPort> <extOutDir> ~/Code/knotmark/tactify
+
+# 8. round 6 - launch mode against the huiyu/vscode-js-debug fork: no Chrome
+#    started beforehand, the adapter launches one and installs the extension
+node launch-probe.mjs <dapPort> <extOutDir> ~/Code/knotmark/tactify <userDataDir>
 ```
 
 Chrome needs `--remote-debugging-port` and a **separate `--user-data-dir`**; without
@@ -208,8 +226,6 @@ profile directories are pure browser cache — roughly 900MB — and carry no kn
 ```sh
 rm -rf ~/.config/nvim/spikes/chrome-extension-dap/{chrome-profile*,prof*,p_*,output,*.log}
 ```
-
-Add `spikes/` to `.gitignore` if this directory is kept at all.
 
 
 ---
@@ -363,7 +379,7 @@ This closes every open question this spike carried:
 unaffected, and the extension can be installed over CDP with
 `Extensions.loadUnpacked`, which this spike used throughout and which the PR
 already uses for hot reload. Routing initial load through it would revive launch
-mode — worth reporting upstream.
+mode — worth reporting upstream. Round 6 below does exactly that.
 
 ## Still not answered
 
@@ -371,3 +387,17 @@ Pausing inside extension *page* code (only the worker was asserted). Headed
 Chrome — every run here was `--headless=new`. Whether the PR's auto-reload
 (`fs.watch` on the extension dir + `Extensions.loadUnpacked`, 400ms debounce)
 works in attach mode; its own comment says it is for launched browsers.
+
+
+---
+
+# Round 6: launch mode, on the fork
+
+`huiyu/vscode-js-debug` carries PR #2361 and installs the extension over CDP
+(`Extensions.loadUnpacked`) instead of passing `--load-extension`, which is the
+change round 5 asked for. `launch-probe.mjs` (Reproduce step 8) drives it: no
+Chrome is started beforehand, the adapter launches one with its own
+`--user-data-dir`, installs the extension and attaches, and the probe reports
+whether the worker was owned and the breakpoint stopped. This is the path the
+config ships: `<leader>dc` → **chrome: debug extension (launch)**, set up as
+`docs/DIAGNOSTICS.md` describes.

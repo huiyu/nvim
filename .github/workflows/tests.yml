@@ -65,15 +65,6 @@ jobs:
           mkdir -p "$HOME/.config"
           ln -s "$GITHUB_WORKSPACE" "$HOME/.config/nvim"
 
-      # mason-lspconfig, mason-nvim-dap and the language modules' tool lists
-      # install their packages once their plugins load. On a fresh runner that
-      # happened during the spec suite, so whether a spec that needs one ran,
-      # skipped or failed depended on the race. Install them all first.
-      - name: Install the Mason packages
-        run: |
-          nvim --headless -u init.lua -i NONE "+Lazy! install" +qa
-          nvim --headless -u init.lua -i NONE "+Lazy! load nvim-lspconfig nvim-dap" "+luafile .github/mason-wait.lua" +qa
-
       # lazy.nvim bootstraps and clones on first start. Doing it as its own step
       # keeps a clone failure from being reported as a spec failure.
       #
@@ -82,6 +73,14 @@ jobs:
       - name: Install plugins
         run: nvim --headless -u init.lua -i NONE "+Lazy! install" "$FAIL_ON_ERRMSG" +qa
         env: { FAIL_ON_ERRMSG: '+lua if vim.v.errmsg ~= "" then vim.cmd("cquit 1") end' }
+
+      # mason-lspconfig, mason-nvim-dap and the language modules' tool lists
+      # install their packages once their plugins load. On a fresh runner that
+      # happened during the spec suite, so whether a spec that needs one ran,
+      # skipped or failed depended on the race. Install them all first.
+      - name: Install the Mason packages
+        run: |
+          nvim --headless -u init.lua -i NONE "+Lazy! load nvim-lspconfig nvim-dap" "+luafile .github/mason-wait.lua" +qa
 
       # CodeDiff diffs through a native library it downloads into its plugin
       # directory on first setup. The spec suite never downloads
@@ -115,6 +114,6 @@ jobs:
 
       # No trailing-whitespace gate here on purpose. AGENTS.md's local
       # `git diff --check` inspects changed lines only; the committed tree still
-      # carries trailing whitespace in four files (bootstrap, lsp/dap,
-      # util/logger, util/lsp), so a repo-wide grep would fail every run until
-      # those are cleaned up. Add the gate together with that cleanup.
+      # carries trailing whitespace in four files (bootstrap, util/logger,
+      # util/lsp, docs/UTILITIES.md), so a repo-wide grep would fail every run
+      # until those are cleaned up. Add the gate together with that cleanup.
