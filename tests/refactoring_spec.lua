@@ -99,7 +99,7 @@ t.eq(lines(), {
 }, "Visual ,ef extracts the lines into a function with their inputs as parameters")
 
 for _, mode in ipairs({ "n", "x" }) do
-  t.eq(vim.fn.maparg(",R", mode, false, true).desc, "Select refactor", ",R offers every refactor in mode " .. mode)
+  t.eq(vim.fn.maparg(",R", mode, false, true).desc, "Select refactor…", ",R offers every refactor in mode " .. mode)
 end
 
 -- ,R asks vim.ui.select (the snacks picker in a session) which refactor to

@@ -3,7 +3,7 @@ return {
   cmd = "GrugFar",
   keys = {
     { ",F", function() require("grug-far").open() end,                                          desc = "Search and replace", mode = { "n", "x" } },
-    { ",w", function() require("grug-far").open({ prefills = { search = vim.fn.expand("<cword>") } }) end, desc = "Replace current word", mode = "n" },
+    { ",w", function() require("grug-far").open({ prefills = { search = vim.fn.expand("<cword>") } }) end, desc = "Replace word under cursor", mode = "n" },
   },
   opts = {
     -- Its default <localleader>r/f/j/k/l/... would shadow general editing

@@ -189,7 +189,7 @@ t.eq(vim.bo[s.original_bufnr].buflisted, false, "which stays out of the buffer l
 local left, right, panel_win = s.original_win, s.modified_win, s.panel_win
 local panel_buf = s.panel_bufnr
 vim.api.nvim_set_current_win(right)
-t.eq(map(sample, ",p").desc, "Toggle Markdown Preview", "Markdown preview survives inside CodeDiff")
+t.eq(map(sample, ",p").desc, "Toggle Markdown preview", "Markdown preview survives inside CodeDiff")
 t.eq(map(sample, ",m").desc, "Toggle Markdown render", "Markdown rendering survives inside CodeDiff")
 t.eq(map(sample, ",P").desc, "Focus explorer panel", "CodeDiff focuses its explorer on ,P")
 for _, lhs in ipairs({ ",B", ",z", ",I" }) do
@@ -270,8 +270,8 @@ vim.api.nvim_set_current_win(right)
 t.eq(vim.api.nvim_tabpage_list_wins(0), wins_before, "the layout is unchanged")
 
 -- The status view's explorer keeps its file-level index keys and q.
-for lhs, desc in pairs({ ["-"] = "Stage / unstage", S = "Stage all files", U = "Unstage all files",
-  X = "Restore / discard changes", q = "Close the CodeDiff view" }) do
+for lhs, desc in pairs({ ["-"] = "Stage/unstage file", S = "Stage all files", U = "Unstage all files",
+  X = "Discard file changes…", q = "Close diff view" }) do
   t.eq(map(panel_buf, lhs).desc, desc, "the status explorer has " .. lhs)
 end
 
@@ -286,8 +286,8 @@ for _, row in ipairs(rows) do
   if row.key == "" then title = row.desc:sub(#"── " + 1) else owners[row.keys] = title end
 end
 t.eq(owners[",p"], "Markdown · preview", "a CodeDiff pane keeps its language section")
-t.eq(owners[",P"], "CodeDiff · panels / layout / conflicts", "and shows the view's own section")
-t.eq(owners[",z"], "CodeDiff · panels / layout / conflicts", "compact is in the view's section")
+t.eq(owners[",P"], "CodeDiff · panels/layout/conflicts", "and shows the view's own section")
+t.eq(owners[",z"], "CodeDiff · panels/layout/conflicts", "compact is in the view's section")
 
 -- <leader>gv from inside the view: a bare :CodeDiff there would close it.
 notices = {}
@@ -445,12 +445,12 @@ t.ok(vim.wait(2000, function() return not vim.api.nvim_tabpage_is_valid(view_tab
 t.eq(vim.api.nvim_get_current_tabpage(), editor_tab, "back on the editing page")
 settle()
 t.eq(map(sample, ",P"), {}, "CodeDiff removes its panel mappings when it closes")
-t.eq(map(sample, ",p").desc, "Toggle Markdown Preview", "closing CodeDiff preserves the filetype mapping")
+t.eq(map(sample, ",p").desc, "Toggle Markdown preview", "closing CodeDiff preserves the filetype mapping")
 -- Back to the global prefix, or to which-key's buffer-local trigger for it.
 t.ok(map(sample, ";").desc ~= "Disabled in CodeDiff", "; is no longer blocked")
 t.ok(map(sample, "s").desc ~= "Disabled in CodeDiff", "and neither is s")
 for lhs, desc in pairs({ H = "Prev buffer", L = "Next buffer", ["[b"] = "Prev buffer", ["]b"] = "Next buffer",
-  ["-"] = "Oil: parent directory" }) do
+  ["-"] = "Parent directory (oil)" }) do
   t.eq(map(sample, lhs).desc, desc, lhs .. " is handed back to its global mapping")
 end
 t.eq(map(sample, "<C-^>"), {}, "and <C-^> to the builtin alternate buffer")
@@ -484,7 +484,7 @@ t.ok(vim.list_contains(listed, "中文.txt"), "a non-ASCII path is listed intact
 for _, lhs in ipairs({ "S", "U", "X" }) do
   t.ok(map(s.panel_bufnr, lhs).buffer ~= 1, "a revision view's explorer has no " .. lhs)
 end
-t.eq(map(s.panel_bufnr, "q").desc, "Close the CodeDiff view", "but closes on q")
+t.eq(map(s.panel_bufnr, "q").desc, "Close diff view", "but closes on q")
 -- Without the stage key, `-` is blocked there as in the panes.
 for _, buf in ipairs({ s.panel_bufnr, s.original_bufnr, s.modified_bufnr }) do
   for _, lhs in ipairs({ "-", unpack(SWITCH) }) do blocked_in(buf, lhs) end
@@ -496,7 +496,7 @@ press("<leader>gV")
 t.ok(vim.wait(15000, history_ready, 20), "<leader>gV opens the file's history")
 local file_tab = vim.api.nvim_get_current_tabpage()
 t.eq(vim.t.codediff_label, "history · sample.md", "labelled with the file")
-t.eq(map(cd.session(0).panel_bufnr, "q").desc, "Close the CodeDiff view", "the history panel closes on q")
+t.eq(map(cd.session(0).panel_bufnr, "q").desc, "Close diff view", "the history panel closes on q")
 for _, lhs in ipairs({ ";", "s", "-", unpack(SWITCH) }) do blocked_in(cd.session(0).panel_bufnr, lhs) end
 t.eq(#lifecycle.get_session(file_tab).panel.data.commits, 1, "sample.md has one commit")
 

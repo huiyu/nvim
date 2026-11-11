@@ -401,8 +401,8 @@ labels and the listing; its header lists what it depends on.
   is its own). `q` in a chat only hides it, as `<leader>ac` does.
   `AI slot guard failed:` with a traceback means the guard itself raised
   (usually a CodeCompanion update; see *A key fails* below).
-- **A key asked instead of acting** — "Add selection to", "Add buffer to",
-  "Edit prompt for", "Switch AI chat", "Which native agent?", "Whose
+- **A key asked instead of acting** — "Add selection to", "Add file to",
+  "Compose prompt for", "Switch AI chat", "Which native agent?", "Whose
   transcript?". Nothing is on the right of this tabpage (or, from a CodeDiff
   view, of the page the view came from), or several AI windows are there and
   the current window is none of them. Nothing is ever delivered to a hidden
@@ -715,7 +715,7 @@ rather than a broken viewer.
   because a `ctrl+g` aimed at a TUI that is still booting is swallowed
   silently. A box that never shows (a trust or login prompt still waiting for
   an answer) ends in `… did not reach its prompt — press <leader>ai again`.
-  With nothing on the right it asks first (*Edit prompt for*); on a
+  With nothing on the right it asks first (*Compose prompt for*); on a
   CodeCompanion chat it opens no float at all and puts the cursor in the
   chat's own prompt, in Insert mode unless the chat is replying (`The chat is
   replying: type once it is done`).
@@ -1376,6 +1376,20 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   `lua/plugin/editor/whichkey.lua` reads it generically.
   grug-far's `,S` subgroup appears only inside its search-and-replace panel;
   open it with `,F`, then use `g?` to inspect its action mappings.
+- **A popup row shows code instead of words** (`:<C-U>call
+  <SNR>27_Python_jump(...)`, `vimtex-][)`, `vim.lsp.buf.references()`) — the
+  mapping has no desc of its own. `:verbose nmap <lhs>` says who set it. A
+  filetype plugin's motion gets its desc from `filetype_descs` in
+  `lua/whichkey_spec.lua`, written onto the buffer's mapping on `FileType`;
+  add the filetype and key there. Nvim's LSP defaults (`gO`, `gr*`) are
+  described in `lua/mappings.lua`.
+- **A row shows a global label where the buffer means something else** (`]c`
+  read "Next class start" in a diff view, `gO` "[LSP] Document symbols" in
+  markdown) — a description-only `whichkey_spec` entry outranks every
+  buffer-local desc. A key that some buffer remaps carries its desc on the
+  global mapping instead (`tests/whichkey_popup_spec.lua` lists them). In a
+  diff window `]c` reads "Next class start (diff: next hunk)"; in a CodeDiff
+  view CodeDiff's own "Next hunk" shows.
 - **Which-key hints stop appearing while mappings still work** — check for the
   red `● REC @…` statusline indicator, or run `:echo reg_recording()`. Which-key
   pauses its triggers during macro recording; if a register is shown, press

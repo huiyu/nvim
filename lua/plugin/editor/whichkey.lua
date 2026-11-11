@@ -10,6 +10,9 @@
 -- silently changed a key's colour and position, and every new key needed a
 -- pattern careful enough not to catch someone else's ("^search" swallowed ",F
 -- Search and replace").
+--
+-- It also gives filetype plugins' own desc-less mappings (Python's ]], VimTeX's
+-- ]n, man's gO) the descs declared there, so the popup shows words, not code.
 local Spec = require("whichkey_spec")
 
 --- Normalise a key sequence to the form which-key stores on a node.
@@ -171,6 +174,58 @@ local function install_section_headings()
   end
 end
 
+--- Give a filetype plugin's own mappings in `buf` the descs from
+--- `Spec.filetype_descs`.
+---
+--- The desc is written onto the buffer's mapping itself, never added as a
+--- which-key entry: a which-key entry outlives a filetype change and outranks
+--- the mapping that replaces it, while a mapping's own desc goes when
+--- b:undo_ftplugin unmaps the key. mapset() re-creates the mapping from what
+--- maparg() returned, with the same rhs or callback, script ID and flags, so
+--- only the desc changes.
+---
+--- Only the buffer's own mappings, mode by mode: VimTeX maps nothing where a
+--- global map already holds the key (illuminate's Normal ]], Nvim's Visual
+--- ]n), and the global one keeps its own desc there.
+---@param buf integer
+local function describe_filetype_maps(buf)
+  local descs = (Spec.filetype_descs or {})[vim.bo[buf].filetype]
+  if not descs then
+    return
+  end
+  vim.api.nvim_buf_call(buf, function()
+    for lhs, desc in pairs(descs) do
+      for _, mode in ipairs({ "n", "x", "o" }) do
+        local m = vim.fn.maparg(lhs, mode, false, true)
+        if m.buffer == 1 and m.desc ~= desc then
+          m.desc = desc
+          vim.fn.mapset(m)
+        end
+      end
+    end
+  end)
+end
+
+--- Describe every loaded buffer now, and each one a filetype plugin maps later.
+--- Registered at load, so this FileType handler runs after Nvim's own
+--- `filetypeplugin` one, which sources the ftplugin (and VimTeX's) first.
+local function install_filetype_descs()
+  local filetypes = vim.tbl_keys(Spec.filetype_descs or {})
+  if #filetypes == 0 then
+    return
+  end
+  vim.api.nvim_create_autocmd("FileType", {
+    group = vim.api.nvim_create_augroup("whichkey_filetype_descs", { clear = true }),
+    pattern = filetypes,
+    callback = function(args) describe_filetype_maps(args.buf) end,
+  })
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) then
+      describe_filetype_maps(buf)
+    end
+  end
+end
+
 return {
   "folke/which-key.nvim",
   event = "VeryLazy",
@@ -243,5 +298,6 @@ return {
     -- Spec data lives in lua/whichkey_spec.lua; the imperative keymaps are in
     -- lua/mappings.lua (required for side effects by init.lua).
     whichkey.add(Spec.spec)
+    install_filetype_descs()
   end,
 }

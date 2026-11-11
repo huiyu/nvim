@@ -12,8 +12,34 @@ vim.keymap.set("n", "gx", function()
   require("util.url").open()
 end, { desc = "Open URL / local file" })
 
+-- Nvim's own LSP defaults keep their behaviour; only the desc is rewritten.
+-- Theirs is the code ("vim.lsp.buf.references()"), which is what the popup
+-- showed. mapset() re-creates each from what maparg() returned -- the same
+-- callback and flags -- so ":help lsp-defaults" still describes them. gO needs
+-- a real desc rather than a which-key label: markdown, help, checkhealth and
+-- man map their own gO (the outline), and a global which-key label outranked
+-- theirs. A default someone has already replaced is left alone.
+for _, d in ipairs({
+  { "n", "gO",  "[LSP] Document symbols (Nvim default)" },
+  -- The gr popup's group says "Nvim default" already (lua/whichkey_spec.lua).
+  { "n", "grr", "[LSP] References" },
+  { "n", "gri", "[LSP] Implementation" },
+  { "n", "grt", "[LSP] Type definition" },
+  -- "…": both ask first (the new name, which action), as ,r and ,a do.
+  { "n", "grn", "[LSP] Rename…" },
+  { "n", "gra", "[LSP] Code action…" },
+  { "x", "gra", "[LSP] Code action…" },
+  { "n", "grx", "[LSP] Run codelens" },
+}) do
+  local m = vim.fn.maparg(d[2], d[1], false, true)
+  if m.buffer == 0 and (m.desc or ""):find("^vim%.lsp%.") then
+    m.desc = d[3]
+    vim.fn.mapset(m)
+  end
+end
+
 -- Run the current file (dispatched by filetype; runners registered in lang/*.lua)
-vim.keymap.set("n", ",x", function() require("util.run").run_current() end, { desc = "Run current file" })
+vim.keymap.set("n", ",x", function() require("util.run").run_current() end, { desc = "Run file" })
 
 -- Clear search highlight on Escape
 -- Normal mode only: mapping bare <Esc> in insert mode can add latency to / mis-fire
@@ -59,8 +85,8 @@ vim.keymap.set({ "n", "x" }, ",l", function() require("util.move").run("right") 
   { desc = "Indent line(s)" })
 
 -- Insert mode
-vim.keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode", noremap = true, silent = true })
-vim.keymap.set("i", "<C-c>", "<ESC>", { desc = "Exit insert mode", noremap = true, silent = true })
+vim.keymap.set("i", "jk", "<ESC>", { desc = "Exit Insert mode", noremap = true, silent = true })
+vim.keymap.set("i", "<C-c>", "<ESC>", { desc = "Exit Insert mode", noremap = true, silent = true })
 vim.keymap.set("i", "<C-]>", "<Esc>", { desc = "Exit input mode", noremap = true, silent = true })
 vim.keymap.set("i", "<C-\\>", "<Esc>", { desc = "Exit input mode", noremap = true, silent = true })
 vim.keymap.set("x", "<C-]>", "<Esc>", { desc = "Exit selection mode", noremap = true, silent = true })
@@ -86,9 +112,10 @@ vim.keymap.set("t", "<C-\\>", "<C-\\><C-n>", { desc = "Exit input mode", noremap
 vim.keymap.set("n", "<leader>md", function()
   require("util.terminal").fix_drift()
 end, { desc = "Fix terminal TUI drift" })
+-- Shift+Enter as CSI 13;2u: Claude and Codex read it as a newline, not a submit.
 vim.keymap.set("t", "<S-CR>", function()
   vim.fn.chansend(vim.b.terminal_job_id, "\x1b[13;2u")
-end, { noremap = true, silent = true })
+end, { desc = "Send Shift+Enter (newline) to terminal", noremap = true, silent = true })
 -- Ctrl+hjkl belong to Nvim window navigation in Terminal-mode. Preserve the
 -- TUI's useful Ctrl+L redraw action on a shifted chord by forwarding the
 -- original form-feed byte to the terminal job.
@@ -148,9 +175,9 @@ end
 -- lua/whichkey_spec.lua is the plain-key fallback for the terminals and tmux
 -- configurations that cannot send the chord at all.
 vim.keymap.set("n", "<C-,>", "<cmd>WindowFocusEditor<cr>",
-  { desc = "Go to editor window", silent = true })
+  { desc = "Editor window (toggle back)", silent = true })
 vim.keymap.set("t", "<C-,>", "<C-\\><C-n><cmd>WindowFocusEditor<cr>",
-  { desc = "Go to editor window", silent = true })
+  { desc = "Editor window (toggle back)", silent = true })
 
 -- Window resize (Ctrl+arrows). Routed through util.window rather than straight
 -- to `:resize`: once edgy owns a panel in the tabpage, a bare `:resize` is a

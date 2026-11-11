@@ -10,10 +10,22 @@ The utility modules provide focused helpers for logging, debug inspection, LSP, 
 
 ### Keymap section data (`whichkey_spec`)
 
-`lua/whichkey_spec.lua` exports `spec`, `sections`, and `fallback_section`.
-`spec` contains which-key mapping/group metadata. `sections[prefix]` is an
-ordered list of display sections, read by `lua/plugin/editor/whichkey.lua`.
-Filetype mappings remain in `lua/lang/`; view mappings remain with their plugins.
+`lua/whichkey_spec.lua` exports `spec`, `sections`, `fallback_section` and
+`filetype_descs`. `spec` contains which-key mapping/group metadata.
+`sections[prefix]` is an ordered list of display sections, read by
+`lua/plugin/editor/whichkey.lua`. Filetype mappings remain in `lua/lang/`; view
+mappings remain with their plugins.
+
+`filetype_descs[ft][lhs]` is the desc for a key that `ft`'s own plugin (a
+runtime ftplugin or VimTeX) maps in its buffers without one, or in words of
+its own: Python's `]]`/`]m`, Go's, Rust's and Vim's section motions, VimTeX's
+`]n`/`]r`/`]/` motions and `ac`/`id`/`a$` objects, and the heading outline
+`gO` of markdown, help, checkhealth and man buffers ("Show outline").
+`lua/plugin/editor/whichkey.lua` writes it onto the buffer's own mapping with
+`mapset()` on `FileType`, mode by mode, and only where the buffer maps the key
+itself: VimTeX maps nothing where a global map already holds the key
+(illuminate's Normal `]]`), and that one keeps its own desc. It never adds a
+which-key entry, so the desc goes away when the filetype unmaps the key.
 
 | Section field | Meaning |
 |---|---|
@@ -26,7 +38,14 @@ Filetype mappings remain in `lua/lang/`; view mappings remain with their plugins
 
 For example, the comma menu declares Python's `o`/`v` under imports/environment,
 and LaTeX's `v`/`t`/`L` under preview/tools. The first matching section owns the
-row; filetype and buftype filters both apply when both are present. `labels.L`
+row, so a filetype section must come before any unfiltered section that
+declares the same suffix: `g`'s `oil · listing`, `CodeDiff · panel`,
+`Chat · conversation/context`, `Lazy · plugin` and `outline` come before
+`LSP`, and `,`'s `Lazy · plugin` comes before `refactor` and `lines`;
+`tests/whichkey_popup_spec.lua` asserts this order. Filetype and buftype
+filters both apply when both are present. A heading joins single words with
+"/" and no spaces, as descs do (`AGENTS.md`): imports/environment,
+preview/tools, replace/sync, search/panel, format/replace. `labels.L`
 names the existing VimTeX group without registering an empty placeholder key.
 Headings add no keystrokes, register no mappings, and load no plugins. Only keys
 already present in the source buffer appear. Unclassified rows use
@@ -39,8 +58,9 @@ both. Terminal `1`–`9` mappings are installed by `TermOpen`
 in Normal mode; they never intercept terminal input. `<localleader>` is `,`
 and uses this same action menu.
 grug-far overrides its localleader defaults with `,S…` to preserve general
-editing keys; `sections[",S"]` groups replace/sync, results, history and panel
-controls. Its implicit `S` group is labeled alongside `,F`/`,w` in the comma menu.
+editing keys; `sections[",S"]` groups replace/sync, results, history and
+search/panel controls. Its implicit `S` group is labeled "Search panel" beside
+`,f`/`,F`/`,w` under the comma menu's format/replace heading.
 
 `tests/whichkey_popup_spec.lua` checks section ordering and rendering;
 `tests/context_actions_spec.lua` checks real contextual menus and unchanged
@@ -340,7 +360,7 @@ vim_error.message(err)
 
 -- vim.notify that line at WARN, optionally prefixed with the action.
 local ok, err = pcall(vim.cmd, "update")
-if not ok then vim_error.notify(err, "Run current file") end
+if not ok then vim_error.notify(err, "Run file") end
 ```
 
 `:WindowCloseCurrent`, `:WindowCloseOthers` and `,x` report through it. Where
@@ -398,9 +418,11 @@ local window = require("util.window")
 -- Window operations (via autocmds)
 -- :WindowCloseOthers  - Close eligible splits in the current tab only. A close
 --                       Nvim refuses (the last split, from a float) is a warning.
--- :WindowCloseCurrent - Close current window; the last window (E444) or a
---                       modified buffer that cannot be hidden (E37) is a warning.
--- :WindowFocusEditor  - Jump to the editor window in the current tab; press
+-- :WindowCloseCurrent - Close window (the desc `sd` shows too); the last window
+--                       (E444) or a modified buffer that cannot be hidden (E37)
+--                       is a warning.
+-- :WindowFocusEditor  - Editor window (toggle back), as `se` and <C-,> say:
+--                       jump to the editor window in the current tab; press
 --                       again from the editor to return to the origin window.
 --                       Bound to <C-,> in Normal and terminal-input mode, and
 --                       to `se` where that chord cannot be sent.

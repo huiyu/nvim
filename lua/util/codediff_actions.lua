@@ -974,10 +974,10 @@ local function one_sided_hint(tab)
     -- also restore every other path it matches, over their edits.
     local cmd = ("git -C %s --literal-pathspecs restore --source=%s --worktree -- %s"):format(
       vim.fn.shellescape(s.git_root), view.baseline.sha, vim.fn.shellescape(s.original.relative))
-    notify(("%s was deleted since baseline %s. ,X only restores hunks; to bring the file back:\n%s"):format(
+    notify(("%s was deleted since baseline %s. ,X only discards hunks; to bring the file back:\n%s"):format(
       s.original.relative, when, cmd), vim.log.levels.WARN)
   else
-    notify(("%s is new since baseline %s. ,X only restores hunks: delete the file yourself if it should go"):format(
+    notify(("%s is new since baseline %s. ,X only discards hunks: delete the file yourself if it should go"):format(
       s.modified.relative, when), vim.log.levels.WARN)
   end
 end
@@ -1029,8 +1029,8 @@ local function specs(tab, s)
     end
   elseif view.kind == "one-sided" then
     local when = baseline_label(s.git_root, view.baseline)
-    local desc = view.side == "original" and ("Restore from baseline " .. when .. ": show the command")
-      or ("New since baseline " .. when .. ": how to discard it")
+    local desc = view.side == "original" and ("Discard deletion since baseline " .. when .. ": show command")
+      or ("Discard new file since baseline " .. when .. ": show how")
     add({ "n", "x" }, "X", function()
       leave_visual()
       one_sided_hint(tab)

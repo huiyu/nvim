@@ -70,7 +70,7 @@ return {
       { "<leader>mm", "<cmd>Mason<cr>",                            desc = "Mason" },
       -- `:LspInfo` was only ever an alias to this checkhealth, and lspconfig
       -- stops defining it on Nvim 0.12 (see the `:lsp restart` note below).
-      { "<leader>mi", "<cmd>checkhealth vim.lsp<cr>",              desc = "Lsp Info" },
+      { "<leader>mi", "<cmd>checkhealth vim.lsp<cr>",              desc = "LSP info" },
       -- Servers keep their own project graph, which `checktime` cannot refresh.
       -- After a structural refactor (files moved across packages, a new
       -- tsconfig/package.json root, re-linked workspace symlinks) the buffer is
@@ -79,7 +79,7 @@ return {
       -- Use the Nvim 0.12 builtin `:lsp restart`, NOT lspconfig's `:LspRestart`:
       -- lspconfig's plugin file returns early when `:lsp` exists, so it never
       -- creates its own Lsp* commands on 0.12.
-      { "<leader>mr", "<cmd>lsp restart<cr>",                      desc = "Lsp Restart" },
+      { "<leader>mr", "<cmd>lsp restart<cr>",                      desc = "[LSP] Restart servers" },
     },
     opts = {
       servers = {
@@ -111,7 +111,9 @@ return {
       -- remapped, but the nowait `gr` below shadows them in an LSP buffer (see
       -- there). Each has a shorter binding here -- gr, gb, gy, ,a, ,r and ,c --
       -- so nothing is lost. gO (document symbols) is not gr-prefixed and keeps
-      -- working, beside ;s.
+      -- working, beside ;s. Only their descs change, in place
+      -- (lua/mappings.lua), so the popup shows words rather than
+      -- "vim.lsp.buf.references()".
 
       -- Buffer-local LSP mappings via LspAttach (for non-default keybindings)
       vim.api.nvim_create_autocmd("LspAttach", {
@@ -130,7 +132,7 @@ return {
           -- Nvim 0.10 owns gc (comment) -- the mnemonic keys were taken, not
           -- the idea. "[LSP]" marks what needs a language server, so a
           -- which-key popup separates these from lexical motions like gf/ge.
-          map("gd",  function() Snacks.picker.lsp_definitions({ jump = { reuse_win = false } }) end, "[LSP] Goto Definition")
+          map("gd",  function() Snacks.picker.lsp_definitions({ jump = { reuse_win = false } }) end, "[LSP] Definition")
           -- nowait: without it `gr` sits through the full 'timeoutlen' on every
           -- press, because Nvim's default grr/gri/grt/gra/grn/grx are longer
           -- candidates and Vim has to wait to see which you meant. References
@@ -141,9 +143,9 @@ return {
           -- and in buffers with no client attached.
           vim.keymap.set("n", "gr", function() Snacks.picker.lsp_references() end,
             { buffer = buf, desc = "[LSP] References", nowait = true })
-          map("gb",  function() Snacks.picker.lsp_implementations() end,      "[LSP] Goto Implementation (body)")
-          map("gy",  function() Snacks.picker.lsp_type_definitions() end,     "[LSP] Goto Type Definition")
-          map("gD",  function() vim.lsp.buf.declaration() end,                "[LSP] Goto Declaration")
+          map("gb",  function() Snacks.picker.lsp_implementations() end,      "[LSP] Implementation (body)")
+          map("gy",  function() Snacks.picker.lsp_type_definitions() end,     "[LSP] Type definition")
+          map("gD",  function() vim.lsp.buf.declaration() end,                "[LSP] Declaration")
           -- "Who calls this?" -- narrower than gr, which also returns the
           -- declaration and same-named strings. Needs callHierarchyProvider:
           -- clangd, gopls, vtsls and basedpyright have it; lua_ls does not.
@@ -151,7 +153,7 @@ return {
           -- silent: hovering whitespace or a keyword is routine, and the "No
           -- information available" notice it would raise every time says nothing.
           map("K",   function() vim.lsp.buf.hover({ border = "rounded", silent = true }) end, "[LSP] Hover")
-          map("gK",  function() vim.lsp.buf.signature_help({ border = "rounded" }) end,    "[LSP] Signature Help")
+          map("gK",  function() vim.lsp.buf.signature_help({ border = "rounded" }) end,    "[LSP] Signature help")
           -- Scroll an open K / gK popup without entering it (KK enters it).
           -- With no popup open, the key keeps its usual page scroll, count
           -- included. The scroll itself is scheduled: an <expr> map runs under
@@ -176,15 +178,15 @@ return {
                 vim.api.nvim_win_call(float, function() vim.cmd.normal({ keys, bang = true }) end)
               end)
               return ""
-            end, { buffer = buf, expr = true, desc = "[LSP] Scroll hover / page" })
+            end, { buffer = buf, expr = true, desc = "[LSP] Scroll hover/page" })
           end
-          map(",a", function() vim.lsp.buf.code_action() end, "[LSP] Code action", { "n", "x" })
+          map(",a", function() vim.lsp.buf.code_action() end, "[LSP] Code action…", { "n", "x" })
           -- Replaces the grx that nowait above makes unreachable. gopls defines
           -- real lenses here (generate, test, tidy, govulncheck; see lang/go.lua).
           map(",c", function() vim.lsp.codelens.run() end, "[LSP] Run codelens")
           vim.keymap.set("n", ",r",
             function() return ":IncRename " .. vim.fn.expand("<cword>") end,
-            { buffer = buf, desc = "[LSP] Rename", expr = true })
+            { buffer = buf, desc = "[LSP] Rename…", expr = true })
         end,
       })
 

@@ -2,8 +2,8 @@ return {
   "stevearc/quicker.nvim",
   ft = "qf",
   keys = {
-    { "<leader>xq", function() require("quicker").toggle() end,                  desc = "Toggle quickfix" },
-    { "<leader>xl", function() require("quicker").toggle({ loclist = true }) end, desc = "Toggle loclist" },
+    { "<leader>xq", function() require("quicker").toggle() end,                  desc = "Toggle quickfix window" },
+    { "<leader>xl", function() require("quicker").toggle({ loclist = true }) end, desc = "Toggle location list window" },
   },
   opts = {
     keys = {

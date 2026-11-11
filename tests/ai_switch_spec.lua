@@ -77,7 +77,7 @@ t.eq(vim.fn.getcompletion("AI key ", "cmdline"), { "auto", "anthropic", "openai"
 t.eq(vim.fn.getcompletion("AI key o", "cmdline"), { "openai" }, "completion filters on what is typed")
 t.eq(vim.fn.getcompletion("AI key openai ", "cmdline"), {}, "nothing completes after a name")
 t.eq(vim.fn.exists(":AIInfo"), 2, ":AIInfo is kept as an alias")
-t.eq(desc(" ax"), "Switch API key profile", "<leader>ax picks the API key profile")
+t.eq(desc(" ax"), "Switch API key profile…", "<leader>ax picks the API key profile")
 
 -- Bare :AI is the switcher; with nothing open it is the new-chat picker.
 -- The picker lists available backends only, and CI has no agent CLI, no ACP
@@ -273,7 +273,7 @@ local real_cc = package.loaded["claudecode"]
 package.loaded["claudecode"] = {}
 require("ai").apply_keymaps()
 t.ok(has(" aa") and has(" ad"), "and exist once it has, whatever is on the right")
-t.eq({ desc(" aa"), desc(" ad") }, { "Accept Claude diff", "Deny Claude diff" }, "naming whose diff they answer")
+t.eq({ desc(" aa"), desc(" ad") }, { "Accept Claude diff", "Reject Claude diff" }, "naming whose diff they answer")
 package.loaded["claudecode"] = real_cc
 require("ai").apply_keymaps()
 t.ok(not has(" aa"), "(gone again with the stand-in)")
@@ -284,14 +284,14 @@ t.ok(not has(" aa"), "(gone again with the stand-in)")
 
 local follows = config.auto_key()
 local pinned = follows == "anthropic" and "openai" or "anthropic"
-t.eq(desc(" ae"), ("Inline edit · %s (HTTP)"):format(config.key_profiles[follows].label), "<leader>ae names the key")
+t.eq(desc(" ae"), ("Inline edit · %s (HTTP)…"):format(config.key_profiles[follows].label), "<leader>ae names the key")
 
 notes = {}
 vim.cmd("AI key " .. pinned)
 t.eq({ config.key.name, config.key.auto }, { pinned, false }, ":AI key <name> pins that profile")
 t.eq(events[#events], { axis = "key", from = "auto", to = pinned }, "and announces it")
 t.eq(config.codecompanion.api_key, config.key_profiles[pinned].api_key, "the HTTP key follows the profile")
-t.eq(desc(" ae"), ("Inline edit · %s (HTTP)"):format(config.key_profiles[pinned].label), "<leader>ae is relabelled")
+t.eq(desc(" ae"), ("Inline edit · %s (HTTP)…"):format(config.key_profiles[pinned].label), "<leader>ae is relabelled")
 t.eq(vim.tbl_map(function(b) return b.id end, config.backends()), ids, "the picker stays as it was")
 vim.cmd("AI key auto")
 t.eq({ config.key.name, config.key.auto }, { follows, true }, ":AI key auto resolves again")
@@ -371,8 +371,8 @@ local oil_buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_buf_call(oil_buf, function() vim.cmd("noautocmd setlocal filetype=oil") end)
 require("ai").apply_keymaps()
 local tree_key = vim.api.nvim_buf_call(oil_buf, function() return vim.fn.maparg(" aS", "n", false, true) end)
-t.ok(tree_key.buffer == 1 and tree_key.desc == "Add file under cursor to Claude Code",
-  "<leader>aS is mapped in an oil buffer, naming Claude Code")
+t.ok(tree_key.buffer == 1 and tree_key.desc == "Add file under cursor to Claude",
+  "<leader>aS is mapped in an oil buffer, naming Claude as aa/ad do")
 vim.api.nvim_buf_delete(oil_buf, { force = true })
 
 ---------------------------------------------------------------------------

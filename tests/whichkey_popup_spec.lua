@@ -32,6 +32,21 @@ for _, entry in ipairs(Spec.spec) do
     spec_lhs[vim.keycode(entry[1])] = true
   end
 end
+-- "mode lhs" -> desc of every description-only entry. Read now: which-key's
+-- setup rewrites the spec tables in place when it parses them.
+local desc_only = {}
+for _, entry in ipairs(Spec.spec) do
+  if type(entry[1]) == "string" and entry[2] == nil and entry.desc then
+    for _, m in ipairs(type(entry.mode) == "table" and entry.mode or { entry.mode or "n" }) do
+      desc_only[m .. " " .. entry[1]] = entry.desc
+    end
+  end
+end
+-- lhs -> group label, read before setup for the same reason.
+local group_of = {}
+for _, entry in ipairs(Spec.spec) do
+  if type(entry[1]) == "string" and entry.group then group_of[entry[1]] = entry.group end
+end
 
 ---------------------------------------------------------------------------
 -- The declaration matches reality
@@ -213,7 +228,23 @@ t.ok(not vim.tbl_contains(ai_headings, "others"), "every <leader>a key is declar
 t.ok(not vim.iter(Spec.spec):any(function(entry) return entry[1] == "<leader>ap" end),
   "<leader>ap is not declared as a group")
 -- gs is buffer-local to vtsls buffers, so only the declaration can be checked here.
-t.ok(vim.tbl_contains(Spec.sections["g"][1].keys, "s"), "gs is declared in the g LSP section")
+local g_lsp = vim.iter(Spec.sections["g"]):find(function(section) return section[1] == "LSP" end)
+t.ok(g_lsp and vim.tbl_contains(g_lsp.keys, "s"), "gs is declared in the g LSP section")
+-- Sections with a filetype must come before the unfiltered ones that declare
+-- the same key, or the first match (LSP, lines) takes it in that view too.
+for _, prefix in ipairs({ "g", "," }) do
+  local unfiltered = {}
+  for _, section in ipairs(Spec.sections[prefix]) do
+    for _, key in ipairs(section.keys) do
+      if section.filetype and unfiltered[key] then
+        t.ok(false, ("%s%s in %q is shadowed by %q above it"):format(prefix, key, section[1], unfiltered[key]))
+      end
+    end
+    if not section.filetype and not section.buftype then
+      for _, key in ipairs(section.keys) do unfiltered[key] = unfiltered[key] or section[1] end
+    end
+  end
+end
 
 -- <leader> carries only group rows, which have no keymap: sectioning them
 -- depends on `item.keys`, so a regression there shows up here first.
@@ -322,5 +353,74 @@ end
 t.ok(declared["s:n"], "the window prefix is declared as a trigger, so `s` opens a popup")
 t.ok(not declared["s:x"], "Visual s is left alone, where it changes the selection")
 t.ok(triggers.modes and triggers.modes.n, "automatic triggers are still on for every other prefix")
+
+---------------------------------------------------------------------------
+-- Desc-only entries never stand over a key a buffer remaps
+---------------------------------------------------------------------------
+
+-- which-key reads a spec entry's desc before the mapping's own, buffer-local
+-- ones included: a global "Next class start" row named CodeDiff's ]c "Next
+-- hunk", and "[LSP] Document symbols" markdown's outline. Keys with such
+-- twins carry real descs on the global mapping instead.
+for _, key in ipairs({ "n ]c", "n [c", "n ]C", "n [C", "n ]m", "n [m", "n ]M", "n [M", "o ]m",
+  "x ac", "o ic", "o af", "x if", "n gO" }) do
+  t.eq(desc_only[key], nil, key .. " has no desc-only entry to outrank a buffer's own")
+end
+require("lazy").load({ plugins = { "nvim-treesitter-textobjects" } })
+for lhs, want in pairs({
+  ["]c"] = "Next class start (diff: next hunk)", ["[c"] = "Prev class start (diff: prev hunk)",
+  ["]C"] = "Next class end", ["[M"] = "Prev function end", ["]m"] = "Next function start",
+}) do
+  t.eq(vim.fn.maparg(lhs, "o", false, true).desc, want, lhs .. " carries its own desc")
+end
+t.eq({ vim.fn.maparg("ac", "x", false, true).desc, vim.fn.maparg("if", "o", false, true).desc },
+  { "class", "inner function" }, "the treesitter text objects use the popup's words")
+
+-- A view's own ]c (CodeDiff's, gitsigns' diff panel) is what the popup shows.
+local diff_buf = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_set_current_buf(diff_buf)
+vim.keymap.set("n", "]c", "<Nop>", { buffer = diff_buf, desc = "Next hunk" })
+local diff_mode = require("which-key.buf").get({ mode = "n", update = true })
+local bracket = diff_mode.tree:find("]")
+local hunk = diff_mode.tree:find("]c")
+t.eq(hunk and View.item(hunk, { parent = bracket }).desc, "Next hunk", "a buffer-local ]c keeps its own desc")
+vim.api.nvim_buf_delete(diff_buf, { force = true })
+
+-- Nvim's LSP defaults keep their callbacks; only the code-as-desc is gone.
+for _, case in ipairs({
+  { "n", "gO", "[LSP] Document symbols (Nvim default)" },
+  { "n", "grr", "[LSP] References" }, { "n", "gri", "[LSP] Implementation" },
+  -- grn and gra ask first (the new name, which action), worded as ,r and ,a.
+  { "n", "grt", "[LSP] Type definition" }, { "n", "grn", "[LSP] Rename…" },
+  { "n", "gra", "[LSP] Code action…" }, { "x", "gra", "[LSP] Code action…" },
+  { "n", "grx", "[LSP] Run codelens" },
+}) do
+  local m = vim.fn.maparg(case[2], case[1], false, true)
+  t.eq({ m.desc, m.buffer, type(m.callback) }, { case[3], 0, "function" },
+    ("%s %s is Nvim's own mapping, described"):format(case[1], case[2]))
+end
+
+-- mini.bracketed maps its jump motions in Operator-pending mode too, where
+-- its own "Jump forward" showed beside every other "Next X" row.
+t.eq({ desc_only["o ]j"], desc_only["o [J"] }, { "Next jump", "First jump" },
+  "the jumplist rows are worded alike after an operator")
+t.eq(desc_only["x ]j"], nil, "and not advertised in Visual, where mini.bracketed maps no jump")
+
+-- The , menu is about the current file or view; "buffer" names the buffer list.
+t.eq(group_of[","], "File/view actions", ", is labelled by its scope")
+
+-- Labels in the g and text-object popups follow those popups' house style:
+-- sentence case under g, which-key's lowercase nouns after an operator.
+for _, key in ipairs({ "n '", "n `", "n g'", "n g`", "n g[", "n g]" }) do
+  t.ok((desc_only[key] or ""):match("^%u"), key .. " is in sentence case: " .. tostring(desc_only[key]))
+end
+for key, want in pairs({
+  ["o al"] = "last textobject (al + object key)", ["x il"] = "inner last textobject (il + object key)",
+  ["o an"] = "parent node", ["x in"] = "child node",
+  ["x ]n"] = "Next node", ["x [N"] = "Prev sibling (extend)",
+}) do
+  t.eq(desc_only[key], want, key .. " is worded like its popup")
+end
+t.eq(desc_only["o ]n"], nil, "VimTeX's Operator-pending ]n (math zone) is not labelled as a node")
 
 t.done()

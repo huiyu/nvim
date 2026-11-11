@@ -7,12 +7,12 @@ return {
       "nvim-treesitter/nvim-treesitter"
     },
     keys = {
-      { "<leader>tm", function() require("neotest").run.run() end,                     desc = "Test current method" },
-      { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end,   desc = "Test current file" },
+      { "<leader>tm", function() require("neotest").run.run() end,                     desc = "Run nearest test" },
+      { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end,   desc = "Run tests in file" },
       { "<leader>tS", function() require("neotest").summary.toggle() end,              desc = "Toggle test summary" },
       { "<leader>to", function() require("neotest").output.open() end,                 desc = "Toggle test output" },
-      { "<leader>tD", function() require("neotest").diagnostic.show() end,             desc = "Show test diagnostic" },
-      { "<leader>th", function() require("neotest").diagnostic.hide() end,             desc = "Hide test diagnostic" },
+      { "<leader>tD", function() require("neotest").diagnostic.show() end,             desc = "Show test diagnostics" },
+      { "<leader>th", function() require("neotest").diagnostic.hide() end,             desc = "Hide test diagnostics" },
     },
     opts = {
       -- g? is help in every panel here (aerial, oil, CodeDiff); ? stays too.

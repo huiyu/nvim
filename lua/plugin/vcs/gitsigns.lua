@@ -7,10 +7,10 @@ return {
     { "]h",         "<cmd>Gitsigns nav_hunk next<cr>",  desc = "Next hunk" },
     { "[h",         "<cmd>Gitsigns nav_hunk prev<cr>",  desc = "Prev hunk" },
     { "<leader>gl", "<cmd>Gitsigns blame_line<cr>",     desc = "Blame line" },
-    { "<leader>gL", "<cmd>Gitsigns blame<cr>",          desc = "Blame buffer" },
+    { "<leader>gL", "<cmd>Gitsigns blame<cr>",          desc = "Blame file" },
     { "<leader>gp", "<cmd>Gitsigns preview_hunk<cr>",   desc = "Preview hunk" },
-    { "<leader>gr", "<cmd>Gitsigns reset_hunk<cr>",     desc = "Reset hunk" },
-    { "<leader>gR", "<cmd>Gitsigns reset_buffer<cr>",   desc = "Reset buffer" },
+    { "<leader>gr", "<cmd>Gitsigns reset_hunk<cr>",     desc = "Discard hunk" },
+    { "<leader>gR", "<cmd>Gitsigns reset_buffer<cr>",   desc = "Discard file changes" },
     { "<leader>gS", "<cmd>Gitsigns stage_hunk<cr>",     desc = "Stage/unstage hunk" },
     -- Visual mode passes the selection explicitly: a <Cmd> mapping gives the
     -- command no range, so `:Gitsigns stage_hunk` would act on the whole hunk
@@ -18,7 +18,7 @@ return {
     -- dot-repeatable with that range captured, so `.` afterwards replays the
     -- same absolute lines, not the lines under the cursor.
     { "<leader>gr", function() require("gitsigns").reset_hunk({ vim.fn.line("."), vim.fn.line("v") }) end,
-      desc = "Reset selected lines", mode = "x" },
+      desc = "Discard selected lines", mode = "x" },
     { "<leader>gS", function() require("gitsigns").stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end,
       desc = "Stage/unstage selected lines", mode = "x" },
     -- The file against the index in a split. Pressed again from any window of
@@ -34,7 +34,7 @@ return {
     { "<leader>gD", function() require("util.diffsplit").toggle({ unified = true }) end,
       desc = "Toggle inline diff" },
     { "<leader>gT", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle line blame" },
-    { "<leader>gB", function() Snacks.gitbrowse() end,  desc = "Git browse (open)" },
+    { "<leader>gB", function() Snacks.gitbrowse() end,  desc = "Open in browser (file or commit)" },
   },
   opts = {
     current_line_blame = true,

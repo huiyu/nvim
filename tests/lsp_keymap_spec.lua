@@ -3,6 +3,17 @@ local t = dofile("tests/helper.lua")
 -- The LSP keys are buffer-local: they only exist after a real client attaches,
 -- so this spec starts a real lua_ls against this repository rather than
 -- asserting against the spec table. A startup check cannot see any of them.
+
+-- <leader>m's LSP keys are global, so they need no client: checked before the
+-- skip below. mi reads :checkhealth and works without a server; mr restarts the
+-- file's servers and does nothing without one, hence the [LSP] prefix.
+for lhs, want in pairs({
+  ["<leader>mi"] = "LSP info",
+  ["<leader>mr"] = "[LSP] Restart servers",
+}) do
+  t.eq(vim.fn.maparg(lhs, "n", false, true).desc, want, lhs .. " is " .. want)
+end
+
 vim.cmd("edit lua/util/cwd.lua")
 local attached = vim.wait(30000, function()
   return #vim.lsp.get_clients({ bufnr = 0 }) > 0
@@ -23,13 +34,13 @@ end
 -- Every jump that starts from the symbol under the cursor lives on `g`. These
 -- are the keys AGENTS.md pins; a rename here is a documentation change too.
 for lhs, want in pairs({
-  gd = "[LSP] Goto Definition",
+  gd = "[LSP] Definition",
   gr = "[LSP] References",
-  gb = "[LSP] Goto Implementation (body)",
-  gy = "[LSP] Goto Type Definition",
-  gD = "[LSP] Goto Declaration",
+  gb = "[LSP] Implementation (body)",
+  gy = "[LSP] Type definition",
+  gD = "[LSP] Declaration",
   gC = "[LSP] Incoming calls",
-  gK = "[LSP] Signature Help",
+  gK = "[LSP] Signature help",
   K  = "[LSP] Hover",
 }) do
   local m = mapping(lhs)
@@ -45,15 +56,15 @@ t.eq(mapping("gr").nowait, 1, "gr fires immediately instead of waiting for gr*")
 -- <nowait> costs the gr* defaults their second key inside an LSP buffer, so each
 -- one needs a shorter equivalent here. ,c exists specifically to replace grx.
 for lhs, want in pairs({
-  [",a"] = "[LSP] Code action",     -- replaces gra
-  [",r"] = "[LSP] Rename",          -- replaces grn
+  [",a"] = "[LSP] Code action…",    -- replaces gra; asks which action
+  [",r"] = "[LSP] Rename…",         -- replaces grn; asks the new name
   [",c"] = "[LSP] Run codelens",    -- replaces grx, which has no other route
 }) do
   t.eq(mapping(lhs).desc, want, lhs .. " covers a gr* default that nowait hides")
 end
 -- ,a takes a Visual range (as gra does), but not in Select mode: there a `,`
 -- typed into a snippet placeholder must replace it (tests/select_mode_spec.lua).
-t.eq({ mapping(",a", "x").desc, mapping(",a", "x").mode }, { "[LSP] Code action", "x" },
+t.eq({ mapping(",a", "x").desc, mapping(",a", "x").mode }, { "[LSP] Code action…", "x" },
   ",a acts on a Visual selection")
 t.eq(mapping(",a", "s"), {}, ",a is not mapped in Select mode")
 
@@ -70,7 +81,7 @@ for _, lhs in ipairs({ "grr", "gri", "grt", "gra", "grn", "grx" }) do
 end
 
 -- The fuzzy symbol pickers take no starting symbol, so they stay on `;`.
-t.eq(mapping(";s").desc, "[LSP] Symbol in buffer", ";s stays a fuzzy picker")
+t.eq(mapping(";s").desc, "[LSP] Symbol in file", ";s stays a fuzzy picker")
 t.eq(mapping(";S").desc, "[LSP] Symbol in workspace", ";S stays a fuzzy picker")
 -- ;c used to be incoming calls; that moved to gC because it needs a symbol to
 -- start from. The key now lists git hunks, a global picker, not an LSP jump.
@@ -134,7 +145,7 @@ vim.notify = real_notify
 -- the hover, tagged the way open_floating_preview tags one: the buffer var
 -- naming the window, plus the hover focus_id as a window var.
 local scroll_f, scroll_b = mapping("<C-f>"), mapping("<C-b>")
-t.eq(scroll_f.desc, "[LSP] Scroll hover / page", "<C-f> is the hover/page scroll")
+t.eq(scroll_f.desc, "[LSP] Scroll hover/page", "<C-f> is the hover/page scroll")
 t.eq(scroll_f.buffer, 1, "<C-f> is buffer-local, so plain buffers keep the builtin")
 t.eq(scroll_f.callback(), "<C-f>", "<C-f> without a popup is the usual page scroll")
 

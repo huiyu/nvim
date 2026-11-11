@@ -40,8 +40,9 @@ local function key(lhs)
   end
 end
 for lhs, desc in pairs({
-  ["<leader>gk"] = "Compare two: worktree / index / baseline / ref",
-  ["<leader>gK"] = "Save current code as a baseline",
+  ["<leader>gM"] = "Diff against baseline/ref…",
+  ["<leader>gk"] = "Compare two (working tree/index/baseline/ref)…",
+  ["<leader>gK"] = "Save baseline…",
 }) do
   local spec = key(lhs)
   t.ok(spec ~= nil and spec.desc == desc and spec.mode == "n", lhs .. " is a Normal-mode key of the CodeDiff spec")

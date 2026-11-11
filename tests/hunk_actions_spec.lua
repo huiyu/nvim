@@ -868,7 +868,7 @@ t.ok(reached, "the explorer reaches the deleted file")
 s = cd.session(0)
 t.eq(s.single_side, "original", "gone.txt is one-sided")
 t.eq(keyset({ s.original_bufnr, s.modified_bufnr }), { "n,X", "x,X" }, "a one-sided file gets ,X only")
-t.eq(desc(s.original_bufnr, ",X"), "Restore from baseline " .. dwhen .. ": show the command",
+t.eq(desc(s.original_bufnr, ",X"), "Discard deletion since baseline " .. dwhen .. ": show command",
   "which says it only shows the command")
 t.eq(keyset({ plain_buf }), {}, "the file the view left has its keys handed back")
 notices = {}

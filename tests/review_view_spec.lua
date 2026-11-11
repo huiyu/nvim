@@ -77,7 +77,7 @@ end
 local function heard() return vim.inspect(vim.tbl_map(function(n) return n.msg end, notices)) end
 local function settle(ms) vim.wait(ms or 100, function() return false end, 10) end
 
-local DESC = "[AI] Review feedback (hunk / selection / file)"
+local DESC = "[AI] Review feedback (hunk/selection/file)"
 local function map(buf, lhs, mode)
   return vim.api.nvim_buf_call(buf, function() return vim.fn.maparg(lhs, mode or "n", false, true) end)
 end

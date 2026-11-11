@@ -369,7 +369,7 @@ local function present(path, sentinel, slot)
     if not vim.api.nvim_buf_is_valid(buf) then return end
     vim.cmd("silent write")
     vim.cmd("close")
-  end, { buffer = buf, desc = "Return prompt to the agent", silent = true })
+  end, { buffer = buf, desc = "Deliver prompt to agent", silent = true })
 
   -- Cancel means the box keeps what it had, so the file must stay untouched:
   -- clear 'modified' and let bufhidden = wipe drop the edits.
@@ -377,7 +377,7 @@ local function present(path, sentinel, slot)
     if not vim.api.nvim_buf_is_valid(buf) then return end
     vim.bo[buf].modified = false
     vim.cmd("close")
-  end, { buffer = buf, desc = "Discard edit", silent = true, nowait = true })
+  end, { buffer = buf, desc = "Discard edits", silent = true, nowait = true })
 
   -- Same key the TUIs use for image paste, so the habit carries over. Nothing
   -- is written into the buffer: the image cannot travel through the prompt file

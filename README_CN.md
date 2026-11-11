@@ -15,7 +15,7 @@
 - **[tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md)** >= 0.26.1 和一个 C 编译器 — nvim-treesitter 的 `main` 分支用 `tree-sitter build` 编译每个 parser。请用包管理器安装（Homebrew 里叫 `tree-sitter-cli`），不要用 npm
 
 **可选（按功能）：**
-- **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg`（项目）/ `<leader>gf`（当前文件历史）
+- **[lazygit](https://github.com/jesseduffield/lazygit)** — `<leader>gg`（仓库）/ `<leader>gf`（当前文件历史）
 - **[tmux](https://github.com/tmux/tmux)** — 把 Native Agent 的 TUI 包到 `:terminal` 里，避免残影和帧撕裂；自动检测（详见[终端集成](#终端集成)）
 - **[GitHub CLI](https://cli.github.com/)** — 已认证的 `gh`，供 `<leader>G` GitHub picker 与状态使用
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)** 和/或 **[Codex](https://developers.openai.com/codex/cli/)** — Native coding agent；两者都能运行，和 CodeCompanion Chat 一样用 `<leader>an` 新建（见 [AI Chat 与 Provider](#ai-chat-与-provider)）
@@ -129,7 +129,7 @@ nvim
 | [snacks](https://github.com/folke/snacks.nvim) | Picker、启动页、终端、通知（历史 `<leader>mnh`）、缩进线、平滑滚动、重命名、专注模式（`sz`）、把 git permalink 复制到剪贴板（`<leader>yg`） |
 | [aerial](https://github.com/stevearc/aerial.nvim) | 代码大纲 |
 | [grug-far](https://github.com/MagicDuck/grug-far.nvim) | 搜索替换 |
-| [harpoon](https://github.com/ThePrimeagen/harpoon) | 钉住的文件快速跳转（`;1`-`;9`，`;h` 打开列表） |
+| [harpoon](https://github.com/ThePrimeagen/harpoon) | 在一小组文件间快速跳转（`;H` 加入，`;1`-`;9`，`;h` 打开菜单） |
 | [yanky](https://github.com/gbprod/yanky.nvim) | Yank 历史环 |
 | [dial](https://github.com/monaqa/dial.nvim) | 递增/递减布尔值、日期等；JS/TS 中切换 `let` / `const` |
 | [refactoring](https://github.com/ThePrimeagen/refactoring.nvim) | 提取函数/变量、内联（`,e…` / `,i`） |
@@ -249,7 +249,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 
 | 前缀 | 问题 | 例子 |
 |------|------|------|
-| `;` | 我要去哪个文件 / 符号 / 位置？ | `;<space>` 智能查找、`;f` 找文件、`;/` 全局搜索、`;s` 符号、`;c` git hunk、`;1`-`;9` 钉住的文件 |
+| `;` | 我要去哪个文件 / 符号 / 位置？ | `;<space>` 智能查找、`;f` 找文件、`;/` 全局搜索、`;s` 符号、`;c` git hunk、`;1`-`;9` Harpoon 文件 |
 | `,` | 当前文件 / 视图能做什么？ | `,a` code action、`,f` 格式化、`,r` 重命名、`,o` 整理导入（Go/Python）；终端内的 `,1`-`,9` |
 | `s` | 这个窗口怎么办？ | `ss`/`sv` 分屏、`sd` 关闭、`se` 跳编辑器、`s=` 均分 |
 | `<leader>` | 其余，按领域分组 | `g` git、`G` GitHub、`d` 调试、`t` 测试、`a` AI、`x` 诊断、`m` 管理、`s` 会话、`y` 复制（路径、`path:line`、permalink）、`u` 开关、`b` buffer、`q` 退出 |
@@ -259,7 +259,7 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 
 `,` 菜单分别显示通用编辑、当前语言的操作类别（导入/环境、编译/预览、测试调试）
 和视图操作。CodeDiff 视图会在源文件的语言分区旁增加两个分区：它的面板、布局和冲突键，
-以及审阅键（`,C` 反馈、`,u` / `,U` 暂存 / 取消暂存一个 hunk、`,X` 把一个 hunk 恢复成基线的样子）。
+以及审阅键（`,C` 反馈、`,u` / `,U` 暂存 / 取消暂存一个 hunk、`,X` 把一个 hunk 丢弃回基线）。
 搜索替换面板的专用操作放在 `,S…` 子组。
 完整键表见[文件类型与视图操作](docs/MANUAL_CN.md#文件类型与视图操作)。
 Local leader 共用逗号菜单，不额外占用一个前缀。
@@ -275,7 +275,7 @@ Local leader 共用逗号菜单，不额外占用一个前缀。
 | `<C-,>` | 跳到编辑器区域，再按一次跳回 |
 | `<C-/>` | 开关终端；文件中用 `3<C-/>` 打开终端 3；终端 Normal 模式下用 `,1`-`,9` 切换 |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | 上/下一个 buffer |
-| `g` · `[` / `]` · `z` | 跳转+LSP（从光标下的符号出发）· 上/下一个某物 · 折叠与拼写 |
+| `g` · `[` / `]` · `z` | 跳转 + LSP（从光标下的符号出发）· 上/下一个某物 · 折叠与拼写 |
 | `-` | 用 oil 打开当前目录（可当文本编辑） |
 | `q` · `g?` · `<C-s>` / `<C-v>` / `<C-t>` · `<M-p>` | 在 picker、oil 或大纲里：关闭 · 列出它的键 · 在下方 / 旁边 / 新 tab 打开（大纲没有 tab）· 开关预览（picker、oil）。隐藏文件：picker 里 `<M-.>`，oil 里 `g.` |
 | `jk`（lazygit 除外）· `<C-]>` / `<C-\>` | 输入法安全退出；在 Normal 中切回其输入源 |
@@ -285,9 +285,9 @@ Diff 视图都在 `<leader>g` 下，各自开在独立的 tabpage 里（CodeDiff
 | 键 | 打开 |
 |----|------|
 | `gv` | Diff 视图：状态视图（已暂存、未暂存、未跟踪、冲突） |
-| `gm` / `gM` | 对比 main 分支 / 对比选中的 commit、分支、tag 或基线 |
-| `gk` | 任选两端对比：工作区 / index / 基线 / ref |
-| `gK` | 把当前代码存为基线，供 `gk` 和 `gM` 对比 |
+| `gm` / `gM` | 对比 main 分支 / 对比选中的基线或 ref（分支、tag、commit）… |
+| `gk` | 任选两端对比（工作区/index/基线/ref）… |
+| `gK` | 保存基线…（起个名字），供 `gk` 和 `gM` 对比 |
 | `gV` / `gH` | 文件 / 仓库历史（最近 100 个，不含 merge） |
 | `gq` | 关闭本 tab 的 diff 视图 |
 
@@ -369,25 +369,25 @@ history。
 
 #### AI 快捷键
 
-AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git 视图逗号菜单中的 `,C`（审阅反馈），它的描述以 `[AI]` 开头。Chat 类的键作用于当前 tabpage **右侧的 Chat**——Native Claude Code、Native Codex 或 CodeCompanion Chat，右侧显示的是哪个就是哪个（见 [AI Chat 与 Provider](#ai-chat-与-provider)）——所以这些键的描述不写 agent 名。`ae` 的描述写明它计费所用的 key profile，并随 `:AI key` 更新。
+AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git 视图逗号菜单中的 `,C`（审阅反馈），它的描述以 `[AI]` 开头。Chat 类的键作用于当前 tabpage **右侧的 Chat**——Native Claude Code、Native Codex 或 CodeCompanion Chat，右侧显示的是哪个就是哪个（见 [AI Chat 与 Provider](#ai-chat-与-provider)）——所以这些键的描述不写 agent 名。`ae` 的描述写明它计费所用的 key profile，并随 `:AI key` 更新；只属于 Claude 的 `aa` / `ad` 和 oil 里的 `aS` 写明 "Claude"。描述以 "…" 结尾的键会先询问再执行（`an`、`al`、`ar`、`am`、`ae`、`ax`、`ap`）；`aR` 不询问，右侧没有 Chat 时各 Chat 键都可能问的那个问题（发给哪个 Chat 或 agent）不算在内。
 
 | 键 | 模式 | 作用 |
 |----|------|------|
 | `an` | n, x | 新建 Chat：选一个后端——Native 终端、ACP Chat 或 API Chat（`:AI new`） |
 | `al` | n, x | 切换到另一个已打开的 Chat（`:AI`） |
 | `ac` / `af` | n | 隐藏或重新显示 / 聚焦右侧的 Chat |
-| `ab` / `as` | n / x | 把当前 buffer / 选区加到右侧的 Chat |
-| `ai` | n, x | [在 buffer 里编辑 prompt](#在-buffer-里编辑-prompt) |
+| `ab` / `as` | n / x | 把当前文件 / 选区加到右侧的 Chat |
+| `ai` | n, x | [在 buffer 里撰写 prompt](#在-buffer-里编辑-prompt) |
 | `ar` / `aR` | n | Native Agent：恢复过去的会话（选择器）/ 接着最近一次继续 |
 | `am` | n | Native Agent：选择模型 |
-| `at` / `aT` | n | Native Agent：[阅读 transcript](#阅读历史输出) / 选择过去的会话 |
+| `at` / `aT` | n | Native Agent：[阅读 transcript](#阅读历史输出) / 浏览过去的 transcript |
 | `av` / `aV` | n | [审阅自本轮基线以来的改动](docs/MANUAL_CN.md#审阅一轮-agent-修改) / 立即开始一轮；每条 prompt 都会开始一轮 |
 | `aa` / `ad` | n | 接受 / 拒绝 Claude 的 diff（claudecode.nvim 加载之后才有） |
-| `aS` | n（oil） | 把光标下的文件加给右侧的 Claude Code |
+| `aS` | n（oil） | 把光标下的文件加给右侧的 Claude |
 | `ae` | n, x | Inline 编辑（`:CodeCompanion`），用 API key profile |
 | `ax` | n | 切换 API key profile（`:AI key`） |
 | `ap` | n, x | CodeCompanion 操作面板 |
-| `ao` | n | 打开已保存的 CodeCompanion Chat |
+| `ao` | n | 浏览已保存的 CodeCompanion Chat（Chat 里的 `gh` 是同一个浏览器） |
 
 在 Visual 模式下，`an` 和 `al` 会把选区带给它们打开的 Chat。Native Agent 类的键作用于
 右侧的 Native Agent，右侧没有时询问用哪一个。
@@ -468,7 +468,7 @@ pty 输入，此时发的 `ctrl+v` 收不到，退出后发的才收得到。取
 #### 阅读历史输出
 
 `<leader>at` 把右侧 Native Agent（右侧没有时由你选择）在当前项目最新的会话渲染成
-只读 Markdown buffer，`<leader>aT` 从该项目的会话历史中挑选。buffer 内 `R` 重新读盘，`q` 关闭。正文可见，thinking 与
+只读 Markdown buffer，`<leader>aT` 浏览该项目过去的 transcript。buffer 内 `R` 重新读盘，`q` 关闭。正文可见，thinking 与
 工具调用折叠，`zR` 全部展开，`za` 展开单个。
 
 数据源是 CLI 自己的 JSONL transcript，而非终端。Claude 运行在 alternate screen

@@ -228,7 +228,7 @@ function M.add_buffer()
       -- Both agents read the file from disk, and say so for an unsaved edit.
       backend(item.agent).add_path(path, modified)
       slot().went(item, from)
-    end), { prompt = "Add buffer to", native_only = true })
+    end), { prompt = "Add file to", native_only = true })
   end)
 end
 
@@ -299,7 +299,7 @@ function M.compose()
       if editor.focus_open(seed, item.agent) then return end
       if not slot().make_room(item) then return end
       backend(item.agent).edit_prompt({ seed = seed })
-    end), { prompt = "Edit prompt for" })
+    end), { prompt = "Compose prompt for" })
   end)
 end
 
@@ -450,28 +450,28 @@ local KEYS = {
   { "n", "c", M.toggle, "Toggle AI chat" },
   { "n", "f", M.focus, "Focus AI chat" },
   { "n", "r", M.resume, "Resume native agent…" },
-  { "n", "R", M.continue, "Continue native agent…" },
-  { "n", "m", M.select_model, "Select native agent model" },
-  { "n", "b", M.add_buffer, "Add buffer to AI chat" },
+  { "n", "R", M.continue, "Continue native agent" },
+  { "n", "m", M.select_model, "Select native agent model…" },
+  { "n", "b", M.add_buffer, "Add file to AI chat" },
   { "x", "s", M.send_selection, "Add selection to AI chat" },
   -- The agent's own input box loses <C-h/j/k/l> to window navigation, so long
   -- prompts get a real buffer instead -- the agent's own ctrl+g, routed back
   -- here; a chat's prompt is a buffer already. Bound in Visual mode too, where
   -- it seeds from the selection.
-  { { "n", "x" }, "i", M.compose, "Edit prompt for AI chat" },
+  { { "n", "x" }, "i", M.compose, "Compose prompt for AI chat" },
   { "n", "t", M.transcript, "Read native agent transcript" },
-  { "n", "T", M.transcript_pick, "Native agent session history" },
+  { "n", "T", M.transcript_pick, "Browse native agent transcripts" },
   -- Review rounds: a round belongs to a conversation, so neither names an
   -- agent.
   { "n", "v", M.review, "Review changes since round baseline" },
-  { "n", "V", M.new_round, "Start a review round" },
+  { "n", "V", M.new_round, "Start review round" },
   -- The key profile of inline edits and command prompts (API credits).
-  { "n", "x", function() require("ai.switch").pick() end, "Switch API key profile" },
-  { { "n", "x" }, "p", "<cmd>CodeCompanionActions<cr>", "Companion actions" },
+  { "n", "x", function() require("ai.switch").pick() end, "Switch API key profile…" },
+  { { "n", "x" }, "p", "<cmd>CodeCompanionActions<cr>", "Companion actions…" },
   -- codecompanion-history's browser: every chat it auto-saved, either kind.
   -- A restored chat comes up through upstream's own open; the slot's guard
   -- makes the rest of the tabpage's AI windows give way to it.
-  { "n", "o", "<cmd>CodeCompanionHistory<cr>", "Open saved Companion chat" },
+  { "n", "o", "<cmd>CodeCompanionHistory<cr>", "Browse saved Companion chats" },
 }
 
 -- oil is the only directory view in this config (no tree sidebar). Every oil
@@ -481,7 +481,7 @@ local KEYS = {
 local function oil_keys(buf)
   vim.keymap.set("n", "<leader>aS", M.tree_add, {
     buffer = buf,
-    desc = "Add file under cursor to Claude Code",
+    desc = "Add file under cursor to Claude",
     silent = true,
   })
 end
@@ -500,7 +500,7 @@ function M.apply_keymaps()
   vim.keymap.set({ "n", "x" }, "<leader>ae", function() return companion().inline_keys() end, {
     expr = true,
     silent = false,
-    desc = ("Inline edit · %s (HTTP)"):format(config.key.label),
+    desc = ("Inline edit · %s (HTTP)…"):format(config.key.label),
   })
 
   -- Claude's diffs arrive through claudecode.nvim, so the keys exist once it
@@ -508,7 +508,7 @@ function M.apply_keymaps()
   local diffs = package.loaded["claudecode"] ~= nil
   for lhs, spec in pairs({
     ["<leader>aa"] = { M.accept_diff, "Accept Claude diff" },
-    ["<leader>ad"] = { M.deny_diff, "Deny Claude diff" },
+    ["<leader>ad"] = { M.deny_diff, "Reject Claude diff" },
   }) do
     if diffs then
       map("n", lhs, spec[1], spec[2])

@@ -120,7 +120,7 @@ local function run_server(label)
   t.eq(calls, 1, label .. ": further attaches do not reload projects")
 
   local gs = vim.fn.maparg("gs", "n", false, true)
-  t.eq(gs.desc, "[LSP] Goto source definition", label .. ": gs is mapped on attach")
+  t.eq(gs.desc, "[LSP] Source definition", label .. ": gs is mapped on attach")
   t.eq(gs.buffer, 1, label .. ": gs is buffer-local, so other buffers keep :sleep")
   if source_definition then source_definition(client) end
   client:stop(true)
