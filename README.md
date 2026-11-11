@@ -117,7 +117,7 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | Modern code folding |
 | [statuscol](https://github.com/luukvbaal/statuscol.nvim) | Gutter with fixed slots for breakpoints, diagnostics and git signs; click a sign, line number or fold to act on it |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME highlights |
-| [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor |
+| [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor; `]r` / `[r` jump to its next / previous reference |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL and CSS variable previews; Tailwind colors in frontend files |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering (`,m`) |
 
@@ -195,9 +195,10 @@ snacks below.
 
 #### Debugging
 
-`<leader>df` debugs the current file, `<leader>td` the nearest test, and
-`<leader>tF` the current test file. These entries share keys across languages;
-each language owns its target selection (JS/TS tests use Vitest).
+`<leader>df` debugs the current file, `<leader>tM` the nearest test, and
+`<leader>tF` the current test file (`tm`/`tf` run them without the debugger).
+These entries share keys across languages; each language owns its target
+selection (JS/TS tests use Vitest).
 
 `<leader>dA` / `:DapAttach` attaches to an existing process, with presets for
 Go, Python, Java, C/C++, Rust, Node/Chrome, Dart/Flutter and Electron.
@@ -234,7 +235,7 @@ brew install --cask skim            # PDF viewer with SyncTeX
 - `,Ll` — toggle continuous compilation (recompiles on save while running)
 - `,Lv` — forward search: open/jump Skim to the cursor's line
 - `,Lt` — table of contents; `,Lc` clean, `,Le` errors
-- Save the file to auto-format with `latexindent` (toggle with `<leader>uf`)
+- Save the file to auto-format with `latexindent` (toggle with `<leader>uf` for this file, `<leader>uF` for all)
 
 The everyday actions are also one key shorter, in the LaTeX sections of the `,` which-key popup:
 
@@ -268,9 +269,9 @@ as `,e…` for extraction and `,L…` for VimTeX; `<leader>` groups global domai
 Press any prefix and wait — which-key lists the current mappings.
 
 The `,` menu separates general editing from the current language's operations
-(imports/environment, compilation/preview, test debugging) and view actions.
+(imports/environment, compilation/preview, runtime control) and view actions.
 A CodeDiff view adds two sections alongside the source file's language section:
-its panel, layout and conflict keys, and the review keys (`,C` feedback, `,u`
+its panel, layout and conflict keys, and the review keys (`,C` feedback, `,S`
 / `,U` stage / unstage a hunk, `,X` discard a hunk back to baseline).
 The search-and-replace panel keeps its actions under `,S…`.
 See the [filetype and view actions](docs/MANUAL.md#filetype-and-view-actions) for the full key list.
@@ -288,6 +289,8 @@ Unprefixed keys worth knowing:
 | `<C-,>` | Jump to the editor area, press again to return |
 | `<C-/>` | Toggle terminal; `3<C-/>` selects terminal 3 from a file; `,1`-`,9` switch from terminal-Normal |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | Previous / next buffer |
+| `[B` / `]B` | First / last buffer (bar order) |
+| `<leader>b<` / `<leader>b>` | Move buffer left / right |
 | `g` · `[` / `]` · `z` | Go to + LSP (from the symbol under the cursor) · prev/next thing · folds and spelling |
 | `-` | Open the current directory in oil (edit it as text) |
 | `q` · `g?` · `<C-s>` / `<C-v>` / `<C-t>` · `<M-p>` | In a picker, oil or the outline: close · list its keys · open below / beside / in a tab (the outline has no tab) · toggle the preview (picker, oil). Hidden files: `<M-.>` in a picker, `g.` in oil |
@@ -301,15 +304,15 @@ Diff views live under `<leader>g`, each in a tabpage of its own (CodeDiff):
 | `gm` / `gM` | Diff against main branch / against a picked baseline or ref (branch, tag, commit)… |
 | `gk` | Compare two (working tree/index/baseline/ref)… |
 | `gK` | Save baseline… (named), for `gk` and `gM` |
-| `gV` / `gH` | File / repo history (recent 100, no merges) |
+| `gh` / `gH` | File / repo history (recent 100, no merges) |
 | `gq` | Close the diff view in this tab |
 
 `gd` / `gD` stay gitsigns' diff of the current file, in a split or inline;
 either closes on a second press, and `gq` closes the split as well.
 Inside a view `;`, `s` and the keys that switch a window's buffer (`H` / `L`,
-`[b` / `]b`, `<C-^>`, and `-` outside the status view's file panel, where it
-stages) are disabled, since a picker, a buffer switch or a window key would
-break its panes; `q` in its file panel closes it too. The
+`[b` / `]b`, `[B` / `]B` (first / last buffer), `<C-^>`, and `-` outside the
+status view's file panel, where it stages) are disabled, since a picker, a
+buffer switch or a window key would break its panes; `q` in its file panel closes it too. The
 [manual](docs/MANUAL.md#git) has what each view's `,` keys do.
 
 **→ [docs/MANUAL.md](docs/MANUAL.md) walks through all of it**, starting with the
@@ -861,7 +864,7 @@ Set these in `init.lua` before plugins load.
 | Option | Description |
 |--------|-------------|
 | `vim.g.terminal_position` | `"float"` (default) or `"bottom"`. Where numbered terminals open. Chosen once, not toggled at runtime — Snacks fixes a window's shape when it opens one and edgy decides separately whether a terminal belongs to its bottom edge, so a runtime toggle means keeping those two in agreement through every hide, show and relayout. |
-| `vim.g.ai_review` | The review loop and the diff views: how many rounds and baselines to keep, which conversations open rounds, how delivery confirms, where native Claude starts, how much history `<leader>gH` / `<leader>gV` list. Name only the keys you change, e.g. `{ retention = { rounds = 30 } }`; every key and default is in the [manual](docs/MANUAL.md#settings-vimgai_review). |
+| `vim.g.ai_review` | The review loop and the diff views: how many rounds and baselines to keep, which conversations open rounds, how delivery confirms, where native Claude starts, how much history `<leader>gh` / `<leader>gH` list. Name only the keys you change, e.g. `{ retention = { rounds = 30 } }`; every key and default is in the [manual](docs/MANUAL.md#settings-vimgai_review). |
 
 ### Environment Variables
 

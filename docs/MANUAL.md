@@ -144,28 +144,50 @@ to the enclosing node, `in` narrows it back.
 **which-key:** press `di` (or `da`, `vi`) and wait half a second — the popup
 lists every object.
 
-### 4. Doubled = this line; uppercase = the variant
+### 4. Doubled = this line; uppercase = wider or stronger
 
 A verb typed twice acts on the current line: `dd` `yy` `cc` `>>` `gcc`.
 
-An uppercase letter is the "bigger" or "opposite" version of the same key, at
-every level:
+An uppercase letter is the **same act** as its lowercase key, going the same
+way but further: over a wider scope, or a stronger version of it. Vim's own
+keys started it:
 
 | Lowercase | Uppercase |
 |---|---|
 | `d` `c` to somewhere | `D` `C` to end of line (= `d$` `c$`) |
 | `i` `a` insert before / after the cursor | `I` `A` insert at start / end of line |
-| `o` open a line below | `O` open a line above |
-| `n` `t` forward | `N` `T` backward |
 | `w` `b` `e` by word | `W` `B` `E` by WORD (whitespace-delimited, bigger) |
-| `p` put after | `P` put before |
-| `;f` find file · `;s` symbol here · `;t` todos | `;F` find from this directory · `;S` symbol in workspace · `;T` todo+fix |
-| `]m` next function start | `]M` next function end |
-| `<S-h>` `<S-l>` | previous / next buffer |
 
-The tabline, buffer cycling (`<S-h>`/`<S-l>` and `[b`/`]b`), and buffer pickers
-skip terminal buffers. Use `<Space>af` to focus the AI panel and `<C-/>` for
-shell terminals, so file navigation keeps the editor window in place.
+and this configuration's own pairs read the same way, lowercase narrow or
+plain, uppercase wide or strong:
+
+| Lowercase | Uppercase |
+|---|---|
+| `;s` symbol in this file | `;S` symbol in the workspace |
+| `<Space>gl` blame the line · `<Space>gr` discard the hunk | `<Space>gL` blame the file · `<Space>gR` discard the file's changes |
+| `<Space>gc` / `<Space>gh` this file's commits / history | `<Space>gC` / `<Space>gH` the repository's |
+| `<Space>uf` autoformat for this file | `<Space>uF` autoformat for every file |
+| `<Space>tm` / `<Space>tf` run the nearest test / the file's tests | `<Space>tM` / `<Space>tF` the same run under the debugger |
+| `<Space>bd` delete the buffer | `<Space>bD` delete the buffer and its window |
+| `<Space>qq` quit all | `<Space>qQ` force quit all |
+
+A different object, or a scope that does not widen the lowercase key's, gets
+a letter of its own instead: `<Space>xx` already lists every diagnostic, so
+this file's are `<Space>xb` (**b**uffer), not `xX`. The exception is "from
+here": `;F` and `;D` find a file and search text starting at the current
+file's directory, where `;f` and `;/` start at the working directory. Vim's
+direction pairs (`o`/`O`, `n`/`N`, `f`/`F`, `t`/`T`, `p`/`P`) are its own
+use of case, kept as Vim has them.
+
+In the `[` / `]` drawer ([rule 6](#6-single-letter-namespaces)) uppercase
+goes to the end of the same list: the first / last entry for a list (`[Q`
+/ `]Q` quickfix, `[D` / `]D` diagnostic, `[B` / `]B` buffer), and the end of
+the object for a text object (`]m` next function start, `]M` its end).
+
+The tabline, buffer cycling (`<S-h>`/`<S-l>`, `[b`/`]b`, and `[B`/`]B` to the
+first / last), and buffer pickers skip terminal buffers. Use `<Space>af` to
+focus the AI panel and `<C-/>` for shell terminals, so file navigation keeps
+the editor window in place.
 Clicking a file tab focuses the editor area in the current tabpage, leaving
 chat and terminal panels visible. If only panels remain, it creates an editor
 split for the file.
@@ -190,7 +212,7 @@ picks from it:
 
 | Drawer | Means | Examples |
 |---|---|---|
-| `[` `]` | previous / next X | `]d` diagnostic · `]e` error · `]h` git hunk · `]q` quickfix · `]m` function · `]c` class · `]x` conflict · `]y` yank history. Uppercase = first / last: `[D` `]Q` |
+| `[` `]` | previous / next X | `]d` diagnostic · `]e` error · `]h` git hunk · `]q` quickfix · `]r` reference · `]m` function · `]c` class · `]x` conflict · `]y` yank history. Uppercase = first / last: `[D` `]Q` `[B` `]B` |
 | `g` | go somewhere / about the thing under the cursor | `gd` definition · `gr` references · `gb` implementation · `gy` type · `gC` callers · `gs` JS source (JS/TS) · `K` docs · `gx` open URL / file · `gS` split / join · `gv` reselect |
 | `z` | folds and spelling | `zR` open all · `zM` close all · `za` toggle · `z=` suggestions · `zg` add to dictionary |
 | `Ctrl` | act now, no questions, the same in every mode | `<C-h/j/k/l>` windows · `<C-/>` terminal · `<C-o>` back the way you came · `<C-a>` `<C-x>` increment / decrement · `<C-r>` redo |
@@ -218,15 +240,17 @@ including new plugin keys and builtins. An empty `others` section is hidden;
 popups without declared sections, such as `z`, keep the default layout.
 
 Some buffers give these keys a meaning of their own, and the popup names that
-one there. In Python, Go, Rust, Vim script, TeX, Markdown, help and checkhealth
-buffers the filetype's own plugin rebinds `]]` / `[[` (and `][` / `[]` where it
-has them) as its section motions, instead of the next / previous reference:
-top-level class or def in Python, type or func in Go, function in Vim script.
-Python's `]m` / `]M` are its class/def motions, and VimTeX's are environments;
-VimTeX also adds `]n` / `]N` math zones, `]r` / `]R` frames and `]/` / `]*`
-comments (start / end). In a diff window `]c` / `[c` are the next / previous
-hunk (the popup reads *Next class start (diff: next hunk)*); in a CodeDiff view
-it shows CodeDiff's own *Next hunk*. `gO` is *[LSP] Document symbols (Nvim
+one there. `]]` / `[[` (and `][` / `[]`) are the buffer's section motion
+everywhere: Vim's own, or the filetype plugin's in Python, Go, Rust, Vim
+script, TeX, Markdown, help and checkhealth buffers — top-level class or def in
+Python, type or func in Go, function in Vim script. The next / previous
+reference is `]r` / `[r`, except in TeX buffers, where `]r` / `[r` are
+VimTeX's frame motions in every mode. Python's `]m` / `]M` are its class/def
+motions, and VimTeX's are environments; VimTeX also adds `]n` / `]N` math
+zones, `]R` frame ends and `]/` / `]*` comments (start / end). In a diff window
+`]c` / `[c` are the next / previous hunk (the popup reads *Next class start
+(diff: next hunk)*); in a CodeDiff view's panes `]c` / `[c` and `]h` / `[h`
+both step through the hunks the view shows, through CodeDiff's own *Next hunk*. `gO` is *[LSP] Document symbols (Nvim
 default)* in code, and *Show outline* — a list of the headings, no server
 needed — in markdown, help, checkhealth and man buffers, under its own
 `outline` heading.
@@ -507,7 +531,6 @@ or a running session are available.
 | Go | Imports / language service | `,o` organize imports · `,G` rebuild gopls index |
 | Python | Imports / environment | `,o` organize imports · `,v` select virtualenv |
 | C/C++ | Related files | `,H` switch source/header |
-| Java | Test debugging | `,dt` debug nearest method · `,dT` debug class |
 | Dart / Flutter | Runtime control | `,dr` hot reload · `,dR` Flutter hot restart |
 | Markdown | Preview | `,p` browser preview · `,m` in-editor rendering |
 | CodeCompanion chat | Conversation / rendering | `,s` save · `,X` clear the messages · `,q` end the chat · `,z` fold code blocks · `,m` toggle Markdown rendering |
@@ -516,15 +539,18 @@ or a running session are available.
 | LaTeX | Preview / tools | `,v` view PDF · `,t` toggle TOC · `,L…` VimTeX's full command set |
 | CodeDiff | Panels / layout | `,P` focus the explorer (the file panel) · `,B` show / hide it · `,z` compact mode (fold unchanged lines) · `,I` diff layout: inline / side by side |
 | CodeDiff | Conflicts | `,go` accept current (ours) · `,gt` incoming (theirs) · `,gb` keep base (drop both) · `,ga` both; uppercase final letters (`,gO`, `,gT`, `,gB`, `,gA`) apply to the whole file |
-| CodeDiff | Review | `,C` feedback on the hunk / selection / file · `,u` / `,U` stage / unstage the hunk · `,X` discard the hunk back to baseline |
+| CodeDiff | Review | `,C` feedback on the hunk / selection / file · `,S` / `,U` stage / unstage the hunk · `,X` discard the hunk back to baseline |
 | Terminal | Sessions | `,1`–`,9` choose terminal 1–9 in Normal mode (`jk` first) |
 
 CodeDiff is a view layered on a filetype: a Markdown diff keeps `,p`/`,m` and
 adds its own sections. `,z` and `,I` work in every window of every view, its
 file or history panel included; `,P` and `,B` exist only in a view with a file
 panel (the status view and revision comparisons), not in a history. `,C` works
-in every window of a view of a Git repository. `,u`, `,U` and `,X` exist only where the view can do them
-safely — the table under [Git](#git) says which. Closing the view gives every
+in every window of a view of a Git repository. `,S`, `,U` and `,X` stage,
+unstage and discard a hunk — the status view's file panel `S` / `U` / `X` for
+one hunk — and exist only where the view can do them safely; the table under
+[Git](#git) says which. In a CodeDiff pane `,S` is that stage key, not the
+search-and-replace panel's `,S…`, which exists only in that panel. Closing the view gives every
 key back and preserves language keys. Terminal digits never appear in ordinary
 files or intercept shell input.
 
@@ -646,18 +672,18 @@ is open beside your code.
 
 | Key | Group | Contains |
 |---|---|---|
-| `<Space>g` | Git | status, blame, hunks, inline diff (`gD`), lazygit (`gg`), diff and history views (`gv`, `gm`, `gk`, `gH`), saved baselines (`gK`) |
+| `<Space>g` | Git | status, blame, hunks, inline diff (`gD`), lazygit (`gg`), diff and history views (`gv`, `gm`, `gk`, `gh` / `gH`), saved baselines (`gK`) |
 | `<Space>G` | GitHub | PRs, issues, reviews |
 | `<Space>d` | Debug | breakpoints, step, inspect |
-| `<Space>t` | Test | run file / nearest / debug, output panel |
-| `<Space>x` | Diagnostics | error list, quickfix, location list |
+| `<Space>t` | Test | run / debug nearest (`tm` / `tM`) and file (`tf` / `tF`), summary, output, diagnostics |
+| `<Space>x` | Diagnostics | error list, this file's (`xb`), quickfix, location list |
 | `<Space>a` | AI | the chat on the right — Claude / Codex panels and CodeCompanion chats (`an` new, `al` switch, `ac` / `af`), prompts, transcript, review rounds (`av` / `aV`), API key (`ax`) |
-| `<Space>b` | Buffer | delete, pin, delete others, delete the hidden ones (`bh`) |
+| `<Space>b` | Buffer | delete, pin, move (`b<` / `b>`), delete others, delete the hidden ones (`bh`) |
 | `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
 | `<Space>y` | Yank | copy file path, `path:line` (`yl`), git permalink (`yg`), yank history, registers |
 | `<Space>u` | Toggle/UI | wrap, spell, diagnostics, inlay hints, colorscheme |
-| `<Space><Tab>` | Tab | tab pages |
+| `<Space><Tab>` | Tab | tab pages: new (`<Tab>n`), close, next / prev, first / last |
 | `<Space>q` | Quit | quit all |
 
 ### Config and plugin files
@@ -683,7 +709,7 @@ to read its output in a pager instead; `q` closes the pager. Notifications from 
 | `:messages` / `<Space>mna` | Message history: `:echomsg`, `print()` and errors (a plain `:echo` is not kept) |
 | `<Space>mnh` | Notification history |
 | `<Space>mnt` | Search notifications in a picker |
-| `<Space>mnd` / `<Space>un` | Dismiss the notifications on screen |
+| `<Space>un` | Dismiss the notifications on screen |
 
 The two histories are separate. An error from Vim itself is in `:messages`; a
 plugin's notification is only in the notification history. Both sit under the
@@ -701,12 +727,11 @@ gd  jump to the definition
 gd  again, and again — follow it down
 Ctrl-o  walk back up the way you came
 gC  who calls this?
-]]  next place this symbol appears in the file
+]r  next place this symbol appears in the file
 ```
 
-In Python, Go, Rust, Vim script, TeX, Markdown and help buffers `]]` is the
-filetype's section motion instead ([single-letter
-namespaces](#6-single-letter-namespaces)).
+In TeX buffers `]r` is VimTeX's frame motion instead; `]]` is always the
+section motion ([single-letter namespaces](#6-single-letter-namespaces)).
 
 `K` shows documentation for whatever is under the cursor. `Ctrl-f` / `Ctrl-b`
 scroll that popup while the cursor stays in the code; `KK` moves into it. `gr`
@@ -765,7 +790,7 @@ together, and `q` quits it. Lazygit has no Vim-style Normal/Insert modes;
 
 The diff views are CodeDiff's. Each opens in a tabpage of its own, with a file
 panel on the left and the two sides of the selected file beside it (a history,
-`gV` / `gH`, lists its commits in a panel along the bottom instead):
+`gh` / `gH`, lists its commits in a panel along the bottom instead):
 
 | Key | Shows |
 |---|---|
@@ -774,7 +799,7 @@ panel on the left and the two sides of the selected file beside it (a history,
 | `<Space>gM` | The working tree against a branch, tag, recent commit or baseline you pick |
 | `<Space>gk` | **Compare two** ends: the working tree, the index, a baseline, a branch / tag / commit, or a revision you type |
 | `<Space>gK` | Save the current code as a named baseline, for `gk` and `gM` to compare against later |
-| `<Space>gV` / `<Space>gH` | This file's / the repository's history: the newest 100 non-merge commits |
+| `<Space>gh` / `<Space>gH` | This file's / the repository's history: the newest 100 non-merge commits (as `gc` / `gC` list its commits) |
 | `<Space>gq` | Close the diff view in this tab, or `<Space>gd`'s split (below) |
 
 A clean working tree makes `<Space>gv` say so instead of opening an empty view,
@@ -796,7 +821,8 @@ the same content say "no differences" and open nothing — unless the working
 tree has untracked files too large to compare (below), which could differ
 unseen: then the view opens and names them.
 
-Inside a view, `]c` / `[c` step through the changes, `]f` / `[f` through the
+Inside a view, `]h` / `[h` (as everywhere) and `]c` / `[c` step through the
+hunks the view shows, `]f` / `[f` through the
 files, `do` / `dp` take or put a change as in vimdiff, `gf` opens the file in
 the previous tab, and `g?` lists CodeDiff's keys. The `,` menu holds the rest
 ([Filetype and view actions](#filetype-and-view-actions)). The statusline names
@@ -812,7 +838,8 @@ directory tree. In the panel `i` toggles a flat list (for that view only),
 `zo` / `zc` open or close the directory under the cursor and `zR` / `zM` all of
 them. `,C` on a directory line asks for a file instead.
 
-`;`, `s`, the buffer-switching keys `H` / `L`, `[b` / `]b` and `<C-^>`, and
+`;`, `s`, the buffer-switching keys `H` / `L`, `[b` / `]b`, `[B` / `]B` (first /
+last buffer) and `<C-^>`, and
 `-` (except in the status view's file panel, where it stages) are disabled in
 every window of a view, with a notice. A `;` picker would open its file in the
 working-tree pane and the view would lose track of it, and a buffer switched
@@ -826,7 +853,7 @@ file's changes, after asking; no other view has these four.
 
 Which `,` review keys a view has depends on what it compares:
 
-| View | `,u` | `,U` | `,X` |
+| View | `,S` | `,U` | `,X` |
 |---|---|---|---|
 | Status view, Changes group (index → working tree) | stage | — | — |
 | Status view, Staged group (HEAD → index) | — | unstage, whole hunks | — |
@@ -838,7 +865,7 @@ Which `,` review keys a view has depends on what it compares:
 `,C` (feedback) is in all of them; [Reviewing a round of agent
 changes](#reviewing-a-round-of-agent-changes) covers it.
 
-`,u` and `,U` change the real index, through gitsigns, and stage exactly the
+`,S` and `,U` change the real index, through gitsigns, and stage exactly the
 change on screen. Where the index (for `,U`, HEAD) differs from the view's
 left side around the lines — an unstaged edit next to the agent's hunk, a line
 already staged inside it, a branch's own commits inside a `gm` hunk — staging
@@ -1129,7 +1156,7 @@ and the statusline reads `Review · Claude · round 11:22:33 → working tree`.
   ([troubleshooting](DIAGNOSTICS.md#review-rounds-and-agent-hooks)).
 
 The view itself is an ordinary [CodeDiff view](#git) of a baseline against the
-working tree: `,u` / `,U` stage and unstage, `,X` discards a hunk back to the
+working tree: `,S` / `,U` stage and unstage, `,X` discards a hunk back to the
 baseline. `<Space>gq`, or `q` in its file panel, closes the tab; the agents
 keep running.
 
@@ -1147,7 +1174,7 @@ draft:
 | a selection in the left pane | the baseline's lines, marked `(baseline side, not on disk)` |
 | a file in the file panel | its path and status only: `## src/new.lua (R src/old.lua→src/new.lua)` |
 | a file under a commit in a history | the file, its status and the commit: `## src/new.lua (M in 1a2b3c4d)` |
-| a commit in a single file's history (`<Space>gV`) | that file and the commit: `## src/new.lua (changed in 1a2b3c4d "Fix the parser")` |
+| a commit in a single file's history (`<Space>gh`) | that file and the commit: `## src/new.lua (changed in 1a2b3c4d "Fix the parser")` |
 
 A commit row of the repository's history (`<Space>gH`) stands for no one
 file, so `,C` there asks for a file in the list instead. Paths are real paths relative to
@@ -1351,7 +1378,7 @@ To start over with a conversation, send the next prompt or press `<Space>aV`;
 | Action | Keys | Changes | Leaves alone |
 |---|---|---|---|
 | Feedback | `,C`, then `<C-d>` | nothing in the repository: text appears in the agent's input or the chat, for you to send | everything |
-| Stage / unstage | `,u` / `,U` | the real index — what `git commit` takes next | the working tree, the baseline |
+| Stage / unstage | `,S` / `,U` | the real index — what `git commit` takes next | the working tree, the baseline |
 | Discard | `,X` | one hunk of the working-tree file, written to disk | the index, the baseline, the rest of the file |
 | Claude's approval | `<Space>aa` / `<Space>ad` | an edit Claude proposes, *before* it is written | the review view: unrelated |
 
@@ -1389,7 +1416,7 @@ the table says otherwise. `:checkhealth config` lists the values in effect.
 | `always_confirm` | `{}` | Agents whose deliveries always ask, even with the session confirmed: `"claude"`, `"codex"` |
 | `redirect` | `true` | `false`: an owner that is gone is refused without *Send to a current session…* |
 | `seed_ttl_ms` | `10000` | How long a native agent has to open its prompt editor for a delivery |
-| `history_limit` | `100` | Commits `<Space>gH` and `<Space>gV` list; `false` lists all |
+| `history_limit` | `100` | Commits `<Space>gh` and `<Space>gH` list; `false` lists all |
 
 When a change counts:
 
@@ -1401,7 +1428,7 @@ When a change counts:
   count from the next start, and off counts at once.
 - A chat opened while its source was off starts no rounds even after you turn
   it on; turning a source off counts at once.
-- The `<Space>gH` / `<Space>gV` descriptions are written when the plugin specs
+- The `<Space>gh` / `<Space>gH` descriptions are written when the plugin specs
   load, so set `history_limit` before `require("bootstrap")` in `init.lua`;
   the lists themselves follow the setting.
 
@@ -1484,18 +1511,21 @@ its own is a separate tree and is left running; select it with `ds`.
 | Key | Scope |
 |---|---|
 | `<Space>df` | Debug the current source file / its executable target |
-| `<Space>td` | Debug the test at the cursor (Go/Python/Java also find the nearest preceding test) |
+| `<Space>tM` | Debug the test at the cursor (Go/Python/Java also find the nearest preceding test) |
 | `<Space>tF` | Debug tests in the current file |
 | `<Space>tm` / `<Space>tf` | Run nearest test / test file without debugging (neotest: Go/Python) |
 
-`<Space>tS` opens neotest's summary panel; `g?` (or `?`) there lists its keys.
+Uppercase is the same run under the debugger: `tm` / `tM` the nearest test,
+`tf` / `tF` the file. `<Space>ts` toggles neotest's summary panel (`g?`, or `?`,
+there lists its keys), `<Space>to` shows the test output and `<Space>tx`
+toggles the failures neotest shows as diagnostics.
 
 Set a breakpoint with `<Space>db`, put the cursor inside a test, then press
-`<Space>td`. These direct entries save the current buffer first; an unsaved
+`<Space>tM`. These direct entries save the current buffer first; an unsaved
 unnamed buffer or failed write aborts. They use the same keys in every supported
 language, with target logic in `lua/lang/*.lua`.
 
-| Language | `df` | `td` / `tF` |
+| Language | `df` | `tM` / `tF` |
 |---|---|---|
 | Go | Current `.go` file | neotest-golang + Delve; nearest test / tests declared in this file |
 | Python | Current script, using dap-python's environment | neotest-python + debugpy; pytest or unittest |
@@ -1581,7 +1611,7 @@ find `dlv`, install it on PATH or add the directory shown by
 ### Go
 
 Install Go and Mason's `delve`. Launch the current file with `df`; if it depends
-on sibling files, choose **Debug Package** in `dc`. `td`/`tF` use neotest-golang
+on sibling files, choose **Debug Package** in `dc`. `tM`/`tF` use neotest-golang
 and Delve for a single test or the tests declared in the current file.
 
 For a local process, build with symbols, start it in a terminal, then choose
@@ -1619,7 +1649,7 @@ preparation fails, the connection stays open and reports the error.
 ### Python
 
 Install Python and Mason's `debugpy`; select your project environment with
-`,v` when needed. `df` launches the script; `td`/`tF` use neotest-python.
+`,v` when needed. `df` launches the script; `tM`/`tF` use neotest-python.
 The selected environment needs pytest for pytest tests; unittest uses the
 standard library. An attach target needs debugpy in **its own** environment,
 independently of Mason's adapter environment:
@@ -1656,8 +1686,8 @@ Mason's `jdtls`, `java-debug-adapter`, and `java-test`.
 Open the project and wait for jdtls to finish importing. `dc` discovers main
 classes; `df` selects the main class corresponding to the current file.
 An empty static main-class list before discovery is normal. Each project uses
-its own jdtls workspace. `td`/`tF` debug the nearest test / first discovered test
-class. The Java-local aliases `,dt`/`,dT` remain available after attachment.
+its own jdtls workspace. `tM`/`tF` debug the nearest test / first discovered test
+class.
 
 Start the target JVM with JDWP (adjust source path and fully qualified class):
 
@@ -1691,7 +1721,7 @@ Install Cargo/rustc and Mason's `codelldb`. `dc` offers **rust: cargo build**
 and **rust: cargo test**. Cargo builds asynchronously from the nearest manifest,
 resolves actual executables including custom target directories, and prompts
 when multiple targets exist. Failed builds abort. `df` launches a Cargo binary;
-`td`/`tF` filter standard libtest tests as described above.
+`tM`/`tF` filter standard libtest tests as described above.
 
 For attach, build and start the binary in a separate terminal. Replace `myapp`
 with your Cargo binary target name and adjust the output path for custom targets:
@@ -1720,7 +1750,7 @@ For moved build paths, add `sourceMap`, e.g. `{ "/build/project": "${workspaceFo
 
 Install a C/C++ compiler and Mason's `codelldb`. Build with symbols first;
 `dc` provides **LLDB: Launch** and **LLDB: Launch (args)**, which ask for the
-executable. The direct `df`/`td`/`tF` entries are not registered for C/C++:
+executable. The direct `df`/`tM`/`tF` entries are not registered for C/C++:
 this config does not choose a project build system or test framework for them.
 
 ```sh
@@ -1754,7 +1784,7 @@ languages and Rust use the
 Install Node and Mason's `js-debug-adapter`. `df` launches the current Node
 script. For TypeScript requiring compilation, compile with source maps and run
 the emitted JavaScript; JSX/TSX or a project-specific loader needs its own launch
-configuration. `td`/`tF` use the nearest installed Vitest; nearest test needs v3+.
+configuration. `tM`/`tF` use the nearest installed Vitest; nearest test needs v3+.
 
 Start an inspector target, then choose **node: attach by host/port**:
 
@@ -1824,7 +1854,7 @@ profile and installs the extension via CDP. See [extension setup and diagnosis](
 Install the Dart SDK, or use the Dart SDK bundled with Flutter. Adapters prefer
 the nearest `.fvm/flutter_sdk/bin`, then PATH. Run `dart pub get` in the package.
 The SDK supplies `dart debug_adapter`; no Mason adapter is needed. `df` launches
-the current entrypoint; `td`/`tF` run its tests through the SDK test adapter.
+the current entrypoint; `tM`/`tF` run its tests through the SDK test adapter.
 
 ```sh
 dart run --enable-vm-service=8181 --pause-isolates-on-start bin/main.dart
@@ -1853,7 +1883,7 @@ explain VM service startup.
 Install Flutter externally or use FVM. Run `flutter pub get`, then start a
 simulator/device (`flutter devices`). `dc` provides **flutter: launch app**
 (default `lib/main.dart`), **flutter: attach to running app**, and current-file
-tests. `df` uses the current file as the entrypoint; `td`/`tF` use the Flutter
+tests. `df` uses the current file as the entrypoint; `tM`/`tF` use the Flutter
 test adapter when the pubspec declares `sdk: flutter`.
 
 ```sh

@@ -112,7 +112,7 @@ nvim
 | [nvim-ufo](https://github.com/kevinhwang91/nvim-ufo) | 现代代码折叠 |
 | [statuscol](https://github.com/luukvbaal/statuscol.nvim) | 行号栏：断点、诊断、git 标记各占固定位置；点击标记、行号或折叠符号即可操作 |
 | [todo-comments](https://github.com/folke/todo-comments.nvim) | TODO/FIXME 高亮 |
-| [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮 |
+| [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮；`]r` / `[r` 跳到它的下一处 / 上一处引用 |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL、CSS 变量颜色预览；前端文件支持 Tailwind 颜色 |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染（`,m`） |
 
@@ -189,8 +189,8 @@ nvim
 
 #### 调试
 
-`<leader>df` 调试当前文件，`<leader>td` 调试当前测试用例，`<leader>tF`
-调试当前测试文件。各语言使用统一快捷键，目标选择逻辑由各语言模块分别实现
+`<leader>df` 调试当前文件，`<leader>tM` 调试当前测试用例，`<leader>tF`
+调试当前测试文件（`tm`/`tf` 不经调试器直接运行）。各语言使用统一快捷键，目标选择逻辑由各语言模块分别实现
 （JS/TS 测试使用 Vitest）。
 
 `<leader>dA` / `:DapAttach` 附加已有进程，提供 Go、Python、Java、C/C++、Rust、
@@ -225,7 +225,7 @@ brew install --cask skim            # 支持 SyncTeX 的 PDF 阅读器
 - `,Ll` — 连续编译开关（运行期间保存即重编）
 - `,Lv` — 正向跳转：打开/定位 Skim 到光标所在行
 - `,Lt` — 目录；`,Lc` 清理、`,Le` 错误列表
-- 保存文件即用 `latexindent` 自动格式化(可用 `<leader>uf` 开关)
+- 保存文件即用 `latexindent` 自动格式化(可用 `<leader>uf` 开关当前文件，`<leader>uF` 开关全局)
 
 日常操作也提供少按一个键的入口，显示在 `,` 的 which-key 弹窗的 LaTeX 分区里：
 
@@ -257,9 +257,9 @@ TeX 缓冲区还默认开启软 `wrap` 和 `spell`(可用 `<leader>uw` / `<leade
 常用操作使用短键，相关命令可放进子组，例如 `,e…` 提取重构、`,L…` VimTeX；
 `<leader>` 按全局领域分组。按下任一前缀等一下，which-key 会列出当前映射。
 
-`,` 菜单分别显示通用编辑、当前语言的操作类别（导入/环境、编译/预览、测试调试）
+`,` 菜单分别显示通用编辑、当前语言的操作类别（导入/环境、编译/预览、运行控制）
 和视图操作。CodeDiff 视图会在源文件的语言分区旁增加两个分区：它的面板、布局和冲突键，
-以及审阅键（`,C` 反馈、`,u` / `,U` 暂存 / 取消暂存一个 hunk、`,X` 把一个 hunk 丢弃回基线）。
+以及审阅键（`,C` 反馈、`,S` / `,U` 暂存 / 取消暂存一个 hunk、`,X` 把一个 hunk 丢弃回基线）。
 搜索替换面板的专用操作放在 `,S…` 子组。
 完整键表见[文件类型与视图操作](docs/MANUAL_CN.md#文件类型与视图操作)。
 Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 Nvim，
@@ -276,6 +276,8 @@ Local leader 共用逗号菜单，不额外占用一个前缀。更新后重启 
 | `<C-,>` | 跳到编辑器区域，再按一次跳回 |
 | `<C-/>` | 开关终端；文件中用 `3<C-/>` 打开终端 3；终端 Normal 模式下用 `,1`-`,9` 切换 |
 | `<S-h>` / `<S-l>` · `[b` / `]b` | 上/下一个 buffer |
+| `[B` / `]B` | 第一个 / 最后一个 buffer（按 buffer 栏顺序） |
+| `<leader>b<` / `<leader>b>` | 把 buffer 左移 / 右移 |
 | `g` · `[` / `]` · `z` | 跳转 + LSP（从光标下的符号出发）· 上/下一个某物 · 折叠与拼写 |
 | `-` | 用 oil 打开当前目录（可当文本编辑） |
 | `q` · `g?` · `<C-s>` / `<C-v>` / `<C-t>` · `<M-p>` | 在 picker、oil 或大纲里：关闭 · 列出它的键 · 在下方 / 旁边 / 新 tab 打开（大纲没有 tab）· 开关预览（picker、oil）。隐藏文件：picker 里 `<M-.>`，oil 里 `g.` |
@@ -289,12 +291,12 @@ Diff 视图都在 `<leader>g` 下，各自开在独立的 tabpage 里（CodeDiff
 | `gm` / `gM` | 对比 main 分支 / 对比选中的基线或 ref（分支、tag、commit）… |
 | `gk` | 任选两端对比（工作区/index/基线/ref）… |
 | `gK` | 保存基线…（起个名字），供 `gk` 和 `gM` 对比 |
-| `gV` / `gH` | 文件 / 仓库历史（最近 100 个，不含 merge） |
+| `gh` / `gH` | 文件 / 仓库历史（最近 100 个，不含 merge） |
 | `gq` | 关闭本 tab 的 diff 视图 |
 
 `gd` / `gD` 仍是 gitsigns 对当前文件的 diff，分别以分屏和行内显示；再按一次即关闭，
 分屏也可以用 `gq` 关闭。视图里 `;`、`s` 和会换掉窗口 buffer 的键（`H` / `L`、
-`[b` / `]b`、`<C-^>`，以及状态视图文件面板以外的 `-`——在那里它是暂存）都被禁用，
+`[b` / `]b`、`[B` / `]B`（第一个 / 最后一个 buffer）、`<C-^>`，以及状态视图文件面板以外的 `-`——在那里它是暂存）都被禁用，
 因为 picker、切换 buffer 或窗口键会弄坏它的窗格；在它的文件面板里按 `q` 也能关闭视图。
 每种视图的 `,` 键做什么，见[使用手册](docs/MANUAL_CN.md#git)。
 
@@ -754,7 +756,7 @@ CLI 的变量。
 | 选项 | 说明 |
 |------|------|
 | `vim.g.terminal_position` | `"float"`（默认）或 `"bottom"`，决定编号终端在哪里打开。只在启动时选定，不支持运行时切换——Snacks 在开窗那一刻定死窗口形态，edgy 又独立判断终端是否属于底部边栏，运行时切换意味着要在每一次隐藏、显示、重排里维持两者一致。 |
-| `vim.g.ai_review` | 审阅闭环和 diff 视图的设置：保留多少轮次和基线、哪些对话会开启轮次、投递时如何确认、Native Claude 从哪里启动、`<leader>gH` / `<leader>gV` 列出多少历史。只写要改的键，例如 `{ retention = { rounds = 30 } }`；全部键和默认值见[使用手册](docs/MANUAL_CN.md#设置vimgai_review)。 |
+| `vim.g.ai_review` | 审阅闭环和 diff 视图的设置：保留多少轮次和基线、哪些对话会开启轮次、投递时如何确认、Native Claude 从哪里启动、`<leader>gh` / `<leader>gH` 列出多少历史。只写要改的键，例如 `{ retention = { rounds = 30 } }`；全部键和默认值见[使用手册](docs/MANUAL_CN.md#设置vimgai_review)。 |
 
 ### 环境变量
 
