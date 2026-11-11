@@ -32,7 +32,11 @@ function M.key(name)
   if not name then return M.pick() end
   local c = config()
   local from = c.key_setting()
-  if name:lower() == from then return notify(("%s is already the API key profile"):format(from)) end
+  -- `auto` again resolves again: a key exported since may change its pick.
+  local before = c.key.name
+  if name:lower() == from and not (from == "auto" and c.auto_key() ~= before) then
+    return notify(("%s is already the API key profile"):format(from))
+  end
   local ok, err = pcall(c.use_key, name)
   if not ok then return notify(err, ERROR) end
   require("ai").apply_keymaps()
@@ -179,7 +183,7 @@ function M.setup()
   end, { nargs = "*", complete = complete, desc = "Switch AI chat, start one, or set the API key profile" })
 
   vim.api.nvim_create_user_command("AIInfo", function() M.info() end,
-    { desc = "Show the default AI backend, the key profile and the open chats" })
+    { desc = "Show the AI providers, the key profile and the open chats" })
 end
 
 return M

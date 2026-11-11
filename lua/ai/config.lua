@@ -231,7 +231,7 @@ local function apply(list)
   M.key_profiles = built.key_profiles
   ---@type table[] the ACP chats offered, in order
   M.acp = built.acp
-  -- The first provider's ACP adapter, nil when none offers `acp`.
+  -- The first `acp` in provider order, nil when no provider offers one.
   M.codecompanion.acp_adapter = built.acp[1] and built.acp[1].adapter or nil
   -- The chat adapter for CodeCompanion's own paths that name none (a typed
   -- :CodeCompanionChat, the action palette): the first `acp`, else the first

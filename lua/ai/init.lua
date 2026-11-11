@@ -349,7 +349,7 @@ M.new_chat = pick_with("new")
 M.switch_chat = pick_with("switch")
 
 -- A native agent's own records, read from disk: the agent on the right, else
--- the one asked for (the default first). Not backend methods, so not `call`;
+-- the one asked for (in provider order). Not backend methods, so not `call`;
 -- the same guard, so a failing view is a notification like every other
 -- <leader>a key.
 local function transcript_key(method)

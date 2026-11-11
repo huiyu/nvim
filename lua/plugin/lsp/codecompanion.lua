@@ -69,9 +69,9 @@ return {
       interactions = {
         chat = {
           -- Only for CodeCompanion's own paths that name no adapter (a typed
-          -- :CodeCompanionChat, the action palette): the first provider's
-          -- `acp` in lua/ai/config.lua. Every chat <leader>an starts names
-          -- its own.
+          -- :CodeCompanionChat, the action palette): the first `acp` in
+          -- lua/ai/config.lua's provider order, else the first `api`. Every
+          -- chat <leader>an starts names its own.
           adapter = ai.codecompanion.chat_adapter,
           -- A chat's adapter is fixed when it is created; another backend is
           -- another chat (<leader>an).

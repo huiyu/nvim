@@ -56,21 +56,21 @@ local function valid_buf(buf)
 end
 
 ---The CodeCompanion adapter `kind` means when nothing names one: the first
----provider's ACP agent, or the key profile's HTTP adapter.
+---`acp` in provider order, or the key profile's HTTP adapter; nil when no
+---provider offers that kind.
 ---@param kind ai.CompanionKind
----@return string
+---@return string|nil
 function M.adapter_name(kind)
   return kind == "acp" and config.codecompanion.acp_adapter or config.codecompanion.http_adapter
 end
 
----The backend (ai.config.backends) `kind` means when nothing names one.
+---The backend (ai.config.backends) `kind` means when nothing names one; nil
+---when no provider offers that kind.
 ---@param kind ai.CompanionKind
----@return ai.Backend
+---@return ai.Backend|nil
 local function spec_of(kind)
   local name = M.adapter_name(kind)
-  if not name then
-    error(("no provider offers %s (lua/ai/config.lua)"):format(kind == "acp" and "acp" or "an API key"), 0)
-  end
+  if not name then return nil end
   local id = (kind == "acp" and "acp:" or "api:") .. name
   for _, b in ipairs(config.backends()) do
     if b.id == id then return b end
@@ -87,7 +87,9 @@ end
 function M.preflight(what)
   local spec = type(what) == "table" and what or spec_of(what)
   local problem
-  if spec.kind == "http" then
+  if not spec then
+    problem = ("no provider offers %s\nsee lua/ai/config.lua"):format(what == "acp" and "an ACP chat" or "an API key")
+  elseif spec.kind == "http" then
     if (vim.env[spec.api_key] or "") == "" then
       problem = ("%s is not set\nnothing sent: export it, or :AI key <profile>"):format(spec.api_key)
     end
@@ -406,11 +408,11 @@ end
 ---Point CodeCompanion's inline and command prompts at the current key
 ---profile, after :AI key. A no-op until the plugin has loaded: its `opts` read
 ---the same state at load time (lua/plugin/lsp/codecompanion.lua). The chat
----adapter is not touched: it is the first provider's `acp`, fixed at load,
----and only CodeCompanion's own paths that name no adapter use it. The live config
----is written directly, never `vim.g.codecompanion_adapter`, which v20's
----cmd.lua resolves through `config.adapters[name]` -- nil -- and so falls back
----to the ACP chat adapter.
+---adapter is not touched: it is the first `acp` in provider order (else the
+---first `api`), fixed at load, and only CodeCompanion's own paths that name no
+---adapter use it. The live config is written directly, never
+---`vim.g.codecompanion_adapter`, which v20's cmd.lua resolves through
+---`config.adapters[name]` -- nil -- and so falls back to the chat adapter.
 function M.sync()
   if not loaded() then return end
   local cc = require("codecompanion.config")

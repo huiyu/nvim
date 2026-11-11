@@ -158,8 +158,18 @@ vim.env.NVIM_ANTHROPIC_API_KEY = "spec"
 t.eq(config.auto_key(), "anthropic", "and takes the first in order when both are set")
 vim.env.NVIM_ANTHROPIC_API_KEY, vim.env.NVIM_OPENAI_API_KEY = nil, nil
 t.eq(config.auto_key(), "anthropic", "and the first profile when none is")
+-- :AI key auto on auto resolves again: a key exported since counts.
+vim.env.NVIM_ANTHROPIC_API_KEY, vim.env.NVIM_OPENAI_API_KEY = "spec", "spec"
+config.use_key("auto")
+vim.env.NVIM_ANTHROPIC_API_KEY = nil
+vim.cmd("AI key auto")
+t.eq({ config.key.name, config.key.auto }, { "openai", true }, ":AI key auto on auto picks again when the first key is gone")
+vim.env.NVIM_ANTHROPIC_API_KEY = "spec"
+vim.cmd("AI key auto")
+t.eq(config.key.name, "anthropic", "and back once it is set again")
 vim.env.NVIM_ANTHROPIC_API_KEY, vim.env.NVIM_OPENAI_API_KEY = saved_keys[1], saved_keys[2]
 config.use_key("auto")
+events = {}
 
 -- Another order, and providers offering only some parts: the derived tables
 -- follow the list, and nothing names a default.
@@ -181,6 +191,15 @@ config._set_providers({ { name = "only_api", label = "Only API",
   api = { adapter = "openai", api_key = "NVIM_OPENAI_API_KEY" } } })
 t.eq({ config.codecompanion.acp_adapter, config.codecompanion.chat_adapter, config.agent_names() },
   { nil, "openai", {} }, "with no acp, CodeCompanion's own chats fall back to the first api")
+-- With no api at all there is no key: an inline edit refuses with a word,
+-- never a Lua error out of its expr mapping.
+config._set_providers({ { name = "claude", label = "Claude Code", tui = { kind = "claude" } } })
+t.eq({ config.key.name, config.key_names() }, { nil, {} }, "with no api there is no key profile")
+notes = {}
+t.eq(require("ai.companion").preflight("http"), false, "an inline edit refuses")
+vim.wait(500, function() return #notes > 0 end)
+t.ok(last().level == ERROR and last().msg:find("no provider offers an API key", 1, true) ~= nil,
+  "saying no provider offers an API key: " .. last().msg)
 config._set_providers(DEFAULT_LIST)
 t.eq(vim.tbl_map(function(b) return b.id end, config.backends()), ids, "(the default list is back)")
 config.use_key("auto")
