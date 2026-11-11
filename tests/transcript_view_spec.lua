@@ -54,9 +54,11 @@ t.eq(vim.bo[buf].swapfile, false, "UC-R5: transcript buffer has no swapfile")
 t.eq(vim.bo[buf].filetype, "ai-transcript", "uses its own filetype, not markdown")
 t.eq(vim.wo.foldmethod, "expr", "UC-14: folding is expression driven")
 t.eq(vim.wo.foldlevel, 0, "UC-14: opens with machinery folded")
-t.ok(type(vim.b[buf].ai_transcript_folds) == "table", "fold levels are attached to the buffer")
-t.eq(#vim.b[buf].ai_transcript_folds, vim.api.nvim_buf_line_count(buf),
-  "fold levels cover every line")
+local folds = require("ai.transcript.render").folds(buf)
+t.ok(type(folds) == "table", "fold levels are attached to the buffer")
+t.eq(folds and #folds, vim.api.nvim_buf_line_count(buf), "fold levels cover every line")
+t.eq(vim.b[buf].ai_transcript_folds, nil,
+  "and kept on the Lua side: a buffer variable is copied on every foldexpr call")
 t.eq(vim.fn.line("."), vim.fn.line("$"), "UC-11: cursor starts at the newest turn")
 
 t.ok(vim.fn.maparg("R", "n", false, true).buffer == 1, "UC-13: R is mapped buffer-locally")

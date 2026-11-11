@@ -79,7 +79,7 @@ local function apply(buf, agent, session, entries, truncated)
 
   -- Attach the fold table before 'foldmethod' is evaluated, or the first fold
   -- pass sees nothing and every line collapses to level 0.
-  vim.b[buf].ai_transcript_folds = folds
+  render.set_folds(buf, folds)
 end
 
 local function configure(buf, agent, session)

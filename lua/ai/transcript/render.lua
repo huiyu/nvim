@@ -105,11 +105,40 @@ function M.build(entries, meta)
   return lines, folds
 end
 
----'foldexpr' callback. Reads the level table the viewer attached to the buffer.
+-- Fold levels per buffer, kept on the Lua side. 'foldexpr' runs once per
+-- line, and reading a table out of a buffer variable (vim.b) converts all of
+-- it on every read: a 42k-line transcript took 13 s to fold that way, where
+-- this lookup takes milliseconds.
+local levels_of = {}
+
+---Attach `levels` (one fold level per line) to `buf`, replacing any earlier
+---table; dropped when the buffer is wiped.
+---@param buf integer
+---@param levels integer[]
+function M.set_folds(buf, levels)
+  if levels_of[buf] == nil then
+    vim.api.nvim_create_autocmd("BufWipeout", {
+      buffer = buf,
+      once = true,
+      callback = function() levels_of[buf] = nil end,
+    })
+  end
+  levels_of[buf] = levels
+end
+
+---The fold levels attached to `buf`, if any.
+---@param buf integer
+---@return integer[]|nil
+function M.folds(buf)
+  return levels_of[buf]
+end
+
+---'foldexpr' callback: the level of `v:lnum` in the window's buffer, which
+---Nvim makes current while it evaluates the expression.
 ---@return integer
 function M.foldexpr()
-  local levels = vim.b.ai_transcript_folds
-  if type(levels) ~= "table" then return 0 end
+  local levels = levels_of[vim.api.nvim_get_current_buf()]
+  if not levels then return 0 end
   return levels[vim.v.lnum] or 0
 end
 
