@@ -172,7 +172,6 @@ local spec = {
       "  Chat: ,s save / ,X clear / ,q close",
       "        ,z fold code / ,m render",
       "  Search panel: ,S* actions / g? help",
-      "  Java: ,dt test method / ,dT test class",
       "  Dart/Flutter: ,dr reload / ,dR restart",
       "  LaTeX: ,b build / ,s stop / ,K clean",
       "         ,E errors / ,v PDF / ,t TOC",
@@ -185,7 +184,7 @@ local spec = {
       "            ,g{o,t,b,a} accept current (ours) /",
       "              incoming (theirs) / base / both",
       "            ,g{O,T,B,A} the same, whole file",
-      "  Review: ,C feedback / ,u ,U stage, unstage hunk",
+      "  Review: ,C feedback / ,S ,U stage, unstage hunk",
       "          ,X discard hunk back to baseline",
       "  View and language sections can coexist.",
       "  [LSP] actions need a language server.",
@@ -202,6 +201,7 @@ local spec = {
       "  [ / ]           Prev / Next navigation",
       "                    diag: d e w    git: h x",
       "                    lists: q l t   files: b a o",
+      "                    code: r m c i (ref/function/class/indent)",
       "                    history: j u y (jump/undo/yank)",
       "  z               Folds / spelling (zR zM zK)",
       "  s               Window operations (see s section)",
@@ -343,7 +343,10 @@ local spec = {
   { "sm", function() require("util.window").toggle_zoom() end, desc = "Toggle zoom", mode = "n" },
 
   -- Tab management
-  { "<leader><tab><tab>", "<cmd>tabnew<cr>",     desc = "New tab" },
+  -- `n` is new, as <leader>an starts a chat. <tab><tab> is LazyVim's spelling,
+  -- kept for the hand that knows it and hidden so the popup lists one key.
+  { "<leader><tab>n",     "<cmd>tabnew<cr>",     desc = "New tab" },
+  { "<leader><tab><tab>", "<cmd>tabnew<cr>",     desc = "New tab", hidden = true },
   { "<leader><tab>d",     "<cmd>tabclose<cr>",   desc = "Close tab" },
   { "<leader><tab>]",     "<cmd>tabnext<cr>",    desc = "Next tab" },
   { "<leader><tab>[",     "<cmd>tabprev<cr>",    desc = "Prev tab" },
@@ -357,15 +360,17 @@ local spec = {
   { "<leader><tab>s",     "<cmd>tabs<cr>",        desc = "List all tabs" },
 
   -- Toggle/UI
+  -- Lowercase is this file, uppercase every file, as ;s/;S and <leader>gc/gC
+  -- widen.
   { "<leader>uf", function()
-    vim.g.autoformat = not vim.g.autoformat
-    vim.notify("Autoformat " .. (vim.g.autoformat and "enabled" or "disabled"))
-  end, desc = "Toggle autoformat (global)" },
-  { "<leader>uF", function()
     local enabled = vim.b.autoformat ~= false
     vim.b.autoformat = not enabled
     vim.notify("File autoformat " .. (vim.b.autoformat and "enabled" or "disabled"))
   end, desc = "Toggle autoformat (file)" },
+  { "<leader>uF", function()
+    vim.g.autoformat = not vim.g.autoformat
+    vim.notify("Autoformat " .. (vim.g.autoformat and "enabled" or "disabled"))
+  end, desc = "Toggle autoformat (global)" },
   { "<leader>us", function() vim.opt_local.spell = not vim.opt_local.spell:get() end,             desc = "Toggle spelling" },
   { "<leader>uw", function() vim.opt_local.wrap = not vim.opt_local.wrap:get() end,               desc = "Toggle word wrap" },
   { "<leader>ul", function() vim.opt_local.number = not vim.opt_local.number:get() end,           desc = "Toggle line numbers" },
@@ -397,7 +402,8 @@ local spec = {
 -- Not here: the treesitter moves m/M/c/C, which carry their own descs
 -- (lua/plugin/ui/treesitter.lua) because buffers remap them -- CodeDiff's
 -- ]c is "Next hunk", Python's and VimTeX's ]m their own motions -- and a
--- desc-only row would outrank every one of those.
+-- desc-only row would outrank every one of those. Nor ]r/[r, the references
+-- (lua/plugin/lsp/lsp.lua), which are VimTeX's frames in a tex buffer.
 local NXO, NO, N, X = { "n", "x", "o" }, { "n", "o" }, "n", "x"
 local BRACKET_DESCS = {
   -- motions
@@ -490,9 +496,10 @@ end
 ---
 --- plugin/editor/whichkey.lua writes these onto the buffer's own mapping, per
 --- mode, and only where that buffer maps the key itself. VimTeX skips a key a
---- global map already holds (illuminate's Normal ]], Nvim's Visual ]n), so a
---- label on the key would misname the global one there. Being the mapping's
---- own desc, it goes when the filetype unmaps the key.
+--- global map already holds (Nvim's Visual ]n), so a label on the key would
+--- misname the global one there; its Normal ]r/[r, which the references hold,
+--- lua/lang/tex.lua maps back. Being the mapping's own desc, it goes when the
+--- filetype unmaps the key.
 ---
 --- Python's ]m/]M are its own class/def motions, not treesitter's function
 --- moves; VimTeX's are environments.
@@ -570,7 +577,8 @@ local sections = {
     { "hunk",    icon = "󰏫 ", color = "green",  keys = { "p", "r", "R", "S" } },
     { "blame",   icon = "󰈈 ", color = "cyan",   keys = { "l", "L", "T" } },
     { "diff",    icon = "󰓡 ", color = "azure",  keys = { "d", "D", "v", "m", "M", "q", "k", "K" } },
-    { "history", icon = "󰓫 ", color = "purple", keys = { "c", "C", "H", "V", "f" } },
+    -- c/C and h/H are this file / the repository, commits and history alike.
+    { "history", icon = "󰓫 ", color = "purple", keys = { "c", "C", "h", "H", "f" } },
     { "tools",   icon = "󰏌 ", color = "yellow", keys = { "g", "B" } },
   },
 
@@ -622,18 +630,22 @@ local sections = {
 
   ["<leader>b"] = {
     { "pin",    icon = "󰐃 ", color = "cyan", keys = { "p", "P" } },
+    -- Moving the current buffer along the bar; going to its first or last
+    -- buffer is [B/]B.
+    { "move",   icon = "󰓡 ", color = "azure", keys = { "<", ">" } },
     { "delete", icon = "󰈆 ", color = "red",  keys = { "d", "D", "o", "h", "l", "r", "x" } },
     -- Picking a buffer is navigation, on ;B.
   },
 
   ["<leader>x"] = {
-    { "diagnostics", icon = "󰀦 ", color = "red",   keys = { "x", "X", "d" } },
+    { "diagnostics", icon = "󰀦 ", color = "red",   keys = { "x", "b", "d" } },
     { "lists",       icon = "󰉹 ", color = "azure", keys = { "q", "Q", "l", "L" } },
   },
 
   ["<leader>t"] = {
-    { "run",  icon = "󰐊 ", color = "green", keys = { "f", "m", "d", "F" } },
-    { "view", icon = "󰈈 ", color = "cyan",  keys = { "S", "o", "D", "h" } },
+    -- Uppercase is the debug variant of the same run: tm/tM, tf/tF.
+    { "run",  icon = "󰐊 ", color = "green", keys = { "m", "M", "f", "F" } },
+    { "view", icon = "󰈈 ", color = "cyan",  keys = { "s", "o", "x" } },
   },
 
   ["<leader>u"] = {
@@ -647,7 +659,7 @@ local sections = {
 
   ["<leader><tab>"] = {
     { "navigate", icon = "󰓡 ", color = "cyan",  keys = { "[", "]", "f", "l", "a", "s" } },
-    { "manage",   icon = "󰎓 ", color = "green", keys = { "<tab>", "d", "o" } },
+    { "manage",   icon = "󰎓 ", color = "green", keys = { "n", "d", "o" } },
   },
 
   ["<leader>y"] = {
@@ -714,9 +726,8 @@ local sections = {
     { "Lazy · plugin", icon = "󰏕 ", color = "yellow", filetype = { "lazy" }, keys = { "l", "i", "t" } },
     { "LSP",      icon = "󰅱 ", color = "azure",  keys = { "a", "r", "c" } },
     { "refactor", icon = "󰏫 ", color = "orange", keys = { "e", "i", "R", "n" } },
-    -- ,F, ,w and the ,S panel search and replace; ,f formats.
-    { "format/replace", icon = "󰉢 ", color = "cyan", keys = { "f", "F", "w", "S" },
-      labels = { S = "Search panel" } },
+    -- ,F and ,w open the search panel to search and replace; ,f formats.
+    { "format/replace", icon = "󰉢 ", color = "cyan", keys = { "f", "F", "w" } },
     { "lines",    icon = "󰓡 ", color = "green",  keys = { "j", "k", "h", "l" } },
     { "file",     icon = "󰈔 ", color = "purple", keys = { "x", "O" } },
     -- Context selects the heading, while actual buffer mappings select the
@@ -725,8 +736,6 @@ local sections = {
     { "C/C++ · files", icon = "󰈔 ", color = "purple", filetype = { "c", "cpp" }, keys = { "H" } },
     { "Python · imports/environment", icon = "󰌠 ", color = "yellow", filetype = { "python" }, keys = { "o", "v" } },
     { "Go · imports/server", icon = "󰟓 ", color = "cyan", filetype = { "go" }, keys = { "o", "G" } },
-    { "Java · test debug", icon = "󰙨 ", color = "orange", filetype = { "java" }, keys = { "d" },
-      labels = { d = "Test debug" } },
     { "Dart/Flutter · runtime", icon = "󰐊 ", color = "cyan", filetype = { "dart" }, keys = { "d" },
       labels = { d = "Hot reload/restart" } },
     { "LaTeX · build", icon = "󰐊 ", color = "green", filetype = { "tex", "plaintex" }, keys = { "b", "s", "K", "E" } },
@@ -735,8 +744,13 @@ local sections = {
     { "Markdown · preview", icon = "󰍔 ", color = "cyan", filetype = { "markdown" }, keys = { "p", "m" } },
     { "Chat · conversation/rendering", icon = "󰍔 ", color = "cyan", filetype = { "codecompanion" },
       keys = { "s", "X", "q", "z", "m" } },
+    -- grug-far's own actions sit under ,S in its panel only; elsewhere a
+    -- CodeDiff pane's ,S stages a hunk (Review, below).
+    { "Search panel · actions", icon = "󰍉 ", color = "cyan", filetype = { "grug-far" }, keys = { "S" },
+      labels = { S = "Search panel" } },
     { "CodeDiff · panels/layout/conflicts", icon = "󰓡 ", color = "orange", keys = { "P", "B", "g", "z", "I" } },
-    { "Review · feedback/stage/discard", icon = "󰄹 ", color = "red", keys = { "C", "u", "U", "X" } },
+    -- S/U/X: stage, unstage, discard, as the status explorer's file keys.
+    { "Review · feedback/stage/discard", icon = "󰄹 ", color = "red", keys = { "C", "S", "U", "X" } },
     { "Terminal · sessions", icon = "󰆍 ", color = "yellow", buftype = "terminal",
       keys = { "1", "2", "3", "4", "5", "6", "7", "8", "9" } },
   },
@@ -759,8 +773,10 @@ local BRACKET_SECTIONS = {
     keys = { "q", "Q", "l", "L", "t", "T", "<C-q>", "<C-l>", "<C-t>" } },
   { "files",       icon = "󰈔 ", color = "cyan",
     keys = { "b", "B", "a", "A", "o", "O" } },
+  -- Sections ([[ ]] [] ][, the buffer's own), references, function and class
+  -- moves, indent changes, and Visual mode's node selection (n/N).
   { "code",        icon = "󰅱 ", color = "green",
-    keys = { "[", "]", "i", "I" } },
+    keys = { "[", "]", "r", "m", "M", "c", "C", "i", "I", "n", "N" } },
   -- Jumplist, undo tree and yank ring are all "step through a history", which
   -- is a different question from "move through the code".
   { "history",     icon = "󰓫 ", color = "purple",

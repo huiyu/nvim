@@ -1,10 +1,12 @@
--- Hunk actions inside a CodeDiff view (,u ,U ,X), installed on every
+-- Hunk actions inside a CodeDiff view (,S ,U ,X), installed on every
 -- `User CodeDiffKeys` pass through util.codediff.set_keys. CodeDiff is reached
--- only through util.codediff, gitsigns only through its public API.
+-- only through util.codediff, gitsigns only through its public API. The
+-- letters are the status explorer's file-level S/U/X (stage all, unstage all,
+-- discard) and <leader>gS's stage, for one hunk: u never stages here.
 --
 -- What each key changes:
 --
---   ,u / ,U  The real index, through gitsigns. gitsigns stages a line range of
+--   ,S / ,U  The real index, through gitsigns. gitsigns stages a line range of
 --            the right pane against the index (unstages it against HEAD),
 --            while a view whose left end is a baseline or a branch shows the
 --            left side against the working tree. Where the two differ next
@@ -29,13 +31,13 @@
 --
 -- Which view gets which key (specs()):
 --
---   status, Changes group (index vs working tree)   ,u -- no ,U: every hunk
+--   status, Changes group (index vs working tree)   ,S -- no ,U: every hunk
 --                                                    shown there is unstaged
 --   status, Staged group (HEAD vs index)            ,U (CodeDiff's)
---   baseline vs working tree                        ,u ,U ,X
+--   baseline vs working tree                        ,S ,U ,X
 --   the same, a file on one side only               ,X, which only says what
 --                                                    would do it
---   any other rev vs working tree                   ,u ,U
+--   any other rev vs working tree                   ,S ,U
 --
 -- Before any of them acts, guard_fresh checks that it acts on what is on
 -- screen: (a) no unsaved edits in the right pane, (b) the disk still holds
@@ -207,7 +209,7 @@ end
 
 ---@class codediff_actions.View
 ---@field kind "changes"|"staged"|"revision"|"one-sided"
----@field stage? boolean ,u through gitsigns, and ,U except in the Changes group
+---@field stage? boolean ,S through gitsigns, and ,U except in the Changes group
 ---@field baseline? { sha: string, kind?: string, time?: integer }
 ---@field side? "original"|"modified" the pane a one-sided view keeps
 
@@ -442,7 +444,7 @@ local function guard_fresh(ctx)
 end
 
 ---------------------------------------------------------------------------
--- ,u / ,U through gitsigns
+-- ,S / ,U through gitsigns
 ---------------------------------------------------------------------------
 
 --- Whether gitsigns would count hunk `h` as inside [top, bot]: the same four
@@ -1015,8 +1017,8 @@ local function specs(tab, s)
       refuse("Unstage", "the Staged group unstages whole hunks: ,U in Normal mode")
     end, "Unstage hunk (Normal mode here)", "panes")
   elseif view.stage then
-    add("n", "u", function() stage(tab, false) end, "Stage hunk", "panes")
-    add("x", "u", selection(function(r) stage(tab, false, r) end), "Stage selected lines", "panes")
+    add("n", "S", function() stage(tab, false) end, "Stage hunk", "panes")
+    add("x", "S", selection(function(r) stage(tab, false, r) end), "Stage selected lines", "panes")
     -- The Changes group shows only unstaged hunks, which ,U refuses: its
     -- staged lines are in the Staged group, with CodeDiff's ,U.
     if view.kind ~= "changes" then

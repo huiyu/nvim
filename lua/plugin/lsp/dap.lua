@@ -37,7 +37,7 @@ return {
     keys = {
       { "<leader>dA", function() require("util.dap").attach() end, desc = "Attach to running target…" },
       { "<leader>df", function() require("util.dap").run_target("file") end, desc = "Debug file" },
-      { "<leader>td", function() require("util.dap").run_target("test") end, desc = "Debug nearest test" },
+      { "<leader>tM", function() require("util.dap").run_target("test") end, desc = "Debug nearest test" },
       { "<leader>tF", function() require("util.dap").run_target("test_file") end, desc = "Debug tests in file" },
       { "<leader>dB", function() require("dap").set_breakpoint(vim.fn.input("Breakpoint condition: ")) end, desc = "Set conditional breakpoint…" },
       { "<leader>db", function() require("dap").toggle_breakpoint() end,                                    desc = "Toggle breakpoint" },

@@ -349,7 +349,7 @@ return {
 
     -- ── Diagnostics ─────────────────────────────────────────────────────
     { "<leader>xx", function() Snacks.picker.diagnostics() end,           desc = "Diagnostics" },
-    { "<leader>xX", function() Snacks.picker.diagnostics_buffer() end,    desc = "File diagnostics" },
+    { "<leader>xb", function() Snacks.picker.diagnostics_buffer() end,    desc = "File diagnostics" },
     { "<leader>xd", vim.diagnostic.open_float,                            desc = "Line diagnostics" },
     { "<leader>xL", function() Snacks.picker.loclist() end,               desc = "Location list (picker)" },
     { "<leader>xQ", function() Snacks.picker.qflist() end,                desc = "Quickfix list (picker)" },
@@ -370,10 +370,10 @@ return {
     -- Two histories: vim.notify goes to the snacks notifier and its own
     -- history, while Vim's messages (:echomsg, print(), errors; never a plain
     -- :echo, which only g< shows again) stay in :messages, which
-    -- ui2 (lua/options.lua) shows in its pager.
+    -- ui2 (lua/options.lua) shows in its pager. Dismissing notifications is
+    -- <leader>un alone: one act, one key.
     { "<leader>mnh", function() Snacks.notifier.show_history() end,  desc = "Notification history" },
     { "<leader>mnt", function() Snacks.picker.notifications() end,   desc = "Search notifications" },
-    { "<leader>mnd", function() Snacks.notifier.hide() end,          desc = "Dismiss notifications" },
     { "<leader>mnl", "g<",                                           desc = "Last command output" },
     { "<leader>mna", "<Cmd>messages<CR>",                            desc = "Message history" },
     {

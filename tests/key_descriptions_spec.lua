@@ -30,6 +30,7 @@ expect({
   sw = "Previous window",
   se = "Editor window (toggle back)",
   ["<C-,>"] = "Editor window (toggle back)",
+  ["<leader><tab>n"] = "New tab",
   ["<leader><tab>d"] = "Close tab",
   ["<leader><tab>f"] = "First tab",
   ["<leader><tab>l"] = "Last tab",
@@ -39,7 +40,33 @@ expect({
   ["<leader>bP"] = "Delete unpinned buffers",
   ["<leader>bl"] = "Delete buffers to left",
   ["<leader>br"] = "Delete buffers to right",
+  ["<leader>b<"] = "Move buffer left",
+  ["<leader>b>"] = "Move buffer right",
+  ["[B"] = "First buffer",
+  ["]B"] = "Last buffer",
 })
+-- `n` is new, as in <leader>an. LazyVim's <tab><tab> still opens a tab but is
+-- left out of the popup, so it lists one key per act.
+t.eq(vim.fn.maparg("<leader><tab><tab>", "n"), vim.fn.maparg("<leader><tab>n", "n"),
+  "<leader><tab><tab> is an alias of <leader><tab>n")
+local wk_tree = require("which-key.buf").get({ mode = "n", update = true }).tree
+t.ok(wk_tree:find("<Space><Tab>n") ~= nil, "<leader><tab>n is in the popup")
+t.eq(wk_tree:find("<Space><Tab><Tab>"), nil, "<leader><tab><tab> is hidden from the popup")
+-- which-key's own <leader>b popup, whose node keys hold "<" bare rather than
+-- keytrans' "<lt>": a declared "<" that missed them fell under `others`.
+do
+  local View, node = require("which-key.view"), wk_tree:find("<Space>b")
+  local items = {}
+  for _, child in ipairs(node and node:children() or {}) do
+    items[#items + 1] = View.item(child, { parent = node })
+  end
+  View.sort(items)
+  local owner, under = nil, {}
+  for _, row in ipairs(items) do
+    if row.key == "" then owner = row.desc:gsub("^── ", "") else under[row.key] = owner end
+  end
+  t.eq({ under["<"], under[">"] }, { "move", "move" }, "the <leader>b popup puts < and > under move")
+end
 t.eq(desc("<C-,>", "t"), "Editor window (toggle back)", "terminal <C-,> is worded as se")
 -- Read through :command, which prints the desc as given (see dap_actions_spec).
 local function command_desc(name)
@@ -138,11 +165,26 @@ expect({
 })
 
 -- Proper nouns keep their capital; a buffer-local toggle names its scope "file".
+-- Case widens the scope: lowercase is the current file, uppercase all of them.
 expect({
   ["<leader>uT"] = "Toggle Treesitter highlight",
-  ["<leader>uF"] = "Toggle autoformat (file)",
+  ["<leader>uf"] = "Toggle autoformat (file)",
+  ["<leader>uF"] = "Toggle autoformat (global)",
+  ["<leader>xx"] = "Diagnostics",
+  ["<leader>xb"] = "File diagnostics",
   F = "Flash Treesitter",
 })
+t.eq(vim.fn.maparg("<leader>xX", "n"), "", "<leader>xX is gone: the file's diagnostics are <leader>xb")
+do
+  local notify, global = vim.notify, vim.g.autoformat
+  vim.notify = function() end
+  vim.b.autoformat = nil
+  vim.fn.maparg("<leader>uf", "n", false, true).callback()
+  t.eq({ vim.b.autoformat, vim.g.autoformat }, { false, global }, "<leader>uf turns this file's autoformat off only")
+  vim.fn.maparg("<leader>uF", "n", false, true).callback()
+  t.eq({ vim.b.autoformat, vim.g.autoformat }, { false, not global }, "<leader>uF flips the global switch only")
+  vim.b.autoformat, vim.g.autoformat, vim.notify = nil, global, notify
+end
 
 -- Maps that had no desc at all, so <leader>mk showed a blank row.
 t.eq(desc("<S-CR>", "t"), "Send Shift+Enter (newline) to terminal", "terminal <S-CR> has a desc")

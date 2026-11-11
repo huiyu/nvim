@@ -231,11 +231,25 @@ for suffix, want in pairs({
   di = "Step into", dj = "Stack frame down", dk = "Stack frame up", dl = "Run last", ["do"] = "Step out",
   dq = "List breakpoints (quickfix)", dr = "Toggle REPL", ds = "Debug sessions", dt = "Terminate",
   du = "Toggle debug view", dw = "Evaluate expression", dx = "Clear all breakpoints",
-  tm = "Run nearest test", tf = "Run tests in file", td = "Debug nearest test", tF = "Debug tests in file",
-  tS = "Toggle test summary", tD = "Show test diagnostics", th = "Hide test diagnostics",
+  tm = "Run nearest test", tM = "Debug nearest test", tf = "Run tests in file", tF = "Debug tests in file",
+  ts = "Toggle test summary", to = "Show test output", tx = "Toggle test diagnostics",
 }) do
   t.eq(vim.fn.maparg("<leader>" .. suffix, "n", false, true).desc, want, "<leader>" .. suffix .. " is " .. want)
 end
+-- Case is the debug variant of the same run (tm/tM, tf/tF); the summary is ts,
+-- and test diagnostics are one toggle, not a show key and a hide key.
+for _, suffix in ipairs({ "td", "tD", "th", "tS" }) do
+  t.eq(vim.fn.maparg("<leader>" .. suffix, "n"), "", "<leader>" .. suffix .. " is gone")
+end
+-- neotest has no show/hide of its own diagnostics: <leader>tx toggles their
+-- namespace, whose disabled flag is the state.
+require("lazy").load({ plugins = { "neotest" } })
+local test_ns = vim.api.nvim_create_namespace("neotest")
+local toggle_test_diagnostics = vim.fn.maparg("<leader>tx", "n", false, true).callback
+toggle_test_diagnostics()
+t.eq(vim.diagnostic.get_namespace(test_ns).disabled, true, "<leader>tx hides test diagnostics")
+toggle_test_diagnostics()
+t.eq(vim.diagnostic.get_namespace(test_ns).disabled, false, "<leader>tx shows them again")
 t.eq(vim.fn.maparg("<leader>dw", "x", false, true).desc, "Evaluate selection",
   "Visual <leader>dw names the selection it evaluates")
 -- Read through :command, which prints the desc as given. nvim_get_commands()

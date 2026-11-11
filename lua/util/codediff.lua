@@ -34,6 +34,8 @@
 --   codediff.core.git               get_commit_list, get_diff_revision
 --   codediff.core.git.changes       get_diff_revision (the listing patch)
 --
+-- Besides them, the public codediff module's next_hunk/prev_hunk (]h [h).
+--
 -- Keys go through the session's own keymap registry (set_keys): it snapshots
 -- whatever a buffer had before, suspends the claims on real file buffers on
 -- TabLeave, and hands every key back when the view closes.
@@ -649,14 +651,14 @@ local BLOCKS = {
     desc = "Disabled in CodeDiff", opts = { nowait = true } },
 }
 -- The keys off `;` that put another buffer in the current window do the same
--- as a `;` picker: bufferline's H/L and [b/]b, and the alternate buffer
--- (<C-^>, and <C-6> through it; `;a` is already under `;`). Neither the panes
--- nor the nofile panels are 'winfixbuf', so each swapped the window's buffer
--- under a session that stayed alive. Oil's `-` is the same, and own_keys
--- blocks it where it is not the status explorer's stage key. Whole keys
--- rather than prefixes, so the key after one is the user's next command and
--- is left alone.
-for _, key in ipairs({ "H", "L", "[b", "]b", "<C-^>" }) do
+-- as a `;` picker: bufferline's H/L, [b/]b and [B/]B (first/last), and the
+-- alternate buffer (<C-^>, and <C-6> through it; `;a` is already under `;`).
+-- Neither the panes nor the nofile panels are 'winfixbuf', so each swapped the
+-- window's buffer under a session that stayed alive. Oil's `-` is the same,
+-- and own_keys blocks it where it is not the status explorer's stage key.
+-- Whole keys rather than prefixes, so the key after one is the user's next
+-- command and is left alone.
+for _, key in ipairs({ "H", "L", "[b", "]b", "[B", "]B", "<C-^>" }) do
   BLOCKS[#BLOCKS + 1] = { "n", key, blocked(key, LEAVE), desc = "Disabled in CodeDiff", opts = { nowait = true } }
 end
 
@@ -693,6 +695,17 @@ local function own_keys(tab, s)
   for _, direction in ipairs({ "Up", "Down" }) do
     local key = "<ScrollWheel" .. direction .. ">"
     keys[#keys + 1] = { { "n", "x" }, key, wheel(tab, key), desc = "Scroll " .. direction:lower() .. " (sync diff panes)" }
+  end
+  -- ]h/[h are this config's hunk keys (gitsigns' everywhere else). In the
+  -- panes they would walk gitsigns' index hunks of the working-tree file, not
+  -- the hunks on screen, and nothing in a revision pane; here they are
+  -- CodeDiff's own ]c/[c, through its public API, in every buffer of the view
+  -- as ]c is: from the explorer or history panel they jump into the right pane.
+  for _, k in ipairs({ { "]h", "next_hunk", "Next hunk" }, { "[h", "prev_hunk", "Prev hunk" } }) do
+    keys[#keys + 1] = { "n", k[1], function()
+      local ok, codediff = pcall(require, "codediff")
+      if ok and type(codediff) == "table" and type(codediff[k[2]]) == "function" then codediff[k[2]]() end
+    end, desc = k[3] }
   end
   -- q leaves the diff panes to macro recording.
   keys[#keys + 1] = { "n", "q", function() M.close(tab) end, desc = "Close diff view",

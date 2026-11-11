@@ -107,7 +107,7 @@ local math_buffer = vim.api.nvim_get_current_buf()
 vim.api.nvim_win_set_cursor(0, { 4, 0 })
 local run, selected = dap.run
 dap.run = function(config) selected = config end
-vim.fn.maparg(" td", "n", false, true).callback()
+vim.fn.maparg(" tM", "n", false, true).callback()
 vim.cmd.enew()
 t.ok(await(function() return selected ~= nil end, "nearest Rust test"), "nearest Rust test resolves after a buffer switch")
 t.eq(selected and selected.args, { "--exact", "--nocapture", "math::same" }, "nearest Rust test uses its full module path")
@@ -129,7 +129,7 @@ dap.run = run
 if vim.fn.executable(vim.fn.stdpath("data") .. "/mason/bin/codelldb") == 1 then
   vim.api.nvim_win_set_cursor(0, { 4, 0 })
   dap.set_breakpoint()
-  vim.fn.maparg(" td", "n", false, true).callback()
+  vim.fn.maparg(" tM", "n", false, true).callback()
   t.ok(vim.wait(20000, function() return dap.session() and dap.session().current_frame ~= nil end, 50), "unified nearest-test key stops inside the selected Rust test")
   local session = dap.session()
   if session and session.current_frame then

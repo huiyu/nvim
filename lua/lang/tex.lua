@@ -44,6 +44,28 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- ]r/[r are the global next/prev reference (lua/plugin/lsp/lsp.lua), and
+-- VimTeX maps nothing where a global map already holds the key, so its Normal
+-- frame motions were skipped while Visual and Operator-pending kept them. Put
+-- them back on the buffer once VimTeX has set the buffer up (its <Plug>
+-- targets exist only then): in a tex buffer ]r/[r are frames in every mode,
+-- and the reference jump is the global key everywhere else.
+vim.api.nvim_create_autocmd("User", {
+  pattern = "VimtexEventInitPost",
+  group = vim.api.nvim_create_augroup("tex_frame_motions", { clear = true }),
+  callback = function()
+    if vim.bo.filetype ~= "tex" then
+      return
+    end
+    for lhs, desc in pairs({ ["]r"] = "Next frame start", ["[r"] = "Prev frame start" }) do
+      local plug = ("<Plug>(vimtex-%s)"):format(lhs)
+      if vim.fn.maparg(plug, "n") ~= "" and vim.fn.maparg(lhs, "n", false, true).buffer ~= 1 then
+        vim.keymap.set("n", lhs, plug, { buffer = 0, remap = true, nowait = true, silent = true, desc = desc })
+      end
+    end
+  end,
+})
+
 return {
   {
     "lervag/vimtex",

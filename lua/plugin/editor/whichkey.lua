@@ -20,11 +20,14 @@ local Spec = require("whichkey_spec")
 --- which-key runs every key through `keytrans(replace_termcodes(...))`
 --- (`util.lua`, `M.norm`), which turns a literal space into "<Space>" and
 --- "<c-q>" into "<C-Q>". Declarations can therefore be written naturally --
---- "<space>", "<C-q>" -- and still match.
+--- "<space>", "<C-q>" -- and still match. It then splits the result into keys
+--- and stores keytrans' "<lt>" as a bare "<" (`M.keys`), so a node's `keys` for
+--- <leader>b< is "<Space>b<"; the lookup does the same, or a declared "<"
+--- never matches and the key falls under `others`.
 ---@param keys string
 ---@return string
 local function norm(keys)
-  return vim.fn.keytrans(vim.keycode(keys))
+  return (vim.fn.keytrans(vim.keycode(keys)):gsub("<lt>", "<"))
 end
 
 --- Lookup from full key sequence to its declared section.
@@ -185,8 +188,8 @@ end
 --- only the desc changes.
 ---
 --- Only the buffer's own mappings, mode by mode: VimTeX maps nothing where a
---- global map already holds the key (illuminate's Normal ]], Nvim's Visual
---- ]n), and the global one keeps its own desc there.
+--- global map already holds the key (Nvim's Visual ]n), and the global one
+--- keeps its own desc there.
 ---@param buf integer
 local function describe_filetype_maps(buf)
   local descs = (Spec.filetype_descs or {})[vim.bo[buf].filetype]

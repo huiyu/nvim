@@ -309,7 +309,7 @@ return {
         end
 
         -- Setup DAP after jdtls attaches
-        config.on_attach = function(_, bufnr)
+        config.on_attach = function()
           if #vim.fn.glob(mason_path .. "/java-debug-adapter/extension/server/com.microsoft.java.debug.plugin-*.jar", true, true) == 0 then
             vim.notify("Java debugging needs :MasonInstall java-debug-adapter, then :JdtRestart", vim.log.levels.WARN)
             return
@@ -322,10 +322,8 @@ return {
             return
           end
           enable_attach()
-          vim.keymap.set("n", "<localleader>dt", jdtls.test_nearest_method,
-            { buffer = bufnr, desc = "[LSP] Debug test method" })
-          vim.keymap.set("n", "<localleader>dT", jdtls.test_class,
-            { buffer = bufnr, desc = "[LSP] Debug test class" })
+          -- Test debugging is <leader>tM / <leader>tF, through the java dap
+          -- targets above; no comma-menu duplicate of them.
         end
 
         local ok, err = pcall(jdtls.start_or_attach, config)

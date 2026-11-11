@@ -53,7 +53,7 @@ local function warn(what, reason)
   vim.notify(what .. ": " .. reason, vim.log.levels.WARN)
 end
 
---- What <leader>gH/<leader>gV list, from the setting util.codediff applies:
+--- What <leader>gh/<leader>gH list, from the setting util.codediff applies:
 --- `:CodeDiff history` without a range lists the newest non-merge commits,
 --- 100 of them unless vim.g.ai_review.history_limit says otherwise. Read when
 --- this spec is evaluated, so set it before lua/bootstrap.lua runs.
@@ -497,7 +497,7 @@ return {
     { "<leader>gM", diff_ref,     desc = "Diff against baseline/ref…", mode = "n" },
     { "<leader>gk", compare_two,  desc = "Compare two (working tree/index/baseline/ref)…", mode = "n" },
     { "<leader>gK", save_baseline, desc = "Save baseline…", mode = "n" },
-    { "<leader>gV", file_history, desc = history_desc("File history"), mode = "n" },
+    { "<leader>gh", file_history, desc = history_desc("File history"), mode = "n" },
     { "<leader>gH", repo_history, desc = history_desc("Repo history"), mode = "n" },
   },
   opts = {
@@ -519,7 +519,7 @@ return {
         focus_explorer = "<localleader>P",
         toggle_layout = "<localleader>I",
         toggle_compact = "<localleader>z",
-        -- Index edits are ours (,u ,U ,X): upstream's stage the hunk against
+        -- Index edits are ours (,S ,U ,X): upstream's stage the hunk against
         -- the revision rather than the index in a rev-vs-working-tree view.
         stage_hunk = false,
         unstage_hunk = false,
@@ -530,7 +530,8 @@ return {
         toggle_stage = false,
         toggle_staged_view = false, -- gS is splitjoin
         align_move = false,         -- gm is a builtin
-        -- Kept: ]c [c ]f [f do dp gf g? ih
+        -- Kept: ]c [c ]f [f do dp gf g? ih. util.codediff adds ]h [h, the
+        -- same hunk moves under this config's hunk key.
       },
       -- Re-installed by util.codediff on the status view's explorer only:
       -- in a revision view the explorer's X deletes files that are merely
@@ -554,7 +555,7 @@ return {
     require("util.codediff").setup(opts, {
       history_limit = function() return require("ai.review.config").get().history_limit end,
     })
-    -- util.codediff_actions installs the hunk keys (,u ,U ,X) on every pass.
+    -- util.codediff_actions installs the hunk keys (,S ,U ,X) on every pass.
     vim.api.nvim_create_autocmd("User", {
       group = vim.api.nvim_create_augroup("codediff_actions", { clear = true }),
       pattern = "CodeDiffKeys",

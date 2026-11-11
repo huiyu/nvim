@@ -33,7 +33,7 @@
 --   * ,C in Normal and Visual mode on every buffer of a round view, a status
 --     view, a rev-vs-rev view and a history view, handing comment() the
 --     window, buffer, mode and ordered line range; repeated CodeDiffKeys
---     passes keep exactly one ,C and leave ,u ,U ,X alone.
+--     passes keep exactly one ,C and leave ,S ,U ,X alone.
 -- Every repository lives under tempname() with a space in its path, with
 -- git's system and global config shut out.
 local t = dofile("tests/helper.lua")
@@ -425,7 +425,7 @@ local panes = { modified = s.modified_bufnr, original = s.original_bufnr, explor
 for where, buf in pairs(panes) do
   t.eq({ desc(buf, ",C"), desc(buf, ",C", "x") }, { DESC, DESC }, ",C in Normal and Visual mode on the " .. where)
 end
-for _, lhs in ipairs({ ",u", ",U", ",X" }) do
+for _, lhs in ipairs({ ",S", ",U", ",X" }) do
   t.ok(desc(s.modified_bufnr, lhs) ~= nil, lhs .. " from util.codediff_actions is there too")
 end
 
@@ -473,7 +473,7 @@ for where, buf in pairs(panes) do
   t.eq({ mappings(buf, ",C", "n"), mappings(buf, ",C", "x") }, { 1, 1 },
     "repeated passes keep exactly one ,C per mode on the " .. where)
 end
-t.eq(desc(s.modified_bufnr, ",u"), "Stage hunk", ",u is untouched by them")
+t.eq(desc(s.modified_bufnr, ",S"), "Stage hunk", ",S is untouched by them")
 t.ok((desc(s.modified_bufnr, ",X") or ""):match("^Discard hunk back to baseline ") ~= nil, ",X too")
 t.eq(press(s.modified_win, 2).mode, "n", ",C still reaches comment()")
 t.ok(pcall(view.attach, 99999) and pcall(view.attach, editor_tab), "attach() on no view is a no-op")

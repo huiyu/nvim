@@ -100,17 +100,19 @@ t.ok(said("working tree is clean") ~= nil, "<leader>gv on a clean tree says so")
 t.eq(#vim.api.nvim_list_tabpages(), 1, "and opens no view")
 t.ok(plugin._.loaded == nil, "refusing a clean tree does not load CodeDiff")
 
--- Not a file: <leader>gV refuses before git or CodeDiff.
-press("<leader>gV")
-t.ok(said("File history: the current buffer is not a file") ~= nil, "<leader>gV refuses a buffer without a file")
+-- Not a file: <leader>gh refuses before git or CodeDiff.
+press("<leader>gh")
+t.ok(said("File history: the current buffer is not a file") ~= nil, "<leader>gh refuses a buffer without a file")
 
 -- Picking a buffer is on `;`, which a view blocks, not on <leader>b.
 local function global(lhs) return vim.fn.maparg(lhs, "n", false, true) end
 t.eq(global(";B").desc, "Pick buffer", ";B picks a buffer")
 t.eq(global("<leader>bj"), {}, "<leader>bj is gone")
 
-t.eq(key("<leader>gV").desc, "File history (recent 100, no merges)", "<leader>gV says how much history it lists")
+t.eq(key("<leader>gh").desc, "File history (recent 100, no merges)", "<leader>gh says how much history it lists")
 t.eq(key("<leader>gH").desc, "Repo history (recent 100, no merges)", "and so does <leader>gH")
+-- h/H pair as c/C do (file / repository); gV was the uppercase of Diff view.
+t.ok(key("<leader>gV") == nil and next(global("<leader>gV")) == nil, "<leader>gV is gone")
 
 ---------------------------------------------------------------------------
 -- The status view (<leader>gv)
@@ -208,11 +210,36 @@ for _, lhs in ipairs({ "<leader>b", "<leader>e", "<leader>hs", "<leader>hu", "<l
 end
 t.eq(map(sample, "<leader>bd").desc, "Delete buffer", "<leader>bd still deletes the buffer")
 
+-- ]h/[h, this config's hunk keys, walk the hunks on screen in both panes, as
+-- CodeDiff's own ]c/[c do: gitsigns' ]h would walk the working-tree file's
+-- index hunks, and nothing in the left pane.
+for _, pane in ipairs({ { left, s.original_bufnr, "left" }, { right, sample, "right" } }) do
+  local win, buf, where = pane[1], pane[2], pane[3]
+  t.eq({ map(buf, "]h").desc, map(buf, "[h").desc, map(buf, "]h").buffer, map(buf, "[h").buffer },
+    { "Next hunk", "Prev hunk", 1, 1 }, "]h/[h are the view's own in the " .. where .. " pane")
+  vim.api.nvim_set_current_win(win)
+  local last = vim.api.nvim_buf_line_count(buf)
+  for _, case in ipairs({ { "]h", "]c", 1 }, { "[h", "[c", last } }) do
+    local landed = {}
+    for i, lhs in ipairs({ case[1], case[2] }) do
+      vim.api.nvim_win_set_cursor(win, { case[3], 0 })
+      map(buf, lhs).callback()
+      landed[i] = vim.api.nvim_win_get_cursor(win)[1]
+    end
+    t.ok(landed[1] ~= case[3] and landed[1] == landed[2],
+      ("%s lands where %s does in the %s pane (%d, %d)"):format(case[1], case[2], where, landed[1], landed[2]))
+  end
+  vim.api.nvim_win_set_cursor(win, { 1, 0 })
+end
+t.eq({ map(panel_buf, "]h").buffer, map(panel_buf, "]h").desc }, { 1, "Next hunk" },
+  "the explorer has ]h too, as it has CodeDiff's own ]c: it jumps into the right pane")
+vim.api.nvim_set_current_win(right)
+
 -- ; and s, and the keys off `;` that put another buffer in the window
--- (bufferline's H/L and [b/]b, the alternate buffer): blocked in every window
--- of the view, with a visible hint. `-` (oil's parent directory) too, in the
--- panes; the status explorer stages on it (below).
-local SWITCH = { "H", "L", "[b", "]b", "<C-^>" }
+-- (bufferline's H/L, [b/]b and [B/]B, the alternate buffer): blocked in every
+-- window of the view, with a visible hint. `-` (oil's parent directory) too, in
+-- the panes; the status explorer stages on it (below).
+local SWITCH = { "H", "L", "[b", "]b", "[B", "]B", "<C-^>" }
 local function blocked_in(buf, lhs)
   local m = map(buf, lhs)
   t.ok(m.desc == "Disabled in CodeDiff" and m.nowait == 1 and m.buffer == 1,
@@ -252,7 +279,7 @@ vim.cmd.badd(vim.fn.fnameescape(root .. "/z01.txt"))
 for _, win in ipairs({ right, panel_win }) do
   vim.api.nvim_set_current_win(win)
   local buf = vim.api.nvim_win_get_buf(win)
-  local keys = { "H", "L", "[b", "]b", "<C-^>", "<C-6>" }
+  local keys = { "H", "L", "[b", "]b", "[B", "]B", "<C-^>", "<C-6>" }
   if win == right then keys[#keys + 1] = "-" end
   for _, lhs in ipairs(keys) do
     notices = {}
@@ -288,6 +315,7 @@ end
 t.eq(owners[",p"], "Markdown · preview", "a CodeDiff pane keeps its language section")
 t.eq(owners[",P"], "CodeDiff · panels/layout/conflicts", "and shows the view's own section")
 t.eq(owners[",z"], "CodeDiff · panels/layout/conflicts", "compact is in the view's section")
+t.eq(owners[",S"], "Review · feedback/stage/discard", ",S (stage hunk) is under Review, not the search panel")
 
 -- <leader>gv from inside the view: a bare :CodeDiff there would close it.
 notices = {}
@@ -450,11 +478,13 @@ t.eq(map(sample, ",p").desc, "Toggle Markdown preview", "closing CodeDiff preser
 t.ok(map(sample, ";").desc ~= "Disabled in CodeDiff", "; is no longer blocked")
 t.ok(map(sample, "s").desc ~= "Disabled in CodeDiff", "and neither is s")
 for lhs, desc in pairs({ H = "Prev buffer", L = "Next buffer", ["[b"] = "Prev buffer", ["]b"] = "Next buffer",
+  ["[B"] = "First buffer", ["]B"] = "Last buffer",
   ["-"] = "Parent directory (oil)" }) do
   t.eq(map(sample, lhs).desc, desc, lhs .. " is handed back to its global mapping")
 end
 t.eq(map(sample, "<C-^>"), {}, "and <C-^> to the builtin alternate buffer")
 t.eq(map(sample, "<ScrollWheelDown>"), {}, "the wheel overrides are gone")
+t.ok(map(sample, "]h").buffer ~= 1 and map(sample, "[h").buffer ~= 1, "]h/[h are gitsigns' global ones again")
 local leftovers = vim.tbl_filter(function(b) return vim.api.nvim_buf_get_name(b):match("^codediff://") ~= nil end,
   vim.api.nvim_list_bufs())
 t.eq(leftovers, {}, "no codediff:// buffer survives the view")
@@ -467,7 +497,7 @@ t.ok(said("No diff view in this tab") ~= nil, "<leader>gq without a view says so
 t.eq(#vim.api.nvim_list_tabpages(), 1, "and does not open one, the way a bare :CodeDiff would")
 
 ---------------------------------------------------------------------------
--- <leader>gm, <leader>gV, <leader>gH, and <leader>gq per tabpage
+-- <leader>gm, <leader>gh, <leader>gH, and <leader>gq per tabpage
 ---------------------------------------------------------------------------
 
 press("<leader>gm")
@@ -492,8 +522,8 @@ end
 
 vim.cmd.tabnext(1)
 vim.cmd.edit(vim.fn.fnameescape(root .. "/sample.md"))
-press("<leader>gV")
-t.ok(vim.wait(15000, history_ready, 20), "<leader>gV opens the file's history")
+press("<leader>gh")
+t.ok(vim.wait(15000, history_ready, 20), "<leader>gh opens the file's history")
 local file_tab = vim.api.nvim_get_current_tabpage()
 t.eq(vim.t.codediff_label, "history · sample.md", "labelled with the file")
 t.eq(map(cd.session(0).panel_bufnr, "q").desc, "Close diff view", "the history panel closes on q")
@@ -503,8 +533,8 @@ t.eq(#lifecycle.get_session(file_tab).panel.data.commits, 1, "sample.md has one 
 -- From inside a view: the left pane is not a file.
 vim.api.nvim_set_current_win(cd.session(0).panel_win)
 notices = {}
-press("<leader>gV")
-t.ok(said("not a file") ~= nil, "<leader>gV refuses CodeDiff's own buffers")
+press("<leader>gh")
+t.ok(said("not a file") ~= nil, "<leader>gh refuses CodeDiff's own buffers")
 
 -- <leader>gq closes the current tabpage's view and leaves the other alone.
 local tabs = #vim.api.nvim_list_tabpages()
@@ -659,8 +689,8 @@ do
   close_view()
 
   vim.cmd.edit(vim.fn.fnameescape(panel_root .. "/a.txt"))
-  press("<leader>gV")
-  t.ok(vim.wait(15000, history_ready, 20), "<leader>gV opens a.txt's history")
+  press("<leader>gh")
+  t.ok(vim.wait(15000, history_ready, 20), "<leader>gh opens a.txt's history")
   praw, pview, found = panel_entries()
   t.eq(type(praw.panel.data) == "table" and type(praw.panel.data.opts) == "table" and praw.panel.data.opts.file_path, "a.txt",
     "a single file's history names it in session.panel.data.opts.file_path")
@@ -711,8 +741,8 @@ do
   vim.cmd.cd(vim.fn.fnameescape(follow_root))
   for _, case in ipairs(follows) do
     vim.cmd.edit(vim.fn.fnameescape(follow_root .. "/" .. case.file))
-    press("<leader>gV")
-    t.ok(vim.wait(15000, history_ready, 20), "<leader>gV opens " .. case.file .. "'s history")
+    press("<leader>gh")
+    t.ok(vim.wait(15000, history_ready, 20), "<leader>gh opens " .. case.file .. "'s history")
     praw, pview, found = panel_entries()
     local listing = vim.tbl_map(function(c) return { c.subject, c.file_path } end, praw.panel.data.commits or {})
     t.eq(listing, { { "edit after", case.file }, { "rename", case.listed }, { "edit before", case.old }, { "create", case.old } },

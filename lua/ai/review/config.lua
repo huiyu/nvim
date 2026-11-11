@@ -115,7 +115,7 @@ local SCHEMA = {
   -- How long a native agent has to open its prompt editor for a delivered
   -- feedback draft before the delivery counts as failed and the draft is kept.
   seed_ttl_ms = setting(10000, integer(1, "a positive integer (milliseconds)")),
-  -- How many commits <leader>gH/<leader>gV hand to :CodeDiff history; false
+  -- How many commits <leader>gh/<leader>gH hand to :CodeDiff history; false
   -- lifts the limit.
   history_limit = setting(100, {
     expect = "a positive integer or false",

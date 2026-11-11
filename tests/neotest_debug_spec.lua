@@ -23,7 +23,7 @@ end
 for _, case in ipairs({ { "sample_test.go", 4, "TestFirst", "TestSecond" }, { "test_sample.py", 4, "test_first", "test_second" } }) do
   vim.cmd.edit(vim.fn.fnameescape(root .. "/" .. case[1]))
   vim.api.nvim_win_set_cursor(0, { case[2], 0 })
-  t.ok(invoke("td"), case[1] .. ": unified nearest key reaches the real neotest adapter")
+  t.ok(invoke("tM"), case[1] .. ": unified nearest key reaches the real neotest adapter")
   local nearest = vim.inspect(captured and captured.args)
   t.ok(nearest:find(case[3], 1, true) and not nearest:find(case[4], 1, true), case[1] .. ": nearest filter excludes sibling test")
   t.ok(invoke("tF"), case[1] .. ": unified file key reaches the real neotest adapter")

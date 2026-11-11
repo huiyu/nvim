@@ -147,7 +147,8 @@ for _, m in ipairs(vim.api.nvim_buf_get_keymap(0, "n")) do
 end
 t.eq(unexpected, {}, "all search-local prefixed actions use ,S without shadowing editing")
 owners, rendered = popup()
-t.eq(owners[",S"], "format/replace", "search subgroup is beside its search entry points")
+-- ,S is the panel's own heading: elsewhere it is a CodeDiff pane's stage key.
+t.eq(owners[",S"], "Search panel · actions", "search subgroup has a heading of its own in the panel")
 t.ok(rendered:find("Search panel", 1, true), "search subgroup has a readable label")
 owners = popup(",S")
 for _, case in ipairs({
@@ -200,6 +201,12 @@ for _, case in ipairs({
   { "tex", "[R", "x", "Prev frame end", "vimtex-[R" },
   { "tex", "]m", "n", "Next environment start", "vimtex-]m" },
   { "tex", "]*", "o", "Next comment end", "vimtex-]*" },
+  -- No global map holds ]]/[[ (the references are ]r/[r), so VimTeX maps its
+  -- Normal section motion too; lua/lang/tex.lua puts back the Normal frame
+  -- motions that the global ]r/[r made VimTeX skip.
+  { "tex", "]]", "n", "Next section start", "vimtex-]]" },
+  { "tex", "]r", "n", "Next frame start", "vimtex-]r" },
+  { "tex", "[r", "n", "Prev frame start", "vimtex-[r" },
   { "tex", "ac", "x", "command", "vimtex-ac" },
   { "tex", "im", "o", "inner item", "vimtex-im" },
   { "markdown", "[[", "x", "Prev section", "search(" },
@@ -214,12 +221,15 @@ buffer("python")
 local _, brackets = popup("]")
 t.ok(brackets:find("Next top-level class/def start", 1, true) and not brackets:find("Python_jump", 1, true),
   "python: the ] popup shows the motion's words, not its code")
+-- ]]/[[ are the buffer's section motion everywhere: no global map, so a plain
+-- buffer runs Vim's own. The references are ]r/[r, under the code heading.
+buffer("text")
+t.eq({ mapping("]]"), mapping("[[") }, { {}, {} }, "]] / [[ are left to Vim and the filetype")
+t.eq({ mapping("]r").desc, mapping("[r").desc }, { "Next reference", "Prev reference" }, "]r / [r are the references")
+t.eq(popup("]")["]r"], "code", "]r sits under the code heading")
 -- A key VimTeX leaves to a global map keeps the global map's own desc.
 buffer("tex")
 t.eq(mapping("]n", "x").buffer, 0, "tex: Visual ]n stays Nvim's node selection")
-local section = mapping("]]")
-t.ok(section.buffer == 1 or section.desc ~= "Next section start",
-  "tex: a global ]] is never relabelled as VimTeX's section motion")
 -- The desc belongs to the mapping, so it goes with the filetype.
 local py = buffer("python")
 vim.bo[py].filetype = "text"
