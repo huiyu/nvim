@@ -55,8 +55,8 @@ local function valid_buf(buf)
   return type(buf) == "number" and vim.api.nvim_buf_is_valid(buf)
 end
 
----The CodeCompanion adapter `kind` means when nothing names one: the default
----backend's ACP agent, or the key profile's HTTP adapter.
+---The CodeCompanion adapter `kind` means when nothing names one: the first
+---provider's ACP agent, or the key profile's HTTP adapter.
 ---@param kind ai.CompanionKind
 ---@return string
 function M.adapter_name(kind)
@@ -67,7 +67,11 @@ end
 ---@param kind ai.CompanionKind
 ---@return ai.Backend
 local function spec_of(kind)
-  local id = (kind == "acp" and "acp:" or "api:") .. M.adapter_name(kind)
+  local name = M.adapter_name(kind)
+  if not name then
+    error(("no provider offers %s (lua/ai/config.lua)"):format(kind == "acp" and "acp" or "an API key"), 0)
+  end
+  local id = (kind == "acp" and "acp:" or "api:") .. name
   for _, b in ipairs(config.backends()) do
     if b.id == id then return b end
   end
@@ -402,8 +406,8 @@ end
 ---Point CodeCompanion's inline and command prompts at the current key
 ---profile, after :AI key. A no-op until the plugin has loaded: its `opts` read
 ---the same state at load time (lua/plugin/lsp/codecompanion.lua). The chat
----adapter is not touched: it is the default backend's, fixed at load, and
----only CodeCompanion's own paths that name no adapter use it. The live config
+---adapter is not touched: it is the first provider's `acp`, fixed at load,
+---and only CodeCompanion's own paths that name no adapter use it. The live config
 ---is written directly, never `vim.g.codecompanion_adapter`, which v20's
 ---cmd.lua resolves through `config.adapters[name]` -- nil -- and so falls back
 ---to the ACP chat adapter.

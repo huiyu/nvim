@@ -222,7 +222,11 @@ t.ok(shown(anthropic) and not shown(openai) and #chats() == 2, "<leader>al swaps
 t.eq({ anthropic.ui.winnr, windows() }, { slot, base_windows + 1 }, "still in the one window")
 
 -- A pinned model reaches the new chat with the profile.
-config.key_profiles.spec_pinned = { adapter = "anthropic", label = "Spec", api_key = "NVIM_ANTHROPIC_API_KEY", model = "spec-model" }
+local providers = vim.deepcopy(config.providers)
+local with_pinned = vim.deepcopy(providers)
+with_pinned[#with_pinned + 1] = { name = "spec_pinned", label = "Spec",
+  api = { name = "spec_pinned", adapter = "anthropic", api_key = "NVIM_ANTHROPIC_API_KEY", model = "spec-model" } }
+config._set_providers(with_pinned)
 local pinned = backend("api:spec_pinned")
 t.ok(pinned ~= nil and pinned.available, "every key profile has an API chat entry")
 local params
@@ -231,7 +235,7 @@ require("codecompanion").chat = function(args) params = args.params end
 companion.create(pinned)
 require("codecompanion").chat = real_chat
 t.eq(params, { adapter = "spec_pinned", model = "spec-model" }, "a profile's pinned model goes along with its adapter")
-config.key_profiles.spec_pinned = nil
+config._set_providers(providers)
 
 -- A chat that comes back with earlier turns (what codecompanion-history
 -- restores) renders the custom header, and the buffer still parses: the next

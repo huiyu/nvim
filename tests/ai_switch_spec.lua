@@ -1,15 +1,17 @@
--- The AI state (lua/ai/config.lua) and :AI (lua/ai/switch.lua): a default
--- backend fixed at startup, and an HTTP key profile :AI key switches.
+-- The AI providers (lua/ai/config.lua) and :AI (lua/ai/switch.lua): an
+-- ordered provider list with no default backend, and an HTTP key profile
+-- :AI key switches.
 --
--- What is pinned: the default comes from NVIM_AI_PROVIDER > vim.g.ai_provider
--- > claude and only decides defaults -- the pickers' first entry, the `auto`
--- key, CodeCompanion's chat adapter for its own paths, Claude's watchdog at
--- VimEnter -- never what a key is called or where it acts; nothing switches
--- it in-process (`:AI provider` is gone, and says where its job went); a key
--- switch changes state, <leader>ae's description and CodeCompanion's
--- inline/cmd adapters and nothing else, `auto` follows the default until a
--- key is pinned, an invalid name changes nothing, and nothing loads a plugin.
--- No agent CLI is started and no request is sent.
+-- What is pinned: the list's order decides the picker (terminals, then ACP,
+-- then API chats, each in provider order), the `auto` key (the first API key
+-- that is set) and CodeCompanion's chat adapter for its own paths (the first
+-- acp) -- never what a key is called or where it acts; a bad list stops
+-- startup naming the provider (ai.config.build); NVIM_AI_PROVIDER and
+-- vim.g.ai_provider only earn a warning; `:AI provider` is gone, and says
+-- where its job went; a key switch changes state, <leader>ae's description
+-- and CodeCompanion's inline/cmd adapters and nothing else, an invalid name
+-- changes nothing, and nothing loads a plugin. No agent CLI is started and
+-- no request is sent.
 local t = dofile("tests/helper.lua")
 
 local config = require("ai.config")
@@ -29,20 +31,19 @@ vim.api.nvim_create_autocmd("User", {
 })
 
 -- Start from `auto`, whatever the shell exported, so the expectations below
--- can be written relative to the default alone.
+-- can be written relative to the list alone.
 local start_key = config.key_setting()
 if not config.key.auto then config.use_key("auto") end
 
-local default = config.default
-local other = default == "claude" and "codex" or "claude"
-local function label(p) return config.providers[p].label end
+local DEFAULT_LIST = vim.deepcopy(config.providers)
+local function label(agent) return config.agents[agent].label end
 local function desc(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true).desc end
 local function loaded(name)
   local plugin = Config.plugins[name]
   return plugin ~= nil and plugin._.loaded ~= nil
 end
 local function state()
-  return { default = config.default, key = vim.deepcopy(config.key), codecompanion = vim.deepcopy(config.codecompanion) }
+  return { key = vim.deepcopy(config.key), codecompanion = vim.deepcopy(config.codecompanion) }
 end
 
 ---Run `probe` in a fresh Nvim under `env` and decode the JSON it writes.
@@ -61,8 +62,8 @@ local function child(env, probe, pre)
   return ok and decoded or { error = (result.stdout or "") .. (result.stderr or ""), code = result.code }
 end
 
--- Every <leader>a key a default could have touched, Normal mode, but
--- <leader>ae, which names the key profile -- and so the default's under auto.
+-- Every <leader>a key a startup knob could have touched, Normal mode, but
+-- <leader>ae, which names the key profile.
 local LHS = { " an", " al", " ac", " af", " ar", " aR", " am", " ab", " ai", " at", " aT", " av", " aV", " ax",
   " ap", " ao", " aa", " ad", " ag", " aG", " ah", " aH" }
 
@@ -98,11 +99,11 @@ t.eq(prompts, { "New AI chat", "New AI chat" }, ":AI asks which chat (none open:
 
 -- Invalid input changes nothing and says so once.
 local before = state()
-for _, cmd in ipairs({ "AI provider", "AI provider " .. other, "AI provider nope" }) do
+for _, cmd in ipairs({ "AI provider", "AI provider codex", "AI provider nope" }) do
   notes = {}
   vim.cmd(cmd)
   t.ok(#notes == 1 and last().level == ERROR and last().msg:find(":AI new", 1, true) ~= nil
-    and last().msg:find("startup", 1, true) ~= nil,
+    and last().msg:find("lua/ai/config.lua", 1, true) ~= nil,
     (":%s is gone, and says where its job went: %s"):format(cmd, last().msg))
 end
 vim.cmd("AI key nope")
@@ -115,86 +116,134 @@ t.ok(last().level ~= ERROR and last().msg:find("already", 1, true) ~= nil, "the 
 t.eq(state(), before, "none of that changed the state")
 t.eq(#events, 0, "and none of it announced a change")
 
--- :AI info: the default, the key, the chats -- loading nothing for them.
+-- :AI info: the providers in order, the key, the chats -- loading nothing.
 notes = {}
 vim.cmd("AI info")
 local info = last().msg
-t.ok(info:find("Default", 1, true) ~= nil and info:find(label(default), 1, true) ~= nil,
-  ":AI info names the default backend")
-t.ok(info:find(config.default_source, 1, true) ~= nil, "and where it came from (" .. config.default_source .. ")")
+local at_claude = info:find("Providers Claude Code · terminal", 1, true)
+local at_codex = info:find("          Codex · terminal", 1, true)
+t.ok(at_claude ~= nil and at_codex ~= nil and at_claude < at_codex,
+  ":AI info lists the providers in their order, with their parts: " .. info)
+t.ok(info:find("CodeCompanion's own chats on claude_code (ACP)", 1, true) ~= nil,
+  "and the adapter CodeCompanion's own chats use: the first acp")
 t.ok(info:find("NVIM_ANTHROPIC_API_KEY", 1, true) and info:find("NVIM_OPENAI_API_KEY", 1, true),
   "and every key profile's variable")
 t.ok(info:find("Chats     none open", 1, true) ~= nil, "and the open chats: none yet")
-t.ok(info:find("Provider", 1, true) == nil, "with no provider line left")
+t.ok(info:find("Default", 1, true) == nil, "with no default backend left")
 vim.cmd("AIInfo")
 t.eq(last().msg, info, ":AIInfo prints the same summary")
 t.ok(not loaded("claudecode.nvim") and not loaded("codecompanion.nvim"), ":AI info loads no AI plugin")
 
 ---------------------------------------------------------------------------
--- The default backend: fixed at startup, deciding defaults only
+-- The provider list: its order is the only preference
 ---------------------------------------------------------------------------
 
-t.ok(config.provider == nil and config.use_provider == nil and config.is == nil and config.switched == nil,
-  "there is no active provider to read or switch")
-t.eq(config.backends()[1].id, default, "the default's terminal is the new-chat picker's first entry")
-t.eq(config.key.name, config.providers[default].key_profile, "auto resolves to the default's own key profile")
-t.eq(config.codecompanion.acp_adapter, config.providers[default].codecompanion.acp_adapter,
-  "and CodeCompanion's chat default is the default's ACP agent")
+t.ok(config.default == nil and config.default_source == nil and config.provider == nil
+  and config.use_provider == nil, "there is no default backend and no active provider")
+local ids = vim.tbl_map(function(b) return b.id end, config.backends())
+t.eq(ids, { "claude", "codex", "acp:claude_code", "acp:codex", "api:anthropic", "api:openai" },
+  "the picker lists the terminals, then the ACP chats, then the API chats, each in provider order")
+t.eq(vim.tbl_map(function(b) return b.provider end, config.backends()),
+  { "claude", "codex", "claude", "codex", "claude", "codex" }, "each entry names its provider")
+t.eq(config.agent_names(), { "claude", "codex" }, "the native agents, in provider order")
+t.eq(config.key_names(), { "anthropic", "openai" }, "the key profiles, in provider order")
+t.eq({ config.codecompanion.acp_adapter, config.codecompanion.chat_adapter }, { "claude_code", "claude_code" },
+  "CodeCompanion's own paths use the first provider's acp")
 
+-- `auto` is the first API key that is set, else the first profile.
+local saved_keys = { vim.env.NVIM_ANTHROPIC_API_KEY, vim.env.NVIM_OPENAI_API_KEY }
+vim.env.NVIM_ANTHROPIC_API_KEY, vim.env.NVIM_OPENAI_API_KEY = nil, "spec"
+t.eq(config.auto_key(), "openai", "auto skips a profile whose key is unset")
+vim.env.NVIM_ANTHROPIC_API_KEY = "spec"
+t.eq(config.auto_key(), "anthropic", "and takes the first in order when both are set")
+vim.env.NVIM_ANTHROPIC_API_KEY, vim.env.NVIM_OPENAI_API_KEY = nil, nil
+t.eq(config.auto_key(), "anthropic", "and the first profile when none is")
+vim.env.NVIM_ANTHROPIC_API_KEY, vim.env.NVIM_OPENAI_API_KEY = saved_keys[1], saved_keys[2]
+config.use_key("auto")
+
+-- Another order, and providers offering only some parts: the derived tables
+-- follow the list, and nothing names a default.
+local reordered = vim.deepcopy(DEFAULT_LIST)
+reordered[1], reordered[2] = reordered[2], reordered[1]
+reordered[2].acp = nil -- claude: terminal and API only
+table.insert(reordered, { name = "anthropic_work", label = "Anthropic (work)",
+  api = { name = "anthropic_work", adapter = "anthropic", api_key = "NVIM_SPEC_WORK_KEY", model = "spec-model" } })
+config._set_providers(reordered)
+t.eq(vim.tbl_map(function(b) return b.id end, config.backends()),
+  { "codex", "claude", "acp:codex", "api:openai", "api:anthropic", "api:anthropic_work" },
+  "a reordered list reorders every group; a part left out is not offered")
+t.eq({ config.agent_names(), config.key_names() }, { { "codex", "claude" }, { "openai", "anthropic", "anthropic_work" } },
+  "agents and key profiles follow the list")
+t.eq({ config.codecompanion.acp_adapter, config.codecompanion.chat_adapter }, { "codex", "codex" },
+  "the first acp is now Codex's")
+t.eq(config.key_profiles.anthropic_work.label, "Anthropic (work)", "an api-only provider is a key profile of its own")
+config._set_providers({ { name = "only_api", label = "Only API",
+  api = { adapter = "openai", api_key = "NVIM_OPENAI_API_KEY" } } })
+t.eq({ config.codecompanion.acp_adapter, config.codecompanion.chat_adapter, config.agent_names() },
+  { nil, "openai", {} }, "with no acp, CodeCompanion's own chats fall back to the first api")
+config._set_providers(DEFAULT_LIST)
+t.eq(vim.tbl_map(function(b) return b.id end, config.backends()), ids, "(the default list is back)")
+config.use_key("auto")
+
+-- A bad list stops startup, naming the provider and what is wrong.
+local function refused(list, says, what)
+  local ok, err = pcall(config.build, list)
+  t.ok(not ok and tostring(err):find(says, 1, true) ~= nil, ("%s is refused (%s)"):format(what, tostring(err)))
+end
+local claude = vim.deepcopy(DEFAULT_LIST[1])
+refused({}, "non-empty list", "an empty list")
+refused({ claude, vim.deepcopy(claude) }, '"claude" is listed twice', "a provider listed twice")
+refused({ { name = "x", label = "X" } }, "offers none of tui, acp, api", "a provider offering nothing")
+refused({ { name = "x", label = "X", tui = { kind = "gemini" } } }, "tui.kind must be one of", "an unimplemented tui kind")
+refused({ claude, { name = "claude2", label = "C2", tui = { kind = "claude" } } }, 'tui kind "claude" is already offered',
+  "a second provider on the same tui kind")
+refused({ { name = "x", label = "X", acp = { adapter = "claude_code" } } }, "acp needs an adapter and a command",
+  "an acp part without a command")
+refused({ claude, { name = "y", label = "Y", api = { adapter = "anthropic", api_key = "NVIM_Y_KEY" } } },
+  'api name "anthropic" is used twice', "two api parts on one adapter without api.name")
+refused({ { name = "x", label = "X", api = { adapter = "openai", api_key = "OPENAI_API_KEY" } } },
+  "must read an NVIM_* variable", "an api part reading a CLI's own variable")
+t.ok(pcall(config.build, DEFAULT_LIST), "the shipped list is accepted")
+
+-- A fresh Nvim: the same picker and keys, and no startup knob left. An old
+-- NVIM_AI_PROVIDER or vim.g.ai_provider only earns a warning -- even a value
+-- that was never valid -- and Claude's watchdog waits for claudecode.
 local probe = [[
+  vim.wait(200, function() return #_G.spec_notes > 0 end)
   local c = require("ai.config")
   local keys = {}
   for _, k in ipairs(vim.json.decode(vim.env.SPEC_LHS)) do keys[k] = vim.fn.maparg(k, "n", false, true).desc or vim.NIL end
-  local ok, watchdog = pcall(vim.api.nvim_get_autocmds, { group = "ClaudeTmuxWatchdog", event = "VimEnter" })
+  local ok, watchdog = pcall(vim.api.nvim_get_autocmds, { group = "ClaudeTmuxWatchdog" })
   io.stdout:write(vim.json.encode({
-    default = c.default, source = c.default_source, key = c.key.name, acp = c.codecompanion.acp_adapter,
-    first = c.backends()[1].id, keys = keys, watchdog = ok and #watchdog or 0,
-    ae = vim.fn.maparg(" ae", "n", false, true).desc,
+    ids = vim.tbl_map(function(b) return b.id end, c.backends()), keys = keys,
+    watchdog = ok and #watchdog or 0, notes = _G.spec_notes,
   }))
   vim.cmd("qa!")
 ]]
 local lhs_json = vim.json.encode(LHS)
-local started = {}
-for _, case in ipairs({
-  { env = { NVIM_AI_PROVIDER = "claude" }, default = "claude", source = "NVIM_AI_PROVIDER" },
-  { env = { NVIM_AI_PROVIDER = "CODEX" }, default = "codex", source = "NVIM_AI_PROVIDER" },
-  { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = 'codex'", default = "codex", source = "vim.g.ai_provider" },
-  { env = { NVIM_AI_PROVIDER = "" }, default = "claude", source = "built-in" },
-  -- Empty means unset in vim.g as in the environment.
-  { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = ''", default = "claude", source = "built-in" },
-}) do
-  local got = child(vim.tbl_extend("force", case.env, { SPEC_LHS = lhs_json }), probe, case.pre)
-  local what = ("%s (%s)"):format(case.default, case.source)
-  t.eq({ got.default, got.source }, { case.default, case.source }, what .. ": the default and where it came from")
-  t.eq({ got.first, got.key, got.acp }, { case.default, config.providers[case.default].key_profile,
-    config.providers[case.default].codecompanion.acp_adapter }, what .. ": first entry, auto key and chat adapter follow")
-  t.eq(got.watchdog, case.default == "claude" and 1 or 0,
-    what .. ": Claude's watchdog waits for VimEnter only when Claude is the default")
-  t.eq(got.ae, ("Inline edit · %s (HTTP)"):format(config.key_profiles[config.providers[case.default].key_profile].label),
-    what .. ": <leader>ae names the key auto resolves to")
-  started[case.default] = got.keys
-end
 local here = {}
 for _, k in ipairs(LHS) do here[k] = desc(k) or vim.NIL end
-t.eq(started.claude, started.codex, "every <leader>a key reads the same whichever agent is the default")
-t.eq(here, started[default], "and the same as here")
+for _, case in ipairs({
+  { env = { NVIM_AI_PROVIDER = "" }, warns = nil },
+  { env = { NVIM_AI_PROVIDER = "codex" }, warns = "NVIM_AI_PROVIDER" },
+  { env = { NVIM_AI_PROVIDER = "gemini" }, warns = "NVIM_AI_PROVIDER" },
+  { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = 'codex'", warns = "vim.g.ai_provider" },
+}) do
+  local got = child(vim.tbl_extend("force", case.env, { SPEC_LHS = lhs_json }), probe, case.pre)
+  local what = case.warns and (case.warns .. " set") or "nothing set"
+  t.eq(got.ids, ids, what .. ": the same picker")
+  t.eq(got.keys, here, what .. ": every <leader>a key reads the same")
+  t.eq(got.watchdog, 0, what .. ": nothing waits for VimEnter to start Claude's watchdog")
+  local said = vim.tbl_filter(function(n) return n.msg:find("is no longer read", 1, true) ~= nil end, got.notes or {})
+  if case.warns then
+    t.ok(#said == 1 and said[1].level == WARN and said[1].msg:find(case.warns, 1, true) ~= nil,
+      what .. ": one warning, naming the knob: " .. vim.inspect(got.notes or got))
+  else
+    t.eq(#said, 0, what .. ": no warning")
+  end
+end
 for _, lhs in ipairs({ " ag", " aG", " ah", " aH", " aa", " ad" }) do
   t.eq(here[lhs], vim.NIL, "<leader>" .. lhs:sub(2) .. " is not mapped at startup")
-end
-
--- Anything else that names no agent stops startup, naming the knob it came
--- from: a value of another type too, rather than a Lua error about it.
-for _, case in ipairs({
-  { env = { NVIM_AI_PROVIDER = "gemini" }, says = 'Invalid NVIM_AI_PROVIDER="gemini"' },
-  { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = 'gemini'", says = 'Invalid vim.g.ai_provider="gemini"' },
-  { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = v:true", says = "Invalid vim.g.ai_provider=true" },
-}) do
-  local cmd = { vim.v.progpath, "--headless", "-u", "init.lua", "-i", "NONE" }
-  if case.pre then vim.list_extend(cmd, { "--cmd", case.pre }) end
-  local bad = vim.system(vim.list_extend(cmd, { "+qa" }), { env = case.env, text = true }):wait(30000)
-  local said = (bad.stdout or "") .. (bad.stderr or "")
-  t.ok(said:find(case.says, 1, true) ~= nil and said:find("expected 'claude' or 'codex'", 1, true) ~= nil,
-    ("%s is an error at startup, naming it and what it takes"):format(case.says:match("^Invalid (.*)$")))
 end
 
 ---------------------------------------------------------------------------
@@ -206,17 +255,17 @@ t.ok(not has(" aa") and not has(" ad"), "<leader>aa/ad do not exist before claud
 local real_cc = package.loaded["claudecode"]
 package.loaded["claudecode"] = {}
 require("ai").apply_keymaps()
-t.ok(has(" aa") and has(" ad"), "and exist once it has, whichever agent is the default")
+t.ok(has(" aa") and has(" ad"), "and exist once it has, whatever is on the right")
 t.eq({ desc(" aa"), desc(" ad") }, { "Accept Claude diff", "Deny Claude diff" }, "naming whose diff they answer")
 package.loaded["claudecode"] = real_cc
 require("ai").apply_keymaps()
 t.ok(not has(" aa"), "(gone again with the stand-in)")
 
 ---------------------------------------------------------------------------
--- The key profile: auto follows the default, a name pins
+-- The key profile: auto is the first key set, a name pins
 ---------------------------------------------------------------------------
 
-local follows = config.providers[default].key_profile
+local follows = config.auto_key()
 local pinned = follows == "anthropic" and "openai" or "anthropic"
 t.eq(desc(" ae"), ("Inline edit · %s (HTTP)"):format(config.key_profiles[follows].label), "<leader>ae names the key")
 
@@ -226,9 +275,9 @@ t.eq({ config.key.name, config.key.auto }, { pinned, false }, ":AI key <name> pi
 t.eq(events[#events], { axis = "key", from = "auto", to = pinned }, "and announces it")
 t.eq(config.codecompanion.api_key, config.key_profiles[pinned].api_key, "the HTTP key follows the profile")
 t.eq(desc(" ae"), ("Inline edit · %s (HTTP)"):format(config.key_profiles[pinned].label), "<leader>ae is relabelled")
-t.eq(config.default, default, "the default backend stays where it was")
+t.eq(vim.tbl_map(function(b) return b.id end, config.backends()), ids, "the picker stays as it was")
 vim.cmd("AI key auto")
-t.eq({ config.key.name, config.key.auto }, { follows, true }, ":AI key auto follows the default again")
+t.eq({ config.key.name, config.key.auto }, { follows, true }, ":AI key auto resolves again")
 
 -- An unset variable still switches, with a warning, because it is about which
 -- key rather than whether one is exported yet.
@@ -259,13 +308,13 @@ t.ok(pcall(config.check_key_profile, "x", { adapter = "openai", label = "x", api
   "an NVIM_* variable is accepted")
 
 -- NVIM_AI_KEY_PROFILE sets the startup key; a typo falls back to auto.
-local pinned_start = child({ NVIM_AI_PROVIDER = default, NVIM_AI_KEY_PROFILE = pinned }, [[
+local pinned_start = child({ NVIM_AI_KEY_PROFILE = pinned }, [[
   local c = require("ai.config")
   io.stdout:write(vim.json.encode({ name = c.key.name, auto = c.key.auto }))
   vim.cmd("qa!")
 ]])
 t.eq(pinned_start, { name = pinned, auto = false }, "NVIM_AI_KEY_PROFILE pins the startup key")
-local typo = child({ NVIM_AI_PROVIDER = default, NVIM_AI_KEY_PROFILE = "anthropik" }, [[
+local typo = child({ NVIM_AI_KEY_PROFILE = "anthropik" }, [[
   vim.wait(100, function() return #_G.spec_notes > 0 end)
   local c = require("ai.config")
   io.stdout:write(vim.json.encode({ name = c.key.name, auto = c.key.auto, notes = _G.spec_notes }))
@@ -297,7 +346,7 @@ t.eq(config.key.name, pinned, "choosing a profile there pins it")
 vim.cmd("AI key auto")
 
 ---------------------------------------------------------------------------
--- oil's <leader>aS is in every listing, whichever agent is the default
+-- oil's <leader>aS is in every listing
 ---------------------------------------------------------------------------
 
 -- Without oil.nvim's own FileType handling: apply_keymaps finds the buffer.
@@ -308,15 +357,6 @@ local tree_key = vim.api.nvim_buf_call(oil_buf, function() return vim.fn.maparg(
 t.ok(tree_key.buffer == 1 and tree_key.desc == "Add file under cursor to Claude Code",
   "<leader>aS is mapped in an oil buffer, naming Claude Code")
 vim.api.nvim_buf_delete(oil_buf, { force = true })
-local other_oil = child({ NVIM_AI_PROVIDER = other }, [[
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_call(buf, function() vim.cmd("noautocmd setlocal filetype=oil") end)
-  require("ai").apply_keymaps()
-  local m = vim.api.nvim_buf_call(buf, function() return vim.fn.maparg(" aS", "n", false, true) end)
-  io.stdout:write(vim.json.encode({ desc = m.desc or vim.NIL, buffer = m.buffer or vim.NIL }))
-  vim.cmd("qa!")
-]])
-t.eq(other_oil, { desc = "Add file under cursor to Claude Code", buffer = 1 }, "and so it is with " .. other .. " the default")
 
 ---------------------------------------------------------------------------
 -- CodeCompanion: loaded on the current key, then kept in step by :AI key
@@ -328,28 +368,31 @@ require("lazy").load({ plugins = { "codecompanion.nvim" } })
 local cc = require("codecompanion.config")
 t.eq(cc.interactions.inline.adapter, pinned, "a key pinned before CodeCompanion loads reaches its inline adapter")
 t.eq(cc.interactions.cmd.adapter, pinned, "and its command adapter")
-t.eq(cc.interactions.chat.adapter, config.providers[default].codecompanion.acp_adapter,
-  "its chat adapter, for its own paths that name none, is the default's ACP agent")
+t.eq(cc.interactions.chat.adapter, "claude_code",
+  "its chat adapter, for its own paths that name none, is the first provider's acp")
 
 vim.cmd("AI key auto")
 t.eq(cc.interactions.inline.adapter, follows, "after loading, :AI key auto moves inline prompts back")
 t.eq(cc.interactions.cmd.adapter, follows, "and command prompts")
-t.eq(cc.interactions.chat.adapter, config.providers[default].codecompanion.acp_adapter, "and leaves the chat adapter alone")
+t.eq(cc.interactions.chat.adapter, "claude_code", "and leaves the chat adapter alone")
 t.eq(require("codecompanion.adapters").resolve(cc.interactions.inline.adapter).name, config.key.name,
   "the live inline adapter resolves")
 t.eq(vim.g.codecompanion_adapter, nil, "vim.g.codecompanion_adapter is never set")
 
--- And in a Nvim started for the other agent, its ACP agent and its key: what
--- a typed :CodeCompanionChat opens there. Loading the plugin creates no chat.
-local other_cc = child({ NVIM_AI_PROVIDER = other }, [[
+-- And with Codex first in the list, its ACP agent: what a typed
+-- :CodeCompanionChat opens there. Loading the plugin creates no chat.
+local reordered_cc = child({ NVIM_OPENAI_API_KEY = "spec" }, [[
+  local c = require("ai.config")
+  local list = vim.deepcopy(c.providers)
+  list[1], list[2] = list[2], list[1]
+  c._set_providers(list)
   require("lazy").load({ plugins = { "codecompanion.nvim" } })
   local i = require("codecompanion.config").interactions
   io.stdout:write(vim.json.encode({ chat = i.chat.adapter, inline = i.inline.adapter, cmd = i.cmd.adapter }))
   vim.cmd("qa!")
 ]])
-local other_key = config.providers[other].key_profile
-t.eq(other_cc, { chat = config.providers[other].codecompanion.acp_adapter, inline = other_key, cmd = other_key },
-  ("with %s the default, CodeCompanion's own chats start on its ACP agent and inline prompts on its key"):format(other))
+t.eq(reordered_cc, { chat = "codex", inline = "openai", cmd = "openai" },
+  "with Codex first, CodeCompanion's own chats start on its acp and auto on its set key")
 
 ---------------------------------------------------------------------------
 -- The statusline names a pinned key, and only that
@@ -390,8 +433,8 @@ if key_component then pcall(key_component.on_click) end
 switch.pick = real_pick
 t.eq(picks, 1, "clicking it opens the key picker (:AI key)")
 
--- An agent terminal is labelled by the agent it runs, whichever is the
--- default; anything else keeps its own name or title.
+-- An agent terminal is labelled by the agent it runs; anything else keeps
+-- its own name or title.
 local filename_fmt
 for _, component in ipairs(require("lualine").get_config().sections.lualine_c) do
   if type(component) == "table" and component[1] == "filename" then filename_fmt = component.fmt end
@@ -406,12 +449,12 @@ if filename_fmt then
     claude = Config.spec.plugins["claudecode.nvim"].opts.terminal_cmd,
     codex = { "codex", "--no-alt-screen", "--yolo" },
   }
-  for _, agent in ipairs({ default, other }) do
+  for _, agent in ipairs({ "claude", "codex" }) do
     vim.b.snacks_terminal = { cmd = commands[agent] }
     local shown = filename_fmt("term://whatever")
     local rival = agent == "claude" and "codex" or "claude"
     t.ok(vim.endswith(shown, " " .. label(agent)) and not shown:find(label(rival), 1, true),
-      ("a %s terminal reads %s with %s the default (%q)"):format(agent, label(agent), label(default), shown))
+      ("a %s terminal reads %s (%q)"):format(agent, label(agent), shown))
   end
   vim.b.snacks_terminal = { cmd = { vim.o.shell } }
   vim.b.term_title = "spec-title"
@@ -438,7 +481,7 @@ t.ok(config.is_native_command({ "claude" }) and config.is_native_command({ "code
   "is_native_command recognises every configured agent")
 
 ---------------------------------------------------------------------------
--- claudecode.nvim is declared, lazily, whichever agent is the default
+-- claudecode.nvim is declared, lazily, whatever the providers
 ---------------------------------------------------------------------------
 
 local declared_probe = [[
@@ -453,11 +496,8 @@ local declared_probe = [[
   vim.cmd("qa!")
 ]]
 local want = { declared = true, lazy = true, opts_table = true, loaded = false, to_clean = 0, stub = 2, open = 2 }
-for _, name in ipairs({ "claude", "codex" }) do
-  t.eq(child({ NVIM_AI_PROVIDER = name }, declared_probe), want,
-    ("%s the default: claudecode is declared and lazy, nothing to clean, unloaded, :ClaudeCodeOpen a trigger")
-      :format(name))
-end
+t.eq(child({}, declared_probe), want,
+  "claudecode is declared and lazy, nothing to clean, unloaded, :ClaudeCodeOpen a trigger")
 
 if start_key ~= "auto" then config.use_key(start_key) end
 vim.notify = real_notify

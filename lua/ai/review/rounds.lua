@@ -106,7 +106,7 @@ local function tilde(path)
 end
 
 local function agent_label(agent)
-  local p = require("ai.config").providers[agent]
+  local p = require("ai.config").agents[agent]
   return p and p.label or agent
 end
 

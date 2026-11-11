@@ -9,7 +9,8 @@ local function backend(name)
 end
 
 local function label_of(name)
-  return config.providers[name].label
+  local agent = config.agents[name]
+  return agent and agent.label or tostring(name)
 end
 
 --- Run `fn` for `method` and turn a failure into a notification: the facade
@@ -78,7 +79,7 @@ end
 ---@param provider string
 ---@param method string
 function M.feed(provider, method, ...)
-  if not config.providers[provider] then
+  if not config.agents[provider] then
     vim.notify(("Unknown AI provider %q"):format(tostring(provider)), WARN)
     return
   end
@@ -176,7 +177,7 @@ end
 local function tree_target()
   local item = slot().target_now()
   local agent = item and item.kind == "native" and item.agent
-  if agent and config.providers[agent].native.capabilities.tree_add then return agent, item end
+  if agent and config.agents[agent].capabilities.tree_add then return agent, item end
   return nil, item
 end
 
@@ -253,7 +254,7 @@ end
 ---@param paths string[]
 ---@param provider string the agent whose prompt the images belong to
 function M.attach_images(paths, provider)
-  if not config.providers[provider] then
+  if not config.agents[provider] then
     -- No agent to guess at: an image sent to the wrong one is worse than none.
     for _, png in ipairs(paths or {}) do vim.fn.delete(png) end
     return notify("The images belong to no known agent's prompt: nothing was attached", WARN)
@@ -372,7 +373,7 @@ function M.new_round()
   return guard("AI review", "start", function() return require("ai.review.rounds").start() end)
 end
 
----The default backend, the key profile and every open chat, for :AI info.
+---The providers, the key profile and every open chat, for :AI info.
 ---Never loads claudecode.nvim or CodeCompanion to answer.
 function M.info()
   local function set(var) return (vim.env[var] or "") ~= "" end
@@ -383,10 +384,19 @@ function M.info()
     profiles[name] = { label = p.label, var = p.api_key, set = set(p.api_key) }
   end
 
+  -- Each provider in order, with the parts it offers and whether each can
+  -- start here (ai.config.backends: PATH and the environment only).
+  local parts = {}
+  for _, b in ipairs(config.backends()) do
+    parts[b.provider] = parts[b.provider] or {}
+    local what = b.kind == "native" and "terminal" or b.kind == "acp" and "ACP" or "API"
+    table.insert(parts[b.provider], { what = what, available = b.available })
+  end
+  local providers = {}
   local cli_keys = {}
-  for _, name in ipairs(config.names()) do
-    local var = config.providers[name].cli_api_key
-    cli_keys[var] = set(var)
+  for _, p in ipairs(config.providers) do
+    providers[#providers + 1] = { name = p.name, label = p.label, parts = parts[p.name] or {} }
+    if p.cli_api_key then cli_keys[p.cli_api_key] = set(p.cli_api_key) end
   end
 
   -- A summary must not fail on one chat's question.
@@ -397,22 +407,22 @@ function M.info()
     if got then chats[#chats + 1] = { id = item.id, label = label, where = where } end
   end
 
+  local chat, http = config.codecompanion.chat_adapter, config.codecompanion.http_adapter
   return {
-    default = config.default,
-    default_label = label_of(config.default),
-    default_source = config.default_source,
+    providers = providers,
     key = {
       name = config.key.name,
       label = config.key.label,
       auto = config.key.auto,
       var = config.codecompanion.api_key,
-      set = set(config.codecompanion.api_key),
+      set = config.codecompanion.api_key ~= nil and set(config.codecompanion.api_key),
     },
     profiles = profiles,
     cli_keys = cli_keys,
     codecompanion = {
-      chat = config.codecompanion.acp_adapter .. " (ACP)",
-      inline = config.codecompanion.http_adapter .. " (HTTP)",
+      chat = chat and (chat .. (chat == config.codecompanion.acp_adapter and " (ACP)" or " (HTTP)"))
+        or "CodeCompanion's own default",
+      inline = http and (http .. " (HTTP)") or "none (no provider offers api)",
     },
     chats = chats,
   }
@@ -496,7 +506,7 @@ function M.apply_keymaps()
   })
 
   -- Claude's diffs arrive through claudecode.nvim, so the keys exist once it
-  -- has loaded -- whatever is on the right, whichever agent is the default.
+  -- has loaded -- whatever is on the right.
   local diffs = package.loaded["claudecode"] ~= nil
   for lhs, spec in pairs({
     ["<leader>aa"] = { M.accept_diff, "Accept Claude diff" },

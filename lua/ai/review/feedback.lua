@@ -105,7 +105,7 @@ local function valid_buf(buf)
 end
 
 local function agent_label(agent)
-  local p = require("ai.config").providers[agent]
+  local p = require("ai.config").agents[agent]
   return p and p.label or tostring(agent)
 end
 

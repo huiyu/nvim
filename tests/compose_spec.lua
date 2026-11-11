@@ -8,7 +8,7 @@ local t = dofile("tests/helper.lua")
 local ai = require("ai")
 local config = require("ai.config")
 local editor = require("ai.editor")
-local backend = require("ai.backend." .. config.default)
+local backend = require("ai.backend." .. config.agent_names()[1])
 
 -- UC-1: the key sent to the pty is exactly what both TUIs bind to "edit this
 -- prompt in $EDITOR". Verified against both CLIs: a bare 0x07 opens it.
@@ -124,8 +124,8 @@ ai.compose()
 t.eq(#seen, 1, "UC-1: compose reaches the backend once")
 t.eq(seen[1] and seen[1].seed, nil, "UC-1: outside Visual mode there is no seed")
 t.eq(#asked, 1, "with no chat on the right, it asks once")
-t.ok(asked[1] and asked[1].first:find(config.providers[config.default].label .. " · terminal", 1, true) == 1,
-  "offering the default backend's terminal first (" .. tostring(asked[1] and asked[1].first) .. ")")
+t.ok(asked[1] and asked[1].first:find(config.agents[config.agent_names()[1]].label .. " · terminal", 1, true) == 1,
+  "offering the first provider's terminal first (" .. tostring(asked[1] and asked[1].first) .. ")")
 
 -- Drive a real Visual selection: ai.selection reads mode() and the `v` mark, so
 -- a faked range would not exercise the path <leader>ai actually takes.

@@ -36,7 +36,7 @@
 -- "The chat on the right" (target) is read off the windows alone: the one
 -- shown in this tabpage; from a CodeDiff view, the one shown in the tabpage
 -- the view came from; otherwise the user is asked. Nothing is ever delivered
--- to a hidden chat, another tabpage's or the default backend without asking.
+-- to a hidden chat, another tabpage's or a provider picked for the user.
 -- vim.t.ai_slot_last only lets <leader>ac/af bring the last one back.
 -- claudecode's passive selection tracking is not part of this: it stays on,
 -- so a running Claude still sees the editor's selection while it is hidden.
@@ -103,7 +103,7 @@ end
 ---@return ai.SlotItem[]
 function M.list()
   local items = {}
-  for _, agent in ipairs(config.names()) do
+  for _, agent in ipairs(config.agent_names()) do
     if ask(backend(agent).running) then items[#items + 1] = M.native_item(agent) end
   end
   for _, entry in ipairs(companion().chats()) do
@@ -118,7 +118,7 @@ end
 ---@param buf integer
 ---@return ai.SlotItem|nil
 function M.item_of_buf(buf)
-  for _, agent in ipairs(config.names()) do
+  for _, agent in ipairs(config.agent_names()) do
     if ask(backend(agent).buf) == buf then return M.native_item(agent) end
   end
   local chat = companion().chat_of(buf)
@@ -132,7 +132,7 @@ local function resolve(id)
   if type(id) ~= "string" then return nil end
   local agent = id:match("^native:(.+)$")
   if agent then
-    return config.providers[agent] and ask(backend(agent).running) and M.native_item(agent) or nil
+    return config.agents[agent] and ask(backend(agent).running) and M.native_item(agent) or nil
   end
   local buf = id:match("^cc:(%d+):")
   local chat = buf and companion().chat_of(tonumber(buf))
@@ -143,13 +143,13 @@ end
 ---@param item ai.SlotItem
 ---@return string
 function M.label(item)
-  if item.kind == "native" then return config.providers[item.agent].label .. " · terminal · subscription" end
+  if item.kind == "native" then return config.agents[item.agent].label .. " · terminal · subscription" end
   return companion().label(item.chat, item.entry)
 end
 
 ---The agent's or the chat's short name, for a sentence.
 local function name(item)
-  if item.kind == "native" then return config.providers[item.agent].label end
+  if item.kind == "native" then return config.agents[item.agent].label end
   return companion().name(item.chat)
 end
 
@@ -220,7 +220,7 @@ end
 ---@return { item: ai.SlotItem, win?: integer }[]
 function M.victims(keep)
   local out = {}
-  for _, agent in ipairs(config.names()) do
+  for _, agent in ipairs(config.agent_names()) do
     if not (keep and keep.id == "native:" .. agent) then
       local b = backend(agent)
       if ask(b.visible) then out[#out + 1] = { item = M.native_item(agent), win = ask(b.window) } end
@@ -713,7 +713,7 @@ function M.focus()
 end
 
 ---The native agent on the right, else the one asked for -- the installed
----agents, the default backend's first; with one installed, that one -- for
+---agents, in provider order; with one installed, that one -- for
 ---the keys only a native agent answers (resume, continue, model, transcripts).
 ---@param cb fun(agent: string)
 ---@param opts? { prompt?: string }
@@ -736,7 +736,7 @@ function M.native_target(cb, opts)
   select(agents, {
     prompt = opts.prompt or "Which native agent?",
     kind = "ai_slot_agent",
-    format_item = function(agent) return config.providers[agent].label end,
+    format_item = function(agent) return config.agents[agent].label end,
   }, cb, from)
 end
 

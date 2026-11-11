@@ -5,7 +5,7 @@
 -- the others there through their owner's hide, never stopping them and never
 -- touching another tabpage; the keys act on the chat on the right, asking when
 -- there is none and never delivering to a hidden chat, another tabpage's or
--- the default backend silently; a CodeDiff view hands the keys to the page it
+-- a provider picked for the user silently; a CodeDiff view hands the keys to the page it
 -- came from; a guard holds the rule for upstream's own paths.
 --
 -- The agents are stand-ins: scripts named after each CLI that run `cat`, ahead
@@ -14,9 +14,9 @@
 -- terminal, so the plugin, its WebSocket server and lockfile stay out of it.
 -- Chats are real API chats on fake NVIM_* keys with CodeCompanion's curl layer
 -- stubbed; none is submitted, and no ACP chat is ever created (that spawns the
--- bridge). Questions are answered by a stand-in vim.ui.select. Nothing here
--- depends on which provider is the default: run it under NVIM_AI_PROVIDER=codex
--- too when the slot changes.
+-- bridge). Questions are answered by a stand-in vim.ui.select. There is no
+-- default backend: where the provider order shows, the list is reordered
+-- in-process (ai.config._set_providers) and put back.
 local t = dofile("tests/helper.lua")
 
 local api = vim.api
@@ -233,10 +233,14 @@ local root = vim.fs.dirname(vim.fs.dirname(file))
 ---------------------------------------------------------------------------
 
 local ids = function(list) return vim.tbl_map(function(b) return b.id end, list) end
-t.eq(ids(config.backends("claude")), { "claude", "codex", "acp:claude_code", "acp:codex", "api:anthropic", "api:openai" },
-  "terminals, ACP chats, API chats: Claude's first in each when it is the default")
-t.eq(ids(config.backends("codex")), { "codex", "claude", "acp:codex", "acp:claude_code", "api:openai", "api:anthropic" },
-  "and Codex's first when it is")
+local PROVIDERS = vim.deepcopy(config.providers)
+local REVERSED = { vim.deepcopy(PROVIDERS[2]), vim.deepcopy(PROVIDERS[1]) }
+t.eq(ids(config.backends()), { "claude", "codex", "acp:claude_code", "acp:codex", "api:anthropic", "api:openai" },
+  "terminals, ACP chats, API chats, each in provider order: Claude's first")
+config._set_providers(REVERSED)
+t.eq(ids(config.backends()), { "codex", "claude", "acp:codex", "acp:claude_code", "api:openai", "api:anthropic" },
+  "and Codex's first when it is listed first")
+config._set_providers(PROVIDERS)
 local by_id = {}
 for _, b in ipairs(config.backends()) do by_id[b.id] = b end
 t.eq(by_id.claude.label, "Claude Code · terminal · subscription", "a terminal says what it is and who bills it")
@@ -273,8 +277,8 @@ asked, notes = {}, {}
 ai.toggle()
 t.eq(#asked, 1, "<leader>ac with nothing open asks")
 t.eq(asked[1] and asked[1].prompt, "New AI chat", "with the new-chat picker")
-t.ok(asked[1] and asked[1].shown[1]:find(config.providers[config.default].label .. " · terminal", 1, true) == 1,
-  "the default backend's terminal first, so <CR> starts it")
+t.ok(asked[1] and asked[1].shown[1]:find(config.agents[config.agent_names()[1]].label .. " · terminal", 1, true) == 1,
+  "the first provider's terminal first, so <CR> starts it")
 t.eq(#wins(), 1, "cancelled, nothing opens")
 
 -- CodeCompanion, with nothing sent anywhere.
@@ -596,10 +600,10 @@ ai.compose()
 t.ok(noted("The chat is replying") ~= nil and vim.fn.mode() == "n", "a chat that is replying gets the cursor, not Insert mode")
 anthropic._turn_in_progress = nil
 
--- A native agent on the right gets <leader>ai, whichever is the default.
-local other = config.default == "claude" and "codex" or "claude"
+-- A native agent on the right gets <leader>ai, whichever it is.
+local other = config.agent_names()[2]
 editor()
-choose(config.providers[other].label .. " · terminal")
+choose(config.agents[other].label .. " · terminal")
 ai.switch_chat()
 vim.cmd("stopinsert")
 settle()
@@ -612,10 +616,10 @@ api.nvim_win_set_cursor(0, { 1, 0 })
 api.nvim_feedkeys("V", "x", false)
 ai.compose()
 claude.edit_prompt, codex.edit_prompt = real_edit.claude, real_edit.codex
-t.eq({ #prompts[other], #prompts[config.default] }, { 1, 0 },
-  "<leader>ai opens the prompt of the agent on the right (" .. other .. "), not the default's")
+t.eq({ #prompts[other], #prompts[config.agent_names()[1]] }, { 1, 0 },
+  "<leader>ai opens the prompt of the agent on the right (" .. other .. "), not the first listed")
 t.eq(prompts[other][1] and prompts[other][1].seed, "@src/app.lua lines 1-1 ", "seeded with the selection")
--- So do the transcript keys: the agent on the right, unasked, not the default.
+-- So do the transcript keys: the agent on the right, unasked, not the first listed.
 editor()
 asked = {}
 local read = transcripts_read(function()
@@ -748,7 +752,7 @@ t.ok(codex.visible() and noted("Codex is already running: use /model in it") ~= 
   "<leader>am on a running Codex shows it and says how")
 t.eq(#writes(codex_buf), 0, "typing nothing into its box")
 
--- No native agent on the right: the native keys ask which, the default first.
+-- No native agent on the right: the native keys ask which, in provider order.
 editor()
 choose("Anthropic")
 ai.switch_chat()
@@ -757,15 +761,20 @@ editor()
 asked = {}
 ai.resume()
 t.eq(asked[1] and asked[1].prompt, "Which native agent?", "with a chat on the right, <leader>ar asks which agent")
-t.eq(asked[1] and asked[1].shown[1], config.providers[config.default].label, "the default first")
+t.eq(asked[1] and asked[1].shown, { "Claude Code", "Codex" }, "the first provider's agent first")
+config._set_providers(REVERSED)
+asked = {}
+ai.resume()
+t.eq(asked[1] and asked[1].shown, { "Codex", "Claude Code" }, "and Codex's when it is listed first")
+config._set_providers(PROVIDERS)
 t.ok(anthropic.ui:is_visible(), "cancelled, the chat stays")
 asked = {}
-choose(config.providers[other].label)
+choose(config.agents[other].label)
 read = transcripts_read(function() ai.transcript() end)
 t.eq({ read, asked[1] and asked[1].prompt }, { { "open_current " .. other }, "Whose transcript?" },
   "<leader>at with a chat on the right asks whose, and reads the one picked (" .. other .. ")")
 asked = {}
-choose(config.providers[other].label)
+choose(config.agents[other].label)
 read = transcripts_read(function() ai.transcript_pick() end)
 t.eq(read, { "pick " .. other }, "<leader>aT too")
 t.ok(anthropic.ui:is_visible(), "neither touches the chat on the right")

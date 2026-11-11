@@ -48,7 +48,7 @@ end
 ---@param agent any
 ---@return string agent
 local function check(agent)
-  if type(agent) ~= "string" or not config.providers[agent] then
+  if type(agent) ~= "string" or not config.agents[agent] then
     error(("a transcript belongs to a native agent, not %s"):format(vim.inspect(agent)), 3)
   end
   return agent
@@ -64,7 +64,7 @@ end
 local function apply(buf, agent, session, entries, truncated)
   local lines, folds = render.build(entries, {
     provider = agent,
-    label = config.providers[agent].label,
+    label = config.agents[agent].label,
     id = session.id,
     title = session.title,
     root = config.project_root(""),
@@ -160,7 +160,7 @@ function M.open_current(agent)
   local sessions = M._adapter(agent).sessions(root)
   if #sessions == 0 then
     vim.notify(
-      ("No %s transcript found for %s"):format(config.providers[agent].label, root),
+      ("No %s transcript found for %s"):format(config.agents[agent].label, root),
       vim.log.levels.WARN
     )
     return
@@ -176,7 +176,7 @@ function M.pick(agent)
   local sessions = M._adapter(agent).sessions(root)
   if #sessions == 0 then
     vim.notify(
-      ("No %s transcript found for %s"):format(config.providers[agent].label, root),
+      ("No %s transcript found for %s"):format(config.agents[agent].label, root),
       vim.log.levels.WARN
     )
     return
@@ -199,7 +199,7 @@ function M.pick(agent)
     source = "ai_transcripts",
     items = items,
     format = "text",
-    title = config.providers[agent].label .. " sessions",
+    title = config.agents[agent].label .. " sessions",
     preview = "none",
     confirm = function(picker, item)
       picker:close()

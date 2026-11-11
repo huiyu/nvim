@@ -214,7 +214,7 @@ function M.event(agent, event, payload_path, done_path)
     -- The script gave up before this request was served: Nvim was busy for the
     -- whole wait. The prompt has gone ahead with no baseline in front of it.
     if event == "submit" then
-      local label = require("ai.config").providers[agent].label
+      local label = require("ai.config").agents[agent].label
       vim.schedule(function()
         vim.notify(("Missed a %s prompt submit (Nvim was busy): if it was a prompt of yours, it has no review baseline")
           :format(label),

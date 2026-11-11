@@ -108,7 +108,7 @@ end
 function M.stage_seed(text, opts)
   opts = opts or {}
   local provider = opts.provider
-  if type(provider) ~= "string" or not config.providers[provider] then
+  if type(provider) ~= "string" or not config.agents[provider] then
     error(("stage_seed needs the agent the seed is for, not %s"):format(vim.inspect(provider)), 2)
   end
   local old = take(provider)
@@ -418,7 +418,7 @@ local function present(path, sentinel, slot)
     col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
     border = "rounded",
-    title = owner and (" Prompt · %s "):format(config.providers[owner].label) or " Prompt ",
+    title = owner and (" Prompt · %s "):format(config.agents[owner].label) or " Prompt ",
     title_pos = "center",
   })
 

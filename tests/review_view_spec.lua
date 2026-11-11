@@ -368,10 +368,10 @@ local function agent_terminal(agent, session)
   rounds._state().native[agent].session = session
   return buf
 end
--- Either agent can be the one on the right, whichever is the default: the
--- spec runs the same under both.
-local right = config.default
-local other = right == "claude" and "codex" or "claude"
+-- Either agent can be the one on the right: the first listed here, and the
+-- other is registered beside it.
+local right = config.agent_names()[1]
+local other = config.agent_names()[2]
 local right_term = agent_terminal(right, "s-right")
 local other_term = agent_terminal(other, "s-other")
 t.ok(rounds.conversation_of(other_term) == other .. ":s-other", "the stand-in terminals are registered")

@@ -3,13 +3,14 @@
 --   :AI             switch to another open chat (<leader>al)
 --   :AI new         start a chat on any available backend (<leader>an)
 --   :AI key [name]  the key profile inline edits and command prompts use
---                   (<leader>ax): `auto`, which follows the default backend,
---                   or a profile name, which pins it
---   :AI info        the default backend, the key, and where every open chat
---                   is (also :AIInfo)
+--                   (<leader>ax): `auto`, the first provider whose API key is
+--                   set, or a profile name, which pins it
+--   :AI info        the providers, the key, and where every open chat is
+--                   (also :AIInfo)
 --
--- The default backend is fixed at startup (lua/ai/config.lua), so there is no
--- `:AI provider` any more: a new chat names its backend in the picker. A key
+-- There is no default backend and no `:AI provider`: a new chat names its
+-- backend in the picker, which lists the providers of lua/ai/config.lua in
+-- their order. A key
 -- switch changes state, <leader>ae's description and CodeCompanion's inline and
 -- command adapters, nothing else: no chat, terminal or ACP connection starts,
 -- stops, shows or hides, and a chat keeps the adapter it was created with.
@@ -43,6 +44,9 @@ function M.key(name)
     data = { axis = "key", from = from, to = c.key_setting() },
   })
 
+  if not c.key.name then
+    return notify("No provider offers an API key (api in lua/ai/config.lua)", WARN)
+  end
   local how = c.key.auto and ("auto → %s"):format(c.key.label) or c.key.label
   notify(("AI key: %s (%s)"):format(how, c.codecompanion.api_key))
   -- Still switched: the variable may be exported later, and the choice is
@@ -66,7 +70,11 @@ end
 ---then every profile.
 function M.pick()
   local c = config()
-  local auto_target = c.key_profiles[c.providers[c.default].key_profile]
+  local auto_name = c.auto_key()
+  if not auto_name then
+    return notify("No provider offers an API key (api in lua/ai/config.lua)", WARN)
+  end
+  local auto_target = c.key_profiles[auto_name]
   local items = { {
     name = "auto", current = c.key.auto,
     text = "auto → " .. auto_target.label, detail = key_status(auto_target.api_key),
@@ -93,19 +101,24 @@ function M.pick()
   end)
 end
 
----Summarise the default backend, the key, and where every open chat is.
+---Summarise the providers, the key, and where every open chat is.
 ---Loads no plugin.
 function M.info()
   local c, info = config(), require("ai").info()
   local lines = {}
   local function add(fmt, ...) lines[#lines + 1] = fmt:format(...) end
 
-  local source = info.default_source == "built-in" and "built-in default"
-    or ("%s=%s"):format(info.default_source, info.default)
-  add("Default   %s (%s) · fixed at startup", info.default_label, source)
-  add("          first in :AI new · CodeCompanion's own chats on %s", info.codecompanion.chat)
+  -- In the picker's order of preference: lua/ai/config.lua's.
+  for i, p in ipairs(info.providers) do
+    local parts = {}
+    for _, part in ipairs(p.parts) do
+      parts[#parts + 1] = part.what .. (part.available and "" or " ✗")
+    end
+    add("%s%s · %s", i == 1 and "Providers " or "          ", p.label, table.concat(parts, " · "))
+  end
+  add("          CodeCompanion's own chats on %s", info.codecompanion.chat)
 
-  add("Key       %s · %s", info.key.label, info.key.auto and "auto (follows the default)" or "pinned")
+  add("Key       %s · %s", info.key.label, info.key.auto and "auto (first API key set)" or "pinned")
   add("          inline and command prompts on %s", info.codecompanion.inline)
 
   local width = 0
@@ -155,7 +168,7 @@ function M.setup()
     if not sub then return require("ai").switch_chat() end
     if sub == "provider" then
       return notify(":AI provider is gone: :AI new (<leader>an) picks each chat's backend;"
-        .. "\nthe default is set at startup (vi --claude / vi --codex)", ERROR)
+        .. "\nthe picker lists the providers in the order of lua/ai/config.lua", ERROR)
     end
     if #o.fargs <= 2 then
       if sub == "key" then return M.key(arg) end

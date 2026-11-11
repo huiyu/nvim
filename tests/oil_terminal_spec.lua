@@ -8,7 +8,7 @@ vim.cmd("Lazy! load oil.nvim")
 local root = vim.fn.tempname()
 vim.fn.mkdir(root .. "/child", "p")
 root = vim.uv.fs_realpath(root)
-local bin = root .. "/" .. config.providers[config.default].native.command
+local bin = root .. "/" .. config.agents[config.agent_names()[1]].command
 vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin)
 vim.fn.setfperm(bin, "rwx------")
 vim.fn.writefile({ "original editor" }, root .. "/original.txt")

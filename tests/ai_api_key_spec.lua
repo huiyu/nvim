@@ -4,18 +4,28 @@
 -- would move Claude Code or Codex off the subscription.
 --
 -- Either key profile can be active after :AI key, and <leader>an starts an
--- API chat on either, so BOTH HTTP adapters are checked under BOTH default
--- backends, each in a fresh child Nvim -- plus the Codex ACP adapter, which
--- must stay on the ChatGPT login whichever agent is the default.
+-- API chat on either, so BOTH HTTP adapters are checked under several
+-- provider lists (lua/ai/config.lua), each in a fresh child Nvim -- the
+-- shipped one, Codex first, Codex alone (the built-in anthropic adapter must
+-- still read its NVIM_* key) and Claude alone (the built-in openai adapter
+-- too) -- plus the Codex ACP adapter, which must stay on the ChatGPT login
+-- even when no provider offers it.
 local t = dofile("tests/helper.lua")
 
 -- Resolve every adapter the way CodeCompanion does before a request, under the
--- given environment, in a fresh Nvim. A custom profile is registered before
--- the plugin loads, the way an entry added to config.lua would be.
-local function resolve(env)
+-- given environment, in a fresh Nvim. The provider list is set before the
+-- plugin loads, the way an edit of config.lua would be, with an api-only
+-- provider added: a second key on the anthropic adapter.
+local function resolve(env, order)
   local probe = [[
     local ai = require("ai.config")
-    ai.key_profiles.spec_work = { adapter = "anthropic", label = "Spec work", api_key = "NVIM_SPEC_WORK_KEY" }
+    local by_name = {}
+    for _, p in ipairs(ai.providers) do by_name[p.name] = p end
+    local list = {}
+    for name in vim.env.SPEC_ORDER:gmatch("[^,]+") do list[#list + 1] = by_name[name] end
+    list[#list + 1] = { name = "spec_work", label = "Spec work",
+      api = { name = "spec_work", adapter = "anthropic", api_key = "NVIM_SPEC_WORK_KEY" } }
+    ai._set_providers(list)
     require("lazy").load({ plugins = { "codecompanion.nvim" } })
     local adapters = require("codecompanion.adapters")
     local utils = require("codecompanion.adapters.utils")
@@ -33,6 +43,7 @@ local function resolve(env)
     io.stdout:write(vim.json.encode(out))
     vim.cmd("qa!")
   ]]
+  env = vim.tbl_extend("force", env, { SPEC_ORDER = order })
   local result = vim.system({ vim.v.progpath, "--headless", "-u", "init.lua", "-i", "NONE", "-c", "lua " .. probe:gsub("\n", " ") },
     { env = env, text = true }):wait(30000)
   local ok, decoded = pcall(vim.json.decode, (result.stdout or ""):match("{.*}") or "")
@@ -44,31 +55,31 @@ local adapters = {
   openai = { cli = "OPENAI_API_KEY", own = "NVIM_OPENAI_API_KEY" },
 }
 
-for _, provider in ipairs({ "claude", "codex" }) do
+for _, provider in ipairs({ "claude,codex", "codex,claude", "codex", "claude" }) do
   local both = resolve({
-    NVIM_AI_PROVIDER = provider, NVIM_AI_KEY_PROFILE = "",
+    NVIM_AI_KEY_PROFILE = "",
     ANTHROPIC_API_KEY = "cli-anthropic", NVIM_ANTHROPIC_API_KEY = "nvim-anthropic",
     OPENAI_API_KEY = "cli-openai", NVIM_OPENAI_API_KEY = "nvim-openai",
     NVIM_SPEC_WORK_KEY = "nvim-spec-work",
-  })
+  }, provider)
   for name in pairs(adapters) do
     t.eq(both[name], { name = name, type = "http", key = "nvim-" .. name },
-      ("%s-started: the %s adapter reads %s"):format(provider, name, adapters[name].own))
+      ("%s: the %s adapter reads %s"):format(provider, name, adapters[name].own))
   end
   t.eq(both.spec_work, { name = "spec_work", type = "http", key = "nvim-spec-work" },
-    ("%s-started: a custom key profile is an adapter of its own, reading its own variable"):format(provider))
+    ("%s: a custom key profile is an adapter of its own, reading its own variable"):format(provider))
   t.eq(both.codex_auth, "chat-gpt",
-    ("%s-started: the Codex ACP adapter uses the ChatGPT login, not OPENAI_API_KEY"):format(provider))
-  t.eq(both.codecompanion_adapter, vim.NIL, ("%s-started: vim.g.codecompanion_adapter stays unset"):format(provider))
+    ("%s: the Codex ACP adapter uses the ChatGPT login, not OPENAI_API_KEY"):format(provider))
+  t.eq(both.codecompanion_adapter, vim.NIL, ("%s: vim.g.codecompanion_adapter stays unset"):format(provider))
 
   local cli_only = resolve({
-    NVIM_AI_PROVIDER = provider, NVIM_AI_KEY_PROFILE = "",
+    NVIM_AI_KEY_PROFILE = "",
     ANTHROPIC_API_KEY = "cli-anthropic", NVIM_ANTHROPIC_API_KEY = "",
     OPENAI_API_KEY = "cli-openai", NVIM_OPENAI_API_KEY = "",
-  })
+  }, provider)
   for name, vars in pairs(adapters) do
     t.ok(cli_only[name] and cli_only[name].name == name and cli_only[name].key ~= "cli-" .. name,
-      ("%s-started: %s alone is never used by the %s adapter"):format(provider, vars.cli, name))
+      ("%s: %s alone is never used by the %s adapter"):format(provider, vars.cli, name))
   end
 end
 

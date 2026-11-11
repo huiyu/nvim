@@ -107,8 +107,8 @@ vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 
 -- <leader>at when the transcript view fails. With no native agent on the
 -- right it asks whose transcript, among the agents installed -- stand-ins on
--- PATH here -- the default first; the other one is answered, so the agent
--- read is the one picked, not the default.
+-- PATH here -- in provider order; the second is answered, so the agent read
+-- is the one picked, not the first listed.
 local transcript = require("ai.transcript")
 local ai_config = require("ai.config")
 local real_open, real_select, real_path = transcript.open_current, vim.ui.select, vim.env.PATH
@@ -136,8 +136,8 @@ vim.fn.delete(stand_ins, "rf")
 t.ok(ok, "<leader>at does not raise when the transcript view fails")
 t.eq(last() and last().level, vim.log.levels.ERROR, "it reports the failure")
 t.ok(said("boom"), "with its cause")
-t.eq(offered and offered[1], ai_config.default, "it offers the default first")
-t.eq(asked_for, ai_config.default == "claude" and "codex" or "claude", "and reads the agent picked, not the default")
+t.eq(offered, ai_config.agent_names(), "it offers the agents in provider order")
+t.eq(asked_for, ai_config.agent_names()[2], "and reads the agent picked, not the first listed")
 transcript.open_current = real_open
 
 -- :AI with a subcommand or a name it does not know, and the one it no longer
@@ -163,7 +163,7 @@ reset()
 ok = pcall(require("ai").accept_diff)
 t.ok(ok, "<leader>aa does not raise when the diff command fails")
 t.ok(said("Claude Code accept_diff failed") and said("no pending diff"),
-  "it names Claude, whose diff it was, whichever agent is the default")
+  "it names Claude, whose diff it was, whatever is on the right")
 claude_backend.accept_diff = real_accept
 
 vim.notify = real_notify

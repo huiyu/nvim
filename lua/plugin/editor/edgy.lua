@@ -9,7 +9,7 @@ return {
     local ai = require("ai.config")
 
     -- snacks.terminal sets vim.b[buf].snacks_terminal = { cmd, id, win, ... }.
-    -- A native agent -- either one, the default or not -- always has an
+    -- A native agent -- whichever one -- always has an
     -- explicit command; plain bottom terminals have no cmd (default shell).
     local function is_agent_term(buf)
       local info = vim.b[buf].snacks_terminal

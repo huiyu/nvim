@@ -75,11 +75,11 @@ return {
 						end
 						-- Agent terminal commands can be very long (Claude is tmux-
 						-- wrapped). Collapse them to the label of the agent the
-						-- terminal runs, whichever agent is the default.
+						-- terminal runs.
 						local info = vim.b.snacks_terminal
 						local provider = info and ai.provider_of_command(info.cmd)
 						if provider then
-							return " " .. ai.providers[provider].label
+							return " " .. ai.agents[provider].label
 						end
 						return " " .. (vim.b.term_title or "terminal")
 					end,
@@ -87,9 +87,8 @@ return {
 			},
 			lualine_x = {
 				-- The API key profile, only while one is pinned (:AI key <name>,
-				-- NVIM_AI_KEY_PROFILE): `auto` follows the default backend the
-				-- shell alias chose, so it needs no reminder. A click reopens the
-				-- key picker.
+				-- NVIM_AI_KEY_PROFILE): `auto` is the first provider whose key is
+				-- set, so it needs no reminder. A click reopens the key picker.
 				{
 					function()
 						return ("󰌆 %s"):format(ai.key.label)
