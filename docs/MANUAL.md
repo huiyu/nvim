@@ -195,6 +195,20 @@ picks from it:
 | `z` | folds and spelling | `zR` open all · `zM` close all · `za` toggle · `z=` suggestions · `zg` add to dictionary |
 | `Ctrl` | act now, no questions, the same in every mode | `<C-h/j/k/l>` windows · `<C-/>` terminal · `<C-o>` back the way you came · `<C-a>` `<C-x>` increment / decrement · `<C-r>` redo |
 
+List views and panels (a picker, oil, the outline, the panels on the right and
+at the bottom) share a few keys that no popup lists. Where a view has the act,
+it is on this key:
+
+| Key | In a list view or panel |
+|---|---|
+| `q` | close it |
+| `<C-c>` | stop a running request (a chat's reply, `<Space>ae`'s edit) |
+| `<C-s>` / `<C-v>` / `<C-t>` | open the entry below / beside / in a tab |
+| `<M-p>` · `<M-.>` | toggle the preview · hidden files (`g.` in oil) |
+| `dd` · `<C-x>` | delete an item (open buffers, saved chats) · the same while typing in the picker |
+| `R` | refresh (`gR` in oil, whose listing is text you edit) |
+| `g?` | list the view's own keys (`?` too where it was already) |
+
 **which-key:** press `[`, `]`, `g`, or `z` and wait half a second — the popup
 lists the drawer, grouped under headings (`── diagnostics`, `── git`, …) with a
 colour per group, so a long list reads as a few blocks rather than an alphabet.
@@ -302,6 +316,7 @@ Every way of reaching a file, a symbol, or a position.
 | `;F` | Find file next to the current one |
 | `;r` | Recently opened |
 | `;b` | Open buffers |
+| `;B` | Pick a buffer by its tab letter |
 | `;g` | Files tracked by git |
 | `;p` | Switch project |
 | `;a` | **Last used buffer (toggle)** — return to the previous buffer in this window. |
@@ -341,6 +356,12 @@ and floats them to the top.
 directories. `;i` and `;?` use `.gitignore` without those extra exclusions, so
 tracked source inside a directory such as `build/` remains searchable.
 
+Inside a picker, `<C-s>` / `<C-v>` / `<C-t>` open the entry below / beside /
+in a tab, `<M-p>` toggles the preview and `<M-.>` hidden files (it was
+`<M-h>`, which tmux takes for pane navigation); in Normal mode `g?` or `?`
+lists the picker's keys. In `;p`, Insert-mode `<C-w>` deletes a word of the
+query and Normal-mode `<C-w>` makes the project the tab's directory (`:tcd`).
+
 ### Browsing
 
 There is no tree sidebar. Directories are browsed and edited through oil,
@@ -365,8 +386,12 @@ so the file picker uses another editor window or creates one when needed.
 
 Inside Oil, `h/j/k/l` keep their normal cursor motions so filenames are easy to
 edit. Use `-` to go to the parent directory, Enter to open the selected file or
-directory, `g?` to see Oil's keymaps, and `q` to close. Edit filenames or add/delete
-lines, then `:w` to review and confirm the filesystem changes.
+directory, `g?` to see Oil's keymaps, and `q` to close. `<C-s>` opens the entry
+below, `<C-v>` beside and `<C-t>` in a tab, the same chords as the pickers and
+the outline; `<M-p>` toggles a preview, `gR` re-reads the listing and `g.`
+shows hidden files. `<C-r>` is redo and `v<C-v>` starts blockwise Visual, as
+in any buffer. Edit filenames or add/delete lines, then `:w` to review and
+confirm the filesystem changes.
 
 ### Pinned files
 
@@ -409,6 +434,10 @@ operations share this menu; headings show which context provides each action.
 
 `,a`, `,r` and `,c` only exist where a language server is running — in a plain text
 file they are simply not there.
+
+In the outline, `j` / `k` move, `p` scrolls the source to the symbol, Enter
+jumps to it and `<C-s>` / `<C-v>` open it below / beside; `<C-j>` / `<C-k>`
+are window moves there, as everywhere.
 
 ### Moving lines
 
@@ -463,7 +492,7 @@ or a running session are available.
 | Java | Test debugging | `,dt` debug nearest method · `,dT` debug class |
 | Dart / Flutter | Runtime control | `,dr` hot reload · `,dR` Flutter hot restart |
 | Markdown | Preview | `,p` browser preview · `,m` in-editor rendering |
-| CodeCompanion | Chat rendering | `,m` toggle Markdown rendering |
+| CodeCompanion chat | Conversation / rendering | `,s` save · `,X` clear the messages · `,q` end the chat · `,z` fold code blocks · `,m` toggle Markdown rendering |
 | Search-and-replace panel | Replace / sync / results / history | `,S…` panel actions; `g?` help |
 | LaTeX | Compilation | `,b` continuous build toggle · `,s` stop · `,K` clean aux files · `,E` errors |
 | LaTeX | Preview / tools | `,v` view PDF · `,t` toggle TOC · `,L…` VimTeX's full command set |
@@ -566,6 +595,11 @@ special buffers do not enter zen mode. `sm` remains the ordinary split zoom.
 `splitright` put every plain split below or to the right of the current
 window, so `:new`, `:help` and the `,x` terminal open there too. Panels (the
 agent, quickfix, the debug view) keep the edges edgy gives them.
+
+In a panel, `q` closes it and the `<C-w>` resize keys work. edgy's own `Q` and
+`<C-q>`, which would drop a panel for good, and its `]w` / `[w` window cycling
+are off: `]w` / `[w` stay the warning jumps, `<C-q>` stays blockwise Visual,
+and `Ctrl-h/j/k/l` move between panels.
 
 `scrolloff = 8` tries to keep eight screen lines above and below the cursor,
 scrolling before you reach an edge. Files near their beginning/end and small
@@ -755,15 +789,17 @@ directory tree. In the panel `i` toggles a flat list (for that view only),
 `zo` / `zc` open or close the directory under the cursor and `zR` / `zM` all of
 them. `,C` on a directory line asks for a file instead.
 
-`;` and `s` are disabled in every window of a view, with a notice. A `;`
-picker would open its file in the working-tree pane and the view would lose
-track of it; most `s` keys close or reshape a pane, and closing one tears the
-whole view down. `<C-w>` still moves between windows, `gf` opens the file
-elsewhere, and `<Space>` keys work as everywhere. `q` closes the view from its
-file or history panel only; in a diff pane it records a macro as usual. In
-the status view's file panel `-` stages or unstages a file, `S` / `U` stage /
-unstage everything and `X` discards a file's changes; no other view has these
-four.
+`;`, `s`, the buffer-switching keys `H` / `L`, `[b` / `]b` and `<C-^>`, and
+`-` (except in the status view's file panel, where it stages) are disabled in
+every window of a view, with a notice. A `;` picker would open its file in the
+working-tree pane and the view would lose track of it, and a buffer switched
+into a pane or the panel does the same; most `s` keys close or reshape a pane,
+and closing one tears the whole view down. `<C-w>` still moves between
+windows, `gf` opens the file elsewhere, and `<Space>` keys work as everywhere.
+`q` closes the view from its file or history panel only; in a diff pane it
+records a macro as usual. In the status view's file panel `-` stages or
+unstages a file, `S` / `U` stage / unstage everything and `X` discards a
+file's changes; no other view has these four.
 
 Which `,` review keys a view has depends on what it compares:
 
@@ -935,10 +971,17 @@ Pick by what you are doing:
   profile `<Space>ax` picks.
 
 Inside either chat, write below the last `## Me` heading and press `Enter` in
-Normal mode (or `Ctrl-s`) to send; nothing goes out before that. The reply's
-heading says which kind you are in — `CodeCompanion (Claude Code · ACP)` or
-`CodeCompanion (Anthropic · API)` — and so do `<Space>al`'s labels. The keys
-that spend API credits sit under the menu heading *HTTP · API credits*.
+Normal mode (or `Ctrl-d` from Insert mode) to send; nothing goes out before
+that. `Ctrl-c` stops the reply. `q` hides the chat, exactly as `<Space>ac`
+does, which brings it back; `,q` ends it, and CodeCompanion shows another open
+chat in its window. `,X` clears the messages, `,z` folds the code blocks, `,s`
+saves the chat, `gf` opens the file under the cursor and `?` or `g?` lists
+every key. Insert-mode `Ctrl-c` only leaves Insert mode, `gx` opens a URL and
+`{` / `}` move by paragraph, as in any buffer; another chat is `<Space>al`.
+The reply's heading says which kind you are in — `CodeCompanion (Claude Code ·
+ACP)` or `CodeCompanion (Anthropic · API)` — and so do `<Space>al`'s labels.
+The keys that spend API credits sit under the menu heading *HTTP · API
+credits*.
 
 Two chats on the right hand the one window over in place. A chat keeps the
 backend it was started on; another backend is another chat, from `<Space>an`.
@@ -1419,6 +1462,8 @@ its own is a separate tree and is left running; select it with `ds`.
 | `<Space>td` | Debug the test at the cursor (Go/Python/Java also find the nearest preceding test) |
 | `<Space>tF` | Debug tests in the current file |
 | `<Space>tm` / `<Space>tf` | Run nearest test / test file without debugging (neotest: Go/Python) |
+
+`<Space>tS` opens neotest's summary panel; `g?` (or `?`) there lists its keys.
 
 Set a breakpoint with `<Space>db`, put the cursor inside a test, then press
 `<Space>td`. These direct entries save the current buffer first; an unsaved

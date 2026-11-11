@@ -341,6 +341,22 @@ t.ok(anthropic.ui:is_visible() and #asked == 0, "with no last chat, <leader>ac b
 local slot_win = anthropic and anthropic.ui.winnr
 t.eq(vim.t.ai_slot_last, anthropic and slot.chat_item(anthropic).id, "remembered as this tabpage's last chat")
 
+-- q in the chat is <leader>ac pressed from inside it: hidden through the slot,
+-- never closed, and still the chat <leader>ac brings back.
+api.nvim_set_current_win(slot_win)
+local chat_q = vim.fn.maparg("q", "n", false, true)
+t.ok(chat_q.buffer == 1 and chat_q.desc == "Hide chat", "the chat's own q, not edgy's or upstream's stop")
+chat_q.callback()
+t.ok(not anthropic.ui:is_visible() and api.nvim_buf_is_valid(anthropic.bufnr) and #companion.chats() == 1,
+  "q in a chat hides it, closing nothing")
+t.eq(#wins(), 1, "its window gives way to the file")
+t.eq(vim.t.ai_slot_last, slot.chat_item(anthropic).id, "it stays this tabpage's last chat")
+editor()
+asked = {}
+ai.toggle()
+t.ok(anthropic.ui:is_visible() and #asked == 0, "which <leader>ac brings back unasked")
+slot_win = anthropic.ui.winnr
+
 ---------------------------------------------------------------------------
 -- Chat to chat: one window, handed over
 ---------------------------------------------------------------------------
@@ -1050,7 +1066,7 @@ ai.switch_chat()
 settle()
 
 ---------------------------------------------------------------------------
--- A chat shown in a window that is not its own: <C-c>'s successor
+-- A chat shown in a window that is not its own: ,q's successor
 ---------------------------------------------------------------------------
 
 -- A chat started from a scratch window is created from the editor window:
@@ -1067,7 +1083,7 @@ settle()
 local doomed = created[#created] and companion.chat_of(api.nvim_win_get_buf(api.nvim_get_current_win()))
 t.eq(created[#created].win, cc_editor, "a chat picked from a scratch window is created from the editor window")
 t.ok(doomed ~= nil and doomed ~= anthropic and doomed.ui:is_visible(), "and shown here")
--- <C-c> in it, with Anthropic -- shown in the first tabpage -- as the chat
+-- ,q in it, with Anthropic -- shown in the first tabpage -- as the chat
 -- upstream puts in its place (keymaps close: Chat.open into its window, then
 -- close): that window becomes Anthropic's own, and the first tabpage still
 -- shows Anthropic, in a window that no longer is.

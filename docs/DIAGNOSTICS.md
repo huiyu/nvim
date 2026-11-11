@@ -284,6 +284,13 @@ labels and the listing; its header lists what it depends on.
   the file in the previous tab, `<C-w>` still moves between windows. A key
   typed right after the blocked one is swallowed with it, so `so` cannot fall
   through to `o`.
+- **`H is disabled in CodeDiff`** (also `L`, `[b`, `]b`, `<C-^>`, `-`) —
+  intended, in every window of a view: each puts another buffer in the window
+  (bufferline's cycling, the alternate buffer, oil's parent directory), as a
+  `;` picker would. `-` is blocked everywhere except the status view's file
+  panel, where it stages or unstages a file. `gf` opens the file in the
+  previous tab and `<leader>gq` closes the view. These are whole keys: the key
+  typed after one is not swallowed.
 - **`The diff view lost a pane, so its tab was closed`** — `:e` in the baseline
   pane, or closing one pane, ends CodeDiff's session and leaves a dead tab
   behind; this config closes it. Use `gf` to edit the file.
@@ -370,7 +377,7 @@ labels and the listing; its header lists what it depends on.
   and `<leader>ac` brings back the last one this tabpage showed.
 - **A chat disappeared from another tabpage.** Upstream's own paths — a
   typed `:CodeCompanionChat` or `:CodeCompanionChat Toggle`, the action
-  palette (`<leader>ap`), `<leader>ao`, `}`/`{` in a chat — open a chat
+  palette (`<leader>ap`), `<leader>ao` — open a chat
   without naming a window, and CodeCompanion then closes its last chat
   wherever it is shown, another tabpage included. Nothing is lost (`:AI info`
   lists it as *hidden*); `<leader>al` shows it again. The chat keys (`an`,
@@ -393,9 +400,10 @@ labels and the listing; its header lists what it depends on.
     tabpage with nothing in it. Open a file beside it first.
   - Otherwise `<leader>ac` hides every AI window here, and pressed again
     brings back the last one this tabpage showed: one window again.
-  `<C-c>` in a chat shows the next chat in its window, and CodeCompanion may
-  leave that chat's buffer in a window of another tabpage too; `<leader>ac`
-  there closes the copy (the chat stays on screen where it is its own).
+  `,q` in a chat ends it and shows the next chat in its window, and
+  CodeCompanion may leave that chat's buffer in a window of another tabpage
+  too; `<leader>ac` there closes the copy (the chat stays on screen where it
+  is its own). `q` in a chat only hides it, as `<leader>ac` does.
   `AI slot guard failed:` with a traceback means the guard itself raised
   (usually a CodeCompanion update; see *A key fails* below).
 - **A key asked instead of acting** — "Add selection to", "Add buffer to",
@@ -682,13 +690,17 @@ rather than a broken viewer.
 - **`:q` refuses to close** — intended. `buftype=acwrite` plus a modified buffer
   raises `E37` so a half-written prompt is not lost by reflex. Use `<C-d>` or
   `:wq` to send, `<C-c>` or `:q!` to discard.
-- **`<C-s>` does nothing anywhere in Nvim** — expected. `C-s` is the tmux prefix
+- **`<C-s>` pressed once does nothing in Nvim** — expected. `C-s` is the tmux prefix
   here (`~/.config/tmux/tmux.conf`), so tmux consumes it before Nvim can see it.
   A global `<C-s>` "Save file" mapping used to live in `lua/mappings.lua` and had
   never once fired; it was removed rather than left as a key that silently does
   nothing — use `:w`. Nvim's own Insert-mode default on that key,
   `i_CTRL-S` for `vim.lsp.buf.signature_help()`, is unreachable for the same
-  reason; `gK` is the working path.
+  reason; `gK` is the working path. CodeCompanion's own `<C-s>` (send) was
+  moved for the same reason: a chat and the `:CodeCompanion` prompt float send
+  with `<CR>`, or `<C-d>` from Insert mode. The pickers', oil's and the
+  outline's `<C-s>` (open below) reach Nvim as `C-s C-s`, which that tmux
+  config passes through (`bind C-s send-prefix`).
 - **`ctrl+v` in the agent TUI attaches nothing** — the clipboard holds text, not
   an image. The agent CLIs read the clipboard themselves; Nvim is not involved.
   Check with:

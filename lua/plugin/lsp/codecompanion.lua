@@ -73,9 +73,41 @@ return {
           -- lua/ai/config.lua's provider order, else the first `api`. Every
           -- chat <leader>an starts names its own.
           adapter = ai.codecompanion.chat_adapter,
-          -- A chat's adapter is fixed when it is created; another backend is
-          -- another chat (<leader>an).
-          keymaps = { change_adapter = false },
+          -- Upstream's defaults, merged key by key (CodeCompanion deep-merges
+          -- these), moved where they would repurpose a key that means
+          -- something else everywhere: q hides as in every panel, <C-c>
+          -- cancels, gx/gf open what is under the cursor, s is the window
+          -- prefix and {/} are paragraph motions. What remains is upstream's.
+          keymaps = {
+            -- A chat's adapter is fixed when it is created; another backend
+            -- is another chat (<leader>an).
+            change_adapter = false,
+            -- Switching chats is <leader>al, which the slot answers.
+            next_chat = false,
+            previous_chat = false,
+            copilot_stats = false, -- gS is splitjoin; no Copilot adapter here
+            options = { modes = { n = { "?", "g?" } } },
+            -- <C-d> submits, as in the prompt editor and the review draft.
+            send = { modes = { n = "<CR>", i = "<C-d>" } },
+            stop = { modes = { n = "<C-c>" } },
+            -- Ends the chat (CodeCompanion shows another in its window).
+            -- Normal mode only: upstream's Insert <C-c> is removed in `config`
+            -- below, so it leaves Insert mode as everywhere (lua/mappings.lua).
+            close = { modes = { n = "<localleader>q" } },
+            -- Exactly <leader>ac from inside the chat: the slot hides it and
+            -- keeps it as this tabpage's last chat, so <leader>ac brings it
+            -- back. Left out of the chat's action palette, which only runs
+            -- upstream's own callbacks.
+            hide = {
+              modes = { n = "q" },
+              callback = function() require("ai").toggle() end,
+              description = "Hide chat",
+              opts = { chat = { show_in_action_palette = false } },
+            },
+            clear = { modes = { n = "<localleader>X" }, description = "Clear chat messages" },
+            fold_code = { modes = { n = "<localleader>z" } },
+            goto_file_under_cursor = { modes = { n = "gf" } },
+          },
           -- Agent and API chats look alike once open, and bill differently,
           -- so every reply's header names both the backend and the kind:
           -- "CodeCompanion (Claude Code · ACP)", "CodeCompanion (Anthropic · API)".
@@ -98,6 +130,9 @@ return {
         },
         inline = {
           adapter = ai.http_adapter_spec(),
+          -- Mapped on the edited file's buffer while a request runs: <C-c>
+          -- cancels, and q stays macro recording there.
+          keymaps = { stop = { modes = { n = "<C-c>" } } },
         },
         cmd = {
           adapter = ai.http_adapter_spec(),
@@ -125,12 +160,29 @@ return {
             -- ACP agents already own session state.  Avoid a second model call
             -- solely to title each local History entry; entries remain renameable.
             auto_generate_title = false,
+            -- In the chat; upstream's `sc` sat inside the s window prefix.
+            save_chat_keymap = "<localleader>s",
+            -- The saved-chat picker (<leader>ao): delete as in Snacks' own
+            -- pickers (dd, <C-x>). Both modes are required -- the extension
+            -- indexes each and setup deep-merges, so neither can be dropped --
+            -- so rename's Insert key is a <Plug> nobody types: upstream's
+            -- <M-r> took every picker's toggle_regex.
+            picker_keymaps = {
+              delete = { n = "dd", i = "<C-x>" },
+              rename = { n = "r", i = "<Plug>(codecompanion-history-rename)" },
+            },
           },
         },
       },
       display = {
         action_palette = {
           provider = "snacks",
+        },
+        -- The prompt float (<leader>ae with no prompt, :CodeCompanion): <C-d>
+        -- submits from Insert mode, as in the chat. Upstream's <C-s> is the
+        -- tmux prefix here and never arrives (docs/DIAGNOSTICS.md).
+        input = {
+          keymaps = { send = { modes = { n = "<CR>", i = "<C-d>" } } },
         },
         chat = {
           show_header_separator = false,
@@ -147,6 +199,12 @@ return {
   end,
   config = function(_, opts)
     require("codecompanion").setup(opts)
+    -- setup() deep-merges keymaps, so opts cannot drop a mode: upstream's
+    -- Insert <C-c> would end the chat from the key that leaves Insert mode
+    -- everywhere else. An empty `i = {}` would map nothing too, but lists as
+    -- a blank Insert key in the chat's ? help and action palette.
+    local close = require("codecompanion.config").interactions.chat.keymaps.close
+    if type(close) == "table" and type(close.modes) == "table" then close.modes.i = nil end
     -- setup() defines :CodeCompanionCodeReview whatever `enabled` says, and its
     -- Branch subcommand would still write refs/worktree/codecompanion/*.
     pcall(vim.api.nvim_del_user_command, "CodeCompanionCodeReview")

@@ -104,6 +104,11 @@ t.ok(plugin._.loaded == nil, "refusing a clean tree does not load CodeDiff")
 press("<leader>gV")
 t.ok(said("File history: the current buffer is not a file") ~= nil, "<leader>gV refuses a buffer without a file")
 
+-- Picking a buffer is on `;`, which a view blocks, not on <leader>b.
+local function global(lhs) return vim.fn.maparg(lhs, "n", false, true) end
+t.eq(global(";B").desc, "Pick buffer", ";B picks a buffer")
+t.eq(global("<leader>bj"), {}, "<leader>bj is gone")
+
 t.eq(key("<leader>gV").desc, "File history (recent 100, no merges)", "<leader>gV says how much history it lists")
 t.eq(key("<leader>gH").desc, "Repo history (recent 100, no merges)", "and so does <leader>gH")
 
@@ -195,7 +200,6 @@ t.eq(map(sample, ",co"), {}, "CodeDiff adds no longer ,c candidate")
 -- Defaults that would have shadowed this config's keys stay off.
 t.ok(map(sample, "gc").buffer ~= 1, "gc is still the comment operator in a diff pane")
 t.ok(map(sample, "gS").buffer ~= 1, "gS is still splitjoin")
-t.eq(map(sample, "-").desc, "Oil: parent directory", "- is still oil's parent directory")
 t.ok(map(sample, "t").buffer ~= 1, "t keeps its builtin meaning")
 t.ok(map(sample, "gm").buffer ~= 1, "gm keeps its builtin meaning")
 t.ok(map(sample, "q").buffer ~= 1, "q in a diff pane is macro recording again")
@@ -204,14 +208,21 @@ for _, lhs in ipairs({ "<leader>b", "<leader>e", "<leader>hs", "<leader>hu", "<l
 end
 t.eq(map(sample, "<leader>bd").desc, "Delete buffer", "<leader>bd still deletes the buffer")
 
--- ; and s: blocked in every window of the view, with a visible hint.
-for _, buf in ipairs({ s.original_bufnr, sample, panel_buf }) do
-  for _, lhs in ipairs({ ";", "s" }) do
-    local m = map(buf, lhs)
-    t.ok(m.desc == "Disabled in CodeDiff" and m.nowait == 1 and m.buffer == 1,
-      ("%s is blocked with nowait in %s"):format(lhs, vim.bo[buf].filetype ~= "" and vim.bo[buf].filetype or vim.api.nvim_buf_get_name(buf)))
-  end
+-- ; and s, and the keys off `;` that put another buffer in the window
+-- (bufferline's H/L and [b/]b, the alternate buffer): blocked in every window
+-- of the view, with a visible hint. `-` (oil's parent directory) too, in the
+-- panes; the status explorer stages on it (below).
+local SWITCH = { "H", "L", "[b", "]b", "<C-^>" }
+local function blocked_in(buf, lhs)
+  local m = map(buf, lhs)
+  t.ok(m.desc == "Disabled in CodeDiff" and m.nowait == 1 and m.buffer == 1,
+    ("%s is blocked with nowait in %s"):format(lhs, vim.bo[buf].filetype ~= "" and vim.bo[buf].filetype or vim.api.nvim_buf_get_name(buf)))
 end
+for _, buf in ipairs({ s.original_bufnr, sample, panel_buf }) do
+  for _, lhs in ipairs({ ";", "s", unpack(SWITCH) }) do blocked_in(buf, lhs) end
+end
+blocked_in(s.original_bufnr, "-")
+blocked_in(sample, "-")
 local wins_before, cursor_before = vim.api.nvim_tabpage_list_wins(0), vim.api.nvim_win_get_cursor(right)
 for _, prefix in ipairs({ ";", "s" }) do
   notices = {}
@@ -223,7 +234,7 @@ end
 -- (feedkeys "x" ends typeahead with an <Esc>, as :normal does, and keys fed
 -- together go to the longer global mapping, :help map-nowait), so queue it
 -- and run the block the way the mapping would.
-for _, keys in ipairs({ ";f", "so", "sd", "ss", "sv", "s=", "sm", "sz" }) do
+for _, keys in ipairs({ ";f", ";B", "so", "sd", "ss", "sv", "s=", "sm", "sz" }) do
   vim.api.nvim_feedkeys(keys:sub(2), "t", false)
   map(sample, keys:sub(1, 1)).callback()
   t.eq(vim.fn.getchar(1), 0, keys .. ": the key after the prefix is swallowed")
@@ -233,6 +244,30 @@ t.eq(vim.api.nvim_tabpage_list_wins(0), wins_before, "none of them touched the l
 t.eq(vim.api.nvim_get_current_win(), right, "or moved the cursor out of the pane")
 t.eq(vim.api.nvim_win_get_cursor(right), cursor_before, "or within it")
 t.ok(not vim.bo[sample].modified, "and the file is untouched")
+
+-- The buffer-switching keys leave each window's buffer where it is, with
+-- another listed buffer to switch to. Whole keys, not prefixes: the key
+-- after one is not swallowed. <C-6> reaches the <C-^> block too.
+vim.cmd.badd(vim.fn.fnameescape(root .. "/z01.txt"))
+for _, win in ipairs({ right, panel_win }) do
+  vim.api.nvim_set_current_win(win)
+  local buf = vim.api.nvim_win_get_buf(win)
+  local keys = { "H", "L", "[b", "]b", "<C-^>", "<C-6>" }
+  if win == right then keys[#keys + 1] = "-" end
+  for _, lhs in ipairs(keys) do
+    notices = {}
+    vim.api.nvim_feedkeys(vim.keycode(lhs), "xt", false)
+    local name = lhs == "<C-6>" and "<C-^>" or lhs
+    t.ok(said(name .. " is disabled in CodeDiff") ~= nil and vim.api.nvim_win_get_buf(win) == buf,
+      ("%s in the %s explains itself and keeps the buffer"):format(lhs, win == right and "pane" or "explorer"))
+  end
+  vim.api.nvim_feedkeys("j", "t", false)
+  map(buf, "L").callback()
+  t.ok(vim.fn.getchar(1) ~= 0, "the key after L is left alone in the " .. (win == right and "pane" or "explorer"))
+  vim.fn.getcharstr()
+end
+vim.api.nvim_set_current_win(right)
+t.eq(vim.api.nvim_tabpage_list_wins(0), wins_before, "the layout is unchanged")
 
 -- The status view's explorer keeps its file-level index keys and q.
 for lhs, desc in pairs({ ["-"] = "Stage / unstage", S = "Stage all files", U = "Unstage all files",
@@ -414,6 +449,11 @@ t.eq(map(sample, ",p").desc, "Toggle Markdown Preview", "closing CodeDiff preser
 -- Back to the global prefix, or to which-key's buffer-local trigger for it.
 t.ok(map(sample, ";").desc ~= "Disabled in CodeDiff", "; is no longer blocked")
 t.ok(map(sample, "s").desc ~= "Disabled in CodeDiff", "and neither is s")
+for lhs, desc in pairs({ H = "Prev buffer", L = "Next buffer", ["[b"] = "Prev buffer", ["]b"] = "Next buffer",
+  ["-"] = "Oil: parent directory" }) do
+  t.eq(map(sample, lhs).desc, desc, lhs .. " is handed back to its global mapping")
+end
+t.eq(map(sample, "<C-^>"), {}, "and <C-^> to the builtin alternate buffer")
 t.eq(map(sample, "<ScrollWheelDown>"), {}, "the wheel overrides are gone")
 local leftovers = vim.tbl_filter(function(b) return vim.api.nvim_buf_get_name(b):match("^codediff://") ~= nil end,
   vim.api.nvim_list_bufs())
@@ -441,10 +481,14 @@ for _, entry in ipairs(lifecycle.get_session(rev_tab).panel.data.status_result.u
   listed[#listed + 1] = entry.path
 end
 t.ok(vim.list_contains(listed, "中文.txt"), "a non-ASCII path is listed intact (" .. table.concat(listed, ", "):sub(1, 60) .. ")")
-for _, lhs in ipairs({ "-", "S", "U", "X" }) do
+for _, lhs in ipairs({ "S", "U", "X" }) do
   t.ok(map(s.panel_bufnr, lhs).buffer ~= 1, "a revision view's explorer has no " .. lhs)
 end
 t.eq(map(s.panel_bufnr, "q").desc, "Close the CodeDiff view", "but closes on q")
+-- Without the stage key, `-` is blocked there as in the panes.
+for _, buf in ipairs({ s.panel_bufnr, s.original_bufnr, s.modified_bufnr }) do
+  for _, lhs in ipairs({ "-", unpack(SWITCH) }) do blocked_in(buf, lhs) end
+end
 
 vim.cmd.tabnext(1)
 vim.cmd.edit(vim.fn.fnameescape(root .. "/sample.md"))
@@ -453,6 +497,7 @@ t.ok(vim.wait(15000, history_ready, 20), "<leader>gV opens the file's history")
 local file_tab = vim.api.nvim_get_current_tabpage()
 t.eq(vim.t.codediff_label, "history · sample.md", "labelled with the file")
 t.eq(map(cd.session(0).panel_bufnr, "q").desc, "Close the CodeDiff view", "the history panel closes on q")
+for _, lhs in ipairs({ ";", "s", "-", unpack(SWITCH) }) do blocked_in(cd.session(0).panel_bufnr, lhs) end
 t.eq(#lifecycle.get_session(file_tab).panel.data.commits, 1, "sample.md has one commit")
 
 -- From inside a view: the left pane is not a file.

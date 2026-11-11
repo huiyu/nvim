@@ -179,7 +179,7 @@ return {
               return ""
             end, { buffer = buf, expr = true, desc = "[LSP] Scroll hover / page" })
           end
-          map(",a", function() vim.lsp.buf.code_action() end, "[LSP] Code action", { "n", "v" })
+          map(",a", function() vim.lsp.buf.code_action() end, "[LSP] Code action", { "n", "x" })
           -- Replaces the grx that nowait above makes unreachable. gopls defines
           -- real lenses here (generate, test, tidy, govulncheck; see lang/go.lua).
           map(",c", function() vim.lsp.codelens.run() end, "[LSP] Run codelens")

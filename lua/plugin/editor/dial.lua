@@ -17,10 +17,13 @@ return {
     { "<C-x>",  dial("dec_normal"),  expr = true, desc = "Decrement" },
     { "g<C-a>", dial("inc_gnormal"), expr = true, desc = "Increment" },
     { "g<C-x>", dial("dec_gnormal"), expr = true, desc = "Decrement" },
-    { "<C-a>",  dial("inc_visual"),  mode = "v",  expr = true, desc = "Increment" },
-    { "<C-x>",  dial("dec_visual"),  mode = "v",  expr = true, desc = "Decrement" },
-    { "g<C-a>", dial("inc_gvisual"), mode = "v",  expr = true, desc = "Increment" },
-    { "g<C-x>", dial("dec_gvisual"), mode = "v",  expr = true, desc = "Decrement" },
+    -- "x", not "v": in Select mode (a snippet placeholder) a typed `g` must
+    -- replace the text, not wait for g<C-a>. An unmapped Select <C-a> still
+    -- increments, as Visual mode's builtin.
+    { "<C-a>",  dial("inc_visual"),  mode = "x",  expr = true, desc = "Increment" },
+    { "<C-x>",  dial("dec_visual"),  mode = "x",  expr = true, desc = "Decrement" },
+    { "g<C-a>", dial("inc_gvisual"), mode = "x",  expr = true, desc = "Increment" },
+    { "g<C-x>", dial("dec_gvisual"), mode = "x",  expr = true, desc = "Decrement" },
   },
   opts = function()
     local augend = require("dial.augend")

@@ -633,20 +633,32 @@ end
 -- the real prefix would have waited for it. Keys that arrive together (a
 -- macro, `:normal ;f`) still reach the global mapping: Vim prefers the
 -- longer match for keys already typed (:help map-nowait).
-local function blocked(key, hint)
+---@param prefix? boolean swallow the key that follows, as above
+local function blocked(key, hint, prefix)
   return function()
     vim.notify(("%s is disabled in CodeDiff\n%s"):format(key, hint), vim.log.levels.WARN, { title = "CodeDiff" })
-    if vim.wait(vim.o.timeoutlen, function() return vim.fn.getchar(1) ~= 0 end, 10) then
+    if prefix and vim.wait(vim.o.timeoutlen, function() return vim.fn.getchar(1) ~= 0 end, 10) then
       vim.fn.getcharstr()
     end
   end
 end
+local LEAVE = "gf opens this file in the previous tab\n<leader>gq closes the view"
 local BLOCKS = {
-  { "n", ";", blocked(";", "gf opens this file in the previous tab\n<leader>gq closes the view"),
-    desc = "Disabled in CodeDiff", opts = { nowait = true } },
-  { "n", "s", blocked("s", "<C-w> still moves between windows\n<leader>gq closes the view"),
+  { "n", ";", blocked(";", LEAVE, true), desc = "Disabled in CodeDiff", opts = { nowait = true } },
+  { "n", "s", blocked("s", "<C-w> still moves between windows\n<leader>gq closes the view", true),
     desc = "Disabled in CodeDiff", opts = { nowait = true } },
 }
+-- The keys off `;` that put another buffer in the current window do the same
+-- as a `;` picker: bufferline's H/L and [b/]b, and the alternate buffer
+-- (<C-^>, and <C-6> through it; `;a` is already under `;`). Neither the panes
+-- nor the nofile panels are 'winfixbuf', so each swapped the window's buffer
+-- under a session that stayed alive. Oil's `-` is the same, and own_keys
+-- blocks it where it is not the status explorer's stage key. Whole keys
+-- rather than prefixes, so the key after one is the user's next command and
+-- is left alone.
+for _, key in ipairs({ "H", "L", "[b", "]b", "<C-^>" }) do
+  BLOCKS[#BLOCKS + 1] = { "n", key, blocked(key, LEAVE), desc = "Disabled in CodeDiff", opts = { nowait = true } }
+end
 
 --- Native wheel scrolling leaves the other pane behind: measured, neither a
 --- wheel over an unfocused pane nor one over the focused pane moves its
@@ -689,6 +701,7 @@ local function own_keys(tab, s)
   -- revision view CodeDiff's X runs `git clean` on any file the index does
   -- not track, including ones the revision merely contains.
   local actions = internal("ui.explorer.actions")
+  local stages = false
   if mode_of(s) == "status" and actions then
     for _, k in ipairs({
       { "-", "toggle_stage_entry", "Stage / unstage" },
@@ -698,9 +711,14 @@ local function own_keys(tab, s)
     }) do
       if type(actions[k[2]]) == "function" then
         keys[#keys + 1] = { "n", k[1], panel_action(tab, actions[k[2]]), desc = k[3], on = "panel", opts = { nowait = true } }
+        stages = stages or k[1] == "-"
       end
     end
   end
+  -- Everywhere else in the view `-` would be oil's parent directory, opened
+  -- in place of the pane or panel (see BLOCKS).
+  keys[#keys + 1] = { "n", "-", blocked("-", LEAVE), desc = "Disabled in CodeDiff",
+    on = stages and "panes" or "all", opts = { nowait = true } }
   return keys
 end
 
@@ -1287,8 +1305,8 @@ function M.setup(opts, hooks)
   end
 
   require("codediff").setup(opts)
-  -- Not version-gated: without it the `;`/`s` blocks miss every file after
-  -- the first, and the hook only adds a scheduled call.
+  -- Not version-gated: without it the key blocks (BLOCKS) miss every file
+  -- after the first, and the hook only adds a scheduled call.
   hook_buffer_swaps()
 
   local group = vim.api.nvim_create_augroup("util_codediff", { clear = true })

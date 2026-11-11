@@ -7,14 +7,17 @@ return {
       "nvim-treesitter/nvim-treesitter"
     },
     keys = {
-      { "<leader>tm", function() require("neotest").run.run() end,                     desc = "Test current method",  mode = { "n", "v" } },
-      { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end,   desc = "Test current file",    mode = { "n", "v" } },
-      { "<leader>tS", function() require("neotest").summary.toggle() end,              desc = "Toggle test summary",  mode = { "n", "v" } },
-      { "<leader>to", function() require("neotest").output.open() end,                 desc = "Toggle test output",   mode = { "n", "v" } },
-      { "<leader>tD", function() require("neotest").diagnostic.show() end,             desc = "Show test diagnostic", mode = { "n", "v" } },
-      { "<leader>th", function() require("neotest").diagnostic.hide() end,             desc = "Hide test diagnostic", mode = { "n", "v" } },
+      { "<leader>tm", function() require("neotest").run.run() end,                     desc = "Test current method" },
+      { "<leader>tf", function() require("neotest").run.run(vim.fn.expand("%")) end,   desc = "Test current file" },
+      { "<leader>tS", function() require("neotest").summary.toggle() end,              desc = "Toggle test summary" },
+      { "<leader>to", function() require("neotest").output.open() end,                 desc = "Toggle test output" },
+      { "<leader>tD", function() require("neotest").diagnostic.show() end,             desc = "Show test diagnostic" },
+      { "<leader>th", function() require("neotest").diagnostic.hide() end,             desc = "Hide test diagnostic" },
     },
     opts = {
+      -- g? is help in every panel here (aerial, oil, CodeDiff); ? stays too.
+      -- Each mapping takes a list of keys.
+      summary = { mappings = { help = { "?", "g?" } } },
       consumers = {
         -- Explicit path/row prevents a buffer switch during discovery from
         -- changing the target. Never let "nearest" fall back to a whole file.

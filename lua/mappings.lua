@@ -104,11 +104,14 @@ end, { desc = "Redraw terminal TUI", noremap = true, silent = true })
 -- that changed, so cells Nvim believes are unchanged are never rewritten.
 vim.keymap.set("n", "<leader>ur", "<cmd>mode<cr>", { desc = "Redraw screen" })
 
--- Visual & Select mode
-vim.keymap.set("v", "<", "<gv", { desc = "Indent left", noremap = true, silent = true })
-vim.keymap.set("v", ">", ">gv", { desc = "Indent right", noremap = true, silent = true })
-vim.keymap.set("v", "<leader>yy", "y", { desc = "Yank selection to register" })
-vim.keymap.set("v", "<leader>yc", '"+y', { desc = "Yank selection to clipboard" })
+-- Visual mode. "x", never "v": "v" also maps Select mode, where a snippet
+-- placeholder sits and the first printable key typed must replace it -- with
+-- "v", `<`/`>` indented the line and `,`/<Space> started a mapping instead
+-- (`:h mapmode-x`). tests/select_mode_spec.lua holds every config key to it.
+vim.keymap.set("x", "<", "<gv", { desc = "Indent left", noremap = true, silent = true })
+vim.keymap.set("x", ">", ">gv", { desc = "Indent right", noremap = true, silent = true })
+vim.keymap.set("x", "<leader>yy", "y", { desc = "Yank selection to register" })
+vim.keymap.set("x", "<leader>yc", '"+y', { desc = "Yank selection to clipboard" })
 -- Note: visual paste handled by yanky.nvim (provides yank history cycling)
 
 -- Window navigation works uniformly from editor Normal mode and terminal

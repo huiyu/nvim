@@ -91,6 +91,22 @@ local _, rendered = popup()
 t.ok(not rendered:find("Python ·", 1, true) and not rendered:find("LaTeX ·", 1, true),
   "plain text does not advertise other filetypes' operations")
 
+-- A chat buffer. CodeCompanion maps ,s ,X ,q ,z on each chat it creates, so
+-- stand-ins take their place here (tests/companion_spec.lua pins the real
+-- ones). The Chat heading must come before the unfiltered CodeDiff and Review
+-- sections, which declare z and X too.
+local chat = buffer("codecompanion")
+for _, lhs in ipairs({ ",s", ",X", ",q", ",z" }) do
+  vim.keymap.set("n", lhs, "<Nop>", { buffer = chat, desc = "stand-in" })
+end
+owners = popup()
+for _, lhs in ipairs({ ",s", ",X", ",q", ",z", ",m" }) do
+  t.eq(owners[lhs], "Chat · conversation / rendering", "codecompanion: " .. lhs .. " is under the Chat heading")
+end
+for lhs, callback in pairs(general) do
+  t.eq(mapping(lhs).callback, callback, "codecompanion: " .. lhs .. " retains general editing behavior")
+end
+
 -- Plugin-provided localleader defaults must not shadow general comma actions.
 -- Open the actual editable search panel, inspect its mappings and close it
 -- through the new key rather than just checking the lazy options table.

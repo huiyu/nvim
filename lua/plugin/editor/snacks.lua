@@ -441,6 +441,26 @@ return {
           picker.main = require("util.window").ensure_editor_win()
         end
       end,
+      -- Toggle hidden files moves from <M-h> to <M-.>: tmux takes Alt-h for
+      -- pane navigation before Nvim sees it, and `.` is oil's `g.`. Both
+      -- windows also answer g?, the help key of every other view, beside
+      -- their own `?` (Normal mode).
+      win = {
+        input = {
+          keys = {
+            ["<M-h>"] = false,
+            ["<M-.>"] = { "toggle_hidden", mode = { "i", "n" } },
+            ["g?"] = "toggle_help_input",
+          },
+        },
+        list = {
+          keys = {
+            ["<M-h>"] = false,
+            ["<M-.>"] = "toggle_hidden",
+            ["g?"] = "toggle_help_list",
+          },
+        },
+      },
       sources = {
         -- filename-first display: shorter, scannable in Java deep paths
         -- hidden: show dotfiles; ignored: also search gitignored files
@@ -459,6 +479,22 @@ return {
         },
         recent = {
           format = "file",
+        },
+        -- Upstream maps <C-w> to "tcd to the project" in Insert mode too, so
+        -- typing a query cannot delete a word. Insert <C-w> goes back to the
+        -- picker's own delete-word: the input is a prompt buffer, where a
+        -- bare <C-w> would start a window command, hence <c-s-w>. The source
+        -- key replaces the default spec whole, so the delete-word spec is
+        -- given again under a name of its own.
+        projects = {
+          win = {
+            input = {
+              keys = {
+                ["<c-w>"] = { { "tcd" }, mode = { "n" } },
+                i_ctrl_w = { "<c-w>", "<c-s-w>", mode = { "i" }, expr = true, desc = "delete word" },
+              },
+            },
+          },
         },
         buffers = {
           format = "file",
