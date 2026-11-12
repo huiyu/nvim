@@ -911,13 +911,18 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 ## Validation
 
 Run checks proportional to the change. At minimum, run the spec suite, one
-startup and the working-tree whitespace check:
+startup and the working-tree whitespace check -- `make verify` runs all three
+(`make test S="name ..."` runs some specs; the Makefile lists the rest):
 
 ```sh
 ./tests/run.sh
 nvim --headless -u init.lua -i NONE +qa
 git diff --check
 ```
+
+The specs run one at a time: several share what one Nvim at a time expects
+(the llama-server util.llama shares, git index and gitsigns watcher timing),
+and failed when run side by side.
 
 `tests/*_spec.lua` run against the real configuration (`-u init.lua`), so they
 catch what a startup check cannot. Each spec exits through `cquit`: a plain
