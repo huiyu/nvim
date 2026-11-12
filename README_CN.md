@@ -574,6 +574,9 @@ agent：`NVIM_AI_PROVIDER` 和 `vim.g.ai_provider` 已不再读取，残留的�
 缺了 CLI 或 bridge 只是警告，因为选择器会直接不列出它；没设置的 `NVIM_*` key 只在
 属于当前 key profile 时才算警告；只有什么都用不了时才报错。
 
+`NVIM_AI_PLUGIN_DIR` 为 Claude/Codex 原生终端加载本地插件，多个目录用逗号分隔。
+也可以填写包含两种宿主发行包的目录，见[原生终端的本地插件](docs/MANUAL_CN.md#原生终端的本地插件)。
+
 #### CodeCompanion 的两种 Chat
 
 CodeCompanion 的 Chat 是一个 Neovim buffer，分两种。打开后看起来差不多，但运行方式

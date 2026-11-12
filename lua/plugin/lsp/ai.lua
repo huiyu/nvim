@@ -38,12 +38,8 @@ end
 
 local function build_terminal_cmd()
   local claude_args = { "claude" }
-  for _, dir in ipairs(vim.split(vim.env.CLAUDE_PLUGIN_DIR or "", ",", { trimempty = true })) do
-    dir = vim.trim(dir)
-    if dir ~= "" then
-      claude_args[#claude_args + 1] = "--plugin-dir"
-      claude_args[#claude_args + 1] = vim.fn.shellescape(dir)
-    end
+  for _, arg in ipairs(require("ai.plugins").claude_args()) do
+    claude_args[#claude_args + 1] = vim.fn.shellescape(arg)
   end
   if should_use_chrome() then claude_args[#claude_args + 1] = "--chrome" end
   -- The review baseline's prompt hooks (lua/ai/review/hook.lua). Claude merges

@@ -649,6 +649,10 @@ credentials, for every provider. A missing CLI or bridge is a warning, since
 the picker just leaves it out; an unset `NVIM_*` key is one only for the
 current key profile; only nothing available at all is an error.
 
+`NVIM_AI_PLUGIN_DIR` loads comma-separated local plugin directories in the
+native Claude/Codex terminals. A distribution root can supply separate host
+packages; see [local native plugins](docs/MANUAL.md#local-native-plugins).
+
 #### CodeCompanion: agent chat and API chat
 
 CodeCompanion's chats live in a Neovim buffer, in two kinds that look alike
