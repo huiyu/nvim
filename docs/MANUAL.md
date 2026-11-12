@@ -451,9 +451,11 @@ tabline.
 `;c` lists every changed hunk in the repository, staged and unstaged, with the
 diff as its preview; Enter jumps there. `]h` / `[h` step through hunks from
 the cursor instead. In this picker `<Tab>` stages or unstages the hunk, and
-`<C-r>` **restores** it: after a Yes/No confirmation an unstaged hunk is
+`<C-x>` **restores** it: after a Yes/No confirmation an unstaged hunk is
 discarded from the working tree, and a staged one is taken out of the index.
-It is the one destructive key there.
+It is the one destructive key there, on the pickers' "remove an item" chord;
+`<C-r>` in the input inserts a register, as anywhere in Insert mode. The same
+holds in `<leader>gs`.
 
 ---
 

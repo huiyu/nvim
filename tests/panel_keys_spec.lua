@@ -204,8 +204,74 @@ settle()
 press("A<C-w><Esc>")
 t.eq(projects.input:get(), "foo ", "projects: typing <C-w> deletes the last word of the query")
 t.ok(projects.input.win:valid(), "projects: and the picker stays open")
+
+-- ;p: <C-r> (tcd, then recent files) is Normal only; Insert <C-r> inserts a
+-- register, as in every other picker's input.
+t.eq(project_keys["<C-R>"], { { "tcd", "picker_recent" }, mode = { "n" } },
+  "projects: <C-r> is tcd + recent in Normal mode only")
+t.ok(local_map(p_buf, "<C-r>", "n") ~= nil, "projects: Normal <C-r> on the input is mapped")
+t.ok(local_map(p_buf, "<C-r>", "i") == nil, "projects: Insert <C-r> on the input is not taken")
+vim.fn.setreg("a", "reg")
+projects.input:set("")
+settle()
+press("A<C-r>a<Esc>")
+t.eq(projects.input:get(), "reg", "projects: Insert <C-r>a inserts register a into the query")
+t.ok(projects.input.win:valid(), "projects: and the picker stays open")
 projects:close()
 settle()
 
+-- <leader>gs / ;c: restoring a file or hunk is <C-x>, the pickers' "remove
+-- an item" chord, behind Snacks' own confirmation; <C-r> is the input's
+-- register insert (Insert) and redo (Normal) again.
+local gitroot = vim.fn.tempname()
+vim.fn.mkdir(gitroot, "p")
+gitroot = vim.uv.fs_realpath(gitroot)
+local function git(...)
+  return vim.system({ "git", "-C", gitroot, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+    "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", ... }):wait()
+end
+git("init", "-q")
+vim.fn.writefile({ "one" }, gitroot .. "/hunk.txt")
+git("add", "hunk.txt")
+git("commit", "-qm", "fixture")
+vim.fn.writefile({ "two" }, gitroot .. "/hunk.txt")
+
+for _, source in ipairs({ "git_status", "git_diff" }) do
+  local keys = require("snacks.picker.config").get({ source = source }).win.input.keys
+  t.eq(keys["<C-R>"], false, source .. ": upstream's <C-r> restore is off")
+  t.eq(keys["<C-X>"], { "git_restore", mode = { "n", "i" } }, source .. ": <C-x> restores")
+
+  local picker = Snacks.picker[source]({ cwd = gitroot })
+  t.ok(vim.wait(2000, function()
+    return picker.input and picker.input.win:buf_valid() and picker:count() > 0
+  end, 10), source .. ": the picker opens and lists the change")
+  local buf = picker.input.win.buf
+  for _, mode in ipairs({ "i", "n" }) do
+    t.eq(action(buf, "<C-x>", mode), "git restore", source .. ": " .. mode .. " <C-x> on the input restores")
+    t.ok(local_map(buf, "<C-r>", mode) == nil, source .. ": " .. mode .. " <C-r> on the input is not taken")
+  end
+  t.eq(action(buf, "<C-r><C-w>", "i"), "insert cword", source .. ": Insert <C-r><C-w> inserts the cword")
+
+  vim.api.nvim_set_current_win(picker.input.win.win)
+  press("A<C-r>a<Esc>")
+  t.eq(picker.input:get(), "reg", source .. ": Insert <C-r>a inserts register a into the query")
+  t.ok(Snacks.picker.get({ source = "select" })[1] == nil, source .. ": and asks nothing")
+  picker.input:set("")
+  settle()
+
+  press("<C-x>")
+  local confirm
+  t.ok(vim.wait(2000, function()
+    confirm = Snacks.picker.get({ source = "select" })[1]
+    return confirm ~= nil
+  end, 10), source .. ": <C-x> asks before discarding")
+  if confirm then confirm:close() end
+  settle()
+  t.eq(vim.fn.readfile(gitroot .. "/hunk.txt"), { "two" }, source .. ": declining keeps the change")
+  if not picker.closed then picker:close() end
+  settle()
+end
+
+vim.fn.delete(gitroot, "rf")
 vim.fn.delete(root, "rf")
 t.done()

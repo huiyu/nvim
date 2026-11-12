@@ -265,7 +265,7 @@ return {
     { ";m",       function() Snacks.picker.marks() end,                                             desc = "Marks" },
     -- Every changed hunk in the repository, staged and unstaged. Like a mark,
     -- a hunk is a place to be that needs no cursor context, unlike ]h/[h. In
-    -- the picker <Tab> stages or unstages a hunk and <C-r> restores it: after
+    -- the picker <Tab> stages or unstages a hunk and <C-x> restores it: after
     -- a confirmation an unstaged hunk is discarded from the working tree.
     { ";c",       function() Snacks.picker.git_diff() end,                                          desc = "Git hunks" },
 
@@ -482,13 +482,41 @@ return {
         -- picker's own delete-word: the input is a prompt buffer, where a
         -- bare <C-w> would start a window command, hence <c-s-w>. The source
         -- key replaces the default spec whole, so the delete-word spec is
-        -- given again under a name of its own.
+        -- given again under a name of its own. <C-r> ("tcd, then recent
+        -- files") is Normal only too: upstream's nowait Insert spec took the
+        -- input's register inserts (<C-r>a, <C-r><C-w>, <C-r>%).
         projects = {
           win = {
             input = {
               keys = {
                 ["<c-w>"] = { { "tcd" }, mode = { "n" } },
                 i_ctrl_w = { "<c-w>", "<c-s-w>", mode = { "i" }, expr = true, desc = "delete word" },
+                ["<c-r>"] = { { "tcd", "picker_recent" }, mode = { "n" } },
+              },
+            },
+          },
+        },
+        -- Upstream restores (discards) a file or hunk on a nowait <C-r> in
+        -- Insert and Normal mode, which takes the input's register inserts
+        -- (<C-r><C-w>, <C-r>%) and Normal redo. It moves to <C-x>, the
+        -- "remove an item" chord of the other pickers (buffers, marks,
+        -- branches), and keeps Snacks' own confirmation.
+        git_status = {
+          win = {
+            input = {
+              keys = {
+                ["<c-r>"] = false,
+                ["<c-x>"] = { "git_restore", mode = { "n", "i" } },
+              },
+            },
+          },
+        },
+        git_diff = {
+          win = {
+            input = {
+              keys = {
+                ["<c-r>"] = false,
+                ["<c-x>"] = { "git_restore", mode = { "n", "i" } },
               },
             },
           },

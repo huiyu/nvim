@@ -645,6 +645,19 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   Same `nowait` and hint, through util.codediff's `set_keys`, handed back on
   close; only `;` and `s` swallow the next key, these are whole keys. Picking
   a buffer by its tab letter is `;B` (bufferline), so the `;` block covers it.
+  Behind the keys, util.codediff's `guard_panes` puts back any swap of a
+  pane's or panel's buffer that CodeDiff did not make -- `:e`/`:b` (and `!`),
+  `<C-o>`/`<C-i>`, quickfix and location jumps, mini.bracketed's `[o`/`[j`,
+  LSP jumps through Snacks or `vim.lsp.util.show_document` -- on the next tick,
+  with the pane's view and a "cannot replace a CodeDiff pane" notice. It tells
+  CodeDiff's own swaps by its modules' chunk names on the Lua stack; a pane's
+  wipe-when-hidden buffer (a revision, the welcome page, a placeholder) is held
+  with `bufhidden=hide` while shown and gets its own value back when CodeDiff
+  swaps it out, the window closes or the view does. Not 'winfixbuf': CodeDiff
+  swaps its own panes with `nvim_win_set_buf`/`:edit` from many modules and
+  scheduled callbacks, which E1513 would break, and Snacks' and the LSP
+  client's jumps would error. Swaps under `:noautocmd` fire no event and pass.
+  The key blocks stay: they refuse before another buffer loads at all.
 - The debug view is the other multi-window view with a tabpage of its own, and
   it is deliberately the opposite case: its keys stay global. Debugging has an
   event stream, so `<leader>d` has to work from the editor tabpage too -- you
@@ -777,7 +790,11 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   library file exists, and with `VSCODE_DIFF_NO_AUTO_INSTALL` held at 1 for
   the require (which loads the plugin); and the watcher release it wants,
   `core.installer.watcher.VERSION`, read only once CodeDiff is loaded. Both
-  are pcall'd and type-checked. `lua/util/codediff.lua` reads `ui.lifecycle`
+  are pcall'd and type-checked. `lua/util/codediff.lua` also relies on the
+  chunk names of CodeDiff's modules (its `lua/codediff/` directory, read from
+  `require("codediff").setup` at setup), which tell its own pane swaps from
+  others (`guard_panes`); without that prefix it lets every swap through, as
+  plain CodeDiff does. `lua/util/codediff.lua` reads `ui.lifecycle`
   (`get_session`, `set_buf_keymap`, `begin`/`end_keymap_scope`, `close`, and
   wraps `update_buffers`), the session's fields and
   `stored_diff_result.changes`, the panel tree's `get_node`,
