@@ -1,4 +1,4 @@
--- CI only (.github/workflows/tests.yml): wait for the Mason installs that
+-- CI (.github/workflows/tests.yml) and `make deps`: wait for the Mason installs that
 -- loading the LSP and DAP plugins started, until nothing has been installing
 -- for 30 s, at most 15 minutes. On a fresh runner those installs otherwise ran
 -- in the background during the spec suite, and whether a spec that needs a

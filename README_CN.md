@@ -93,8 +93,25 @@ nvim
 ├── .github/workflows/       # CI：spec 套件 + 一次 headless 启动检查
 ├── scripts/                 # Agent TUI 辅助脚本、共享 llama-server 的守护脚本
 ├── tests/                   # Headless spec 套件（tests/run.sh）
+├── Makefile                 # 日常命令：make test、make verify 等
 └── docs/                     # MANUAL.md, DIAGNOSTICS.md, UTILITIES.md
 ```
+
+### 常用命令
+
+在 `~/.config/nvim` 下运行；直接执行 `make` 会列出全部命令。
+
+| 命令 | 作用 |
+|---|---|
+| `make test` | 跑 `tests/` 下全部 spec（约 5 分钟）；`make test S="hunk_actions codediff"` 只跑指定的几个 |
+| `make startup` | headless 启动，有任何启动错误即失败 |
+| `make check` | 检查未暂存和已暂存改动里的空白错误 |
+| `make verify` | 依次执行 `check`、`startup`、`test`：即 CI 所做的检查，也是改动合入前该跑的 |
+| `make health` | 在终端里输出 `:checkhealth config` |
+| `make profile` | headless 启动中最慢的步骤 |
+| `make deps` | 安装 spec 所需的一切：缺失的插件、Mason 工具包、CodeDiff 的原生库 |
+
+spec 刻意逐个运行：有些 spec 依赖同一时间只有一个 Nvim 在用的资源（`util.llama` 共享的 llama-server、git 与 gitsigns 的时序）。
 
 ### 插件列表
 

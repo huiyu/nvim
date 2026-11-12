@@ -98,8 +98,26 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 ├── .github/workflows/       # CI: spec suite + a headless startup check
 ├── scripts/                 # Agent TUI helpers, shared llama-server supervisor
 ├── tests/                   # Headless spec suite (tests/run.sh)
+├── Makefile                 # Everyday commands: make test, make verify, ...
 └── docs/                     # MANUAL.md, DIAGNOSTICS.md, UTILITIES.md
 ```
+
+### Commands
+
+Run from `~/.config/nvim`; `make` lists them.
+
+| Command | Does |
+|---|---|
+| `make test` | Every spec in `tests/` (about 5 minutes); `make test S="hunk_actions codediff"` runs some |
+| `make startup` | Starts headless and fails on any startup error |
+| `make check` | Whitespace errors in unstaged and staged changes |
+| `make verify` | `check`, `startup` and `test`: what CI runs, and what to run before a change lands |
+| `make health` | Prints `:checkhealth config` in the terminal |
+| `make profile` | The slowest steps of a headless startup |
+| `make deps` | Installs what the specs need: missing plugins, Mason packages, CodeDiff's native library |
+
+The specs run one at a time on purpose: some share what one Nvim at a time
+expects (the llama-server `util.llama` shares, git and gitsigns timing).
 
 ### Plugins
 
