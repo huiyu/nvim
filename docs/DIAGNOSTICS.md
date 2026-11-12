@@ -525,6 +525,15 @@ labels and the listing; its header lists what it depends on.
   each chat with its backend and billing, and a reply header says the kind:
   `CodeCompanion (Claude Code · ACP)` or `CodeCompanion (Anthropic · API)`. A
   chat keeps the adapter it was created with.
+- **Did the chat get my prompt?** If the end of the chat says `⠋ Waiting
+  for … · Ns`, it did: the line starts the moment a prompt is sent
+  (`lua/ai/progress.lua`, from the chat's `on_submitted`), before anything
+  that can take a while — an ACP chat's first connection and session, or an
+  API adapter fetching its model list, which blocks Nvim for up to 3 s on the
+  first request of each half hour. It is hidden while the reply streams in,
+  says `… is working` once the buffer has been still for 1.5 s, and goes when
+  the turn ends; `<C-c>` stops the request. A chat with no line after `<CR>`
+  sent nothing: an empty prompt, or one still mid-turn.
 - **A key fails with `AI chat … failed` and a traceback.**
   `lua/ai/companion.lua` reaches into CodeCompanion's chat internals, and an
   update changed one. Nothing falls back to an upstream command, which would

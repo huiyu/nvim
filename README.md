@@ -694,7 +694,9 @@ take the same place on the right as the native terminals:
   code block, without submitting it; `<leader>ai` puts the cursor in its
   prompt (from Visual, after adding the selection).
 - In a chat, `<CR>` sends (`<C-d>` from Insert mode) and `<C-c>` stops the
-  reply. `q` hides the chat, as `<leader>ac` does, which brings it back;
+  reply. From the send until the reply is done, the end of the chat says
+  `⠋ Waiting for Claude Code · 3s` (or `… is working` while an agent thinks
+  or runs a tool); it is hidden while the reply streams in. `q` hides the chat, as `<leader>ac` does, which brings it back;
   `,q` ends it, and CodeCompanion shows another open chat in its window.
   `,X` clears the messages, `,z` folds the code blocks, `,s` saves the chat,
   `gf` opens the file under the cursor and `?` / `g?` list every key.

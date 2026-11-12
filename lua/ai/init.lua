@@ -510,7 +510,10 @@ local function review_events()
   vim.api.nvim_create_autocmd("User", {
     group = group,
     pattern = "CodeCompanionChatCreated",
-    callback = guarded("chat", function(ev) require("ai.review.rounds").chat_created(ev.data) end),
+    callback = guarded("chat", function(ev)
+      require("ai.review.rounds").chat_created(ev.data)
+      require("ai.progress").chat_created(ev.data)
+    end),
   })
   vim.api.nvim_create_autocmd("User", {
     group = group,

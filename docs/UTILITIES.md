@@ -1454,6 +1454,34 @@ again, and only that flag is still set. Each is read in a pcall, so a rename
 upstream loses one signal rather than raising. `tests/companion_spec.lua`
 pins the module and `tests/review_feedback_spec.lua` the mid-loop refusal.
 
+## AI Chat Progress (`ai.progress`)
+
+The progress line of a CodeCompanion chat: from the moment a prompt is sent
+until the turn ends, the end of the chat's last line shows a spinner and the
+seconds since the send. Upstream shows nothing until the first streamed chunk,
+and its `User CodeCompanionRequestStarted` comes only after an ACP chat's
+connection or an HTTP adapter's blocking setup, so this starts from the chat's
+`on_submitted` callback instead and redraws at once. While a reply streams in,
+the line is hidden; it comes back once the buffer has not changed for
+`STALL_MS`, and ends when `ai.companion.busy` turns false or the buffer goes.
+The facade hooks every chat on `User CodeCompanionChatCreated`.
+
+#### API Reference
+
+```lua
+local progress = require("ai.progress")
+
+progress.chat_created(data)    -- the ChatCreated autocmd's data: hook that chat
+progress.attach(chat)          -- hook chat's on_submitted, once
+progress.start(chat)           -- a prompt was sent: start (or re-arm) its line
+progress.running(buf)          -- is that chat buffer's line running?
+progress.TICK_MS, progress.STALL_MS, progress.ns
+```
+
+It reads a chat's `add_callback`, `bufnr` and adapter name (through
+`ai.companion.name`); one timer per chat buffer, stopped with the line.
+`tests/companion_spec.lua` pins it.
+
 ## AI Panel Input (`ai.terminal`)
 
 Buffer-local input rules for every native agent panel -- whichever agent

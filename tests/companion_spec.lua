@@ -277,6 +277,31 @@ t.ok(hidden ~= nil and vim.iter(events):any(function(e) return e[1] == "CodeComp
   "and announces it")
 t.ok(hidden and vim.api.nvim_buf_line_count(hidden.bufnr) > 1, "with its buffer rendered all the same")
 t.eq(Chats.last_chat(), last_before, "it is not upstream's last chat until it is entered")
+
+-- The progress line: from on_submitted, which Chat:submit dispatches before
+-- the request (or an adapter's blocking setup), until the chat is not busy.
+-- Dispatched directly, as review rounds' on_before_submit is: no request.
+local progress = require("ai.progress")
+local function progress_text()
+  local marks = vim.api.nvim_buf_get_extmarks(hidden.bufnr, progress.ns, 0, -1, { details = true })
+  return marks[1] and marks[1][4].virt_text[1][1] or nil
+end
+local real_stall = progress.STALL_MS
+progress.STALL_MS = 300
+hidden._turn_in_progress = true
+hidden:dispatch("on_submitted", {})
+t.ok((progress_text() or ""):find("Waiting for OpenAI · 0s", 1, true) ~= nil,
+  "a sent prompt shows at once that the chat waits (" .. tostring(progress_text()) .. ")")
+vim.api.nvim_buf_set_lines(hidden.bufnr, -1, -1, false, { "streamed" })
+t.ok(vim.wait(500, function() return progress_text() == nil end, 10), "hidden while the reply streams in")
+t.ok(vim.wait(1000, function() return (progress_text() or ""):find("OpenAI is working", 1, true) ~= nil end, 10),
+  "back once the buffer is still")
+hidden._turn_in_progress = false
+t.ok(vim.wait(500, function() return not progress.running(hidden.bufnr) end, 10) and progress_text() == nil,
+  "gone once the chat is no longer busy")
+progress.STALL_MS = real_stall
+vim.api.nvim_buf_set_lines(hidden.bufnr, -2, -1, false, {})
+
 -- Handed the window of the chat shown here: hide with keep_window, then
 -- Chat.open with that window, which is ui:show_in_win.
 local here_win = anthropic.ui.winnr

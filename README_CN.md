@@ -614,8 +614,9 @@ CodeCompanion 的 Chat 是一个 Neovim buffer，分两种。打开后看起来�
   地交接。
 - `<leader>as` 把 Visual 选区作为带围栏的代码块加进右侧的 Chat，不会提交；
   `<leader>ai` 把光标放进它的输入区（从 Visual 模式调用时先加入选区）。
-- 在 Chat 里，`<CR>` 发送（Insert 模式下用 `<C-d>`），`<C-c>` 停止回复。`q`
-  隐藏 Chat，与 `<leader>ac` 相同，再按 `<leader>ac` 即可带回；`,q` 结束它，
+- 在 Chat 里，`<CR>` 发送（Insert 模式下用 `<C-d>`），`<C-c>` 停止回复。从发送到
+  回复结束，Chat 末尾显示 `⠋ Waiting for Claude Code · 3s`（agent 思考或运行工具时是
+  `… is working`），回复流式写入时隐藏。`q` 隐藏 Chat，与 `<leader>ac` 相同，再按 `<leader>ac` 即可带回；`,q` 结束它，
   CodeCompanion 会在它的窗口里显示另一个打开着的 Chat。`,X` 清空消息，`,z` 折叠
   代码块，`,s` 保存 Chat，`gf` 打开光标下的文件，`?` / `g?` 列出全部键。Insert 中的
   `<C-c>` 退出 Insert 模式，`gx` 打开 URL，`{` / `}` 按段落移动，与别处一致；换到

@@ -882,7 +882,13 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   buffer editable between its steps, and only that flag stays set. It is read
   in a pcall, so a rename upstream loses that signal only; `add_text` answers
   `false, "gone"|"busy"|"failed"` rather than raising, and
-  `tests/review_feedback_spec.lua` pins the mid-loop refusal. `<leader>ab`'s
+  `tests/review_feedback_spec.lua` pins the mid-loop refusal. A chat's
+  progress line (`lua/ai/progress.lua`) hooks its `on_submitted` callback on
+  `User CodeCompanionChatCreated`, as review rounds hook `on_before_submit`,
+  and ends when `ai.companion.busy` turns false: upstream shows nothing
+  until the first chunk, and its `RequestStarted` event fires only after an
+  ACP chat's connection or an HTTP adapter's blocking setup, so a spinner on
+  it starts too late (`tests/companion_spec.lua`). `<leader>ab`'s
   file goes to one exact chat through `add_buffer`, which calls the output
   of upstream's `/buffer` (`interactions.shared.slash_commands.buffer`,
   `new` and `output`) on it, refuses as `add_text` does, and reads
