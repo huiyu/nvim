@@ -34,7 +34,9 @@
 --   codediff.core.git               get_commit_list, get_diff_revision
 --   codediff.core.git.changes       get_diff_revision (the listing patch)
 --
--- Besides them, the public codediff module's next_hunk/prev_hunk (]h [h).
+-- Besides them, the public codediff module's next_hunk/prev_hunk (]h [h),
+-- and the chunk names of its modules (debug.getinfo's source, under
+-- lua/codediff/), which tell CodeDiff's own pane swaps from others.
 --
 -- Keys go through the session's own keymap registry (set_keys): it snapshots
 -- whatever a buffer had before, suspends the claims on real file buffers on
@@ -653,9 +655,11 @@ local BLOCKS = {
 -- The keys off `;` that put another buffer in the current window do the same
 -- as a `;` picker: bufferline's H/L, [b/]b and [B/]B (first/last), and the
 -- alternate buffer (<C-^>, and <C-6> through it; `;a` is already under `;`).
--- Neither the panes nor the nofile panels are 'winfixbuf', so each swapped the
--- window's buffer under a session that stayed alive. Oil's `-` is the same,
--- and own_keys blocks it where it is not the status explorer's stage key.
+-- Each swapped the window's buffer under a session that stayed alive. Oil's
+-- `-` is the same, and own_keys blocks it where it is not the status
+-- explorer's stage key. guard_panes (below) puts back any swap that gets
+-- through; these keys stay blocked so they refuse before the other buffer is
+-- loaded and its autocmds run.
 -- Whole keys rather than prefixes, so the key after one is the user's next
 -- command and is left alone.
 for _, key in ipairs({ "H", "L", "[b", "]b", "[B", "]B", "<C-^>" }) do
@@ -754,9 +758,203 @@ local function label_conflict_group(s)
   end
 end
 
+-- Keep each pane's buffer in its pane.
+--
+-- The panes and panels are ordinary windows, so whatever puts a buffer in the
+-- current window swapped one under a session that stayed alive: :e and :b
+-- (and their ! forms), the jumplist (<C-o>/<C-i>), mini.bracketed's [o/]o, a
+-- quickfix or location jump, an LSP jump through Snacks' picker (:buffer) or
+-- vim.lsp.util.show_document. BLOCKS only covers keys.
+--
+-- Not 'winfixbuf'. CodeDiff swaps its own panes with nvim_win_set_buf and
+-- :edit, which the option refuses with E1513, from many modules (view
+-- update, show, welcome, refresh's render, layout toggle, conflict result)
+-- and from scheduled callbacks; it records a swap through update_buffers
+-- only after making it, so lifting the option around that wrapper would
+-- cover none of them. The option would also turn show_document and Snacks'
+-- jump into E1513 errors and :cc into a split inside the view, and :edit!
+-- passes it anyway (measured on Nvim 0.12).
+--
+-- So a swap is let happen and undone. Every one fires BufEnter in the pane
+-- (nvim_win_set_buf too: it switches into the window first), and the Lua
+-- stack then says whether CodeDiff made it: its chunks are named after the
+-- plugin's lua/codediff/ directory. One it did not make is put back on the
+-- next tick, once the jump has finished, with the pane's view.
+--
+-- That needs the pane's buffer to outlive the swap, and a revision, the
+-- welcome page or a placeholder wipes when hidden. Changing 'bufhidden'
+-- on BufLeave is too late for :e, :cc and <C-o>, which decide before it
+-- fires (measured), so a pane holds such a buffer with bufhidden=hide for as
+-- long as it shows it, and gives the old value back -- and wipes, deletes or
+-- unloads the buffer if nothing shows it, as Nvim would have -- when CodeDiff
+-- swaps it out, the window closes or the view does.
+local shown = {} ---@type table<integer, integer> pane window -> the buffer CodeDiff put there
+local views = {} ---@type table<integer, table> pane window -> its view when that buffer last left
+local kept = {} ---@type table<integer, string> held pane buffer -> its own 'bufhidden'
+local guarded = {} ---@type table<integer, true> pane windows with a check queued
+local codediff_source ---@type string? "@<plugin dir>/lua/codediff/", set by setup()
+local WHEN_HIDDEN = { wipe = "bwipeout", delete = "bdelete", unload = "bunload" }
+
+--- Whether CodeDiff's own code is on the Lua stack: the event comes from a
+--- swap it made, directly or from a callback of its own. Without the chunk
+--- prefix (setup() warns) every swap counts as CodeDiff's: the panes then
+--- take any buffer, as plain CodeDiff's do, rather than refusing its own.
+local function from_codediff()
+  if not codediff_source then return true end
+  local level = 3
+  while true do
+    local info = debug.getinfo(level, "S")
+    if not info then return false end
+    if info.source:sub(1, #codediff_source) == codediff_source then return true end
+    level = level + 1
+  end
+end
+
+--- The windows of a session that must keep their buffers.
+local function pane_windows(s)
+  local view = panel_view(s)
+  local wins = {}
+  for _, win in pairs({ s.original_win, s.modified_win, s.result_win, view and view.winid }) do
+    if type(win) == "number" and vim.api.nvim_win_is_valid(win) then wins[win] = true end
+  end
+  return wins
+end
+
+--- The raw session `win` is a pane or panel of, if any.
+local function session_of_pane(win)
+  if not vim.api.nvim_win_is_valid(win) then return nil end
+  local s = raw_session(vim.api.nvim_win_get_tabpage(win))
+  return s and pane_windows(s)[win] and s or nil
+end
+
+--- Hold `buf` while a pane is meant to show it; otherwise give it back its
+--- own 'bufhidden', and what that would have done to a hidden buffer.
+local function hold(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then
+    kept[buf] = nil
+    return
+  end
+  for win, b in pairs(shown) do
+    if b == buf and vim.api.nvim_win_is_valid(win) then
+      -- Again if CodeDiff set it back (update_content does, on every show).
+      if WHEN_HIDDEN[vim.bo[buf].bufhidden] then
+        kept[buf] = vim.bo[buf].bufhidden
+        vim.bo[buf].bufhidden = "hide"
+      end
+      return
+    end
+  end
+  local bufhidden = kept[buf]
+  if not bufhidden then return end
+  kept[buf] = nil
+  -- Changed since by someone else: theirs stands.
+  if vim.bo[buf].bufhidden ~= "hide" then return end
+  vim.bo[buf].bufhidden = bufhidden
+  -- Never forced: these are CodeDiff's own nowrite and scratch buffers.
+  if #vim.fn.win_findbuf(buf) == 0 then pcall(vim.cmd, ("silent! %s %d"):format(WHEN_HIDDEN[bufhidden], buf)) end
+end
+
+--- Record that `buf` (nil: nothing) is what the pane `win` shows.
+local function show(win, buf)
+  local old = shown[win]
+  shown[win] = buf
+  if buf then hold(buf) end
+  if old and old ~= buf then hold(old) end
+end
+
+--- Record what each pane shows now, except one whose foreign swap is still
+--- to be undone.
+local function track(s)
+  for win in pairs(pane_windows(s)) do
+    if not guarded[win] then show(win, vim.api.nvim_win_get_buf(win)) end
+  end
+end
+
+local function put_back(win)
+  guarded[win] = nil
+  local want = shown[win]
+  if not want then return end
+  if not session_of_pane(win) then
+    -- The view went meanwhile: its buffer gets its own 'bufhidden' back.
+    views[win] = nil
+    show(win, nil)
+    return
+  end
+  if not vim.api.nvim_buf_is_loaded(want) then return end
+  local intruder = vim.api.nvim_win_get_buf(win)
+  if intruder == want or not pcall(vim.api.nvim_win_set_buf, win, want) then return end
+  local view = views[win]
+  if view then pcall(vim.api.nvim_win_call, win, function() vim.fn.winrestview(view) end) end
+  -- Nvim syncs 'scrollbind' windows from the buffer and topline the last
+  -- Normal command left, and skips the sync when the buffer differs: after
+  -- the swap's command that is the intruder, so the next scroll here moved
+  -- this pane alone and the two stayed that far apart (measured, 30 lines
+  -- after `:e` then 30<C-e>). A Normal command that does nothing records
+  -- this buffer instead.
+  if win == vim.api.nvim_get_current_win() and vim.wo[win].scrollbind and vim.api.nvim_get_mode().mode == "n" then
+    pcall(vim.cmd, "normal! " .. vim.keycode("<Ignore>"))
+  end
+  local name = vim.api.nvim_buf_is_valid(intruder) and vim.api.nvim_buf_get_name(intruder) or ""
+  name = name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]"
+  vim.notify(("%s cannot replace a CodeDiff pane\n%s"):format(name, LEAVE), vim.log.levels.WARN, { title = "CodeDiff" })
+end
+
+---@param group integer
+local function guard_panes(group)
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = group,
+    callback = function()
+      -- A panel shown again (,B) is a new window no update_buffers announces.
+      local win = vim.api.nvim_get_current_win()
+      if shown[win] then return end
+      local s = session_of_pane(win)
+      local buf = vim.api.nvim_get_current_buf()
+      if s and vim.list_contains(vim.tbl_values(session_buffers(s)), buf) then show(win, buf) end
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufLeave", {
+    group = group,
+    callback = function(ev)
+      local win = vim.api.nvim_get_current_win()
+      if shown[win] == ev.buf then views[win] = vim.fn.winsaveview() end
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = group,
+    callback = function(ev)
+      local win = vim.api.nvim_get_current_win()
+      local want = shown[win]
+      if want == nil or want == ev.buf then return end
+      if not session_of_pane(win) then
+        views[win] = nil
+        show(win, nil)
+      elseif from_codediff() then
+        show(win, ev.buf)
+      elseif not guarded[win] then
+        guarded[win] = true
+        vim.schedule(function() put_back(win) end)
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = group,
+    callback = function(ev)
+      local win = tonumber(ev.match)
+      if not win then return end
+      views[win] = nil
+      show(win, nil)
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = group,
+    callback = function(ev) kept[ev.buf] = nil end,
+  })
+end
+
 local function install(tab)
   local s = raw_session(tab)
   if not s then return end
+  track(s)
   M.set_keys(tab, own_keys(tab, s), "config")
   label_conflict_group(s)
   vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffKeys", modeline = false, data = { tabpage = tab } })
@@ -816,6 +1014,15 @@ end
 local function on_close(tab)
   if type(tab) ~= "number" then return end
   clear_vars(tab)
+  -- The panes are free to take any buffer from here on, and theirs get their
+  -- own 'bufhidden' back before the teardown hides them.
+  local s = raw_session(tab)
+  if s then
+    for win in pairs(pane_windows(s)) do
+      views[win] = nil
+      show(win, nil)
+    end
+  end
   -- CodeDiffClose fires inside the teardown, before the session is gone;
   -- look once it has finished.
   vim.schedule(function() sweep(tab) end)
@@ -1321,6 +1528,15 @@ function M.setup(opts, hooks)
   -- Not version-gated: without it the key blocks (BLOCKS) miss every file
   -- after the first, and the hook only adds a scheduled call.
   hook_buffer_swaps()
+  -- The prefix of CodeDiff's chunk names, which tells its own pane swaps
+  -- from anyone else's (guard_panes).
+  local ok, info = pcall(debug.getinfo, require("codediff").setup, "S")
+  codediff_source = ok and type(info) == "table" and type(info.source) == "string"
+    and info.source:match("^(@.*/lua/codediff/)") or nil
+  if not codediff_source then
+    warn_once("source", "CodeDiff's module paths are not where util.codediff looks for them;"
+      .. " its panes take any buffer again (lua/util/codediff.lua)")
+  end
 
   local group = vim.api.nvim_create_augroup("util_codediff", { clear = true })
   vim.api.nvim_create_autocmd("User", {
@@ -1357,6 +1573,7 @@ function M.setup(opts, hooks)
     callback = function() sweep_later(vim.api.nvim_get_current_tabpage()) end,
   })
   vim.api.nvim_create_autocmd("WinResized", { group = group, callback = rebalance_on_resize })
+  guard_panes(group)
   -- CodeDiff lists its revision buffers; they would crowd the bufferline and
   -- buffer pickers with codediff:// entries that vanish on the next file.
   vim.api.nvim_create_autocmd("BufWinEnter", {

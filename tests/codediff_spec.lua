@@ -464,6 +464,102 @@ t.ok(even(widths()), "closing the window evens them out again")
 vim.api.nvim_set_current_win(right)
 
 ---------------------------------------------------------------------------
+-- No other path puts a buffer in a pane either
+---------------------------------------------------------------------------
+
+-- A typed :e or :b (and :e!, which 'winfixbuf' would let through), the
+-- jumplist, a quickfix jump and an LSP jump each swap the window's buffer;
+-- the view puts its own back once the jump has finished, view and all, and
+-- says so. The left pane's revision buffer would wipe when hidden, and
+-- survives the swap. The explorer was shown again by ,B above: a new window.
+-- Floats (treesitter-context's) come and go with the buffer; the layout is
+-- the rest.
+local other = root .. "/z01.txt"
+local other_buf = vim.fn.bufnr(other)
+local function layout()
+  return vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative == "" end,
+    vim.api.nvim_tabpage_list_wins(0))
+end
+local function location(path)
+  return { uri = vim.uri_from_fname(path), range = { start = { line = 0, character = 0 }, ["end"] = { line = 0, character = 0 } } }
+end
+local function stays(win, where, what, swap)
+  local buf, wins = vim.api.nvim_win_get_buf(win), layout()
+  local hidden = vim.bo[buf].bufhidden
+  vim.api.nvim_set_current_win(win)
+  local view = vim.fn.winsaveview()
+  notices = {}
+  local ok, err = pcall(swap)
+  t.ok(ok, what .. " runs without an error (" .. tostring(err) .. ")")
+  settle()
+  t.ok(vim.api.nvim_win_get_buf(win) == buf and said("cannot replace a CodeDiff pane") ~= nil,
+    ("%s in the %s is put back, and says so"):format(what, where))
+  t.eq({ vim.bo[buf].bufhidden, vim.fn.winsaveview().topline, layout() },
+    { hidden, view.topline, wins }, ("and the %s keeps its view, its buffer's 'bufhidden' and the layout"):format(where))
+end
+vim.api.nvim_win_call(right, function() vim.fn.winrestview({ topline = 30, lnum = 45 }) end)
+for _, pane in ipairs({ { right, "right pane" }, { left, "left pane" }, { panel_win, "explorer" } }) do
+  local win, where = pane[1], pane[2]
+  stays(win, where, ":e", function() vim.cmd.edit(vim.fn.fnameescape(other)) end)
+  stays(win, where, ":e!", function() vim.cmd("edit! " .. vim.fn.fnameescape(other)) end)
+  stays(win, where, ":b", function() vim.cmd.buffer(other_buf) end)
+end
+local revision = vim.api.nvim_win_get_buf(left)
+-- The jumplist gets an entry for another file without the guard seeing it
+-- (noautocmd), the way a jump made before the view opened would be there.
+vim.api.nvim_set_current_win(right)
+vim.cmd("noautocmd buffer " .. other_buf)
+vim.cmd("noautocmd buffer " .. sample)
+stays(right, "right pane", "<C-o>", function() vim.cmd("normal! " .. vim.keycode("<C-o>")) end)
+vim.fn.setqflist({ { filename = other, lnum = 1 } })
+stays(right, "right pane", "a quickfix jump", function() vim.cmd("silent cc 1") end)
+vim.fn.setqflist({})
+stays(right, "right pane", "an LSP jump (show_document)", function()
+  vim.lsp.util.show_document(location(other), "utf-16", { focus = true, reuse_win = false })
+end)
+t.ok(#vim.fn.win_findbuf(vim.fn.bufnr(other)) == 0, "the other file is shown nowhere")
+-- Typed, as Normal-mode commands: Nvim's 'scrollbind' compares against the
+-- buffer the last command left, which after the swap was the other file, so
+-- the first scroll once the pane was put back moved it alone.
+local function apart() return vim.fn.line("w0", right) - vim.fn.line("w0", left) end
+for _, typed in ipairs({ ":e " .. vim.fn.fnameescape(other) .. "\r", ":b " .. other_buf .. "\r" }) do
+  vim.api.nvim_set_current_win(right)
+  local before = apart()
+  vim.api.nvim_feedkeys(typed, "ntx", false)
+  settle()
+  vim.api.nvim_feedkeys(vim.keycode("5<C-e>"), "ntx", false)
+  t.ok(vim.api.nvim_win_get_buf(right) == sample and apart() == before,
+    ("a scroll after a typed %s still moves both panes (%d, was %d)"):format(typed:sub(1, 2), apart(), before))
+  vim.api.nvim_feedkeys(vim.keycode("5<C-y>"), "ntx", false)
+end
+
+-- CodeDiff's own swaps still go through: a file picked in the explorer, and
+-- the pane then keeps that one.
+local function pick(file)
+  local p = cd.session(0)
+  for i, line in ipairs(vim.api.nvim_buf_get_lines(p.panel_bufnr, 0, -1, false)) do
+    if line:find(file, 1, true) then
+      vim.api.nvim_set_current_win(p.panel_win)
+      vim.api.nvim_win_set_cursor(p.panel_win, { i, 0 })
+      notices = {}
+      vim.api.nvim_feedkeys(vim.keycode("<CR>"), "xt", false)
+      return vim.wait(5000, ready(file), 20)
+    end
+  end
+end
+t.ok(pick("z01.txt"), "picking z01.txt in the explorer puts it in the right pane")
+settle()
+t.ok(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(right)) == other and said("cannot replace") == nil,
+  "and it stays there")
+t.ok(not vim.api.nvim_buf_is_valid(revision), "the revision it replaced on the left is wiped, as CodeDiff has it")
+stays(right, "right pane", ":e after a pick", function() vim.cmd.edit(vim.fn.fnameescape(root .. "/notes.txt")) end)
+t.eq(vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(right)), other, "what comes back is the picked file")
+t.ok(pick("sample.md"), "picking sample.md brings it back")
+settle()
+t.ok(vim.api.nvim_win_get_buf(right) == sample and said("cannot replace") == nil, "and it stays there too")
+vim.api.nvim_set_current_win(right)
+
+---------------------------------------------------------------------------
 -- <leader>gq closes this view and hands every key back
 ---------------------------------------------------------------------------
 
@@ -472,6 +568,12 @@ press("<leader>gq")
 t.ok(vim.wait(2000, function() return not vim.api.nvim_tabpage_is_valid(view_tab) end, 20), "<leader>gq closes the view's tabpage")
 t.eq(vim.api.nvim_get_current_tabpage(), editor_tab, "back on the editing page")
 settle()
+notices = {}
+vim.cmd.buffer(other_buf)
+settle()
+t.ok(vim.api.nvim_get_current_buf() == other_buf and said("cannot replace") == nil,
+  "outside the view a window takes any buffer")
+vim.cmd.buffer(sample)
 t.eq(map(sample, ",P"), {}, "CodeDiff removes its panel mappings when it closes")
 t.eq(map(sample, ",p").desc, "Toggle Markdown preview", "closing CodeDiff preserves the filetype mapping")
 -- Back to the global prefix, or to which-key's buffer-local trigger for it.
@@ -529,6 +631,8 @@ t.eq(vim.t.codediff_label, "history · sample.md", "labelled with the file")
 t.eq(map(cd.session(0).panel_bufnr, "q").desc, "Close diff view", "the history panel closes on q")
 for _, lhs in ipairs({ ";", "s", "-", unpack(SWITCH) }) do blocked_in(cd.session(0).panel_bufnr, lhs) end
 t.eq(#lifecycle.get_session(file_tab).panel.data.commits, 1, "sample.md has one commit")
+-- Its revision pane keeps its buffer as the status view's do.
+stays(cd.session(0).modified_win, "history's revision pane", ":b", function() vim.cmd.buffer(other_buf) end)
 
 -- From inside a view: the left pane is not a file.
 vim.api.nvim_set_current_win(cd.session(0).panel_win)
@@ -769,14 +873,15 @@ t.ok(vim.wait(15000, ready("sample.md"), 20), "a second status view opens")
 local orphan_tab = vim.api.nvim_get_current_tabpage()
 vim.api.nvim_set_current_win(cd.session(0).original_win)
 notices = {}
--- :e in the revision pane wipes its buffer, and CodeDiff drops the session
--- but leaves the tabpage with a dead explorer behind.
-vim.cmd.edit(vim.fn.fnameescape(root .. "/notes.txt"))
+-- The revision pane's buffer wiped (once :e there did it; now :e is put
+-- back, above): CodeDiff drops the session but leaves the tabpage with a
+-- dead explorer behind.
+vim.api.nvim_buf_delete(cd.session(0).original_bufnr, { force = true })
 t.ok(vim.wait(3000, function() return not vim.api.nvim_tabpage_is_valid(orphan_tab) end, 20),
   "the abandoned tabpage is closed")
 t.ok(said("lost a pane") ~= nil, "with a word about why")
 t.eq(#vim.api.nvim_list_tabpages(), 1, "only the editing page is left")
-t.ok(vim.fn.bufloaded(root .. "/notes.txt") == 1, "the file asked for is still loaded")
+t.ok(vim.fn.bufloaded(root .. "/sample.md") == 1, "the file it compared is still loaded")
 
 -- The other teardown: a pane's buffer wiped while its tabpage is hidden.
 -- CodeDiff drops that session on the way back in, without CodeDiffClose.
