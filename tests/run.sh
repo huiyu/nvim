@@ -31,6 +31,11 @@ end'
 export VSCODE_DIFF_NO_AUTO_INSTALL=1
 export CODEDIFF_WATCHER_NO_AUTO_INSTALL=1
 
+# Run from an Nvim terminal, $NVIM is that Nvim's socket: the agent scripts a
+# spec drives (agent-editor, agent-hook) would reach the user's editor instead
+# of the spec's. CI has none; make a local run the same.
+unset NVIM
+
 # The specs to run: every one, or the ones named.
 specs=""
 if [ $# -eq 0 ]; then

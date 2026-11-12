@@ -2,9 +2,11 @@
 # They run against this checkout as the Neovim config, as tests/run.sh and
 # the CI workflow do (AGENTS.md, Validation).
 
-NVIM ?= nvim
+# Not NVIM: inside an Nvim terminal that variable is the parent's socket, and
+# make takes a variable's default from the environment.
+NVIM_BIN ?= nvim
 S ?=
-HEADLESS = $(NVIM) --headless -u init.lua -i NONE
+HEADLESS = $(NVIM_BIN) --headless -u init.lua -i NONE
 # A headless `+qa` exits 0 even when init.lua raised, so ask v:errmsg.
 ERRMSG = '+lua if vim.v.errmsg ~= "" then print(vim.v.errmsg) vim.cmd("cquit 1") end'
 
