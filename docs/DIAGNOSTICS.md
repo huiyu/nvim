@@ -42,7 +42,7 @@ of truth for eager/lazy state. Some core UI and language infrastructure loads at
 startup; the rest is event-, command-, key-, or filetype-triggered.
 
 Lua modules are byte-compiled and cached by `vim.loader`, switched on by the
-first line of `init.lua` (lazy.nvim alone would only do it from its bootstrap
+first line of `init.lua` (lazy.nvim alone would only do it from its own setup
 on). A cache entry is reused only while the file's size and modification time
 are unchanged; `:lua vim.loader.reset()` clears it if a module ever seems to
 run old code.
@@ -64,7 +64,7 @@ set it manually; `;F` and `;D` instead search from the current buffer's director
 
 `:Lazy` is the source of truth: load order, load time, and any spec/load errors.
 `:Lazy log` shows recent updates. Plugin versions are pinned in `lazy-lock.json`;
-the update checker runs silently once a day (`bootstrap.lua`).
+the update checker runs silently once a day (`lua/config/lazy.lua`).
 
 ## Health: `:checkhealth config`
 
@@ -148,7 +148,7 @@ plugin's own checks).
 - `:lsp restart` (mapped to `<leader>mr`) — restart the servers attached to the
   current buffer
 - `:lua vim.lsp.log.get_filename()` — path to the server stderr / protocol log
-- Servers are declared per language in `lua/lang/*.lua` (`opts.servers`) and
+- Servers are declared per language in `lua/plugins/lang/*.lua` (`opts.servers`) and
   installed by mason-lspconfig (derived from that list). Verbose logging:
   `:lua vim.lsp.log.set_level("debug")`.
 
@@ -165,7 +165,7 @@ state. After files move across packages, workspace symlinks change, or project
 configs are added, try `<leader>mr`. In Go buffers prefer `,G`, which also
 clears the gopls cache before restarting.
 
-For TypeScript/JavaScript workspaces, `lang/typescript.lua` preloads projects
+For TypeScript/JavaScript workspaces, `plugins/lang/typescript.lua` preloads projects
 when vtsls first attaches. It recognizes a root `pnpm-workspace.yaml` or
 `package.json` with `workspaces` (npm/Yarn), asynchronously finds visible,
 non-ignored `tsconfig.json`/`jsconfig.json` files with `rg`, and registers them
@@ -192,8 +192,8 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 - `:checkhealth nvim-treesitter` — installed parsers, ABI
 - `:InspectTree` — the syntax tree for the current buffer
 - `:Inspect` — highlight groups under the cursor
-- Parsers: editor-core list in `plugin/ui/treesitter.lua`, language parsers in
-  each `lua/lang/*.lua`. Missing ones auto-install on first open.
+- Parsers: editor-core list in `plugins/ui/treesitter.lua`, language parsers in
+  each `lua/plugins/lang/*.lua`. Missing ones auto-install on first open.
 - Every parser is compiled here, by the tree-sitter CLI (>= 0.26.1) and a C
   compiler; `:checkhealth config` reports the CLI's version. Without it, a new
   machine fails every install and `:TSUpdate` after a plugin update cannot
@@ -214,7 +214,7 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 ## Diff views (CodeDiff)
 
 The `<leader>g` diff views and the review view are CodeDiff's
-(`lua/plugin/vcs/codediff.lua`). `lua/util/codediff.lua` is the one module that
+(`lua/plugins/git/codediff.lua`). `lua/util/codediff.lua` is the one module that
 reaches into its internals, for the `,` keys, the `;`/`s` blocks, the tab
 labels and the listing; its header lists what it depends on. Besides it, only
 `:checkhealth config` (`lua/config/health.lua`) reads two values: the
@@ -253,7 +253,7 @@ labels and the listing; its header lists what it depends on.
   (the upstream keys that could harm a review are off in the spec), but the
   revision listing, the non-ASCII path fix and the history limit are off.
   `:Lazy restore codediff.nvim` goes back to the pin; moving the pin (`commit` in
-  `lua/plugin/vcs/codediff.lua`, then `VERSION` in `lua/util/codediff.lua`)
+  `lua/plugins/git/codediff.lua`, then `VERSION` in `lua/util/codediff.lua`)
   means running `tests/codediff_spec.lua`, `tests/codediff_listing_spec.lua`
   and `tests/hunk_actions_spec.lua` against the new version first.
 - **`CodeDiff's revision listing fell back to upstream's`** — the listing (below)
@@ -577,7 +577,7 @@ labels and the listing; its header lists what it depends on.
 
 ### Inline completion (ghost text)
 
-minuet (`lua/plugin/lsp/minuet.lua`) draws the grey suggestions; they come from
+minuet (`lua/plugins/ai/minuet.lua`) draws the grey suggestions; they come from
 a local `llama-server` that `util.llama` starts on the first Insert in a
 buffer that can show them, and that every Nvim shares. None of it depends on
 the providers in `lua/ai/config.lua` or on the chat on the right.
@@ -912,8 +912,8 @@ the only traces:
 - nvim-dap-ui opens automatically on session start (`<leader>dc`); `<leader>du`
   reopens it. Panels close when the last root session ends.
 - **Open tabpages are invisible / the `1`/`2` indicators are missing** -- the
-  tabline is permanent (`showtabline = 2` in `lua/options.lua`, kept by
-  `always_show_bufferline` in `lua/plugin/ui/bufferline.lua`). bufferline
+  tabline is permanent (`showtabline = 2` in `lua/config/options.lua`, kept by
+  `always_show_bufferline` in `lua/plugins/ui/bufferline.lua`). bufferline
   hides it on its own whenever
   it has at most one buffer to list, counting buffers only, so a diff opened
   with no files loaded used to take the tabpage indicators down with the
@@ -922,14 +922,14 @@ the only traces:
   closed with the last root session. `<leader>du` hides and restores it. A
   tabpage left behind means `close_panels` could not close it -- it refuses on
   the last remaining tabpage, since `tabclose` would fail there.
-- edgy places the debug panels (`lua/plugin/editor/edgy.lua`): scopes,
+- edgy places the debug panels (`lua/plugins/editor/edgy.lua`): scopes,
   breakpoints, stacks and watches on the left, `dap-repl` and `dapui_console`
   along the bottom with the terminal and quickfix. dapui still opens and
   closes them; only placement moved. A panel appearing in the wrong place
   means its filetype is not declared there -- dapui names every element
   separately and there is no `dapui` filetype.
 - **The stopped line is not highlighted** -- `DapStoppedLine` is defined in
-  `lua/plugin/lsp/dap.lua` beside the `sign_define` calls that name it. A
+  `lua/plugins/coding/dap.lua` beside the `sign_define` calls that name it. A
   sign naming a highlight group nothing creates fails silently: the sign
   places, the `linehl` does nothing, and only the gutter arrow marks the
   pause. `tests/dap_actions_spec.lua` asserts every dap sign's `texthl`,
@@ -994,7 +994,7 @@ breakpoints, variable evaluation and continued output after disconnect.
 ### Java
 
 JDK 25+ runs jdtls: since 1.63 its bundles require Java 25, and on an older
-JDK it exits with code 13 right after starting. `lua/lang/java.lua` takes the
+JDK it exits with code 13 right after starting. `lua/plugins/lang/java.lua` takes the
 first JDK 25+ among `$JAVA_HOME`, SDKMAN!'s `current`, the newest other
 SDKMAN! candidate and the `java` on PATH, so the default JDK may stay older;
 projects still build at the release level their build files set. Mason
@@ -1016,7 +1016,7 @@ failure is reported instead of swallowed. After installing bundles, use
   loading and can answer `initialize` without the debug or test bundle's
   commands. It never lists them later, and every debug request then fails
   with `No LSP client found that supports vscode.java.resolveMainClass`. The
-  bundles are installed by then, so `lua/lang/java.lua` restarts that client
+  bundles are installed by then, so `lua/plugins/lang/java.lua` restarts that client
   once and the second start has them. A second miss for the same project
   only warns: run `:JdtRestart`.
 
@@ -1174,7 +1174,7 @@ carry every other configuration but not this one.
 
 `huiyu/vscode-js-debug` carries the community PR
 [#2361](https://github.com/microsoft/vscode-js-debug/pull/2361) on top of
-upstream. Install it and `lang/typescript.lua` picks it up automatically:
+upstream. Install it and `plugins/lang/typescript.lua` picks it up automatically:
 
 ```sh
 mkdir -p ~/.local/share/nvim/js-debug-webext
@@ -1213,7 +1213,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   MV3 service worker fine. The walls were js-debug's. See
   `spikes/chrome-extension-dap/` for the measurements and the upstream history.
 - mason-nvim-dap ships no adapter definition for js-debug, so `pwa-node` and
-  `pwa-chrome` are registered in `lua/lang/typescript.lua`. Its `["js"]` handler
+  `pwa-chrome` are registered in `lua/plugins/lang/typescript.lua`. Its `["js"]` handler
   only makes mason install the package.
 
 ## Runtime errors & messages
@@ -1326,16 +1326,16 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 - **ui2 itself misbehaves** (a stuck message window, a cmdline drawn in the
   wrong place) — it is experimental. `:lua require("vim._core.ui2").enable({ enable = false })`
   switches the running Nvim back to the legacy message grid; to keep it off,
-  remove the `ui2.enable` call in `lua/options.lua`. If a future Nvim
+  remove the `ui2.enable` call in `lua/config/options.lua`. If a future Nvim
   moves the module, that call is skipped (it is pcall'd) and the legacy UI
   comes back on its own.
 - `K` on whitespace or a keyword stays quiet: hover runs with `silent = true`
-  (`lua/plugin/lsp/lsp.lua`), which drops both "No information available" and
+  (`lua/plugins/coding/lsp.lua`), which drops both "No information available" and
   "Empty hover response". The hover and `gK` popups have a rounded border, and
   `<C-f>` / `<C-b>` scroll them from the code window. Only those two: with the
   diagnostic float from `]d` / `<leader>xd` open, the keys still page the
   buffer. Signature help while
-  typing is blink.cmp's (`signature` in `lua/plugin/lsp/cmp.lua`).
+  typing is blink.cmp's (`signature` in `lua/plugins/coding/cmp.lua`).
 - LSP progress (indexing, workspace loading) is a spinner next to the server's
   name in the statusline (lualine's `lsp_status`); there is no progress
   message any more.
@@ -1343,7 +1343,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   current buffer; `:ColorizerToggle` toggles previews. Hex/RGB/HSL and CSS
   variable references are enabled; variable definitions must be in the same
   buffer. Tailwind previews are limited to the frontend filetypes in
-  `lua/lang/frontend.lua`; custom project colors also need an attached
+  `lua/plugins/lang/frontend.lua`; custom project colors also need an attached
   `tailwindcss` LSP (`:checkhealth vim.lsp`).
 - **A file is missing from search** — `;i` / `;?` respect `.gitignore` and have
   no extra directory exclusions; `;f` / `;/` include ignored files but exclude
@@ -1355,7 +1355,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 - **A refactor key (`,ef`, `,ex`, `,i`, `,R`) errors with
   `attempt to call field 'wrap'`** — on Nvim 0.12 refactoring.nvim needs the
   async runtime from `lewis6991/async.nvim`, which
-  `lua/plugin/editor/refactoring.lua` hands it as `vim.async`. Its own fallback, `require("async")`, returns promise-async's
+  `lua/plugins/editor/refactoring.lua` hands it as `vim.async`. Its own fallback, `require("async")`, returns promise-async's
   module once nvim-ufo has loaded, and that API has no `wrap`. After the first
   refactor, `:lua =vim.async ~= nil` should print `true`; `:Lazy` should list
   async.nvim as loaded. `,i` asks the language server for the definition and
@@ -1387,17 +1387,17 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   A CodeDiff view adds its panel, layout and conflict keys and the review keys
   (`,C`, and `,S`/`,U`/`,X` where the view can do them) beside the language
   section, and gives every key back on close. Section metadata lives in
-  `lua/whichkey_spec.lua`; the rendering code in
-  `lua/plugin/editor/whichkey.lua` reads it generically.
+  `lua/config/whichkey_spec.lua`; the rendering code in
+  `lua/plugins/editor/whichkey.lua` reads it generically.
   grug-far's `,S` subgroup appears only inside its search-and-replace panel;
   open it with `,F`, then use `g?` to inspect its action mappings.
 - **A popup row shows code instead of words** (`:<C-U>call
   <SNR>27_Python_jump(...)`, `vimtex-][)`, `vim.lsp.buf.references()`) — the
   mapping has no desc of its own. `:verbose nmap <lhs>` says who set it. A
   filetype plugin's motion gets its desc from `filetype_descs` in
-  `lua/whichkey_spec.lua`, written onto the buffer's mapping on `FileType`;
+  `lua/config/whichkey_spec.lua`, written onto the buffer's mapping on `FileType`;
   add the filetype and key there. Nvim's LSP defaults (`gO`, `gr*`) are
-  described in `lua/mappings.lua`.
+  described in `lua/config/keymaps.lua`.
 - **A row shows a global label where the buffer means something else** (`]c`
   read "Next class start" in a diff view, `gO` "[LSP] Document symbols" in
   markdown) — a description-only `whichkey_spec` entry outranks every

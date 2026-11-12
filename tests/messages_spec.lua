@@ -61,7 +61,7 @@ t.eq(vim.fn.maparg("<leader>mnl", "n"), "g<", "<leader>mnl is ui2's g< pager")
 -- One act, one key: <leader>un dismisses, and <leader>mn holds the histories.
 t.eq(vim.fn.maparg("<leader>mnd", "n"), "", "<leader>mnd is gone; <leader>un dismisses")
 local group
-for _, entry in ipairs(require("whichkey_spec").spec) do
+for _, entry in ipairs(require("config.whichkey_spec").spec) do
   if entry[1] == "<leader>mn" then group = entry.group end
 end
 -- Both histories live here: ui2's messages and the notifier's notifications.

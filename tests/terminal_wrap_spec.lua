@@ -1,7 +1,7 @@
 -- A terminal buffer keeps one line per grid row, so text the terminal wrapped
 -- -- Codex leaves a link longer than the pane for it to wrap -- was yanked with
 -- newlines the program never printed. util.terminal.soft_wraps reads the shape
--- a wrap leaves; the TextYankPost handler in lua/autocmds.lua joins those rows.
+-- a wrap leaves; the TextYankPost handler in lua/config/autocmds.lua joins those rows.
 local t = dofile("tests/helper.lua")
 local a = vim.api
 local terminal = require("util.terminal")

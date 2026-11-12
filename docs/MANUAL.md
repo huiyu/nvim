@@ -234,7 +234,7 @@ it is on this key:
 **which-key:** press `[`, `]`, `g`, or `z` and wait half a second — the popup
 lists the drawer, grouped under headings (`── diagnostics`, `── git`, …) with a
 colour per group, so a long list reads as a few blocks rather than an alphabet.
-The grouping is declared in `lua/whichkey_spec.lua`. In sectioned popups,
+The grouping is declared in `lua/config/whichkey_spec.lua`. In sectioned popups,
 anything not explicitly assigned to a group sorts last under `── others`,
 including new plugin keys and builtins. An empty `others` section is hidden;
 popups without declared sections, such as `z`, keep the default layout.
@@ -1464,7 +1464,7 @@ When a change counts:
 - A chat opened while its source was off starts no rounds even after you turn
   it on; turning a source off counts at once.
 - The `<Space>gh` / `<Space>gH` descriptions are written when the plugin specs
-  load, so set `history_limit` before `require("bootstrap")` in `init.lua`;
+  load, so set `history_limit` before `require("config")` in `init.lua`;
   the lists themselves follow the setting.
 
 ---
@@ -1558,7 +1558,7 @@ toggles the failures neotest shows as diagnostics.
 Set a breakpoint with `<Space>db`, put the cursor inside a test, then press
 `<Space>tM`. These direct entries save the current buffer first; an unsaved
 unnamed buffer or failed write aborts. They use the same keys in every supported
-language, with target logic in `lua/lang/*.lua`.
+language, with target logic in `lua/plugins/lang/*.lua`.
 
 | Language | `df` | `tM` / `tF` |
 |---|---|---|

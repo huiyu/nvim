@@ -3,7 +3,7 @@
 -- The same on_attach maps gs (Go to Source Definition), which is followed from
 -- a package's .d.ts into its JavaScript at the end.
 local t = dofile("tests/helper.lua")
-local specs = require("lang.typescript")
+local specs = require("plugins.lang.typescript")
 local on_attach
 for _, spec in ipairs(specs) do
   if spec[1] == "neovim/nvim-lspconfig" then

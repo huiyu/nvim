@@ -394,7 +394,7 @@ end
 
 ---Point CodeCompanion's inline and command prompts at the current key
 ---profile, after :AI key. A no-op until the plugin has loaded: its `opts` read
----the same state at load time (lua/plugin/lsp/codecompanion.lua). The chat
+---the same state at load time (lua/plugins/ai/codecompanion.lua). The chat
 ---adapter is not touched: it is the first `acp` in provider order (else the
 ---first `api`), fixed at load, and only CodeCompanion's own paths that name no
 ---adapter use it. The live config is written directly, never

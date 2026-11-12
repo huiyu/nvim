@@ -10,10 +10,10 @@ The utility modules provide focused helpers for logging, debug inspection, LSP, 
 
 ### Keymap section data (`whichkey_spec`)
 
-`lua/whichkey_spec.lua` exports `spec`, `sections`, `fallback_section` and
+`lua/config/whichkey_spec.lua` exports `spec`, `sections`, `fallback_section` and
 `filetype_descs`. `spec` contains which-key mapping/group metadata.
 `sections[prefix]` is an ordered list of display sections, read by
-`lua/plugin/editor/whichkey.lua`. Filetype mappings remain in `lua/lang/`; view
+`lua/plugins/editor/whichkey.lua`. Filetype mappings remain in `lua/plugins/lang/`; view
 mappings remain with their plugins.
 
 `filetype_descs[ft][lhs]` is the desc for a key that `ft`'s own plugin (a
@@ -21,12 +21,12 @@ runtime ftplugin or VimTeX) maps in its buffers without one, or in words of
 its own: Python's `]]`/`]m`, Go's, Rust's and Vim's section motions, VimTeX's
 `]n`/`]r`/`]/` motions and `ac`/`id`/`a$` objects, and the heading outline
 `gO` of markdown, help, checkhealth and man buffers ("Show outline").
-`lua/plugin/editor/whichkey.lua` writes it onto the buffer's own mapping with
+`lua/plugins/editor/whichkey.lua` writes it onto the buffer's own mapping with
 `mapset()` on `FileType`, mode by mode, and only where the buffer maps the key
 itself: VimTeX maps nothing where a global map already holds the key
 (Nvim's Visual `]n`), and that one keeps its own desc; VimTeX's Normal
 `]r`/`[r`, which the global references hold, are mapped back by
-`lua/lang/tex.lua` on `VimtexEventInitPost`. It never adds a
+`lua/plugins/lang/tex.lua` on `VimtexEventInitPost`. It never adds a
 which-key entry, so the desc goes away when the filetype unmaps the key.
 
 | Section field | Meaning |
@@ -92,7 +92,7 @@ Language specs contribute `opts.targets[filetype]` to nvim-dap, with optional
 Callbacks receive `{ bufnr, path, filetype, line, col }`: the absolute buffer
 path, a one-based line and zero-based column captured after save hooks. Resolve
 project roots from this context before asynchronous work, rather than reading
-the subsequently focused buffer. Language behavior stays in `lua/lang/*.lua`.
+the subsequently focused buffer. Language behavior stays in `lua/plugins/lang/*.lua`.
 
 `syntax(ctx)` returns the parsed Treesitter root and language, or reports a
 missing parser. The language module supplies the query and target semantics.
@@ -188,9 +188,10 @@ The directory-scoped `;F` and `;D` mappings share this resolver, as does Oil
 when it is opened from a terminal.
 
 `recover()` repairs a deleted process cwd and returns a one-line report, or
-nil when no repair was needed. `setup()` runs it immediately, schedules any
-report after the UI has loaded, and sets the initial cwd from the first file
-or directory argument at `VimEnter`. See [Working Directory](#working-directory-utilcwd).
+nil when no repair was needed. `startup_dir(path)` names the directory Nvim
+starts in for a file or directory argument. Requiring the module changes
+nothing; `lua/config/cwd.lua` applies both at startup. See
+[Working Directory](#working-directory-utilcwd).
 
 ### 📝 Logger (`util.logger`)
 
@@ -243,7 +244,7 @@ export NVIM_DEV=1              # Enable development logging
 Throwaway helpers for working *on* this configuration. Distinct from
 `util.logger`, which carries messages a user of the config should see.
 
-`init.lua` wires the module into two globals, lazily, so a startup that never
+`lua/config/init.lua` wires the module into two globals, lazily, so a startup that never
 debugs never loads it:
 
 ```lua
@@ -284,7 +285,7 @@ The module serializes `macism` operations so a rapid `Esc`/`i` sequence cannot
 leave a stale switch as the final system state. It does nothing for headless
 Nvim or non-macOS processes.
 
-`setup()` is called by `lua/autocmds.lua`. The public inspection API is:
+`setup()` is called by `lua/config/autocmds.lua`. The public inspection API is:
 
 ```lua
 local input_method = require("util.input_method")
@@ -373,7 +374,11 @@ and notifies, so none of them ends in a traceback.
 
 ## Working Directory (`util.cwd`)
 
-At `VimEnter`, `setup()` sets cwd from the first command-line argument: a file
+`lua/config/init.lua` requires `config.cwd` first, before options and
+plugins, and that module does the startup work below through this one;
+requiring `util.cwd` itself changes nothing.
+
+At `VimEnter`, cwd is set from the first command-line argument: a file
 uses its nearest `.git` ancestor, falling back to its parent outside Git; a
 directory argument uses that exact directory. `.git` may be a directory or a
 file (worktrees/submodules), and symlinks resolve to their target first. Missing
@@ -387,8 +392,10 @@ never move cwd. It uses Neovim's filesystem APIs without loading a plugin.
 A shell whose directory was deleted under it still starts Nvim, but the process
 then has no working directory: `vim.uv.cwd()` is nil, and the first thing to
 hash it -- Snacks' dashboard terminal sections, at `UIEnter` -- dies with a
-traceback for what is really "your directory is gone". `init.lua` runs the
-recovery before options and plugins load.
+traceback for what is really "your directory is gone". `lua/config/cwd.lua`
+runs the recovery before options and plugins load, and notifies its report
+after `VeryLazy`, once the snacks notifier is in place: at init time
+`vim.notify` is the builtin echo, which the dashboard's first draw wipes.
 
 #### API Reference
 
@@ -401,11 +408,11 @@ local cwd = require("util.cwd")
 -- was fine.
 cwd.recover()
 
--- Startup entry: recover immediately, register the once-only VimEnter cwd
--- selection, and notify any recovery report after VeryLazy, once the snacks
--- notifier is in place. At init time vim.notify is the builtin echo, which
--- the dashboard's first draw wipes.
-cwd.setup()
+-- The directory Nvim starts in for an absolute file or directory path: a
+-- directory exactly; a file its nearest `.git` ancestor, else its parent,
+-- after resolving symlinks and falling back past missing parents. Pure: it
+-- reads the filesystem and changes nothing.
+cwd.startup_dir(path)
 ```
 
 ## Window Management (`util.window`)
@@ -552,13 +559,11 @@ local terminal = require("util.terminal")
 -- terminal buffers are safe. Bound to <leader>md.
 terminal.fix_drift(win)   -- win defaults to the current window
 
--- Which native coding agent buf runs ("claude" / "codex"), or nil for any
--- other buffer. Every agent a provider offers counts: several can be
--- running, and each panel keeps its own rules.
-terminal.agent_of(buf)
-
--- True when buf belongs to any configured native coding agent.
-terminal.is_agent_buf(buf)
+-- The test that tells an agent panel from any other terminal, fn(buf) ->
+-- boolean. ai.terminal registers its is_agent_buf at startup; until then no
+-- terminal is one. Agent panels get the drift repair after a docked terminal
+-- opens, and the numbered terminals never hide one.
+terminal.set_agent_test(fn)
 
 -- Open or close a terminal -- the only thing that closes one. Without a count
 -- it resolves to the terminal you are in, an explicit v:count, or the one you
@@ -599,7 +604,7 @@ terminal.grid_width(buf)
 -- and so does a program's own unindented word wrap at exactly the width.
 terminal.soft_wraps(line, next_line, width)
 
--- TextYankPost handler (lua/autocmds.lua, terminal buffers only): rewrite the
+-- TextYankPost handler (lua/config/autocmds.lua, terminal buffers only): rewrite the
 -- yanked register with the rows soft_wraps joins, before yanky's handler reads
 -- it. Characterwise (including one through the end of its last row, `v$y`)
 -- and linewise `y` only; blockwise, black-hole and appending (uppercase) yanks
@@ -704,9 +709,10 @@ to a temporary file of its own (`<gitdir>/nvim-review-index.XXXXXX`, mtime
 kept), adds the worktree to that copy and writes its tree, so HEAD, the real
 index, branches and stash stay as they were. AGENTS.md ("Review Baselines")
 gives the reason for each step. Trailers are opaque key/value pairs here;
-what `Source` or `Conversation` mean belongs to `ai.review.rounds`.
-Retention counts and the size cut-off come from `ai.review.config`, read on
-each use.
+what `Source` or `Conversation` mean belongs to `ai.review.rounds`. So do the
+size cut-off and the retention counts: each call is given the one it needs
+(`max_file_size`, `keep`; the callers read them from `vim.g.ai_review`), and
+this module reads no settings.
 
 #### API Reference
 
@@ -714,7 +720,7 @@ each use.
 local baseline = require("util.baseline")
 
 baseline.NAMESPACE  -- "refs/nvim-review"
-baseline.KINDS      -- { round = "rounds", saved = "saved" }: kind -> its retention key
+baseline.KINDS      -- { round = true, saved = true }
 
 -- A git argv with the prefix every call here carries: --no-optional-locks
 -- -c core.hooksPath=/dev/null -c core.splitIndex=false. util.codediff's
@@ -730,12 +736,14 @@ baseline.locate(path)             --> loc | nil, err
 -- Snapshot the worktree: cb(tree, info), or cb(nil, err). One snapshot at a
 -- time per gitdir, and all requests waiting share the next one;
 -- opts.priority puts a request ahead of the rest (a prompt's baseline before
--- a listing refresh). (root, opts, cb) works too.
+-- a listing refresh). Untracked files over opts.max_file_size bytes are left
+-- out (none without it; a shared snapshot uses the smallest asked for).
+-- (root, opts, cb) works too.
 baseline.snapshot(root, cb, opts)
 
 -- Snapshot (or take meta.tree), commit it without a parent under the fixed
--- identity, create refs/nvim-review/<wtid>/<kind>/<id>, then prune that kind.
--- cb(entry, info), or cb(nil, err).
+-- identity, create refs/nvim-review/<wtid>/<kind>/<id>, then, given
+-- meta.keep, prune that kind. cb(entry, info), or cb(nil, err).
 baseline.save(root, kind, meta, cb)
 
 -- This worktree's baselines of `kind` (nil: both), newest first: cb(entries),
@@ -752,10 +760,10 @@ baseline.time_of(entry)
 -- refs/nvim-review/ is skipped, never an error.
 baseline.delete(root, entries, cb)
 
--- Keep the newest retention.rounds / retention.saved of `kind`, delete the
--- rest unless exempt (set_exempt, or opts.exempt): cb(deleted), or
--- cb({}, err). Deleted saved baselines are named in a notice unless
--- opts.quiet. Objects are left to git's own gc.
+-- Keep the newest opts.keep (required) of `kind`, delete the rest unless
+-- exempt (set_exempt, or opts.exempt): cb(deleted), or cb({}, err). Deleted
+-- saved baselines are named in a notice unless opts.quiet. Objects are left
+-- to git's own gc.
 baseline.prune(root, kind, opts, cb)
 
 -- The retention exemption, fn(entry) -> boolean; nil clears it.
@@ -768,7 +776,8 @@ baseline.set_exempt(fn)
 first line, the display text (default `nvim review <kind> HH:MM:SS`); every key
 that starts with an uppercase letter becomes a trailer after `Nvim-Review: 1`,
 sorted (`true` is written `1`; `false` and nil are left out); `tree` skips the
-snapshot; `prune = false` skips retention; `exempt` goes to prune.
+snapshot; `max_file_size` goes to the snapshot; `keep` prunes the kind
+afterwards (without it, nothing is pruned); `exempt` goes to prune.
 
 `info` (snapshot, save): `skipped` (untracked paths over `max_file_size`, left
 out of the tree and never hashed), `untracked` (how many untracked, non-ignored
@@ -803,9 +812,11 @@ is loaded. Both are pcall'd, and nothing else reads them.
 compares `codediff.version` with `VERSION`, patches CodeDiff's git runner
 (`-c core.quotePath=false`, so non-ASCII paths survive revision and history
 views), its revision listing (`listing` below, for every
-revision-vs-working-tree view) and its history limit (`hooks.history_limit()`,
-the `history_limit` setting), and then runs CodeDiff's own setup, which loads
-its native library. A version mismatch warns once and leaves those three patches off.
+revision-vs-working-tree view, whose snapshot is cut at
+`hooks.max_file_size()`) and its history limit (`hooks.history_limit()`, the
+`history_limit` setting), and then runs CodeDiff's own setup, which loads its
+native library. A version mismatch warns once and leaves those three patches
+off. The lazy spec reads both hooks' values from `vim.g.ai_review`.
 
 #### API Reference
 
@@ -814,7 +825,7 @@ local cd = require("util.codediff")
 
 cd.VERSION            -- "4.0.6", the release the hooks were written against
 cd.PANEL_FILETYPES    -- { "codediff-explorer", "codediff-history" }
-cd.setup(opts, hooks) -- hooks: { history_limit?: fun(): integer|false }
+cd.setup(opts, hooks) -- hooks: { history_limit?: fun(): integer|false, max_file_size?: fun(): integer }
 cd.degraded()         --> true when the installed CodeDiff is not cd.VERSION
 
 -- Open a view: :CodeDiff with `args` as a list, so a path with spaces stays
@@ -836,7 +847,7 @@ cd.unstage_hunk(tab)         --> ran: CodeDiff's own unstage (the Staged group o
 cd.refresh(tab)              --> requested: list, read and diff again
 cd.set_keys(tab, specs, scope)  --> false when `tab` has no view
 cd.listing(root, revision, tree, info, pathspec, done)
-cd.left_out_lines(left_out, limit)  --> string[]
+cd.left_out_lines(left_out, limit, max_file_size)  --> string[]
 ```
 
 `tab` is a tabpage handle, 0 or nil for the current one; `win` defaults to the
@@ -923,9 +934,9 @@ status view, the explorer's `-`/`S`/`U`/`X`; and a buffer-local which-key
 group `Conflict` where `,go` exists. Each pass then fires
 `User CodeDiffKeys` with `data.tabpage`, on which
 `util.codediff_actions.attach` (from the plugin spec) and `ai.review.attach`
-(from `ai.setup()`) install theirs. A pass runs after `CodeDiffOpen`,
-`CodeDiffFileSelect` and every pane buffer swap (a file picked, a refresh, a
-layout toggle).
+(from the AI facade, `lua/ai/init.lua`) install theirs. A pass runs after
+`CodeDiffOpen`, `CodeDiffFileSelect` and every pane buffer swap (a file
+picked, a refresh, a layout toggle).
 
 Tab variables, set when a view opens and cleared when it closes:
 
@@ -1189,16 +1200,18 @@ local switch = require("ai.switch")
 switch.key(name)            -- :AI key [name]; nil opens the picker
 switch.pick()               -- vim.ui.select over auto and every profile (<leader>ax)
 switch.info()               -- :AI info / :AIInfo
+switch.complete(arglead, cmdline)  -- :AI's completion
 ```
 
-`:AI` is the chat switcher (`<leader>al`), `:AI new` the new-chat picker
-(`<leader>an`); `:AI provider` is gone and says so, pointing at `:AI new` and
+`:AI` and `:AIInfo` are defined by the facade (`lua/ai/init.lua`), beside the
+keys they are the typed twins of: `:AI` is the chat switcher (`<leader>al`),
+`:AI new` the new-chat picker (`<leader>an`), and `key`/`info` go to the
+functions above; `:AI provider` is gone and says so, pointing at `:AI new` and
 the order of `lua/ai/config.lua`. A key switch runs `use_key`, then
-`require("ai").apply_keymaps()` (relabels
-`<leader>ae`, the one key whose description names a profile), then
 `require("ai.companion").sync()` (CodeCompanion's live inline and cmd
 adapters), then fires `User AIStateChanged` with `data = { axis = "key",
-from, to }` -- lualine listens to it. An invalid name is an error
+from, to }`: the facade relabels `<leader>ae` (the one key whose description
+names a profile) on it, and lualine listens too. An invalid name is an error
 notification and changes nothing. CodeCompanion's `opts` is a function, so a
 plugin loaded after a switch starts from the switched key; its chat adapter is
 `codecompanion.chat_adapter`, set then and never changed, and nothing writes
@@ -1240,10 +1253,6 @@ ai.feed("claude", "edit_prompt", { seed = text, on_consumed = fn, on_expired = f
 -- prompt that names no agent (nil) has its staged files deleted, attached to
 -- nothing, saying so.
 ai.attach_images(paths, agent)
-
-ai.info()  -- the data :AI info prints: providers (in order, each part with
-           -- whether it can start here), key, profiles, cli_keys,
-           -- codecompanion (its own chats' and inline adapters), chats
 ```
 
 Both backends' `edit_prompt(opts)` take `{ seed?, on_consumed?, on_expired?,
@@ -1432,8 +1441,15 @@ terminal provider. Ordinary `:terminal` buffers are untouched.
 ```lua
 local panel = require("ai.terminal")
 
-panel.setup()      -- install the TermOpen hook; called from ai.setup()
+panel.setup()      -- install the TermOpen hook and register is_agent_buf with
+                   -- util.terminal; called when the ai module loads
 panel.attach(buf)  -- apply the rules to one agent terminal buffer
+
+-- Which native agent buf runs ("claude" / "codex"), or nil for any other
+-- buffer, read off the command Snacks records. Every agent a provider offers
+-- counts: several can be running, and each panel keeps its own rules.
+panel.agent_of(buf)
+panel.is_agent_buf(buf)
 ```
 
 Three rules, the first two undoing something Nvim or Snacks does that is right
@@ -1441,7 +1457,7 @@ for a shell and wrong for an agent TUI:
 
 `<Esc>` is mapped buffer-locally so it goes straight to the agent. Snacks maps
 `<esc>` on its terminal buffers as a 200ms double-tap to Normal mode, and
-`lua/mappings.lua` maps `<Esc><Esc>` globally; between them, neither CLI ever
+`lua/config/keymaps.lua` maps `<Esc><Esc>` globally; between them, neither CLI ever
 received the quick double Esc that both read as "go back a message". The
 buffer-local single `<Esc>` is a complete match, so it wins over the longer
 global sequence without waiting out `timeoutlen`. Snacks' own entry is dropped
@@ -1737,8 +1753,8 @@ rejected value is not in `overrides()`.
 
 | Key | Default | Read by |
 |---|---|---|
-| `retention.rounds`, `retention.saved` | `20`, `10` | `util.baseline.prune` |
-| `max_file_size` | `10485760` (10 MiB) | `util.baseline.snapshot`, util.codediff's notices |
+| `retention.rounds`, `retention.saved` | `20`, `10` | `util.baseline.save`'s `keep`, passed by `ai.review.rounds` / `<leader>gK` |
+| `max_file_size` | `10485760` (10 MiB) | every `util.baseline` snapshot (passed by `ai.review`, the git spec and util.codediff's `max_file_size` hook), util.codediff's notices |
 | `sources.claude`, `sources.codex` | `true` | the hook injection, `ai.review.hook.event` |
 | `sources.codecompanion_acp`, `sources.codecompanion_http` | `true` | `rounds.attach_chat`, every chat submit |
 | `hook_wait_ms` | `2500` (`0`: never wait) | `scripts/agent-hook` (argv), the chat callback |
@@ -1791,7 +1807,7 @@ rounds.native_event(ev)  -- from ai.review.hook: { agent, event, payload, done, 
                          -- hand-back) opens no round
 rounds.start(opts)       -- <leader>aV; opts.buf (default: the current buffer)
 
--- The registry (this Nvim only, in memory), fed from ai.setup()'s autocmds.
+-- The registry (this Nvim only, in memory), fed from the ai module's autocmds.
 rounds.track_terminal(buf, cwd)  -- TermOpen; agent terminals only, root fixed now
 rounds.chat_created(data)        -- User CodeCompanionChatCreated
 rounds.chat_closed(data)         -- User CodeCompanionChatClosed

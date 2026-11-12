@@ -8,6 +8,26 @@
 
 local M = {}
 
+---Which native agent `buf` runs ("claude" / "codex"), or nil for any other
+---buffer. Snacks records the original command on every terminal buffer, which
+---is what tells an agent panel from a shell -- and which agent it is. Every
+---agent a provider offers counts: several can be running, and each panel
+---keeps its own rules.
+---@param buf integer?
+---@return string|nil agent the TUI kind
+function M.agent_of(buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "terminal" then return nil end
+  local info = vim.b[buf].snacks_terminal
+  return info ~= nil and require("ai.config").agent_of_command(info.cmd) or nil
+end
+
+---@param buf integer?
+---@return boolean
+function M.is_agent_buf(buf)
+  return M.agent_of(buf) ~= nil
+end
+
 ---Whether this panel's command goes through a tmux wrapper.
 ---
 ---The wrapper is the only thing in the pane that turns mouse reporting on
@@ -92,7 +112,7 @@ end
 -- Claude and Codex both use a quick double Esc for their own "go back to the
 -- previous message" action, and neither has ever received it here: Snacks maps
 -- <esc> on its terminal buffers as a 200ms double-tap to Normal mode, and
--- lua/mappings.lua maps <Esc><Esc> globally. The panels opt out of both --
+-- lua/config/keymaps.lua maps <Esc><Esc> globally. The panels opt out of both --
 -- Snacks' entry through `keys.term_normal = false` where each terminal is
 -- created, the global pair through the mapping below, which is a complete
 -- match and therefore wins over the longer global sequence without waiting out
@@ -163,19 +183,21 @@ end
 ---Install the TermOpen hook that calls `attach` on every agent panel,
 ---whichever agent it runs. Both backends open through Snacks, so one hook
 ---covers both; the per-backend alternative would need a callback threaded
----through claudecode.nvim's own terminal provider.
+---through claudecode.nvim's own terminal provider. Also tells util.terminal
+---which terminals are agent panels.
 function M.setup()
+  require("util.terminal").set_agent_test(M.is_agent_buf)
   local group = vim.api.nvim_create_augroup("ai_terminal_input", { clear = true })
   vim.api.nvim_create_autocmd("TermOpen", {
     group = group,
     callback = function(event)
-      if require("util.terminal").is_agent_buf(event.buf) then M.attach(event.buf) end
+      if M.is_agent_buf(event.buf) then M.attach(event.buf) end
     end,
   })
   vim.api.nvim_create_autocmd("TermEnter", {
     group = group,
     callback = function(event)
-      if not require("util.terminal").is_agent_buf(event.buf) or not wrapped_in_tmux(event.buf) then return end
+      if not M.is_agent_buf(event.buf) or not wrapped_in_tmux(event.buf) then return end
       if vim.b[event.buf].ai_preserve_scrollback_once then
         vim.b[event.buf].ai_preserve_scrollback_once = nil
         return

@@ -8,7 +8,7 @@
 local t = dofile("tests/helper.lua")
 
 local config = require("ai.config")
-local util_term = require("util.terminal")
+local ai_term = require("ai.terminal")
 
 -- A stand-in for the real CLI: identity is decided by the command's basename,
 -- so a script named after the provider is indistinguishable from the agent as
@@ -55,7 +55,7 @@ end
 
 -- Unwrapped panel: Nvim itself sees the click, so it needs the guard.
 local plain = open_panel({ bin })
-t.ok(util_term.is_agent_buf(plain), "the fake agent reads as an agent buffer")
+t.ok(ai_term.is_agent_buf(plain), "the fake agent reads as an agent buffer")
 t.eq(vim.fn.maparg("<Esc>", "t", false, true).buffer, 1,
   "Esc is buffer-local on the panel, so it reaches the agent instead of <Esc><Esc>")
 t.ok(buffer_local("<LeftMouse>"),
@@ -353,9 +353,9 @@ local function panel(cmd)
 end
 local claude_term = panel({ agents_dir .. "/claude" })
 local codex_probe = panel({ agents_dir .. "/codex" })
-t.eq(util_term.agent_of(claude_term.buf), "claude", "a Claude terminal is Claude's")
-t.eq(util_term.agent_of(codex_probe.buf), "codex", "a Codex terminal is Codex's")
-t.ok(util_term.is_agent_buf(claude_term.buf) and util_term.is_agent_buf(codex_probe.buf),
+t.eq(ai_term.agent_of(claude_term.buf), "claude", "a Claude terminal is Claude's")
+t.eq(ai_term.agent_of(codex_probe.buf), "codex", "a Codex terminal is Codex's")
+t.ok(ai_term.is_agent_buf(claude_term.buf) and ai_term.is_agent_buf(codex_probe.buf),
   "both are agent buffers")
 t.eq(vim.fn.maparg("<Esc>", "t", false, true).buffer, 1, "and both get the panel input rules")
 vim.fn.jobstop(vim.bo[codex_probe.buf].channel)

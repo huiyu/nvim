@@ -11,7 +11,7 @@
 -- Codex treats it as a path the agent resolves itself. Both read the file
 -- either way, so one insert format serves both.
 --
--- Registered in lua/plugin/lsp/cmp.lua, enabled only for buffers the editor
+-- Registered in lua/plugins/coding/cmp.lua, enabled only for buffers the editor
 -- marked with vim.b.ai_prompt -- ordinary markdown never sees it.
 
 local M = {}

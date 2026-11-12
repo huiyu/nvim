@@ -8,7 +8,7 @@
 -- exists is the way out.
 local t = dofile("tests/helper.lua")
 -- bufferline loads on VeryLazy, after the first frame. Until then the row
--- comes from lua/options.lua: a `1` there would leave the first frame without
+-- comes from lua/config/options.lua: a `1` there would leave the first frame without
 -- it, and the whole screen would move down a line once bufferline turned it on.
 t.eq(vim.o.showtabline, 2, "the tabline is on before bufferline loads")
 -- VeryLazy has not fired while a spec runs.

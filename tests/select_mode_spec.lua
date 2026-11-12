@@ -116,7 +116,7 @@ end
 
 -- which-key groups: "v" would add Select mode, where the group alone makes
 -- <Space> a trigger inside a placeholder.
-local Spec = require("whichkey_spec")
+local Spec = require("config.whichkey_spec")
 local groups, selecting = {}, {}
 for _, entry in ipairs(Spec.spec) do
   local modes = type(entry.mode) == "table" and entry.mode or { entry.mode or "n" }

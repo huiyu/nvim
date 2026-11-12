@@ -2,8 +2,8 @@ local t = dofile("tests/helper.lua")
 
 -- Two things are under test here.
 --
--- The section layout is declared in lua/whichkey_spec.lua and read by
--- lua/plugin/editor/whichkey.lua. A suffix listed there that maps to nothing is
+-- The section layout is declared in lua/config/whichkey_spec.lua and read by
+-- lua/plugins/editor/whichkey.lua. A suffix listed there that maps to nothing is
 -- dead weight nobody would notice, so the global file-search declarations are
 -- resolved against real mappings. context_actions_spec.lua covers filetype menus.
 --
@@ -21,7 +21,7 @@ if not ok_view then
   return
 end
 
-local Spec = require("whichkey_spec")
+local Spec = require("config.whichkey_spec")
 
 -- Description-only spec entries live in which-key's trie. Entries with an RHS
 -- become real mappings after scheduled setup; that has not run yet here.

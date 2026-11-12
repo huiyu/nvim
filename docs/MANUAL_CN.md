@@ -206,7 +206,7 @@ Vim 自己的键就是这样：
 
 **which-key：** 按 `[`、`]`、`g`、`z` 停半秒，弹窗列出抽屉里的东西，并按
 类别加标题分块（`── diagnostics`、`── git` ……），每块一个颜色，长列表因此读起来
-是几个区块而不是一串字母。分组在 `lua/whichkey_spec.lua` 里声明；启用分组的
+是几个区块而不是一串字母。分组在 `lua/config/whichkey_spec.lua` 里声明；启用分组的
 菜单中，未显式归类的键（包括新增插件键和内置命令）统一放在最后的 `── others`
 下，避免混入上一个分组。没有剩余条目时不显示 `others`；`z` 等未声明分组的
 菜单保留默认布局。
@@ -1253,7 +1253,7 @@ vim.g.ai_review = { retention = { rounds = 30 }, claude_cwd = "cwd" }
   则立即生效。
 - 来源关闭期间打开的 Chat，之后即使再打开来源也不会开轮次；关闭来源立即生效。
 - `<Space>gh` / `<Space>gH` 的描述在插件 spec 加载时写定，所以要在 `init.lua` 里
-  `require("bootstrap")` 之前设置 `history_limit`；列表本身随设置变化。
+  `require("config")` 之前设置 `history_limit`；列表本身随设置变化。
 
 ---
 
@@ -1327,7 +1327,7 @@ gutter 的形状不依赖颜色也能分辨：`●` 断点、`◉` 条件断点�
 
 先用 `<Space>db` 打断点，把光标放进测试用例，再按 `<Space>tM`。
 这些直接入口会先保存当前文件；未命名 buffer 或保存失败时中止。
-各语言使用同一套键位，目标选择逻辑分别放在 `lua/lang/*.lua`。
+各语言使用同一套键位，目标选择逻辑分别放在 `lua/plugins/lang/*.lua`。
 
 | 语言 | `df` | `tM` / `tF` |
 |---|---|---|

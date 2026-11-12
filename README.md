@@ -38,7 +38,7 @@ llama-server --fim-qwen-7b-default                 # once: ghost-text model (~8 
 - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
 - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
 - **Rust (rustup)** — `rust-analyzer` (installed by Mason) needs `cargo`, and formats with the toolchain's `rustfmt` (`rustup component add rustfmt`); it adds `rust-src` through rustup itself
-- **JDK 25+** — runs `jdtls` (Java); projects may still target older releases. Found through `$JAVA_HOME`, then [SDKMAN!](https://sdkman.io/) (`~/.sdkman/candidates/java`), then PATH (see [`lua/lang/java.lua`](lua/lang/java.lua))
+- **JDK 25+** — runs `jdtls` (Java); projects may still target older releases. Found through `$JAVA_HOME`, then [SDKMAN!](https://sdkman.io/) (`~/.sdkman/candidates/java`), then PATH (see [`lua/plugins/lang/java.lua`](lua/plugins/lang/java.lua))
 - **TeX Live + Skim** (LaTeX) — `brew install --cask mactex-no-gui` for `latexmk`/`latexindent`/`chktex`, and `brew install --cask skim` for the SyncTeX PDF viewer. `texlab` is installed by Mason. For inverse search set Skim → Preferences → Sync → Custom: command `nvim`, arguments `--headless -c "VimtexInverseSearch %line '%file'"`
 
 If a Mason package fails to install, run `:Mason` (UI) or `:MasonLog` (raw log) to see the underlying error. The most common cause is a missing toolchain from the list above.
@@ -66,35 +66,38 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 ~/.config/nvim/
 ├── AGENTS.md                # Repository guidance for coding agents
 ├── CLAUDE.md                # Claude Code import of AGENTS.md
-├── init.lua                  # Entry point
+├── init.lua                  # Entry point: vim.loader, then require("config")
 ├── lua/
-│   ├── options.lua           # Vim options
-│   ├── mappings.lua          # Imperative core keymaps (side effects)
-│   ├── whichkey_spec.lua     # which-key groups, popup sections, spec keymaps (data)
-│   ├── autocmds.lua          # Autocommands
-│   ├── bootstrap.lua         # lazy.nvim setup
-│   ├── ai/                    # AI state, the chat slot, native Claude/Codex backends, CodeCompanion chats, review rounds (ai/review/)
-│   ├── config/
+│   ├── config/               # This configuration's own startup
+│   │   ├── init.lua          # The startup sequence, in order
+│   │   ├── cwd.lua           # Recover a deleted cwd; start in the first argument's root
+│   │   ├── options.lua       # Vim options
+│   │   ├── keymaps.lua       # Imperative core keymaps
+│   │   ├── autocmds.lua      # Autocommands
+│   │   ├── lazy.lua          # lazy.nvim: install, import lua/plugins/
+│   │   ├── whichkey_spec.lua # which-key groups, popup sections, spec keymaps (data)
 │   │   └── health.lua        # `:checkhealth config` provider
-│   ├── lang/                 # Language-specific configs
-│   │   ├── bash.lua
-│   │   ├── dart.lua
-│   │   ├── rust.lua
-│   │   ├── c.lua             # C / C++
-│   │   ├── frontend.lua      # HTML / CSS / Tailwind
-│   │   ├── go.lua
-│   │   ├── java.lua
-│   │   ├── json.lua
-│   │   ├── python.lua
-│   │   ├── tex.lua           # LaTeX (VimTeX + texlab)
-│   │   ├── typescript.lua    # JS / TS language (LSP, format, DAP)
-│   │   └── yaml.lua
-│   ├── plugin/
-│   │   ├── editor/           # Editor enhancement plugins
-│   │   ├── lsp/              # LSP, completion, formatting, debugging
-│   │   ├── ui/               # UI and theme plugins
-│   │   └── vcs/              # Git integration
-│   └── util/                 # Utility modules
+│   ├── plugins/              # lazy.nvim specs, imported in this order
+│   │   ├── editor/           # Editing, navigation, pickers, panels
+│   │   ├── coding/           # LSP, completion, formatting, linting, DAP, tests
+│   │   ├── ai/               # Claude Code, CodeCompanion, ghost text
+│   │   ├── ui/               # Colorscheme, statusline, tabline, treesitter
+│   │   ├── git/              # CodeDiff, gitsigns, GitHub
+│   │   └── lang/             # Per-language servers, tools and adapters
+│   │       ├── bash.lua
+│   │       ├── c.lua         # C / C++
+│   │       ├── dart.lua
+│   │       ├── frontend.lua  # HTML / CSS / Tailwind
+│   │       ├── go.lua
+│   │       ├── java.lua
+│   │       ├── json.lua
+│   │       ├── python.lua
+│   │       ├── rust.lua
+│   │       ├── tex.lua       # LaTeX (VimTeX + texlab)
+│   │       ├── typescript.lua # JS / TS language (LSP, format, DAP)
+│   │       └── yaml.lua
+│   ├── ai/                   # AI state, the chat slot, native Claude/Codex backends, CodeCompanion chats, review rounds (ai/review/)
+│   └── util/                 # Utility modules (no side effects on require)
 ├── .github/workflows/       # CI: spec suite + a headless startup check
 ├── scripts/                 # Agent TUI helpers, shared llama-server supervisor
 ├── tests/                   # Headless spec suite (tests/run.sh)
@@ -739,7 +742,7 @@ When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requi
 #### Native-agent tmux wrappers
 
 Claude Code and Codex are launched inside provider-specific, dedicated tmux
-servers. See `lua/plugin/lsp/ai.lua` and `lua/ai/backend/codex.lua`.
+servers. See `lua/plugins/ai/claudecode.lua` and `lua/ai/backend/codex.lua`.
 
 **Why**: both TUIs emit DEC mode 2026 (Synchronized Output) escape sequences for
 atomic frame updates. Nvim's `:terminal` buffer does not understand this
@@ -908,19 +911,19 @@ For troubleshooting (slow startup, LSP not attaching, missing formatter, etc.) s
 
 ### Customization
 
-**Add a plugin** — create a file in the appropriate `lua/plugin/*/` directory.
+**Add a plugin** — create a file in the appropriate `lua/plugins/*/` directory.
 
 **Add language support, an LSP server, or a formatter** — create or edit the
-matching contribution in `lua/lang/`. Language files extend the shared
+matching contribution in `lua/plugins/lang/`. Language files extend the shared
 `nvim-lspconfig`, Conform, lint, Treesitter, DAP, and test specs; the files in
-`lua/plugin/lsp/` contain editor-wide defaults only.
+`lua/plugins/coding/` contain editor-wide defaults only.
 
 **Add, remove or reorder an AI provider** — edit the `providers` list in
 `lua/ai/config.lua` ([AI chats and providers](#ai-chats-and-providers)). A
 provider whose `acp` and `api` name adapters CodeCompanion already has needs
 only the entry; a native terminal of a new kind needs code.
 
-**Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
+**Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugins/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
 
 Use `;i` (files) or `;?` (text) to respect `.gitignore` instead, with hidden files
 still visible and no extra directory exclusions. Under Manage, `<leader>mf`

@@ -306,7 +306,7 @@ t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
 
 ---------------------------------------------------------------------------
 -- Keys: upstream's defaults moved off keys that mean something else
--- everywhere (lua/plugin/lsp/codecompanion.lua)
+-- everywhere (lua/plugins/ai/codecompanion.lua)
 ---------------------------------------------------------------------------
 
 -- As resolved in the live config.

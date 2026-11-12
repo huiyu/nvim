@@ -58,7 +58,7 @@ jobs:
           "$HOME/.local/bin/tree-sitter" --version
 
       # `-u init.lua` does not put the checkout on the runtimepath, so
-      # `require("options")` fails unless the checkout *is* stdpath("config") --
+      # `require("config")` fails unless the checkout *is* stdpath("config") --
       # which it is on a real machine, where the repo lives at ~/.config/nvim.
       - name: Expose the checkout as the Neovim config directory
         run: |
@@ -114,6 +114,6 @@ jobs:
 
       # No trailing-whitespace gate here on purpose. AGENTS.md's local
       # `git diff --check` inspects changed lines only; the committed tree still
-      # carries trailing whitespace in four files (bootstrap, util/logger,
+      # carries trailing whitespace in three files (util/logger,
       # util/lsp, docs/UTILITIES.md), so a repo-wide grep would fail every run
       # until those are cleaned up. Add the gate together with that cleanup.

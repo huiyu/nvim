@@ -38,7 +38,7 @@ llama-server --fim-qwen-7b-default                 # 一次性：下载灰色补
 - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
 - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
 - **Rust（rustup）** — Mason 安装的 `rust-analyzer` 需要 `cargo`，格式化用的是工具链自带的 `rustfmt`（`rustup component add rustfmt`）；`rust-src` 由 rust-analyzer 自己通过 rustup 补装
-- **JDK 25+** — 用来运行 `jdtls`（Java）；项目本身仍可面向更早的版本。依次从 `$JAVA_HOME`、[SDKMAN!](https://sdkman.io/)（`~/.sdkman/candidates/java`）、PATH 中查找（见 [`lua/lang/java.lua`](lua/lang/java.lua)）
+- **JDK 25+** — 用来运行 `jdtls`（Java）；项目本身仍可面向更早的版本。依次从 `$JAVA_HOME`、[SDKMAN!](https://sdkman.io/)（`~/.sdkman/candidates/java`）、PATH 中查找（见 [`lua/plugins/lang/java.lua`](lua/plugins/lang/java.lua)）
 - **TeX Live + Skim**（LaTeX）— `brew install --cask mactex-no-gui` 提供 `latexmk`/`latexindent`/`chktex`，`brew install --cask skim` 提供支持 SyncTeX 的 PDF 阅读器；`texlab` 由 Mason 安装。反向跳转需在 Skim → 偏好设置 → Sync 中选 Custom：命令填 `nvim`，参数填 `--headless -c "VimtexInverseSearch %line '%file'"`
 
 如果 Mason 安装失败，运行 `:Mason`（UI）或 `:MasonLog`（原始日志）查看具体错误。最常见的原因是上面这些工具链没装。
@@ -61,35 +61,38 @@ nvim
 ~/.config/nvim/
 ├── AGENTS.md                # Coding agent 的仓库级约定
 ├── CLAUDE.md                # Claude Code 对 AGENTS.md 的导入
-├── init.lua                  # 入口文件
+├── init.lua                  # 入口：开启 vim.loader，然后 require("config")
 ├── lua/
-│   ├── options.lua           # Vim 选项
-│   ├── mappings.lua          # 命令式核心键位（副作用）
-│   ├── whichkey_spec.lua     # which-key 分组、弹窗分区、spec 键位（数据）
-│   ├── autocmds.lua          # 自动命令
-│   ├── bootstrap.lua         # lazy.nvim 初始化
-│   ├── ai/                    # AI 状态、Chat 槽位、Native Claude/Codex 后端、CodeCompanion Chat、审阅轮次（ai/review/）
-│   ├── config/
+│   ├── config/               # 本配置自身的启动流程
+│   │   ├── init.lua          # 启动顺序，按序 require
+│   │   ├── cwd.lua           # 恢复已删除的 cwd；按第一个参数定位到其根目录
+│   │   ├── options.lua       # Vim 选项
+│   │   ├── keymaps.lua       # 命令式核心键位
+│   │   ├── autocmds.lua      # 自动命令
+│   │   ├── lazy.lua          # lazy.nvim：安装，导入 lua/plugins/
+│   │   ├── whichkey_spec.lua # which-key 分组、弹窗分区、spec 键位（数据）
 │   │   └── health.lua        # `:checkhealth config` 提供者
-│   ├── lang/                 # 语言专属配置
-│   │   ├── bash.lua
-│   │   ├── dart.lua
-│   │   ├── rust.lua
-│   │   ├── c.lua             # C / C++
-│   │   ├── frontend.lua      # HTML / CSS / Tailwind
-│   │   ├── go.lua
-│   │   ├── java.lua
-│   │   ├── json.lua
-│   │   ├── python.lua
-│   │   ├── tex.lua           # LaTeX（VimTeX + texlab）
-│   │   ├── typescript.lua    # JS / TS 语言（LSP、格式化、DAP）
-│   │   └── yaml.lua
-│   ├── plugin/
-│   │   ├── editor/           # 编辑器增强插件
-│   │   ├── lsp/              # LSP、补全、格式化、调试
-│   │   ├── ui/               # 界面和主题插件
-│   │   └── vcs/              # Git 集成
-│   └── util/                 # 工具模块
+│   ├── plugins/              # lazy.nvim spec，按此顺序导入
+│   │   ├── editor/           # 编辑、导航、picker、面板
+│   │   ├── coding/           # LSP、补全、格式化、lint、调试、测试
+│   │   ├── ai/               # Claude Code、CodeCompanion、幽灵文本补全
+│   │   ├── ui/               # 主题、状态栏、标签栏、Treesitter
+│   │   ├── git/              # CodeDiff、gitsigns、GitHub
+│   │   └── lang/             # 各语言的服务器、工具和适配器
+│   │       ├── bash.lua
+│   │       ├── c.lua         # C / C++
+│   │       ├── dart.lua
+│   │       ├── frontend.lua  # HTML / CSS / Tailwind
+│   │       ├── go.lua
+│   │       ├── java.lua
+│   │       ├── json.lua
+│   │       ├── python.lua
+│   │       ├── rust.lua
+│   │       ├── tex.lua       # LaTeX（VimTeX + texlab）
+│   │       ├── typescript.lua # JS / TS 语言（LSP、格式化、DAP）
+│   │       └── yaml.lua
+│   ├── ai/                   # AI 状态、Chat 槽位、Native Claude/Codex 后端、CodeCompanion Chat、审阅轮次（ai/review/）
+│   └── util/                 # 工具模块（require 时无副作用）
 ├── .github/workflows/       # CI：spec 套件 + 一次 headless 启动检查
 ├── scripts/                 # Agent TUI 辅助脚本、共享 llama-server 的守护脚本
 ├── tests/                   # Headless spec 套件（tests/run.sh）
@@ -653,7 +656,7 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 #### Native Agent 的 tmux 包裹
 
 Claude Code 和 Codex 默认分别在 provider 专属的 tmux server 中启动，见
-`lua/plugin/lsp/ai.lua` 与 `lua/ai/backend/codex.lua`。
+`lua/plugins/ai/claudecode.lua` 与 `lua/ai/backend/codex.lua`。
 
 **原因**：两个 TUI 都会发出 DEC mode 2026（Synchronized Output）序列来做
 原子帧更新。Neovim 的 `:terminal` buffer 不识别该协议，因此半帧可能留下
@@ -798,11 +801,11 @@ CLI 的变量。
 
 ### 自定义
 
-**添加插件** — 在对应 `lua/plugin/*/` 目录下创建文件。
+**添加插件** — 在对应 `lua/plugins/*/` 目录下创建文件。
 
-**添加语言支持、LSP 服务器或格式化工具** — 在 `lua/lang/` 中创建或修改
+**添加语言支持、LSP 服务器或格式化工具** — 在 `lua/plugins/lang/` 中创建或修改
 对应语言贡献。语言文件负责扩展共享的 nvim-lspconfig、Conform、lint、
-Treesitter、DAP 和测试 spec；`lua/plugin/lsp/` 只放编辑器级公共默认配置。
+Treesitter、DAP 和测试 spec；`lua/plugins/coding/` 只放编辑器级公共默认配置。
 
 **添加、删除或调整 AI provider 的顺序** — 修改 `lua/ai/config.lua` 里的
 `providers` 列表（见 [AI Chat 与 Provider](#ai-chat-与-provider)）。`acp` 和 `api`
@@ -811,7 +814,7 @@ Treesitter、DAP 和测试 spec；`lua/plugin/lsp/` 只放编辑器级公共默�
 
 **调整文件/grep 搜索范围** — `;f` 与 `;/` 默认显示隐藏和被
 gitignore 的文件；`.git/` 始终排除，`node_modules`、`target`、`.venv`、
-`Pods` 等重型目录由 `lua/plugin/editor/snacks.lua` 的 `search_exclude` 统一
+`Pods` 等重型目录由 `lua/plugins/editor/snacks.lua` 的 `search_exclude` 统一
 过滤。这个过滤不区分是否被 Git 跟踪，因此不要随意加入 `bin`、`out`、
 `vendor` 这类可能包含源码的通用目录名。
 

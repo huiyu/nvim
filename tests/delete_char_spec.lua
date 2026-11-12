@@ -1,6 +1,6 @@
 local t = dofile("tests/helper.lua")
 
--- Normal-mode x deletes into the black hole register (lua/mappings.lua). Under
+-- Normal-mode x deletes into the black hole register (lua/config/keymaps.lua). Under
 -- clipboard=unnamedplus a plain x otherwise replaced the system clipboard and
 -- pushed a one-character entry onto the yanky ring.
 --

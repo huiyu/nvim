@@ -34,7 +34,7 @@ local function panel()
   settle()
   vim.api.nvim_set_current_win(term.win)
   vim.cmd("stopinsert")
-  t.ok(require("util.terminal").is_agent_buf(term.buf), "the panel has the first listed agent's identity")
+  t.ok(require("ai.terminal").is_agent_buf(term.buf), "the panel has the first listed agent's identity")
   t.eq(vim.fn.maparg("-", "t"), "", "typing - in terminal input still belongs to the agent")
   return term
 end

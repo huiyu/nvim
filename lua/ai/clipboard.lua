@@ -16,7 +16,7 @@
 -- Both are the same byte, 0x16.
 --
 -- The temp-file round trip is not optional. `clipboard = "unnamedplus"`
--- (lua/options.lua) means every yank, delete or change inside the prompt editor
+-- (lua/config/options.lua) means every yank, delete or change inside the prompt editor
 -- overwrites the system clipboard, so an image left sitting there while a prompt
 -- is being written would be gone by the time it was sent.
 

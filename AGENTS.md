@@ -8,14 +8,32 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 
 ## Architecture
 
-- `init.lua` loads options, core mappings, autocommands, lazy.nvim, and the AI
-  facade.
-- `lua/plugin/{editor,lsp,ui,vcs}/` contains editor-wide plugin specs.
-- `lua/lang/*.lua` owns language contributions: LSP servers, Mason tools,
-  formatters, linters, Treesitter parsers, DAP adapters, tests, and runners.
-  Add language-specific behavior there instead of expanding a core plugin spec.
-- `lua/util/` contains small reusable helpers. Avoid introducing frameworks for
-  behavior already covered by Neovim or a maintained plugin.
+- The layout follows lazy.nvim's and LazyVim's: `init.lua` turns on
+  `vim.loader` and requires `config`; `lua/config/init.lua` is the startup
+  sequence, one plain `require` per step, in order: `config.cwd` (recover a
+  deleted cwd, pick the startup cwd at `VimEnter`), `config.options`,
+  `config.keymaps`, `config.autocmds`, the AI facade (`ai`) and `config.lazy`
+  (lazy.nvim, last). Each step does its work when required -- the AI facade
+  too: `lua/ai/init.lua` installs itself at the end of the file -- so there
+  is no `require(...).setup()` in the sequence. `lua/config/` also holds the
+  data and checks of this configuration itself: `whichkey_spec.lua` (which-key
+  sections and descs) and `health.lua` (`:checkhealth config`).
+- `lua/plugins/` holds every lazy.nvim spec, imported by
+  `config.lazy` in this order (it is merge order): `editor/` (editing,
+  navigation, pickers, panels), `coding/` (LSP, completion, formatting,
+  linting, DAP, tests), `ai/` (Claude Code, CodeCompanion, ghost text), `ui/`,
+  `git/` and `lang/` last.
+- `lua/plugins/lang/*.lua` owns language contributions: LSP servers, Mason
+  tools, formatters, linters, Treesitter parsers, DAP adapters, tests, and
+  runners. Add language-specific behavior there instead of expanding a core
+  plugin spec.
+- `lua/util/` contains small reusable helpers, and requiring one changes
+  nothing: startup wiring that uses a helper lives in `lua/config/` (as
+  `config.cwd` uses `util.cwd`). A helper requires no `ai.*`: what the AI
+  layer owns is handed in -- `util.baseline`'s `max_file_size`/`keep` by each
+  caller, util.codediff's through `setup`'s hooks, which terminals are agent
+  panels through `util.terminal.set_agent_test`. Avoid introducing frameworks
+  for behavior already covered by Neovim or a maintained plugin.
 - `lua/ai/config.lua` holds the AI state -- the ordered `providers` list,
   validated at load (`M.build`), and the HTTP key profile, which
   `lua/ai/switch.lua` (`:AI key`) switches in-process -- and the list of
@@ -264,7 +282,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   creation time and forwarded explicitly through `new-session -e` under both tmux
   wrappers. Dropping any of them degrades silently to a nested Nvim inside
   `:terminal`, so treat them as part of the terminal command, not as decoration.
-- Inline ghost text (`lua/plugin/lsp/minuet.lua`) is not part of the AI
+- Inline ghost text (`lua/plugins/ai/minuet.lua`) is not part of the AI
   facade: it always comes from the local `llama-server` that `util.llama`
   shares between Nvims, whatever the providers list or the chat on the right.
   Do not route it through `ai.config`. The server only starts when a UI is
@@ -326,7 +344,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   explorer's `-`/`S`/`U`/`X` exist in the status view only: in a revision
   view upstream's `X` runs `git clean` on any file the index does not track.
 - Retention runs after every save, per worktree and kind
-  (`retention.rounds`, `retention.saved`); a round whose feedback draft is a
+  (`retention.rounds`, `retention.saved`, passed as the save's `keep`); a
+  round whose feedback draft is a
   non-empty file is exempt (`rounds._exempt`, handed over through
   `util.baseline.set_exempt`). Objects are left to git's own gc. Exercised by
   `tests/baseline_spec.lua`.
@@ -345,7 +364,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   offline discovery and both Codex terminal launch paths without a thread.
 - The native agents' prompt hooks are injected per process, never through
   the user's configuration. Claude gets `--settings <json>`
-  (`build_terminal_cmd` in `lua/plugin/lsp/ai.lua`): UserPromptSubmit, plus
+  (`build_terminal_cmd` in `lua/plugins/ai/claudecode.lua`): UserPromptSubmit, plus
   SessionStart run async. Codex gets one `-c hooks={...}` (`codex_command` in
   `lua/ai/backend/codex.lua`): UserPromptSubmit only, with its
   `trusted_hash` under `state` in the same `-c`, so it runs without a review
@@ -505,7 +524,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   stage key. Its plugin defaults also use localleader and must not overwrite
   general comma actions.
   A CodeCompanion chat (`interactions.chat.keymaps` in
-  `lua/plugin/lsp/codecompanion.lua`) puts upstream's acts that took keys
+  `lua/plugins/ai/codecompanion.lua`) puts upstream's acts that took keys
   meaning something else everywhere on `,`: `,s` save (codecompanion-history),
   `,X` clear, `,q` end the chat, `,z` fold code blocks, beside `,m` render;
   `gx` and `gf` open what is under the cursor again, `s` stays the window
@@ -517,7 +536,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - LSP navigation that starts from the symbol under the cursor belongs on `g`,
   not on `;`: `gd`, `gr`, `gb` (implementation), `gy`, `gD`, `gC` (incoming
   calls) and `gK`, plus `gs` (source definition) where vtsls attaches, from its
-  `on_attach` in `lua/lang/typescript.lua`. The dividing line is whether the key
+  `on_attach` in `lua/plugins/lang/typescript.lua`. The dividing line is whether the key
   needs a symbol to start from -- `;s`/`;S` fuzzy-search a symbol list and need
   no cursor context, so they stay on `;`. Mnemonic letters lose to builtins
   here: `gi`/`gI` are Vim's insert commands and `gc` is Nvim's comment
@@ -535,7 +554,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   own comma keys (`,s`, `,X`, `,q`, `,z`) show only in the chat, under the
   `Chat ·` heading, which already names it, so they carry no `[AI]` either.
   Their descs are this config's (`description` in
-  `lua/plugin/lsp/codecompanion.lua`: "Save chat", "Clear chat messages",
+  `lua/plugins/ai/codecompanion.lua`: "Save chat", "Clear chat messages",
   "Close chat (ends it)", "Fold code blocks"), and the chat's `gh` reads
   "Browse saved Companion chats", as `<leader>ao` does.
 - Under a which-key popup the letter may be a mnemonic or an accident, but the
@@ -664,7 +683,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   set a breakpoint and step from the source you are editing, not only from
   inside the view. Nothing there blocks a global prefix.
 - The tabline stays on (`always_show_bufferline`, and `showtabline = 2` in
-  `lua/options.lua` so the first frame, drawn before bufferline loads on
+  `lua/config/options.lua` so the first frame, drawn before bufferline loads on
   `VeryLazy`, already has the row). bufferline's own toggle
   counts buffers and never tabpages, so more than one tabpage with at most
   one listed buffer hid the tabline and the `1`/`2` tabpage indicators with
@@ -675,7 +694,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   an empty one must be invisible: bufferline's `fill` asks for a transparent
   background, but an unset background there inherits `TabLineFill`, which the
   colorscheme leaves opaque even under `transparent`. Both are cleared --
-  `fill` in the bufferline spec, `TabLineFill` in `lua/plugin/ui/solarized.lua`
+  `fill` in the bufferline spec, `TabLineFill` in `lua/plugins/ui/solarized.lua`
   -- and clearing only one puts the theme's teal band back across the top.
 - Window sizing goes through `util.window.resize` and `toggle_zoom`, not
   `:resize` or `wincmd _` directly. edgy re-applies its panels' geometry on
@@ -687,7 +706,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `edgebar:close()` to make room: both drop a non-pinned window for good,
   and `open()` restores only pinned views, of which this config has none.
   No keystroke reaches them either: edgy's panel keys `<c-q>` (hide) and `Q`
-  (close the edgebar) are off in `opts.keys` (`lua/plugin/editor/edgy.lua`),
+  (close the edgebar) are off in `opts.keys` (`lua/plugins/editor/edgy.lua`),
   with its `]w`/`[w`/`]W`/`[W` window cycling, which took the global warning
   jumps; `q` and the `<c-w>` resizers stay.
 - The first tabpage stays a page the global prefixes work in
@@ -712,8 +731,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   the debug view into something that steals focus from an editor tabpage on
   every step, which is more intrusive than the split layout it replaced.
 - Do not force-delete ordinary buffers from terminal-specific mappings.
-- Popup sections are declared as data in `lua/whichkey_spec.lua` (`sections`,
-  keyed by prefix then suffix) and only read by `lua/plugin/editor/whichkey.lua`.
+- Popup sections are declared as data in `lua/config/whichkey_spec.lua` (`sections`,
+  keyed by prefix then suffix) and only read by `lua/plugins/editor/whichkey.lua`.
   Adding a key or a whole section is a data edit; no Lua in the plugin spec
   knows what "files" or "search" means. Match by key, never by `desc` text -- an
   earlier version matched description patterns, where a reworded `desc` silently
@@ -810,7 +829,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   compares `codediff.version` with `M.VERSION` (4.0.6, the lazy pin): a
   mismatch warns once and leaves the three patches off, which is safe
   because the upstream keys that would be dangerous are already off in
-  `lua/plugin/vcs/codediff.lua`. CodeDiff's own setup runs inside
+  `lua/plugins/git/codediff.lua`. CodeDiff's own setup runs inside
   `util.codediff.setup`, after the runner patch, since each
   `codediff.core.git.*` module copies `run_async` when it loads.
   `tests/codediff_spec.lua` pins the internals,
@@ -865,20 +884,20 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   so it is only for a key that no buffer remaps. A key with a buffer-local
   twin carries a real desc on its global mapping instead: the treesitter
   moves `]m`/`]c` (and `]M`/`]C`, `[`-side alike) and the `af`/`ac` objects
-  (`lua/plugin/ui/treesitter.lua`), whose twins are CodeDiff's `]c`, Python's
+  (`lua/plugins/ui/treesitter.lua`), whose twins are CodeDiff's `]c`, Python's
   and VimTeX's `]m` and VimTeX's `ac`; and Nvim's `gO`, whose twins are the
   markdown, help, checkhealth and man outline. Nvim's LSP defaults (`gO`,
   `grr`/`gri`/`grt`/`grn`/`gra`/`grx`) keep their callbacks:
-  `lua/mappings.lua` rewrites only their desc, in place, with `mapset()`, and
+  `lua/config/keymaps.lua` rewrites only their desc, in place, with `mapset()`, and
   leaves alone one that something already replaced. Filetype plugins' own
   desc-less motions (Python's `]]`, VimTeX's `]n`, man's `gO`) get descs from
-  `whichkey_spec`'s `filetype_descs`, which `lua/plugin/editor/whichkey.lua`
+  `whichkey_spec`'s `filetype_descs`, which `lua/plugins/editor/whichkey.lua`
   writes onto the buffer's own mapping on `FileType` -- never as a which-key
   entry, which would outlive the filetype.
 - Window commands should normally affect the current tab only. Be deliberate
   before using global APIs such as `nvim_list_wins()`.
 - Messages and the cmdline come from Nvim's experimental ui2
-  (`lua/options.lua`), not a plugin. It keeps four floats (cmd, msg, pager,
+  (`lua/config/options.lua`), not a plugin. It keeps four floats (cmd, msg, pager,
   dialog) in whichever tabpage is current, so a "last window here?" check must
   count non-floating windows only; counting `nvim_tabpage_list_wins()` made the
   transcript's `q` fail with E444. vim.notify goes to the snacks notifier.

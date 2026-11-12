@@ -1,4 +1,5 @@
--- :AI -- the open chats, a new chat, and the HTTP key profile.
+-- The HTTP key profile and :AI info. The command itself is the facade's
+-- (lua/ai/init.lua), beside the keys it is the typed twin of:
 --
 --   :AI             switch to another open chat (<leader>al)
 --   :AI new         start a chat on any available backend (<leader>an)
@@ -39,8 +40,8 @@ function M.key(name)
   end
   local ok, err = pcall(c.use_key, name)
   if not ok then return notify(err, ERROR) end
-  require("ai").apply_keymaps()
   -- CodeCompanion's live inline/cmd adapters; a no-op until it has loaded.
+  -- The facade relabels <leader>ae on the event below.
   require("ai.companion").sync()
   vim.api.nvim_exec_autocmds("User", {
     pattern = "AIStateChanged",
@@ -105,10 +106,66 @@ function M.pick()
   end)
 end
 
+---The providers, the key profile and every open chat, for :AI info.
+---Never loads claudecode.nvim or CodeCompanion to answer.
+local function gather()
+  local config, slot = config(), require("ai.slot")
+  local set = is_set
+
+  local profiles = {}
+  for _, name in ipairs(config.key_names()) do
+    local p = config.key_profiles[name]
+    profiles[name] = { label = p.label, var = p.api_key, set = set(p.api_key) }
+  end
+
+  -- Each provider in order, with the parts it offers and whether each can
+  -- start here (ai.config.backends: PATH and the environment only).
+  local parts = {}
+  for _, b in ipairs(config.backends()) do
+    parts[b.provider] = parts[b.provider] or {}
+    local what = b.kind == "native" and "terminal" or b.kind == "acp" and "ACP" or "API"
+    table.insert(parts[b.provider], { what = what, available = b.available })
+  end
+  local providers = {}
+  local cli_keys = {}
+  for _, p in ipairs(config.providers) do
+    providers[#providers + 1] = { name = p.name, label = p.label, parts = parts[p.name] or {} }
+    if p.cli_api_key then cli_keys[p.cli_api_key] = set(p.cli_api_key) end
+  end
+
+  -- A summary must not fail on one chat's question.
+  local chats = {}
+  local ok, items = pcall(slot.list)
+  for _, item in ipairs(ok and items or {}) do
+    local got, label, where = pcall(function() return slot.label(item), slot.where(item) end)
+    if got then chats[#chats + 1] = { id = item.id, label = label, where = where } end
+  end
+
+  local chat, http = config.codecompanion.chat_adapter, config.codecompanion.http_adapter
+  return {
+    providers = providers,
+    key = {
+      name = config.key.name,
+      label = config.key.label,
+      auto = config.key.auto,
+      var = config.codecompanion.api_key,
+      set = config.codecompanion.api_key ~= nil and set(config.codecompanion.api_key),
+    },
+    profiles = profiles,
+    cli_keys = cli_keys,
+    codecompanion = {
+      chat = chat and (chat .. (chat == config.codecompanion.acp_adapter and " (ACP)" or " (HTTP)"))
+        or "CodeCompanion's own default",
+      inline = http and (http .. " (HTTP)") or "none (no provider offers api)",
+    },
+    chats = chats,
+  }
+end
+
 ---Summarise the providers, the key, and where every open chat is.
 ---Loads no plugin.
 function M.info()
-  local c, info = config(), require("ai").info()
+  local c, info = config(), gather()
   local lines = {}
   local function add(fmt, ...) lines[#lines + 1] = fmt:format(...) end
 
@@ -151,7 +208,8 @@ function M.info()
   notify(table.concat(lines, "\n"))
 end
 
-local function complete(arglead, cmdline)
+---Completion for :AI (the facade defines the command).
+function M.complete(arglead, cmdline)
   local c = config()
   local args = vim.split(cmdline, "%s+", { trimempty = true })
   -- How many words are complete; the one being typed is not.
@@ -163,27 +221,6 @@ local function complete(arglead, cmdline)
     words = vim.list_extend({ "auto" }, c.key_names())
   end
   return vim.tbl_filter(function(w) return vim.startswith(w, arglead) end, words)
-end
-
-function M.setup()
-  vim.api.nvim_create_user_command("AI", function(o)
-    local sub, arg = o.fargs[1], o.fargs[2]
-    -- The chat pickers of <leader>al / <leader>an (lua/ai/slot.lua).
-    if not sub then return require("ai").switch_chat() end
-    if sub == "provider" then
-      return notify(":AI provider is gone: :AI new (<leader>an) picks each chat's backend;"
-        .. "\nthe picker lists the providers in the order of lua/ai/config.lua", ERROR)
-    end
-    if #o.fargs <= 2 then
-      if sub == "key" then return M.key(arg) end
-      if sub == "info" and not arg then return M.info() end
-      if sub == "new" and not arg then return require("ai").new_chat() end
-    end
-    notify("Usage: :AI [new | key [name] | info]", ERROR)
-  end, { nargs = "*", complete = complete, desc = "Switch AI chat, start one, or set API key profile" })
-
-  vim.api.nvim_create_user_command("AIInfo", function() M.info() end,
-    { desc = "Show AI providers, key profile and open chats" })
 end
 
 return M

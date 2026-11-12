@@ -1,4 +1,4 @@
--- lazy.nvim's default here is `lazy = true` (bootstrap.lua `defaults`), so a
+-- lazy.nvim's default here is `lazy = true` (lua/config/lazy.lua `defaults`), so a
 -- spec without a trigger never loads on its own. The LSP stack, completion and
 -- reference highlighting therefore hang off their first use, and the two that
 -- must exist from the first frame say `lazy = false` explicitly. An earlier
@@ -40,7 +40,7 @@ t.ok(vim.fn.exists(":Mason") == 2, ":Mason works from the dashboard")
 vim.api.nvim_feedkeys(vim.keycode(":<Esc>"), "x", false)
 t.ok(loaded("blink.cmp"), "entering the command line loads completion")
 
-vim.cmd.edit("lua/plugin/lsp/lsp.lua")
+vim.cmd.edit("lua/plugins/coding/lsp.lua")
 for _, name in ipairs({ "mason-lspconfig.nvim", "nvim-lspconfig", "vim-illuminate" }) do
   t.ok(loaded(name), name .. " loads on the first file read")
 end

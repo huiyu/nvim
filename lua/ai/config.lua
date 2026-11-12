@@ -85,7 +85,7 @@ local TUI_KINDS = {
 }
 
 -- CodeCompanion's two built-in HTTP adapters, always redirected to an NVIM_*
--- variable (lua/plugin/lsp/codecompanion.lua), whichever providers are listed:
+-- variable (lua/plugins/ai/codecompanion.lua), whichever providers are listed:
 -- a chat restored from history, or any upstream path naming the plain adapter,
 -- must never read a CLI's own billing variable.
 local BUILTIN_HTTP_KEYS = {

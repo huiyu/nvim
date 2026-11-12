@@ -8,7 +8,7 @@
 -- and the CodeDiff, chat and LSP specs pin their own views.
 local t = dofile("tests/helper.lua")
 
--- Entries with an RHS in lua/whichkey_spec.lua become keymaps once which-key's
+-- Entries with an RHS in lua/config/whichkey_spec.lua become keymaps once which-key's
 -- scheduled loader has run (as in tests/escape_mapping_spec.lua).
 vim.cmd("Lazy! load which-key.nvim")
 vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })

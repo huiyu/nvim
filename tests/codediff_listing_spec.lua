@@ -1,6 +1,6 @@
 -- The listing patch in lua/util/codediff.lua: what a revision-vs-working-tree
 -- view lists, through the replaced get_diff_revision and through real views
--- opened by <leader>gk and <leader>gM (lua/plugin/vcs/codediff.lua).
+-- opened by <leader>gk and <leader>gM (lua/plugins/git/codediff.lua).
 --
 -- Pinned here:
 --   * a baseline against the working tree lists A/M/D/R from the two trees:

@@ -675,7 +675,7 @@ local function into(shown, from)
   return M.switch(M.reveal, { items = shown, new = false, back = from })
 end
 
----<leader>ac, and q in a chat (lua/plugin/lsp/codecompanion.lua): hide what is
+---<leader>ac, and q in a chat (lua/plugins/ai/codecompanion.lua): hide what is
 ---on the right, or bring a chat back.
 function M.toggle()
   local shown, from = home()
