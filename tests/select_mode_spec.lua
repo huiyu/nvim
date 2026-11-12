@@ -49,7 +49,7 @@ for _, keys in ipairs({
   ",f", ",F",     -- Format, Search and replace
   " yy", " yc",   -- Yank selection to register/clipboard
   " db", " dc",   -- Toggle breakpoint, Run/continue
-  " tm", " tS",   -- Run nearest test, Toggle test summary
+  " tm", " ts",   -- Run nearest test, Toggle test summary
 }) do
   local before, line = type_into_placeholder(keys)
   typed[#typed + 1] = { keys = keys, before = before, line = line }
@@ -106,7 +106,7 @@ t.eq(map("<leader>dw", "n").desc, "Evaluate expression", "<leader>dw names its N
 -- Ignore the selection: Normal only. dw/dW above are the debug keys that read it.
 for _, suffix in ipairs({
   "dB", "db", "dq", "dx", "dc", "da", "dC", "dg", "di", "dj", "dk", "dl", "do", "dO", "dP", "dr", "dt",
-  "tm", "tf", "tS", "to", "tD", "th", "td", "tF",
+  "tm", "tM", "tf", "tF", "ts", "to", "tx",
 }) do
   local lhs = "<leader>" .. suffix
   t.ok(next(map(lhs, "n")) ~= nil, lhs .. " is mapped in Normal mode")

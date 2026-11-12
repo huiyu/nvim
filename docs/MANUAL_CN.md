@@ -130,26 +130,43 @@ caa    改这个参数                             vio    选中这个 if 的分
 
 **which-key：** 按 `di`（或 `da`、`vi`）停半秒，弹窗列出所有对象。
 
-### 4. 连按两次 = 整行；大写 = 变体
+### 4. 连按两次 = 整行；大写 = 更大或更强
 
 动词连按两次就作用于当前行：`dd` `yy` `cc` `>>` `gcc`。
 
-大写字母是同一个键的"更大"或"相反"版本，在哪一层都成立：
+大写字母和对应的小写键是**同一个动作**，方向不变、走得更远：范围更大，或者力度更强。
+Vim 自己的键就是这样：
 
 | 小写 | 大写 |
 |---|---|
 | `d` `c` 到某处 | `D` `C` 到行尾（= `d$` `c$`） |
 | `i` `a` 光标前 / 后插入 | `I` `A` 行首 / 行尾插入 |
-| `o` 下面开新行 | `O` 上面开新行 |
-| `n` `t` 向前 | `N` `T` 向后 |
 | `w` `b` `e` 按词 | `W` `B` `E` 按字串（空白分隔，更大） |
-| `p` 粘到后面 | `P` 粘到前面 |
-| `;f` 找文件 · `;s` 本文件符号 · `;t` TODO | `;F` 从当前目录找 · `;S` 全项目符号 · `;T` TODO+FIX |
-| `]m` 下一个函数开头 | `]M` 下一个函数结尾 |
-| `<S-h>` `<S-l>` | 上 / 下一个 buffer |
 
-顶部 buffer 栏、buffer 切换（`<S-h>`/`<S-l>` 和 `[b`/`]b`）以及 buffer 选择器
-会跳过终端 buffer。用 `<Space>af` 聚焦 AI 面板，`<C-/>` 打开 shell 终端，
+本配置自己的成对键也照此理解，小写是窄的或普通的，大写是宽的或强的：
+
+| 小写 | 大写 |
+|---|---|
+| `;s` 本文件的符号 | `;S` 整个工作区的符号 |
+| `<Space>gl` blame 这一行 · `<Space>gr` 丢弃这个 hunk | `<Space>gL` blame 整个文件 · `<Space>gR` 丢弃整个文件的改动 |
+| `<Space>gc` / `<Space>gh` 当前文件的 commit / 历史 | `<Space>gC` / `<Space>gH` 整个仓库的 |
+| `<Space>uf` 当前文件的自动格式化 | `<Space>uF` 所有文件的自动格式化 |
+| `<Space>tm` / `<Space>tf` 运行最近的测试 / 本文件的测试 | `<Space>tM` / `<Space>tF` 同样的运行，放在调试器里 |
+| `<Space>bd` 删除 buffer | `<Space>bD` 删除 buffer 连同它的窗口 |
+| `<Space>qq` 全部退出 | `<Space>qQ` 强制全部退出 |
+
+不同的对象，或者并不比小写键更宽的范围，用另一个有名字的字母，而不是大小写：
+`<Space>xx` 已经列出全部诊断，所以当前文件的诊断是 `<Space>xb`（**b**uffer），不是
+`xX`。例外是"从这里"：`;F` 和 `;D` 从当前文件所在目录开始找文件、搜文本，而 `;f`
+和 `;/` 从工作目录开始。Vim 的方向对（`o`/`O`、`n`/`N`、`f`/`F`、`t`/`T`、`p`/`P`）
+是它自己对大小写的用法，保持 Vim 原样。
+
+在 `[` / `]` 抽屉里（[第 6 条](#6-单字母命名空间)），大写走到同一列表的尽头：对列表是
+第一个 / 最后一个（`[Q` / `]Q` quickfix、`[D` / `]D` 诊断、`[B` / `]B` buffer），
+对文本对象是对象的结尾（`]m` 下一个函数开头，`]M` 它的结尾）。
+
+顶部 buffer 栏、buffer 切换（`<S-h>`/`<S-l>`、`[b`/`]b`，以及跳到第一个 / 最后一个的
+`[B`/`]B`）和 buffer 选择器会跳过终端 buffer。用 `<Space>af` 聚焦 AI 面板，`<C-/>` 打开 shell 终端，
 避免文件导航把编辑窗口变成终端面板。
 点击文件标签会聚焦当前 tabpage 的编辑区域，chat 和终端面板保持可见。
 如果只剩面板，会新建一个编辑分屏来显示文件。
@@ -169,7 +186,7 @@ caa    改这个参数                             vio    选中这个 if 的分
 
 | 抽屉 | 含义 | 例子 |
 |---|---|---|
-| `[` `]` | 上一个 / 下一个 X | `]d` 诊断 · `]e` 错误 · `]h` git hunk · `]q` quickfix · `]m` 函数 · `]c` 类 · `]x` 冲突 · `]y` yank 历史。大写 = 第一个 / 最后一个：`[D` `]Q` |
+| `[` `]` | 上一个 / 下一个 X | `]d` 诊断 · `]e` 错误 · `]h` git hunk · `]q` quickfix · `]r` 引用 · `]m` 函数 · `]c` 类 · `]x` 冲突 · `]y` yank 历史。大写 = 第一个 / 最后一个：`[D` `]Q` `[B` `]B` |
 | `g` | 去某处 / 关于光标下的东西 | `gd` 定义 · `gr` 引用 · `gb` 实现 · `gy` 类型 · `gC` 调用方 · `gs` JS 源码（JS/TS） · `K` 文档 · `gx` 打开 URL / 文件 · `gS` 拆 / 合行 · `gv` 重选 |
 | `z` | 折叠与拼写 | `zR` 全展开 · `zM` 全折叠 · `za` 切换 · `z=` 拼写建议 · `zg` 加进词典 |
 | `Ctrl` | 立即执行，不问问题，任何模式都一样 | `<C-h/j/k/l>` 窗口 · `<C-/>` 终端 · `<C-o>` 原路返回 · `<C-a>` `<C-x>` 加减 · `<C-r>` 重做 |
@@ -194,14 +211,16 @@ caa    改这个参数                             vio    选中这个 if 的分
 下，避免混入上一个分组。没有剩余条目时不显示 `others`；`z` 等未声明分组的
 菜单保留默认布局。
 
-有些 buffer 给这些键另有含义，弹窗在那里显示的就是那个含义。在 Python、Go、Rust、
-Vim script、TeX、Markdown、help 和 checkhealth buffer 里，文件类型自己的插件把
-`]]` / `[[`（有的还有 `][` / `[]`）重绑成它的章节跳转，不再是下一个 / 上一个引用：
-Python 是顶层 class 或 def，Go 是 type 或 func，Vim script 是函数。Python 的
-`]m` / `]M` 是它的 class/def 跳转，VimTeX 的是环境；VimTeX 另外加了 `]n` / `]N`
-数学区、`]r` / `]R` frame 和 `]/` / `]*` 注释（开头 / 结尾）。在 diff 窗口里
-`]c` / `[c` 是下一个 / 上一个 hunk（弹窗写作 *Next class start (diff: next
-hunk)*）；在 CodeDiff 视图里显示的是 CodeDiff 自己的 *Next hunk*。`gO` 在代码里是
+有些 buffer 给这些键另有含义，弹窗在那里显示的就是那个含义。`]]` / `[[`（以及
+`][` / `[]`）在哪里都是 buffer 的章节跳转：要么是 Vim 自带的，要么是 Python、Go、
+Rust、Vim script、TeX、Markdown、help 和 checkhealth buffer 里文件类型插件的——
+Python 是顶层 class 或 def，Go 是 type 或 func，Vim script 是函数。下一个 / 上一个
+引用是 `]r` / `[r`，只有 TeX buffer 例外：那里 `]r` / `[r` 在所有模式下都是 VimTeX
+的 frame 跳转。Python 的 `]m` / `]M` 是它的 class/def 跳转，VimTeX 的是环境；VimTeX
+另外加了 `]n` / `]N` 数学区、`]R` frame 结尾和 `]/` / `]*` 注释（开头 / 结尾）。在
+diff 窗口里 `]c` / `[c` 是下一个 / 上一个 hunk（弹窗写作 *Next class start (diff:
+next hunk)*）；在 CodeDiff 视图的窗格里，`]c` / `[c` 和 `]h` / `[h` 都走视图显示的
+hunk，用的是 CodeDiff 自己的 *Next hunk*。`gO` 在代码里是
 *[LSP] Document symbols (Nvim default)*；在 markdown、help、checkhealth 和 man
 buffer 里是 *Show outline*——标题列表，不需要语言服务器——放在单独的 `outline`
 分区下。
@@ -445,7 +464,6 @@ Dart 热重载/重启需要兼容且正在运行的 DAP 会话。菜单列出的
 | Go | 导入 / 语言服务 | `,o` 整理导入 · `,G` 重建 gopls 索引 |
 | Python | 导入 / 环境 | `,o` 整理导入 · `,v` 选择虚拟环境 |
 | C/C++ | 关联文件 | `,H` 切换源文件/头文件 |
-| Java | 测试调试 | `,dt` 调试最近的方法 · `,dT` 调试类 |
 | Dart / Flutter | 运行控制 | `,dr` 热重载 · `,dR` Flutter 热重启 |
 | Markdown | 预览 | `,p` 浏览器预览 · `,m` 编辑器内渲染 |
 | CodeCompanion Chat | 对话 / 渲染 | `,s` 保存 · `,X` 清空消息 · `,q` 结束 Chat · `,z` 折叠代码块 · `,m` 切换 Markdown 渲染 |
@@ -454,14 +472,16 @@ Dart 热重载/重启需要兼容且正在运行的 DAP 会话。菜单列出的
 | LaTeX | 预览 / 工具 | `,v` 看 PDF · `,t` 目录开关 · `,L…` VimTeX 完整命令集 |
 | CodeDiff | 面板 / 布局 | `,P` 聚焦 explorer（文件面板） · `,B` 显示 / 隐藏它 · `,z` compact 模式（折叠未改动的行） · `,I` diff 布局：行内 / 并排 |
 | CodeDiff | 冲突处理 | `,go` 接受 current（我方） · `,gt` incoming（对方） · `,gb` 保留基础版本（两边都丢弃） · `,ga` 两边都要；末字母大写（`,gO`、`,gT`、`,gB`、`,gA`）作用于整个文件 |
-| CodeDiff | 审阅 | `,C` 对 hunk / 选区 / 文件写反馈 · `,u` / `,U` 暂存 / 取消暂存这个 hunk · `,X` 把这个 hunk 丢弃回基线 |
+| CodeDiff | 审阅 | `,C` 对 hunk / 选区 / 文件写反馈 · `,S` / `,U` 暂存 / 取消暂存这个 hunk · `,X` 把这个 hunk 丢弃回基线 |
 | 终端 | 会话 | Normal 模式下 `,1`–`,9` 选择终端 1–9（先按 `jk`） |
 
 CodeDiff 是叠加在文件类型之上的视图：Markdown 差异文件保留 `,p`/`,m`，同时加上
 它自己的分区。`,z` 和 `,I` 在每个视图的每个窗口里都可用，文件面板和历史面板也一样；
 `,P` 和 `,B` 只出现在有文件面板的视图里（状态视图和 revision 对比），历史视图里没有。
-Git 仓库的视图里，`,C` 在每个窗口都可用。`,u`、`,U` 和 `,X` 只出现在视图能安全
-执行它们的地方——见 [Git](#git) 一节的表格。关闭视图后所有键原样还回，语言键保持
+Git 仓库的视图里，`,C` 在每个窗口都可用。`,S`、`,U` 和 `,X` 暂存、取消暂存和丢弃
+一个 hunk——就是状态视图文件面板的 `S` / `U` / `X`，只作用于一个 hunk——只出现在视图
+能安全执行它们的地方，见 [Git](#git) 一节的表格。在 CodeDiff 窗格里 `,S` 就是这个
+暂存键，不是搜索替换面板的 `,S…`，后者只在那个面板里存在。关闭视图后所有键原样还回，语言键保持
 不变。终端数字键不会出现在普通文件中，也不会拦截 shell 输入。
 
 通用编辑键保持原样：`,h`/`,l` 减少/增加缩进，`,k` 上移，`,r` 重命名，`,c` 运行 codelens，
@@ -572,18 +592,18 @@ Ctrl-,                             直达编辑器，再按跳回
 
 | 键 | 分组 | 内容 |
 |---|---|---|
-| `<Space>g` | Git | 状态、blame、hunk、行内 diff（`gD`）、lazygit（`gg`）、diff 与历史视图（`gv`、`gm`、`gk`、`gH`）、保存的基线（`gK`） |
+| `<Space>g` | Git | 状态、blame、hunk、行内 diff（`gD`）、lazygit（`gg`）、diff 与历史视图（`gv`、`gm`、`gk`、`gh` / `gH`）、保存的基线（`gK`） |
 | `<Space>G` | GitHub | PR、issue、review |
 | `<Space>d` | 调试 | 断点、单步、查看变量 |
-| `<Space>t` | 测试 | 跑文件 / 跑最近的 / 调试、输出面板 |
-| `<Space>x` | 诊断 | 错误列表、quickfix、location list |
+| `<Space>t` | 测试 | 运行 / 调试最近的测试（`tm` / `tM`）和本文件（`tf` / `tF`）、汇总、输出、诊断 |
+| `<Space>x` | 诊断 | 错误列表、当前文件的（`xb`）、quickfix、location list |
 | `<Space>a` | AI | 右侧的 Chat——Claude / Codex 面板和 CodeCompanion Chat（`an` 新建、`al` 切换、`ac` / `af`）、prompt、transcript、审阅轮次（`av` / `aV`）、API key（`ax`） |
-| `<Space>b` | Buffer | 删除、固定、删除其他、删除隐藏的（`bh`） |
+| `<Space>b` | Buffer | 删除、固定、移动（`b<` / `b>`）、删除其他、删除隐藏的（`bh`） |
 | `<Space>m` | 管理 | 配置、插件源码、help、man、键位、消息、Lazy、Mason、LSP 状态 |
 | `<Space>s` | 会话 | 保存 / 恢复工作布局 |
 | `<Space>y` | 复制 | 复制文件路径、`path:line`（`yl`）、git permalink（`yg`）、yank 历史、寄存器 |
 | `<Space>u` | 开关 | 换行、拼写、诊断、inlay hint、配色 |
-| `<Space><Tab>` | Tab | tab page |
+| `<Space><Tab>` | Tab | tab page：新建（`<Tab>n`）、关闭、下一个 / 上一个、第一个 / 最后一个 |
 | `<Space>q` | 退出 | 全部退出 |
 
 ### 配置和插件文件
@@ -609,7 +629,7 @@ Ctrl-,                             直达编辑器，再按跳回
 | `:messages` / `<Space>mna` | 消息历史：`:echomsg`、`print()` 输出和错误（普通 `:echo` 不记录） |
 | `<Space>mnh` | 通知历史 |
 | `<Space>mnt` | 在 picker 里搜索通知 |
-| `<Space>mnd` / `<Space>un` | 关掉屏幕上的通知 |
+| `<Space>un` | 关掉屏幕上的通知 |
 
 两份历史互不相通：Vim 自己报的错在 `:messages` 里，插件发出的通知只在通知
 历史里。两者都在 `<Space>mn` 组下，组名是 *Messages/notifications*。
@@ -626,11 +646,11 @@ gd  跳到定义
 gd  再跳，再跳——顺着往下追
 Ctrl-o  原路返回
 gC  谁调用了它？
-]]  当前文件里这个符号的下一处
+]r  当前文件里这个符号的下一处
 ```
 
-在 Python、Go、Rust、Vim script、TeX、Markdown 和 help buffer 里，`]]` 是文件
-类型自己的章节跳转（见[单字母命名空间](#6-单字母命名空间)）。
+在 TeX buffer 里 `]r` 是 VimTeX 的 frame 跳转；`]]` 在哪里都是章节跳转（见[单字母
+命名空间](#6-单字母命名空间)）。
 
 `K` 显示光标下内容的文档，`Ctrl-f` / `Ctrl-b` 在光标不离开代码的情况下滚动
 这个弹窗，`KK` 进入弹窗。`gr` 列出所有引用。输入函数调用时，参数列表会自动显示在
@@ -681,7 +701,7 @@ Normal/Insert 模式；`Ctrl-]` 可以主动退出 Neovim 的终端输入状态�
 `;c` 跳到仓库里任意一处改动的 hunk（见[位置](#位置)）。
 
 Diff 视图由 CodeDiff 提供。每个视图开在自己的 tabpage 里，左边是文件面板，旁边是
-所选文件的两侧（历史视图 `gV` / `gH` 则在底部的面板里列出 commit）：
+所选文件的两侧（历史视图 `gh` / `gH` 则在底部的面板里列出 commit）：
 
 | 键 | 显示 |
 |---|---|
@@ -690,7 +710,7 @@ Diff 视图由 CodeDiff 提供。每个视图开在自己的 tabpage 里，左�
 | `<Space>gM` | 工作区对比你选的分支、tag、最近的 commit 或基线 |
 | `<Space>gk` | **任选两端对比**：工作区、index、基线、分支 / tag / commit，或你输入的 revision |
 | `<Space>gK` | 把当前代码存为一个有名字的基线，供以后 `gk` 和 `gM` 对比 |
-| `<Space>gV` / `<Space>gH` | 当前文件 / 整个仓库的历史：最新的 100 个非 merge commit |
+| `<Space>gh` / `<Space>gH` | 当前文件 / 整个仓库的历史：最新的 100 个非 merge commit（和 `gc` / `gC` 列 commit 一样） |
 | `<Space>gq` | 关闭本 tab 的 diff 视图，或 `<Space>gd` 的分屏（见下文） |
 
 工作区干净时，`<Space>gv` 直接提示，不打开空视图；在视图里按它会提示改用
@@ -708,7 +728,7 @@ index 对比工作区就是状态视图，看它的 Changes 组即可。两端�
 ——除非工作区里有大到无法对比的未跟踪文件（见下文），它们可能有看不到的差别：
 这时视图照常打开，并列出这些文件。
 
-视图里，`]c` / `[c` 在改动之间跳，`]f` / `[f` 在文件之间跳，`do` / `dp` 像 vimdiff
+视图里，`]h` / `[h`（和别处一样）以及 `]c` / `[c` 在视图显示的 hunk 之间跳，`]f` / `[f` 在文件之间跳，`do` / `dp` 像 vimdiff
 一样取来或推过去一处改动，`gf` 在上一个 tab 里打开这个文件，`g?` 列出 CodeDiff
 的键。其余的都在 `,` 菜单里（[文件类型与视图操作](#文件类型与视图操作)）。状态栏写明
 视图在对比什么（`main → working tree`）。某一侧缺少的行用 `╱` 斜线填充。鼠标滚轮
@@ -720,7 +740,7 @@ index 对比工作区就是状态视图，看它的 Changes 组即可。两端�
 平铺列表（只对当前视图有效），`zo` / `zc` 展开或折叠光标所在的目录，`zR` / `zM` 展开或
 折叠全部。在目录行上按 `,C` 会提示你把光标放到文件上。
 
-视图的每个窗口里，`;`、`s`、切换 buffer 的 `H` / `L`、`[b` / `]b` 和 `<C-^>`，以及
+视图的每个窗口里，`;`、`s`、切换 buffer 的 `H` / `L`、`[b` / `]b`、`[B` / `]B`（第一个 / 最后一个 buffer）和 `<C-^>`，以及
 `-`（状态视图的文件面板除外，在那里它是暂存）都被禁用，并给出提示。`;` 的 picker
 会把文件开在工作区那一侧的窗格里，视图就跟丢了它，把别的 buffer 换进窗格或面板也是
 一样；大多数 `s` 键会关闭或改变一个窗格，而关掉一个窗格整个视图就散了。`<C-w>` 仍可在窗口之间移动，`gf` 在别处打开文件，`<Space>` 键照常
@@ -730,7 +750,7 @@ index 对比工作区就是状态视图，看它的 Changes 组即可。两端�
 
 一个视图有哪些 `,` 审阅键，取决于它在对比什么：
 
-| 视图 | `,u` | `,U` | `,X` |
+| 视图 | `,S` | `,U` | `,X` |
 |---|---|---|---|
 | 状态视图，Changes 组（index → 工作区） | 暂存 | — | — |
 | 状态视图，Staged 组（HEAD → index） | — | 取消暂存，整个 hunk | — |
@@ -741,7 +761,7 @@ index 对比工作区就是状态视图，看它的 Changes 组即可。两端�
 
 `,C`（反馈）在所有这些视图里都有，见[审阅一轮 agent 修改](#审阅一轮-agent-修改)。
 
-`,u` 和 `,U` 通过 gitsigns 修改真正的 index，暂存的正好是屏幕上的那处改动。如果在
+`,S` 和 `,U` 通过 gitsigns 修改真正的 index，暂存的正好是屏幕上的那处改动。如果在
 这几行附近，index（对 `,U` 来说是 HEAD）和视图左侧不一样——agent 的 hunk 旁边有一处
 未暂存的修改、hunk 里有一行已经暂存过、`gm` 的 hunk 里夹着分支自己的 commit——
 "只暂存这个 hunk"就会带上视图之外的内容，所以它们拒绝执行，并提示去 `<Space>gv`，
@@ -976,7 +996,7 @@ Conversation: Claude Code session 7f0c1a2b…
 - **一个轮次都没有。** 提示会说明这一点，建议按 `<Space>aV`；如果你确实发过 prompt，
   它指向 `:checkhealth config`（[排错](DIAGNOSTICS.md#review-rounds-and-agent-hooks)）。
 
-视图本身就是一个普通的 [CodeDiff 视图](#git)，对比基线和工作区：`,u` / `,U` 暂存和取消
+视图本身就是一个普通的 [CodeDiff 视图](#git)，对比基线和工作区：`,S` / `,U` 暂存和取消
 暂存，`,X` 把一个 hunk 丢弃回基线。`<Space>gq`，或在它的文件面板里按 `q`，关闭
 这个 tab；agent 照常运行。
 
@@ -993,7 +1013,7 @@ Conversation: Claude Code session 7f0c1a2b…
 | 左侧窗格里的选区 | 基线里的这几行，标为 `(baseline side, not on disk)` |
 | 文件面板里的一个文件 | 只有路径和状态：`## src/new.lua (R src/old.lua→src/new.lua)` |
 | 历史里某个 commit 下的一个文件 | 文件、它的状态和 commit：`## src/new.lua (M in 1a2b3c4d)` |
-| 单个文件历史（`<Space>gV`）里的一个 commit | 这个文件和 commit：`## src/new.lua (changed in 1a2b3c4d "Fix the parser")` |
+| 单个文件历史（`<Space>gh`）里的一个 commit | 这个文件和 commit：`## src/new.lua (changed in 1a2b3c4d "Fix the parser")` |
 
 仓库历史（`<Space>gH`）里的 commit 行不对应任何一个文件，在那里按 `,C` 会提示改到
 列表里的某个文件上。路径都是相对仓库的真实路径。左侧的行号在磁盘上的任何文件里都
@@ -1159,7 +1179,7 @@ tree`：它显示的是从那时到现在的全部改动，和结束时间无关
 | 动作 | 键 | 改变 | 不动 |
 |---|---|---|---|
 | 反馈 | `,C`，然后 `<C-d>` | 仓库里什么都不变：文字出现在 agent 的输入框或 Chat 里，由你发送 | 一切 |
-| 暂存 / 取消暂存 | `,u` / `,U` | 真正的 index——下一次 `git commit` 提交的内容 | 工作区、基线 |
+| 暂存 / 取消暂存 | `,S` / `,U` | 真正的 index——下一次 `git commit` 提交的内容 | 工作区、基线 |
 | 丢弃 | `,X` | 工作区文件里的一个 hunk，写入磁盘 | index、基线、文件的其余部分 |
 | Claude 的批准 | `<Space>aa` / `<Space>ad` | Claude 提出的一处修改，在它写入*之前* | 审阅视图：两者无关 |
 
@@ -1194,7 +1214,7 @@ vim.g.ai_review = { retention = { rounds = 30 }, claude_cwd = "cwd" }
 | `always_confirm` | `{}` | 即使会话已确认、投递时也总要询问的 agent：`"claude"`、`"codex"` |
 | `redirect` | `true` | `false`：所属对话不在了时直接拒绝，不提供 *Send to a current session…* |
 | `seed_ttl_ms` | `10000` | Native agent 为一次投递打开 prompt 编辑器的时限 |
-| `history_limit` | `100` | `<Space>gH` 和 `<Space>gV` 列出的 commit 数；`false` 列出全部 |
+| `history_limit` | `100` | `<Space>gh` 和 `<Space>gH` 列出的 commit 数；`false` 列出全部 |
 
 修改何时生效：
 
@@ -1204,7 +1224,7 @@ vim.g.ai_review = { retention = { rounds = 30 }, claude_cwd = "cwd" }
 - Codex 的命令每次启动时重新生成，所以它的 sources 和等待时间从下一次启动起生效，关闭
   则立即生效。
 - 来源关闭期间打开的 Chat，之后即使再打开来源也不会开轮次；关闭来源立即生效。
-- `<Space>gH` / `<Space>gV` 的描述在插件 spec 加载时写定，所以要在 `init.lua` 里
+- `<Space>gh` / `<Space>gH` 的描述在插件 spec 加载时写定，所以要在 `init.lua` 里
   `require("bootstrap")` 之前设置 `history_limit`；列表本身随设置变化。
 
 ---
@@ -1269,17 +1289,19 @@ gutter 的形状不依赖颜色也能分辨：`●` 断点、`◉` 条件断点�
 | 键 | 范围 |
 |---|---|
 | `<Space>df` | 调试当前源码文件 / 它所属的可执行目标 |
-| `<Space>td` | 调试光标所在用例（Go/Python/Java 也会寻找前面的最近用例） |
+| `<Space>tM` | 调试光标所在用例（Go/Python/Java 也会寻找前面的最近用例） |
 | `<Space>tF` | 调试当前文件里的测试 |
 | `<Space>tm` / `<Space>tf` | 普通运行最近用例 / 测试文件（neotest：Go/Python） |
 
-`<Space>tS` 打开 neotest 的汇总面板；在那里 `g?`（或 `?`）列出它的键。
+大写是同一次运行放进调试器：`tm` / `tM` 是最近的用例，`tf` / `tF` 是整个文件。
+`<Space>ts` 开关 neotest 的汇总面板（在那里 `g?`，或 `?`，列出它的键），`<Space>to`
+显示测试输出，`<Space>tx` 开关 neotest 以诊断形式显示的失败信息。
 
-先用 `<Space>db` 打断点，把光标放进测试用例，再按 `<Space>td`。
+先用 `<Space>db` 打断点，把光标放进测试用例，再按 `<Space>tM`。
 这些直接入口会先保存当前文件；未命名 buffer 或保存失败时中止。
 各语言使用同一套键位，目标选择逻辑分别放在 `lua/lang/*.lua`。
 
-| 语言 | `df` | `td` / `tF` |
+| 语言 | `df` | `tM` / `tF` |
 |---|---|---|
 | Go | 当前 `.go` 文件 | neotest-golang + Delve：最近用例 / 此文件声明的测试 |
 | Python | 当前脚本，使用 dap-python 的环境 | neotest-python + debugpy：pytest 或 unittest |
@@ -1356,7 +1378,7 @@ Mason 只为 Neovim 的 PATH 添加工具目录，不修改已有终端的环境
 ### Go
 
 安装 Go 和 Mason 的 `delve`。`df` 启动当前文件；如果它依赖同包其他文件，
-在 `dc` 中选择 **Debug Package**。`td`/`tF` 通过 neotest-golang 和 Delve
+在 `dc` 中选择 **Debug Package**。`tM`/`tF` 通过 neotest-golang 和 Delve
 调试单个测试或当前文件中声明的测试。
 
 附加本地进程，先在终端编译并启动，再用 `dA` 选择 **Attach** 和对应 PID：
@@ -1392,7 +1414,7 @@ Delve 移除当前编辑器的源码断点并恢复执行，然后断开；本�
 ### Python
 
 安装 Python 和 Mason 的 `debugpy`，按需用 `,v` 选择项目环境。
-`df` 调试脚本，`td`/`tF` 使用 neotest-python。pytest 测试需要在选中的环境安装
+`df` 调试脚本，`tM`/`tF` 使用 neotest-python。pytest 测试需要在选中的环境安装
 pytest；unittest 使用标准库。Attach 目标还需在**它自己的 Python 环境**安装
 debugpy，这与 Mason 中运行适配器的环境分开：
 
@@ -1426,7 +1448,7 @@ python -m debugpy --listen 127.0.0.1:5678 --wait-for-client -m pytest tests/test
 `jdtls`、`java-debug-adapter`、`java-test`。
 打开项目，等待 jdtls 导入完成。`dc` 动态发现主类，`df` 选择当前文件对应的
 主类；发现前没有静态主类列表是正常的。每个项目使用独立的 jdtls workspace。
-`td`/`tF` 调试最近的方法或第一个发现的测试类；jdtls 附加后也可用 `,dt`/`,dT`。
+`tM`/`tF` 调试最近的方法或第一个发现的测试类。
 
 在终端带 JDWP 启动 JVM，按项目修改源码路径和完整类名：
 
@@ -1457,7 +1479,7 @@ Neovim 中打开的 Java 文件不必包含 main 方法。
 安装 Cargo/rustc 和 Mason 的 `codelldb`。`dc` 提供 **rust: cargo build**
 与 **rust: cargo test**，从最近的 manifest 异步构建，解析实际产物（包括自定义
 输出目录），有多个目标时询问；构建失败会取消启动。`df` 启动 Cargo 二进制，
-`td`/`tF` 按前述规则筛选标准 libtest 测试。
+`tM`/`tF` 按前述规则筛选标准 libtest 测试。
 
 Attach 先在其他终端编译并运行。把 `myapp` 换成 Cargo 二进制目标名，
 自定义 target 目录还需调整产物路径：
@@ -1486,7 +1508,7 @@ cargo build --bin myapp
 
 安装编译器和 Mason 的 `codelldb`，先生成带调试符号的程序。`dc` 提供
 **LLDB: Launch**、**LLDB: Launch (args)**，按提示选择可执行文件。
-C/C++ 尚未注册 `df`/`td`/`tF`，因为本配置不替项目选择构建系统和测试框架。
+C/C++ 尚未注册 `df`/`tM`/`tF`，因为本配置不替项目选择构建系统和测试框架。
 
 ```sh
 mkdir -p build
@@ -1516,7 +1538,7 @@ C/C++ 和 Rust 的更多选项见 [CodeLLDB 附加配置](https://github.com/vad
 
 安装 Node 和 Mason 的 `js-debug-adapter`。`df` 启动当前 Node 脚本。
 TypeScript 如果需要编译，生成 sourcemap 后运行输出的 JS；JSX/TSX 或专用
-loader 需要项目 launch 配置。`td`/`tF` 使用最近安装的 Vitest，最近测试需 v3+。
+loader 需要项目 launch 配置。`tM`/`tF` 使用最近安装的 Vitest，最近测试需 v3+。
 
 在终端开启 Inspector，然后选择 **node: attach by host/port**：
 
@@ -1583,7 +1605,7 @@ Launch 会创建自己的 profile 并通过 CDP 安装扩展。
 安装 Dart SDK，或使用 Flutter 自带的 Dart。适配器优先使用最近的
 `.fvm/flutter_sdk/bin`，其次查找 PATH。先运行 `dart pub get`；直接调用
 SDK 的 `dart debug_adapter`，不需 Mason 适配器。`df` 启动当前入口，
-`td`/`tF` 通过 SDK 测试适配器调试用例。
+`tM`/`tF` 通过 SDK 测试适配器调试用例。
 
 ```sh
 dart run --enable-vm-service=8181 --pause-isolates-on-start bin/main.dart
@@ -1610,7 +1632,7 @@ VM 服务启动方式见 [Dart 调试工具文档](https://dart.dev/tools/dart-d
 安装 Flutter 或使用 FVM，执行 `flutter pub get`，启动模拟器或连接设备，
 用 `flutter devices` 查看。`dc` 提供 **flutter: launch app**（默认
 `lib/main.dart`）、**flutter: attach to running app** 和当前测试文件。
-`df` 使用当前文件作为入口；pubspec 声明 `sdk: flutter` 时，`td`/`tF`
+`df` 使用当前文件作为入口；pubspec 声明 `sdk: flutter` 时，`tM`/`tF`
 使用 Flutter 测试适配器。
 
 ```sh

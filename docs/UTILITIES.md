@@ -24,7 +24,9 @@ its own: Python's `]]`/`]m`, Go's, Rust's and Vim's section motions, VimTeX's
 `lua/plugin/editor/whichkey.lua` writes it onto the buffer's own mapping with
 `mapset()` on `FileType`, mode by mode, and only where the buffer maps the key
 itself: VimTeX maps nothing where a global map already holds the key
-(illuminate's Normal `]]`), and that one keeps its own desc. It never adds a
+(Nvim's Visual `]n`), and that one keeps its own desc; VimTeX's Normal
+`]r`/`[r`, which the global references hold, are mapped back by
+`lua/lang/tex.lua` on `VimtexEventInitPost`. It never adds a
 which-key entry, so the desc goes away when the filetype unmaps the key.
 
 | Section field | Meaning |
@@ -910,12 +912,13 @@ count of the rest.
 
 What every view gets on its own, from each key pass: `;` and `s` blocked on
 every buffer (`nowait`, a notice, and the next key swallowed when it comes
-within 'timeoutlen'); `H`/`L`/`[b`/`]b`/`<C-^>`, the keys that put another
-buffer in the window, blocked on every buffer too (`nowait` and a notice, the
+within 'timeoutlen'); `H`/`L`/`[b`/`]b`/`[B`/`]B`/`<C-^>`, the keys that put
+another buffer in the window, blocked on every buffer too (`nowait` and a notice, the
 next key left alone); `-` (oil's parent directory) blocked the same way on
 the panes, and on the panel too unless the status explorer's stage key is
 installed there; wheel scrolling that moves both panes, hovered or
-focused; `q` closing the view from the explorer and history panels; in the
+focused; `]h`/`[h` on the panes, CodeDiff's own next / previous hunk (as its
+`]c`/`[c`) through the public `codediff.next_hunk`/`prev_hunk`; `q` closing the view from the explorer and history panels; in the
 status view, the explorer's `-`/`S`/`U`/`X`; and a buffer-local which-key
 group `Conflict` where `,go` exists. Each pass then fires
 `User CodeDiffKeys` with `data.tabpage`, on which
@@ -944,21 +947,22 @@ unsaved edits whose disk copy changed since (once per change on disk).
 `util.codediff_actions.attach(tab)` installs the hunk keys for the view's
 kind, under its own `"actions"` scope, on every `User CodeDiffKeys`. It
 reaches CodeDiff only through `util.codediff` and gitsigns only through its
-public API.
+public API. The letters are the status explorer's `S`/`U`/`X` (stage,
+unstage, discard), for one hunk.
 
 | View | Keys |
 |---|---|
-| status, Changes group (index → working tree) | `,u`; no `,U`, every hunk there is unstaged |
+| status, Changes group (index → working tree) | `,S`; no `,U`, every hunk there is unstaged |
 | status, Staged group (HEAD → index) | `,U`, CodeDiff's own |
-| baseline → working tree | `,u` `,U` `,X` |
+| baseline → working tree | `,S` `,U` `,X` |
 | the same, a file on one side only | `,X`, which only says what would do it |
-| any other revision → working tree | `,u` `,U` |
+| any other revision → working tree | `,S` `,U` |
 
 Revision-vs-revision, `--staged`, history, conflict and single-file views get
 none. Before any of them acts it checks that it acts on what is on screen (no
 unsaved edits, the disk still holding the buffer's bytes, `fresh_hunk`, a
 regular file on both ends with no filter attribute); its header has the
-details. `,u`/`,U` change only the real index, `,X` only that one buffer,
+details. `,S`/`,U` change only the real index, `,X` only that one buffer,
 written once.
 
 ## Move (`util.move`)
@@ -1743,7 +1747,7 @@ rejected value is not in `overrides()`.
 | `always_confirm` | `{}` (entries `"claude"`, `"codex"`) | `rounds.resolve_sink` |
 | `redirect` | `true` | `rounds.resolve_sink` |
 | `seed_ttl_ms` | `10000` | `ai.review.feedback`, native delivery |
-| `history_limit` | `100` (`false`: no limit) | the `<leader>gH`/`gV` desc, util.codediff's history patch |
+| `history_limit` | `100` (`false`: no limit) | the `<leader>gh`/`gH` desc, util.codediff's history patch |
 
 ### Native hooks (`ai.review.hook`)
 

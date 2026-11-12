@@ -477,18 +477,23 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   would shadow this config's keys (`q`, `t`, `gc`, `-`, `gS`, `gm`,
   `<leader>b`, `<leader>e`, `<leader>h*`, `<leader>c*`) are moved or off. The
   review keys join them per view: `,C` (feedback) on every buffer of every Git
-  view; `,u` (stage, through gitsigns) in the status view's Changes group and in
-  any revision- or baseline-vs-working-tree file shown on both sides; `,U`
+  view; `,S` (stage, through gitsigns; `S`/`U`/`X` as the status explorer's
+  file keys) in the status view's Changes group and in any revision- or
+  baseline-vs-working-tree file shown on both sides; `,U`
   (unstage) in the latter too, and in the Staged group as CodeDiff's own;
   `,X` (discard a hunk back to the baseline) only where the left end is a
   baseline (`vim.t.codediff_baseline`); for a file on one side only it just
   says what would do it -- the `git restore` command for a file deleted since
   the baseline (none when something is at that path again), nothing to run
   for a new one. Revision-vs-revision, `--staged`, history,
-  conflict and single-file views get none of `,u`/`,U`/`,X`
-  (`lua/util/codediff_actions.lua`). Terminal digits only map Normal mode.
-  grug-far's editable search panel uses `,S...`; its plugin
-  defaults also use localleader and must not overwrite general comma actions.
+  conflict and single-file views get none of `,S`/`,U`/`,X`
+  (`lua/util/codediff_actions.lua`). `]h`/`[h` in every view's panes are
+  CodeDiff's own next/prev hunk (as its `]c`/`[c`, which stay), installed by
+  util.codediff through `set_keys`. Terminal digits only map Normal mode.
+  grug-far's editable search panel uses `,S...`, in its own panel only (its
+  own which-key section, filetype `grug-far`); in a CodeDiff pane `,S` is the
+  stage key. Its plugin defaults also use localleader and must not overwrite
+  general comma actions.
   A CodeCompanion chat (`interactions.chat.keymaps` in
   `lua/plugin/lsp/codecompanion.lua`) puts upstream's acts that took keys
   meaning something else everywhere on `,`: `,s` save (codecompanion-history),
@@ -549,8 +554,20 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   destination gets none (the `;` pickers, `<leader>aT`, `<leader>ao`), nor
   does the shared which-agent or which-chat question a chat key asks when
   nothing is on the right (`<leader>aR` has none), nor a key that asks only
-  sometimes (`<leader>dc`, `df`/`td`/`tF` and `,c` ask only when there are
+  sometimes (`<leader>dc`, `df`/`tM`/`tF` and `,c` ask only when there are
   several configurations, targets or lenses).
+- Case inside a popup marks one thing: the uppercase key is the same act as
+  its lowercase sibling, the same way but further -- wider scope or stronger
+  (`;s`/`;S`, `<leader>gl`/`gL`, `gc`/`gC`, `gh`/`gH`, `uf`/`uF`, `tm`/`tM`,
+  `tf`/`tF`, `bd`/`bD`, `qq`/`qQ`). A different object, or a scope narrower
+  than the lowercase key's, gets a named letter (`<leader>xb`, not `xX`);
+  `;F`/`;D` ("from here", the current file's directory) are the documented
+  exception. Under `[`/`]` uppercase is the end of the same list: first/last
+  (`[B`/`]B`, `[Q`/`]Q`) or a text object's end (`]M`). The manual's grammar
+  (rule 4) says the same to the user. A few older pairs inside popups name two
+  different acts (`gk`/`gK`, `bp`/`bP`, `dw`/`dW`, `mc`/`mC`, `;h`/`;H`,
+  `;t`/`;T`): they stay, because the popup names both and moving them costs
+  more than it buys (#30), but no new key may follow them.
 - The buffer-local `gr` (References) sets `nowait`. Nvim 0.11's default
   `grr`/`gri`/`grt`/`gra`/`grn`/`grx` are longer candidates, so without it every
   `gr` press waits out `timeoutlen` before firing. The cost is that `gr*` takes
@@ -612,7 +629,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   jump; `<C-w>` stays available, and the comma action menu stays active.
   The keys off `;` that put another buffer in the window are blocked too,
   since neither the panes nor the panels are 'winfixbuf': `H`/`L`,
-  `[b`/`]b` and `<C-^>` (so `<C-6>` too) in every window, panels included,
+  `[b`/`]b`, `[B`/`]B` (first / last buffer) and `<C-^>` (so `<C-6>` too) in
+  every window, panels included,
   and oil's `-` everywhere but the status view's explorer, where it stages.
   Same `nowait` and hint, through util.codediff's `set_keys`, handed back on
   close; only `;` and `s` swallow the next key, these are whole keys. Picking
@@ -712,7 +730,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   normalisation (`util.lua`, `M.norm`). Do not call `keytrans` on a raw
   `nvim_get_keymap` lhs: that value is half-converted -- control keys are
   already the literal string `<C-A>` while a space is still a raw byte -- so
-  keytrans alone turns `g<C-A>` into `g<lt>C-A>` and the lookup misses.
+  keytrans alone turns `g<C-A>` into `g<lt>C-A>` and the lookup misses. A
+  section key is then compared with `<lt>` turned back into `<`, as
+  which-key's `Util.keys` stores a node's keys; without that a declared `<`
+  (`<leader>b<`) lands under `others`.
 - which-key's own `group` is a sub-prefix (`<leader>g` + `l` = `<leader>gl`), so
   it cannot slice a single level. The `;` headings therefore come from replacing
   which-key's `View.sort` and inserting display-only rows: the popup body is a
@@ -755,8 +776,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `ui.view.render.diff_options` and `ui.layout.arrange`, and patches
   `core.git.runner.run_async` (`-c core.quotePath=false`),
   `core.git.get_commit_list` (`history_limit`) and
-  `core.git.changes.get_diff_revision` (the listing). Its header is that list;
-  keep it current. Every access is pcall'd and type-checked, and `setup()`
+  `core.git.changes.get_diff_revision` (the listing). It also calls the
+  public `codediff` module's `next_hunk`/`prev_hunk` for `]h`/`[h`, which is
+  no internal. Its header is that list, plus that public call; keep it
+  current. Every access is pcall'd and type-checked, and `setup()`
   compares `codediff.version` with `M.VERSION` (4.0.6, the lazy pin): a
   mismatch warns once and leaves the three patches off, which is safe
   because the upstream keys that would be dangerous are already off in

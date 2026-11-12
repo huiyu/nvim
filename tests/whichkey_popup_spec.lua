@@ -79,10 +79,12 @@ t.ok(declared_total > 30, ("sections declare %d keys"):format(declared_total))
 ---@return table[]
 local function popup(prefix)
   local items = {}
-  local pn = vim.fn.keytrans(vim.keycode(prefix))
+  -- which-key's node form: keytrans, with its "<lt>" stored as a bare "<".
+  local function wk_keys(lhs) return (vim.fn.keytrans(vim.keycode(lhs)):gsub("<lt>", "<")) end
+  local pn = wk_keys(prefix)
   for _, m in ipairs(vim.api.nvim_get_keymap("n")) do
     -- keycode first: a raw lhs mixes literal "<C-A>" with real bytes.
-    local keys = vim.fn.keytrans(vim.keycode(m.lhs))
+    local keys = wk_keys(m.lhs)
     local suffix = keys:sub(1, #pn) == pn and keys:sub(#pn + 1) or nil
     -- first-level children only, the way a popup shows them
     if suffix and (#suffix == 1 or suffix:match("^<%w[%w-]*>$")) and m.desc then
@@ -196,6 +198,11 @@ for _, case in ipairs({
   { ";", "c", "positions" }, { ";", "j", "positions" }, { ";", "m", "positions" },
   { "<leader>y", "l", "path" }, { "<leader>y", "g", "path" },
   { "<leader>g", "D", "diff" }, { "<leader>b", "h", "delete" },
+  -- One letter per act (#30, part 3): moving a buffer along the bar and the
+  -- file's diagnostics. <leader><tab>n is mapped only once which-key's setup
+  -- has run; tests/key_descriptions_spec.lua finds it in the popup's tree.
+  { "<leader>b", "<", "move" }, { "<leader>b", ">", "move" },
+  { "<leader>x", "b", "diagnostics" },
   -- The chat on the right: new, switch, toggle, focus; what goes to it.
   { "<leader>a", "n", "chats" }, { "<leader>a", "l", "chats" },
   { "<leader>a", "c", "chats" }, { "<leader>a", "f", "chats" },
@@ -207,6 +214,11 @@ for _, case in ipairs({
   { "<leader>a", "e", "HTTP · API credits" }, { "<leader>a", "x", "HTTP · API credits" },
   { "<leader>a", "p", "companion" }, { "<leader>a", "o", "companion" },
   { "<leader>a", "v", "review" }, { "<leader>a", "V", "review" },
+  -- Case is the debug variant of the same run: tm/tM, tf/tF.
+  { "<leader>t", "m", "run" }, { "<leader>t", "M", "run" },
+  { "<leader>t", "f", "run" }, { "<leader>t", "F", "run" },
+  { "<leader>t", "s", "view" }, { "<leader>t", "o", "view" }, { "<leader>t", "x", "view" },
+  { "]", "r", "code" }, { "[", "r", "code" },
 }) do
   t.eq(owner_of(case[1], case[2]), case[3], ("%s%s sits under %s"):format(case[1], case[2], case[3]))
 end
@@ -375,6 +387,9 @@ for lhs, want in pairs({
 end
 t.eq({ vim.fn.maparg("ac", "x", false, true).desc, vim.fn.maparg("if", "o", false, true).desc },
   { "class", "inner function" }, "the treesitter text objects use the popup's words")
+for _, case in ipairs({ { "]", "m" }, { "[", "M" }, { "]", "c" }, { "[", "C" } }) do
+  t.eq(owner_of(case[1], case[2]), "code", case[1] .. case[2] .. " sits under code, not others")
+end
 
 -- A view's own ]c (CodeDiff's, gitsigns' diff panel) is what the popup shows.
 local diff_buf = vim.api.nvim_create_buf(true, false)

@@ -205,7 +205,7 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 
 - `:ConformInfo` — which formatter runs for this buffer and why
 - `:checkhealth conform` (run `:ConformInfo` first on a fresh process to load it)
-- Toggle autoformat: `<leader>uf` (global) / `<leader>uF` (buffer)
+- Toggle autoformat: `<leader>uf` (current file) / `<leader>uF` (global)
 - Java and Rust have no conform formatter: `lsp_format = "fallback"` hands
   them to the server (jdtls; rust-analyzer, which runs the toolchain's
   `rustfmt`, installed with `rustup component add rustfmt`). `:ConformInfo`
@@ -279,10 +279,10 @@ labels and the listing; its header lists what it depends on.
   the file in the previous tab, `<C-w>` still moves between windows. A key
   typed right after the blocked one is swallowed with it, so `so` cannot fall
   through to `o`.
-- **`H is disabled in CodeDiff`** (also `L`, `[b`, `]b`, `<C-^>`, `-`) —
+- **`H is disabled in CodeDiff`** (also `L`, `[b`, `]b`, `[B`, `]B`, `<C-^>`, `-`) —
   intended, in every window of a view: each puts another buffer in the window
-  (bufferline's cycling, the alternate buffer, oil's parent directory), as a
-  `;` picker would. `-` is blocked everywhere except the status view's file
+  (bufferline's cycling and first / last, the alternate buffer, oil's parent
+  directory), as a `;` picker would. `-` is blocked everywhere except the status view's file
   panel, where it stages or unstages a file. `gf` opens the file in the
   previous tab and `<leader>gq` closes the view. These are whole keys: the key
   typed after one is not swallowed.
@@ -292,7 +292,7 @@ labels and the listing; its header lists what it depends on.
 - **`This tab already shows a CodeDiff view; <leader>gq closes it`** —
   `<leader>gv` in a CodeDiff tab: a bare `:CodeDiff` there would close the view
   instead.
-- **`,u`/`,U`/`,X` refuse** — each says why (unsaved edits, the file changed on
+- **`,S`/`,U`/`,X` refuse** — each says why (unsaved edits, the file changed on
   disk, the index differs from the view's left side, a symlink or LFS file, …)
   and changes nothing. [The manual](MANUAL.md#git) lists which view has which
   key. A stage that warns `the index did not come out as planned` ran while the
@@ -991,7 +991,7 @@ The server loads all Java test dependency bundles except the standalone test
 runner and JaCoCo agent. Each project uses a hashed workspace under the Nvim
 cache directory, and subsequent Java buffers attach to the existing client.
 
-`,dt` / `,dT` debug the nearest test / class. A missing debug bundle or setup
+`<leader>tM` / `<leader>tF` debug the nearest test / class. A missing debug bundle or setup
 failure is reported instead of swallowed. After installing bundles, use
 `:JdtRestart`.
 
@@ -1030,7 +1030,7 @@ Custom target directories and hashed test binaries are resolved automatically;
 compilation failures abort rather than launch stale artifacts. Complex Cargo
 feature/workspace selections can use a project launch.json and explicit binary.
 
-The direct entries are `<leader>df` (file), `<leader>td` (nearest test), and
+The direct entries are `<leader>df` (file), `<leader>tM` (nearest test), and
 `<leader>tF` (test file). Rust target discovery needs the `rust` Treesitter parser
 (`:TSInstall rust`) and standard libtest executables. It matches source functions
 to `--list` names and uses `--exact`; `#[path]`, generated tests and custom
@@ -1126,7 +1126,7 @@ plus the Electron entries above and Chrome extension entries below:
   from the current file looking for `node_modules/vitest/vitest.mjs`, so a
   workspace package gets its own vitest rather than a hoisted copy. Install
   dependencies in that package.
-- `<leader>td` selects a `test`/`it` declaration using Treesitter and Vitest's
+- `<leader>tM` selects a `test`/`it` declaration using Treesitter and Vitest's
   [file:line filter](https://vitest.dev/guide/filtering.html#line-numbers).
   This needs Vitest 3+ and the matching JS/TS parser. `<leader>tF` runs the
   current test file on older Vitest too. Both resolve the nearest installed
@@ -1295,7 +1295,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   closes. Anything sent through `vim.notify` --
   plugins, LSP `window/showMessage`, this config's own warnings -- goes to the
   snacks notifier instead and is only in its history: `<leader>mnh`, or
-  `<leader>mnt` to search it. `<leader>un` / `<leader>mnd` dismiss. Under
+  `<leader>mnt` to search it. `<leader>un` dismisses. Under
   `--headless` neither ui2 nor the notifier is enabled, so `vim.notify` prints
   to stderr as usual. A UI attached later (`nvim --headless --listen`, then
   `nvim --remote-ui`) gets both on its first `UIEnter`.
@@ -1365,12 +1365,12 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   `:setlocal filetype? buftype?`, then `:verbose nmap ,v` (replace `,v` with the expected key).
   Headings classify existing mappings; they do not create actions. Python and
   LaTeX share `,v` with different meanings, and terminal digits require a terminal
-  buffer in Normal mode. Java's `,dt`/`,dT` also need jdtls/debug initialization.
-  `[LSP]` entries require a server; use `:checkhealth vim.lsp` if those
-  actions are unavailable. The [manual](MANUAL.md#filetype-and-view-actions)
-  lists every filetype and view action.
+  buffer in Normal mode. `[LSP]` entries require a server; use
+  `:checkhealth vim.lsp` if those actions are unavailable. The
+  [manual](MANUAL.md#filetype-and-view-actions) lists every filetype and view
+  action.
   A CodeDiff view adds its panel, layout and conflict keys and the review keys
-  (`,C`, and `,u`/`,U`/`,X` where the view can do them) beside the language
+  (`,C`, and `,S`/`,U`/`,X` where the view can do them) beside the language
   section, and gives every key back on close. Section metadata lives in
   `lua/whichkey_spec.lua`; the rendering code in
   `lua/plugin/editor/whichkey.lua` reads it generically.

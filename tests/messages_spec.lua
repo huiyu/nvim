@@ -51,7 +51,6 @@ end
 for lhs, desc in pairs({
   ["<leader>mnh"] = "Notification history",
   ["<leader>mnt"] = "Search notifications",
-  ["<leader>mnd"] = "Dismiss notifications",
   ["<leader>mnl"] = "Last command output",
   ["<leader>mna"] = "Message history",
   ["<leader>un"] = "Dismiss notifications",
@@ -59,6 +58,8 @@ for lhs, desc in pairs({
   t.eq(vim.fn.maparg(lhs, "n", false, true).desc, desc, lhs .. " is " .. desc)
 end
 t.eq(vim.fn.maparg("<leader>mnl", "n"), "g<", "<leader>mnl is ui2's g< pager")
+-- One act, one key: <leader>un dismisses, and <leader>mn holds the histories.
+t.eq(vim.fn.maparg("<leader>mnd", "n"), "", "<leader>mnd is gone; <leader>un dismisses")
 local group
 for _, entry in ipairs(require("whichkey_spec").spec) do
   if entry[1] == "<leader>mn" then group = entry.group end

@@ -1,4 +1,4 @@
--- ,u ,U ,X inside CodeDiff views (lua/util/codediff_actions.lua), driven
+-- ,S ,U ,X inside CodeDiff views (lua/util/codediff_actions.lua), driven
 -- through real views of temporary repositories opened with util.codediff.open
 -- and the tab variables a baseline view carries.
 --
@@ -139,7 +139,7 @@ end
 local function keyset(bufs)
   local found = {}
   for _, buf in ipairs(bufs) do
-    for _, lhs in ipairs({ ",u", ",U", ",X" }) do
+    for _, lhs in ipairs({ ",S", ",U", ",X" }) do
       for _, mode in ipairs({ "n", "x" }) do
         local d = desc(buf, lhs, mode)
         if d then found[#found + 1] = mode .. lhs end
@@ -189,13 +189,15 @@ t.eq(s.mode, "revision", "the baseline view compares a revision with the working
 
 for _, b in ipairs({ buf, lbuf }) do
   local where = b == buf and "the right pane" or "the left pane"
-  t.eq(desc(b, ",u"), "Stage hunk", ",u stages the hunk in " .. where)
+  t.eq(desc(b, ",S"), "Stage hunk", ",S stages the hunk in " .. where)
   t.eq(desc(b, ",U"), "Unstage hunk", ",U unstages it in " .. where)
   t.eq(desc(b, ",X"), "Discard hunk back to baseline " .. when, ",X names the baseline it discards back to in " .. where)
-  t.eq(desc(b, ",u", "x"), "Stage selected lines", "Visual ,u stages the selected lines in " .. where)
+  t.eq(desc(b, ",S", "x"), "Stage selected lines", "Visual ,S stages the selected lines in " .. where)
   t.eq(desc(b, ",X", "x"), "Discard selected hunks back to baseline " .. when, "Visual ,X in " .. where)
+  -- S/U/X as the status explorer's file keys: u no longer stages.
+  t.eq({ map(b, ",u"), map(b, ",u", "x") }, { {}, {} }, ",u is not mapped in " .. where)
 end
-t.eq(map(s.panel_bufnr, ",u"), {}, "the explorer gets none of them")
+t.eq(map(s.panel_bufnr, ",S"), {}, "the explorer gets none of them")
 
 -- Each stage ends with a notice once gitsigns is done with it, and the file
 -- stays locked a moment longer while gitsigns' own index watcher catches up
@@ -212,20 +214,20 @@ local function unstaged_count(n)
   return vim.wait(5000, function() return #(gs.get_hunks(buf) or {}) == n end, 20)
 end
 
--- ,u on the inserted line: gitsigns, which is not attached yet, stages it
+-- ,S on the inserted line: gitsigns, which is not attached yet, stages it
 -- against the index, after f line 7 -- not after the baseline's line 10.
 gs.detach(buf)
 t.eq(gs.get_hunks(buf), nil, "gitsigns starts detached from the file")
 notices = {}
-press(right, 11, ",u")
-press(right, 11, ",u")
-t.ok(said("the previous stage of f.txt is still running") ~= nil, "a second ,u while the first runs is refused " .. heard())
+press(right, 11, ",S")
+press(right, 11, ",S")
+t.ok(said("the previous stage of f.txt is still running") ~= nil, "a second ,S while the first runs is refused " .. heard())
 press(right, 11, ",X")
 t.ok(said("a stage of f.txt is still running") ~= nil, "and so is ,X, which would change the lines being staged " .. heard())
 t.eq(disk(), working, "which leaves the file alone")
 local staged_insert = concat(rows(1, 7, "f line %d"), agent_insert, rows(8, 20, "f line %d"))
 t.ok(vim.wait(5000, function() return vim.deep_equal(index(), staged_insert) end, 20),
-  ",u stages exactly the inserted line, at its place in the index")
+  ",S stages exactly the inserted line, at its place in the index")
 t.ok(finished("Staged line 11 of f.txt"), "and says what it staged " .. heard())
 t.ok(gs.get_hunks(buf) ~= nil, "after attaching gitsigns first")
 t.eq(index(), staged_insert, "the refused second press changed nothing")
@@ -235,8 +237,8 @@ t.ok(unstaged_count(2), "gitsigns sees the line staged")
 
 -- gitsigns' stage_hunk toggles; each key does only what it says.
 notices = {}
-press(right, 11, ",u")
-t.ok(said("nothing in line 11 of f.txt differs from the index") ~= nil, ",u on a staged hunk refuses instead of unstaging " .. heard())
+press(right, 11, ",S")
+t.ok(said("nothing in line 11 of f.txt differs from the index") ~= nil, ",S on a staged hunk refuses instead of unstaging " .. heard())
 t.eq(index(), staged_insert, "and leaves the index alone")
 notices = {}
 press(right, 19, ",U")
@@ -261,7 +263,7 @@ do
     return real(range, opts, cb)
   end
   notices = {}
-  press(right, 11, ",u")
+  press(right, 11, ",S")
   t.ok(finished("Staged line 11 of f.txt"), "a stage gitsigns fails without writing the index is retried " .. heard())
   gs.stage_hunk = real
   t.eq(failures, 1, "after that one failure")
@@ -291,7 +293,7 @@ do
     if cb then cb() end
   end
   notices = {}
-  press(right, 11, ",u")
+  press(right, 11, ",S")
   t.ok(finished("Staged line 11 of f.txt"), "a stage whose attach returned early still stages " .. heard())
   gs.attach = real
   t.eq(said("does not track"), nil, "without calling the file untracked")
@@ -317,7 +319,7 @@ do
     return real(opts, cb)
   end
   notices = {}
-  press(right, 11, ",u")
+  press(right, 11, ",S")
   t.ok(finished("Staged line 11 of f.txt"), "a stage whose first attach came to nothing still stages " .. heard())
   gs.attach = real
   t.ok(asked >= 2, "after asking gitsigns to attach again")
@@ -332,8 +334,8 @@ end
 -- From the left pane: the hunk under the cursor there (baseline lines 18-19).
 local staged_change = concat(rows(1, 14, "f line %d"), agent_change, rows(17, 20, "f line %d"))
 notices = {}
-press(left, 18, ",u")
-t.ok(finished("Staged lines 19-20 of f.txt"), ",u from the left pane stages that hunk " .. heard())
+press(left, 18, ",S")
+t.ok(finished("Staged lines 19-20 of f.txt"), ",S from the left pane stages that hunk " .. heard())
 t.eq(index(), staged_change, "both changed lines, nothing else")
 t.ok(unstaged_count(2), "gitsigns sees it staged")
 notices = {}
@@ -344,19 +346,19 @@ t.ok(unstaged_count(3), "gitsigns sees it unstaged")
 
 -- Visual: the selected lines, from the right pane only.
 notices = {}
-visual(right, 1, 2, ",u")
+visual(right, 1, 2, ",S")
 t.ok(said("the selection holds no change this view shows") ~= nil,
-  "Visual ,u over lines the view shows unchanged refuses, though they differ from the index " .. heard())
+  "Visual ,S over lines the view shows unchanged refuses, though they differ from the index " .. heard())
 t.eq(index(), base, "so the pre-round edits stay unstaged")
 notices = {}
-visual(left, 18, 0, ",u")
-t.ok(said("select the lines in the right pane") ~= nil, "Visual ,u in the left pane refuses " .. heard())
+visual(left, 18, 0, ",S")
+t.ok(said("select the lines in the right pane") ~= nil, "Visual ,S in the left pane refuses " .. heard())
 t.eq(vim.fn.mode(), "n", "and leaves Visual mode")
 local staged_both = concat(rows(1, 7, "f line %d"), agent_insert, rows(8, 14, "f line %d"), agent_change,
   rows(17, 20, "f line %d"))
 notices = {}
-visual(right, 11, 9, ",u")
-t.ok(finished("Staged lines 11-20 of f.txt"), "Visual ,u stages the selected lines " .. heard())
+visual(right, 11, 9, ",S")
+t.ok(finished("Staged lines 11-20 of f.txt"), "Visual ,S stages the selected lines " .. heard())
 t.eq(index(), staged_both, "both hunks in them")
 t.ok(unstaged_count(1), "leaving only the pre-round edits unstaged")
 notices = {}
@@ -366,15 +368,15 @@ t.eq(index(), base, "all of them")
 t.ok(unstaged_count(3), "gitsigns sees them unstaged")
 
 -- An outside `git add` gitsigns has not caught up with: its stage_hunk would
--- see nothing unstaged and toggle to unstaging. ,u refuses instead -- as
+-- see nothing unstaged and toggle to unstaging. ,S refuses instead -- as
 -- "not caught up" while gitsigns is behind, or as "nothing differs" once it
 -- has caught up -- and never touches the index.
 assert(git("add", "f.txt"))
 notices = {}
-press(right, 11, ",u")
+press(right, 11, ",S")
 t.ok(said("gitsigns has not caught up with f.txt yet") ~= nil
   or said("nothing in line 11 of f.txt differs from the index") ~= nil,
-  ",u after an outside git add refuses " .. heard())
+  ",S after an outside git add refuses " .. heard())
 t.eq(index(), working, "and leaves the index as the outside add left it")
 assert(git("reset", "-q", "--", "f.txt"))
 t.eq(index(), base, "(the spec puts the index back)")
@@ -428,7 +430,7 @@ t.ok(caught_up(right, 11), "the view catches up again")
 
 -- (a) unsaved edits in the right pane.
 vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "USER 1, edited" })
-for _, key in ipairs({ ",X", ",u" }) do
+for _, key in ipairs({ ",X", ",S" }) do
   notices = {}
   press(right, 11, key)
   t.ok(said("f.txt has unsaved changes: :w or :e! first") ~= nil, key .. " refuses over unsaved edits " .. heard())
@@ -496,7 +498,7 @@ cd.refresh = function(tab)
   refreshed[#refreshed + 1] = tab
   return real_refresh(tab)
 end
-for _, key in ipairs({ ",X", ",u" }) do
+for _, key in ipairs({ ",X", ",S" }) do
   notices, refreshed = {}, {}
   press(right, 11, key)
   t.ok(said("the hunk changed since it was displayed") ~= nil, key .. " refuses a hunk the diff no longer has " .. heard())
@@ -539,8 +541,8 @@ do
     end)
   end
   notices = {}
-  press(right, 11, ",u")
-  t.ok(refused_later(), ",u refuses when the buffer reloads while gitsigns attaches " .. heard())
+  press(right, 11, ",S")
+  t.ok(refused_later(), ",S refuses when the buffer reloads while gitsigns attaches " .. heard())
   gs.attach = real_attach
   t.eq(reloaded, rewritten[11], "(the buffer had reloaded the agent's rewrite)")
   t.eq(index(), base, "and nothing is staged")
@@ -558,7 +560,7 @@ do
     callback()
   end
   notices = {}
-  press(right, 11, ",u")
+  press(right, 11, ",S")
   t.ok(refused_later(), "the retry refuses when the buffer reloaded in between " .. heard())
   gs.stage_hunk = real_stage
   t.eq(index(), base, "and nothing is staged")
@@ -575,7 +577,7 @@ end
 local actions = require("util.codediff_actions")
 vim.t[tab].codediff_baseline = nil
 actions.attach(tab)
-t.eq(keyset({ buf, lbuf }), { "n,U", "n,u", "x,U", "x,u" }, "without codediff_baseline the next pass releases ,X")
+t.eq(keyset({ buf, lbuf }), { "n,S", "n,U", "x,S", "x,U" }, "without codediff_baseline the next pass releases ,X")
 vim.t[tab].codediff_baseline = { sha = sha, kind = "round" }
 actions.attach(tab)
 t.eq(desc(buf, ",X"), "Discard hunk back to baseline " .. when, "and the pass after it installs ,X again")
@@ -589,7 +591,7 @@ t.eq(keyset({ buf }), {}, "closing the view hands the file's keys back")
 
 -- rev vs working tree without a baseline (<leader>gm): stage keys, no ,X.
 tab, s = open(root, "f.txt", { "HEAD" }, nil)
-t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), { "n,U", "n,u", "x,U", "x,u" }, "a rev-vs-working-tree view has ,u ,U and no ,X")
+t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), { "n,S", "n,U", "x,S", "x,U" }, "a rev-vs-working-tree view has ,S ,U and no ,X")
 close(tab)
 
 -- rev vs rev and history: nothing to stage or discard.
@@ -642,17 +644,17 @@ close(tab)
 
 tab, s = open(sroot, "ch.txt", {}, nil)
 t.eq({ s.mode, s.modified_revision }, { "status", nil }, "ch.txt opens in the Changes group")
-t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), { "n,u", "x,u" },
-  "the Changes group has ,u only: no ,U, which every hunk there would refuse, and no ,X")
+t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), { "n,S", "x,S" },
+  "the Changes group has ,S only: no ,U, which every hunk there would refuse, and no ,X")
 notices = {}
-press(s.modified_win, 3, ",u")
+press(s.modified_win, 3, ",S")
 t.ok(vim.wait(5000, function() return (sgit("show", ":ch.txt") or ""):find("ch line 3 changed", 1, true) ~= nil end, 20),
-  ",u there stages the hunk " .. heard())
+  ",S there stages the hunk " .. heard())
 t.ok(finished("Staged line 3 of ch.txt"), "and says so " .. heard())
 close(tab)
 
 ---------------------------------------------------------------------------
--- ,u ,U change the index only as the view shows: left side -> working tree
+-- ,S ,U change the index only as the view shows: left side -> working tree
 ---------------------------------------------------------------------------
 
 do
@@ -688,12 +690,12 @@ do
   tab, s = open(iroot, "f.txt", { round.sha }, ivars)
   local fbuf = s.modified_bufnr
   notices = {}
-  press(s.modified_win, 2, ",u")
+  press(s.modified_win, 2, ",S")
   t.ok(refused("the index differs from the left side around line 2 of f.txt"),
-    ",u refuses a stage that would also take the deletion of C from before the round, and points to <leader>gv " .. heard())
+    ",S refuses a stage that would also take the deletion of C from before the round, and points to <leader>gv " .. heard())
   t.eq(iindex("f.txt"), abc, "the index is unchanged")
 
-  -- With the deletion of C staged, the baseline is the index there: ,u
+  -- With the deletion of C staged, the baseline is the index there: ,S
   -- stages exactly the line on screen.
   local blob = vim.system({ "git", "-C", iroot, "hash-object", "-w", "--stdin" },
     { stdin = table.concat(without_c, "\n") .. "\n", text = true }):wait()
@@ -703,8 +705,8 @@ do
     return h ~= nil and #h == 1 and h[1].added.start == 2 and h[1].removed.count == 1
   end, 20), "gitsigns sees the index without C")
   notices = {}
-  press(s.modified_win, 2, ",u")
-  t.ok(finished("Staged line 2 of f.txt (the index only)"), "with the baseline equal to the index, ,u stages " .. heard())
+  press(s.modified_win, 2, ",S")
+  t.ok(finished("Staged line 2 of f.txt (the index only)"), "with the baseline equal to the index, ,S stages " .. heard())
   t.eq(iindex("f.txt"), f_agent, "that line and nothing else")
   t.ok(vim.wait(5000, function() return #(gs.get_hunks(fbuf) or { 1 }) == 0 end, 20), "gitsigns sees it staged")
   -- Unstaging goes back to HEAD, which still has C: B AGENT -> B C.
@@ -718,13 +720,13 @@ do
   -- Deletions: gitsigns stages one from the line above it.
   tab, s = open(iroot, "d.txt", { round.sha }, ivars)
   notices = {}
-  press(s.modified_win, 6, ",u")
+  press(s.modified_win, 6, ",S")
   t.ok(refused("the index differs from the left side around line 5 of d.txt"),
-    ",u refuses the deletion of d 6: the line above it is the unstaged edit of d 5 " .. heard())
+    ",S refuses the deletion of d 6: the line above it is the unstaged edit of d 5 " .. heard())
   t.eq(iindex("d.txt"), d_base, "the index is unchanged")
   notices = {}
-  press(s.modified_win, 8, ",u")
-  t.ok(finished("Staged line 7 of d.txt (the index only)"), ",u stages the deletion of d 9 below an untouched line " .. heard())
+  press(s.modified_win, 8, ",S")
+  t.ok(finished("Staged line 7 of d.txt (the index only)"), ",S stages the deletion of d 9 below an untouched line " .. heard())
   t.eq(iindex("d.txt"), concat(rows(1, 8, "d %d"), { "d 10" }), "and only that deletion")
   close(tab)
 end
@@ -832,10 +834,10 @@ vim.fn.writefile({ "brand new" }, droot .. "/new.txt")
 local function snapshot(rel) return vim.fn.readfile(droot .. "/" .. rel) end
 
 for _, case in ipairs({
-  { rel = "s.txt", line = 2, why = "s.txt is a symlink in the working tree", keys = { ",X", ",u" } },
-  { rel = "l.txt", line = 2, why = "l.txt is a symlink on the left, a file here: a type change", keys = { ",X", ",u" } },
+  { rel = "s.txt", line = 2, why = "s.txt is a symlink in the working tree", keys = { ",X", ",S" } },
+  { rel = "l.txt", line = 2, why = "l.txt is a symlink on the left, a file here: a type change", keys = { ",X", ",S" } },
   { rel = "sub", line = 1, why = "sub is a submodule on the left", keys = { ",X" } },
-  { rel = "ft.txt", line = 2, why = "ft.txt has a filter attribute (filter=spec-filter", keys = { ",X", ",u" } },
+  { rel = "ft.txt", line = 2, why = "ft.txt has a filter attribute (filter=spec-filter", keys = { ",X", ",S" } },
 }) do
   tab, s = open(droot, case.rel, { dsha }, dvars)
   local before, dindex = snapshot(case.rel), dgit("--no-optional-locks", "ls-files", "-s")
@@ -853,7 +855,7 @@ end
 -- One-sided files: hunks only, so ,X says what would do it.
 tab, s = open(droot, "plain.txt", { dsha }, dvars)
 local plain_buf = s.modified_bufnr
-t.eq(keyset({ plain_buf, s.original_bufnr }), { "n,U", "n,X", "n,u", "x,U", "x,X", "x,u" }, "plain.txt has all three keys")
+t.eq(keyset({ plain_buf, s.original_bufnr }), { "n,S", "n,U", "n,X", "x,S", "x,U", "x,X" }, "plain.txt has all three keys")
 -- Walk the explorer to the deleted file: the pass for it releases the rest.
 local reached = false
 for _ = 1, 12 do

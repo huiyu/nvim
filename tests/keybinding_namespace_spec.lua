@@ -156,4 +156,34 @@ for _, buf in ipairs({ two, three }) do
   if id then vim.fn.jobstop(id) end
 end
 
+-- [B/]B are the first and last buffer of the bar, in the order [b/]b cycle
+-- through, and moving a buffer along the bar is <leader>b< / <leader>b>.
+require("lazy").load({ plugins = { "bufferline.nvim" } })
+vim.api.nvim_set_current_win(editor_win)
+local ends_dir = vim.fn.tempname()
+vim.fn.mkdir(ends_dir, "p")
+local by_name = {}
+for _, name in ipairs({ "a", "b", "c" }) do
+  vim.cmd.edit(vim.fn.fnameescape(ends_dir .. "/" .. name .. ".txt"))
+  by_name[name] = vim.api.nvim_get_current_buf()
+end
+-- Render the bar, which is what fills bufferline's list; nothing redraws headless.
+local function render() vim.api.nvim_eval_statusline(vim.o.tabline, { use_tabline = true }) end
+render()
+-- c moves to the front, so the bar's order is no longer the buffer numbers'.
+t.eq(vim.api.nvim_get_current_buf(), by_name.c, "c is current")
+for _ = 1, 2 do
+  press("<leader>b<")
+  render()
+end
+local first, last = mapping("[B"), mapping("]B")
+t.ok(first.desc == "First buffer" and last.desc == "Last buffer", "[B/]B go to the first/last buffer")
+vim.api.nvim_set_current_buf(by_name.a)
+last.callback()
+local bar = vim.tbl_map(function(c) return c.id end, require("bufferline.state").components)
+t.eq(vim.api.nvim_get_current_buf(), bar[#bar], "]B goes to the bar's last buffer")
+first.callback()
+t.eq(vim.api.nvim_get_current_buf(), by_name.c, "[B goes to the buffer moved to the front, not the lowest number")
+t.ok(mapping("<leader>b>").desc == "Move buffer right", "<leader>b> moves the buffer right")
+
 t.done()

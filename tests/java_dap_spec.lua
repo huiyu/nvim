@@ -66,7 +66,9 @@ if client then
   t.ok(not vim.iter(bundles):any(function(path) return path:find("jacocoagent.jar", 1, true) end), "non-OSGi agent is excluded")
   vim.cmd.edit(vim.fn.fnameescape(root .. "/src/Other.java"))
   t.ok(vim.wait(5000, function() return vim.lsp.buf_is_attached(0, client.id) end, 50), "second Java buffer attaches to the same server")
-  t.ok(vim.fn.maparg(",dt", "n", false, true).buffer == 1, "Java test debug key is buffer-local")
+  -- Test debugging is <leader>tM/tF through the java dap targets; the comma
+  -- menu holds no duplicate of them.
+  t.eq({ vim.fn.maparg(",dt", "n"), vim.fn.maparg(",dT", "n") }, { "", "" }, "Java has no comma test-debug keys")
   vim.api.nvim_set_current_buf(main)
   local configs
   require("jdtls.dap").fetch_main_configs({}, function(value) configs = value end)

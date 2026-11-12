@@ -36,8 +36,11 @@ return {
     -- retain the standard previous/next vocabulary and which-key discovery.
     { "[b",         "<cmd>BufferLineCyclePrev<cr>",            desc = "Prev buffer" },
     { "]b",         "<cmd>BufferLineCycleNext<cr>",            desc = "Next buffer" },
-    { "[B",         "<cmd>BufferLineMovePrev<cr>",             desc = "Move buffer left" },
-    { "]B",         "<cmd>BufferLineMoveNext<cr>",             desc = "Move buffer right" },
+    -- Uppercase is the first/last of the same list, as [Q/]Q and [L/]L are.
+    -- go_to(_, true) counts every buffer, not only those the bar has room to
+    -- show, so it is the order [b/]b cycle through.
+    { "[B",         function() require("bufferline").go_to(1, true) end,  desc = "First buffer" },
+    { "]B",         function() require("bufferline").go_to(-1, true) end, desc = "Last buffer" },
     -- Picking a buffer by its tab letter answers "where do I want to be", so
     -- it sits on `;` beside ;b, and a CodeDiff view's `;` block covers it.
     { ";B",         "<cmd>BufferLinePick<cr>",                 desc = "Pick buffer" },
@@ -46,6 +49,8 @@ return {
     { "<leader>bo", function() Snacks.bufdelete.other() end,   desc = "Delete other buffers" },
     { "<leader>bl", "<cmd>BufferLineCloseLeft<cr>",            desc = "Delete buffers to left" },
     { "<leader>br", "<cmd>BufferLineCloseRight<cr>",           desc = "Delete buffers to right" },
+    { "<leader>b<", "<cmd>BufferLineMovePrev<cr>",             desc = "Move buffer left" },
+    { "<leader>b>", "<cmd>BufferLineMoveNext<cr>",             desc = "Move buffer right" },
     { "<leader>bp", "<cmd>BufferLineTogglePin<cr>",            desc = "Toggle pin" },
     { "<leader>bP", "<cmd>BufferLineGroupClose ungrouped<cr>", desc = "Delete unpinned buffers" },
     { "<leader>bx", function() require("util.buffer").delete_missing() end, desc = "Delete buffers of missing files" },

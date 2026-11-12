@@ -132,5 +132,5 @@ end
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
 
--- Autoformat on save (toggle with <leader>uf)
+-- Autoformat on save (toggle with <leader>uF; <leader>uf is the current file)
 vim.g.autoformat = true

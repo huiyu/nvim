@@ -64,9 +64,13 @@ return {
   {
     "neovim/nvim-lspconfig",
     keys = {
-      -- Non-LSP keys (global mappings are fine for these)
-      { "[[",  function() require("illuminate").goto_prev_reference(false) end, desc = "Prev reference" },
-      { "]]",  function() require("illuminate").goto_next_reference(false) end, desc = "Next reference" },
+      -- Non-LSP keys (global mappings are fine for these). References are
+      -- ]r/[r, not ]]/[[: those are the buffer's section motion everywhere,
+      -- which Python, Go, Rust, Vim, markdown, help and VimTeX all rebind.
+      -- VimTeX's Normal ]r/[r (frames) skip a key a global map holds, so
+      -- lua/lang/tex.lua maps them back in tex buffers.
+      { "[r",  function() require("illuminate").goto_prev_reference(false) end, desc = "Prev reference" },
+      { "]r",  function() require("illuminate").goto_next_reference(false) end, desc = "Next reference" },
       { "<leader>mm", "<cmd>Mason<cr>",                            desc = "Mason" },
       -- `:LspInfo` was only ever an alias to this checkhealth, and lspconfig
       -- stops defining it on Nvim 0.12 (see the `:lsp restart` note below).
