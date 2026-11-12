@@ -961,6 +961,39 @@ after scrolling through Devanagari such as Hindi strings), press `q` to return
 the panel to live output, then `<Space>ur` to make Nvim clear and repaint the
 screen.
 
+### Local native plugins
+
+Export `NVIM_AI_PLUGIN_DIR` before starting Nvim; it replaces the former
+`CLAUDE_PLUGIN_DIR`. Separate directories with commas:
+
+```sh
+export NVIM_AI_PLUGIN_DIR="$HOME/plugins/my-plugin,$HOME/plugins/distribution"
+```
+
+An entry can be a plugin directory or a distribution root containing
+`claude/<plugin>` and `codex/<plugin>` packages. Each native terminal selects
+its own host package. For example, point at GPK's `dist/marketplace` rather
+than its `claude/gpk` child. Claude reads `.claude-plugin/plugin.json`;
+Codex reads portable `plugin.json`, `.codex-plugin/plugin.json`, or a
+Claude-compatible manifest, in that order. Duplicate directories are ignored;
+two different plugins with the same name are an error.
+
+Claude receives repeated `--plugin-dir` flags. Codex reuses an enclosing native
+marketplace when it lists the selected package (GPK keeps `gpk@gpk`), or
+generates one under Nvim's cache. Before each start it refreshes local files
+and overrides the source and enablement through that invocation's `-c` flags,
+so a stale global source does not load a second copy. Installation
+writes its configuration into a disposable home sharing only Codex's plugin
+cache. Your normal config, login and global plugin enablement are preserved.
+Codex must support `plugin add` and local marketplaces (tested with 0.167.1).
+
+Skills, MCP and hooks are loaded by the native CLI. Codex's usual hook trust
+review still applies: use `/hooks` to review newly loaded plugin hooks. This
+does not translate arbitrary Claude-specific behavior into Codex behavior.
+Both tmux and direct launch paths use the same plugins, including resume.
+CodeCompanion's ACP and HTTP chats do not consume this variable; that work is
+tracked in [GPK #3](https://github.com/knotmark-ai/gpk/issues/3).
+
 ### Three ways to ask an AI
 
 `<Space>an` offers three different things. What they can do overlaps; where

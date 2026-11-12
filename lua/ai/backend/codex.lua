@@ -185,6 +185,7 @@ local function codex_command(args)
   if require("ai.review.config").get().sources.codex then
     vim.list_extend(command, { "-c", require("ai.review.hook").codex_override() })
   end
+  vim.list_extend(command, require("ai.plugins").codex_args())
   return vim.list_extend(command, args or {})
 end
 

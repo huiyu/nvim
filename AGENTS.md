@@ -333,6 +333,16 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 
 ## Agent Hooks
 
+- Local native plugins share `NVIM_AI_PLUGIN_DIR` (`lua/ai/plugins.lua`): an
+  entry is a plugin directory or a distribution root with `claude/<plugin>`
+  and `codex/<plugin>` packages. Claude receives `--plugin-dir`; Codex gets
+  invocation-local marketplace/enabled overrides (reusing an enclosing native
+  catalog's identity when available) after refreshing local
+  snapshots through `plugin add`. Installation uses a disposable CODEX_HOME
+  sharing only the real plugin cache; never write the user's config or change
+  global enablement. Preserve native hook trust. Nothing installs at Nvim
+  startup or for CodeCompanion. `tests/native_plugins_spec.lua` exercises
+  offline discovery and both Codex terminal launch paths without a thread.
 - The native agents' prompt hooks are injected per process, never through
   the user's configuration. Claude gets `--settings <json>`
   (`build_terminal_cmd` in `lua/plugin/lsp/ai.lua`): UserPromptSubmit, plus

@@ -835,6 +835,32 @@ Markdown、纯文本、提交信息和没有 filetype 的 buffer 里不会自动
 如果面板里的文字残留在旁边的窗口上（常见于滚动查看印地语等天城文字的历史），
 先按 `q` 回到实时输出，再按 `<Space>ur` 让 Nvim 清屏重绘。
 
+### 原生终端的本地插件
+
+启动 Nvim 前导出 `NVIM_AI_PLUGIN_DIR`，它替代原来的 `CLAUDE_PLUGIN_DIR`。
+多个目录用逗号分隔：
+
+```sh
+export NVIM_AI_PLUGIN_DIR="$HOME/plugins/my-plugin,$HOME/plugins/distribution"
+```
+
+每一项可以是插件目录，也可以是包含 `claude/<plugin>` 和 `codex/<plugin>` 的
+发行目录。原生终端会选择对应宿主的包。例如 GPK 填 `dist/marketplace`，无需固定为
+`claude/gpk`。Claude 读取 `.claude-plugin/plugin.json`；Codex 依次识别根目录
+`plugin.json`、`.codex-plugin/plugin.json` 和 Claude 兼容清单。重复目录会去重；
+不同目录的插件同名时报错。
+
+Claude 接收多个 `--plugin-dir` 参数。Codex 优先复用上级目录已有的原生 marketplace，
+例如 GPK 保留 `gpk@gpk`；没有时在 Nvim 缓存下生成。每次启动前刷新本地文件，通过
+本次启动的 `-c` 参数指定来源并启用，避免旧的全局来源导致重复加载。安装时仅共享 Codex 的
+插件缓存，配置写入临时目录；原有配置、登录和全局插件启用状态保持原样。Codex 需要
+支持 `plugin add` 和本地 marketplace（已用 0.167.1 验证）。
+
+skills、MCP 和 hooks 由原生 CLI 加载。Codex 仍按自身规则审核 hook 信任，首次加载
+后可用 `/hooks` 审核；这里不会将任意 Claude 专属行为自动翻译成 Codex 行为。
+tmux 与直接启动两条路径使用相同插件，恢复会话时也生效。CodeCompanion 的 ACP 和
+HTTP Chat 暂不读取该变量，后续工作记录在 [GPK #3](https://github.com/knotmark-ai/gpk/issues/3)。
+
 ### 三种问 AI 的方式
 
 `<Space>an` 提供三样不同的东西。它们能做的事有重叠，但请求发到哪里、由谁付费

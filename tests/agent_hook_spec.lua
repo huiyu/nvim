@@ -11,6 +11,8 @@ local t = dofile("tests/helper.lua")
 local hook = require("ai.review.hook")
 local ai_config = require("ai.config")
 local codex = require("ai.backend.codex")
+local saved_plugin_dirs = vim.env.NVIM_AI_PLUGIN_DIR
+vim.env.NVIM_AI_PLUGIN_DIR = nil
 
 local script = hook.script()
 local scratch = vim.fn.tempname()
@@ -204,9 +206,11 @@ local tmux = vim.fn.executable("tmux") == 1
 -- Claude: claudecode appends its own arguments (--resume <id>) to terminal_cmd
 -- and runs the string through the shell.
 local plugin_dir = scratch .. "/plug in"
+vim.fn.mkdir(plugin_dir .. "/.claude-plugin", "p")
+vim.fn.writefile({ '{"name":"hook-spec"}' }, plugin_dir .. "/.claude-plugin/plugin.json")
 local claude_want = { "--plugin-dir", plugin_dir, "--settings", hook.claude_settings(), "--resume", "abc-123" }
 for _, wrap in ipairs(tmux and { "0", "1" } or { "0" }) do
-  local cmd = claude_terminal_cmd({ CLAUDE_WRAP_TMUX = wrap, CLAUDE_CHROME = "0", CLAUDE_PLUGIN_DIR = plugin_dir })
+  local cmd = claude_terminal_cmd({ CLAUDE_WRAP_TMUX = wrap, CLAUDE_CHROME = "0", NVIM_AI_PLUGIN_DIR = plugin_dir })
   local path = wrap == "1" and "tmux" or "direct"
   t.eq(ai_config.agent_of_command(cmd), "claude", "Claude (" .. path .. "): agent_of_command still finds the agent")
   local argv, env = launch("claude", cmd .. " --resume abc-123", wrap == "1" and "claude-nvim-" .. vim.fn.getpid() or nil)
@@ -508,5 +512,6 @@ if vim.fn.executable("codex") == 1 then
     .. (odd_ok and "" or (": " .. tostring(odd))))
 end
 
+vim.env.NVIM_AI_PLUGIN_DIR = saved_plugin_dirs
 vim.fn.delete(scratch, "rf")
 t.done()

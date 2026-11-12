@@ -320,6 +320,16 @@ labels and the listing; its header lists what it depends on.
 
 ## AI and CodeCompanion
 
+- **A local native plugin is missing or `AI plugins: ...` appears.** Check
+  `NVIM_AI_PLUGIN_DIR` in the shell that starts Nvim. Entries must be plugin
+  directories or distribution roots with `claude/<plugin>` and `codex/<plugin>`
+  packages; use GPK's `dist/marketplace` for both hosts. Invalid/missing
+  manifests and duplicate names are reported explicitly. Codex requires
+  `plugin add` and local marketplace support (tested with 0.167.1); its
+  normal `/hooks` trust review still applies. Installation updates only its
+  local plugin cache, not the user's config or global enablement. See
+  [local native plugins](MANUAL.md#local-native-plugins). This variable does
+  not configure CodeCompanion's ACP or HTTP chats.
 - **`vi --claude` / `vi --codex` reports an unknown option.** The launcher
   flags are gone: `vi` in `~/.config/zsh/functions.zsh` is plain `nvim`
   (open a new shell after updating that file), and nothing chooses an agent
@@ -1436,6 +1446,7 @@ provider: none is chosen at launch.
 
 | Variable | Effect |
 |----------|--------|
+| `NVIM_AI_PLUGIN_DIR` | Comma-separated plugin directories or host distribution roots for native Claude/Codex. Claude uses `--plugin-dir`; Codex refreshes a local marketplace and enables plugins for that invocation. Replaces `CLAUDE_PLUGIN_DIR`; CodeCompanion ACP/API is deferred |
 | `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile (`auto` by default: the first profile in `lua/ai/config.lua` whose `NVIM_*` key is set, else the first); an unknown name warns and falls back to `auto`; `:AI key` switches it |
 | `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key of the default `anthropic` / `openai` profile, and of CodeCompanion's built-in `anthropic` / `openai` adapters even when no provider lists them, for CodeCompanion API chat and Inline/command prompts; unset, those keys refuse instead of sending |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Override the macOS keyboard layout used in Normal and Terminal-Normal modes |
