@@ -210,9 +210,41 @@ local function finished(text)
   return ok
 end
 local gs = require("gitsigns")
-local function unstaged_count(n)
-  return vim.wait(5000, function() return #(gs.get_hunks(buf) or {}) == n end, 20)
+--- Wait until gitsigns' hunks for `b` are `want` (a count, or a predicate
+--- over the hunk list), having it look the index entry up again itself
+--- first. Its gitdir watcher is what notices an index change, and on a
+--- loaded CI runner that came after 5 s or not at all (#36); the product
+--- refuses a stage meanwhile, but the next assertions here would not wait.
+--- refresh() is no substitute: it re-reads the blob gitsigns already names,
+--- the pre-change one. change_base(nil) -- the index, as the buffer already
+--- diffs against -- asks git for the entry again. A diff under way reports
+--- no hunks, so a count of 0 also waits for the status counts of a finished
+--- one. A read that does not match (a write still settling) asks again.
+local function gitsigns_sees(b, want)
+  local pending, asked = false, 0
+  local function ask()
+    pending, asked = true, vim.uv.now()
+    vim.api.nvim_buf_call(b, function()
+      gs.change_base(nil, false, function() pending = false end)
+    end)
+  end
+  local function matches(hunks)
+    if type(want) == "function" then return want(hunks) end
+    if #hunks ~= want then return false end
+    if want > 0 then return true end
+    local st = vim.b[b].gitsigns_status_dict
+    return type(st) == "table" and st.added ~= nil and st.added + (st.changed or 0) + (st.removed or 0) == 0
+  end
+  ask()
+  return vim.wait(10000, function()
+    if pending then return false end
+    local hunks = gs.get_hunks(b)
+    if hunks and matches(hunks) then return true end
+    if vim.uv.now() - asked >= 500 then ask() end
+    return false
+  end, 20)
 end
+local function unstaged_count(n) return gitsigns_sees(buf, n) end
 
 -- ,S on the inserted line: gitsigns, which is not attached yet, stages it
 -- against the index, after f line 7 -- not after the baseline's line 10.
@@ -274,9 +306,6 @@ do
   press(right, 11, ",U")
   t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it again " .. heard())
   t.eq(index(), base, "back to the index it had")
-  -- Back in step with gitsigns for the cases below: its index watcher can
-  -- lag on a slow machine (CI), which is not what this case is about.
-  gs.refresh()
   t.ok(unstaged_count(3), "gitsigns sees it unstaged")
 end
 
@@ -302,7 +331,6 @@ do
   press(right, 11, ",U")
   t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it " .. heard())
   t.eq(index(), base, "back to the index it had")
-  gs.refresh()
   t.ok(unstaged_count(3), "gitsigns sees it unstaged")
 
   -- An attach can also come to nothing on a busy machine (CI): the stage
@@ -327,7 +355,6 @@ do
   notices = {}
   press(right, 11, ",U")
   t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it again " .. heard())
-  gs.refresh()
   t.ok(unstaged_count(3), "gitsigns sees it unstaged")
 end
 
@@ -369,19 +396,37 @@ t.ok(unstaged_count(3), "gitsigns sees them unstaged")
 
 -- An outside `git add` gitsigns has not caught up with: its stage_hunk would
 -- see nothing unstaged and toggle to unstaging. ,S refuses instead -- as
--- "not caught up" while gitsigns is behind, or as "nothing differs" once it
--- has caught up -- and never touches the index.
-assert(git("add", "f.txt"))
-notices = {}
-press(right, 11, ",S")
-t.ok(said("gitsigns has not caught up with f.txt yet") ~= nil
-  or said("nothing in line 11 of f.txt differs from the index") ~= nil,
-  ",S after an outside git add refuses " .. heard())
-t.eq(index(), working, "and leaves the index as the outside add left it")
-assert(git("reset", "-q", "--", "f.txt"))
-t.eq(index(), base, "(the spec puts the index back)")
-t.ok(unstaged_count(3), "gitsigns catches up")
-settle(700)
+-- "not caught up" while gitsigns is behind, as "nothing differs" once it has
+-- caught up -- and never touches the index. Behind is held, not raced: ,S
+-- is handed the hunks gitsigns had before the add, which is all a gitdir
+-- watcher that has not fired yet leaves it with, since that watcher may
+-- notice the add before the key or not for seconds (#36).
+do
+  local behind, real = gs.get_hunks(buf), gs.get_hunks
+  t.eq(#(behind or {}), 3, "(gitsigns has the three unstaged hunks before the add)")
+  assert(git("add", "f.txt"))
+  gs.get_hunks = function(b)
+    if b == buf then return vim.deepcopy(behind) end
+    return real(b)
+  end
+  notices = {}
+  local ok, err = pcall(press, right, 11, ",S")
+  gs.get_hunks = real
+  assert(ok, err)
+  t.ok(said("gitsigns has not caught up with f.txt yet; try again in a moment") ~= nil,
+    ",S after an outside git add refuses while gitsigns is behind " .. heard())
+  t.eq(index(), working, "and leaves the index as the outside add left it")
+  t.ok(gitsigns_sees(buf, 0), "gitsigns catches up with the add")
+  notices = {}
+  press(right, 11, ",S")
+  t.ok(said("nothing in line 11 of f.txt differs from the index") ~= nil,
+    "once it has, ,S says nothing differs instead " .. heard())
+  t.eq(index(), working, "and still leaves the index alone")
+  assert(git("reset", "-q", "--", "f.txt"))
+  t.eq(index(), base, "(the spec puts the index back)")
+  t.ok(unstaged_count(3), "gitsigns catches up with the reset")
+  settle(700)
+end
 
 ---------------------------------------------------------------------------
 -- ,X: one hunk back to the baseline, nothing else
@@ -700,15 +745,14 @@ do
   local blob = vim.system({ "git", "-C", iroot, "hash-object", "-w", "--stdin" },
     { stdin = table.concat(without_c, "\n") .. "\n", text = true }):wait()
   assert(igit("update-index", "--cacheinfo", "100644," .. vim.trim(blob.stdout) .. ",f.txt"))
-  t.ok(vim.wait(5000, function()
-    local h = gs.get_hunks(fbuf)
-    return h ~= nil and #h == 1 and h[1].added.start == 2 and h[1].removed.count == 1
-  end, 20), "gitsigns sees the index without C")
+  t.ok(gitsigns_sees(fbuf, function(h)
+    return #h == 1 and h[1].added.start == 2 and h[1].removed.count == 1
+  end), "gitsigns sees the index without C")
   notices = {}
   press(s.modified_win, 2, ",S")
   t.ok(finished("Staged line 2 of f.txt (the index only)"), "with the baseline equal to the index, ,S stages " .. heard())
   t.eq(iindex("f.txt"), f_agent, "that line and nothing else")
-  t.ok(vim.wait(5000, function() return #(gs.get_hunks(fbuf) or { 1 }) == 0 end, 20), "gitsigns sees it staged")
+  t.ok(gitsigns_sees(fbuf, 0), "gitsigns sees it staged")
   -- Unstaging goes back to HEAD, which still has C: B AGENT -> B C.
   notices = {}
   press(s.modified_win, 2, ",U")
