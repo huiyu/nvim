@@ -88,7 +88,8 @@ local function terminal_id()
   return info and info.id
 end
 
--- ;c opens Snacks' git_diff source, whose <C-r> restores (discards) a hunk.
+-- ;c opens Snacks' git_diff source, whose <C-x> restores (discards) a hunk
+-- (tests/panel_keys_spec.lua pins the key).
 -- Snacks closes a picker that finds nothing, and this checkout may be clean
 -- (CI always is), so the key runs from a scratch repository with one hunk.
 local scratch = vim.fn.tempname()
