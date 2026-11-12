@@ -190,7 +190,9 @@ focus the AI panel and `<C-/>` for shell terminals, so file navigation keeps
 the editor window in place.
 Clicking a file tab focuses the editor area in the current tabpage, leaving
 chat and terminal panels visible. If only panels remain, it creates an editor
-split for the file.
+split for the file. The buffer keys do the same from a chat or another panel:
+`]B`, `]b` or `;B` there goes to the editor area and acts on its buffer list,
+and a cancelled `;B` stays where it was.
 
 A few single keys are just abbreviations: `D` = `d$`, `C` = `c$`, and `x` =
 `dl` with one difference: `x` deletes into the black hole register, so it

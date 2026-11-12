@@ -77,6 +77,21 @@ for _, only_panel in ipairs({ false, true }) do
   t.eq(vim.api.nvim_get_current_buf(), files[2], "the clicked file opens outside chat")
   t.eq(vim.api.nvim_get_current_tabpage(), current_tab, "chat's file click stays in this tabpage")
 end
+-- The buffer-list keys act as a click does: bufferline opens a buffer in the
+-- current window, so ]B / [B from the chat put the file in the chat's own
+-- window, and ]b / [b found no chat buffer in the list to cycle from.
+local elements = require("bufferline").get_elements().elements
+for _, case in ipairs({ { "]B", elements[#elements].id }, { "[B", elements[1].id }, { "]b" }, { "[b" } }) do
+  vim.api.nvim_set_current_win(chat_win)
+  local before = vim.api.nvim_win_get_buf(require("util.window").ensure_editor_win())
+  vim.api.nvim_feedkeys(vim.keycode(case[1]), "mx", false)
+  settle()
+  t.ok(vim.api.nvim_win_is_valid(chat_win) and vim.api.nvim_win_get_buf(chat_win) == chat,
+    case[1] .. " from the chat leaves it on screen")
+  t.ok(vim.api.nvim_get_current_win() ~= chat_win and vim.api.nvim_get_current_buf() == (case[2] or vim.api.nvim_get_current_buf())
+    and (case[2] or vim.api.nvim_get_current_buf() ~= before),
+    case[1] .. " acts on the editor's buffer list, in the editor")
+end
 vim.api.nvim_win_close(chat_win, false)
 vim.api.nvim_buf_delete(chat, {})
 
