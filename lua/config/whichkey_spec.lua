@@ -607,7 +607,9 @@ local sections = {
     -- A native agent's own session: the one on the right, else the one asked
     -- for.
     { "native session", icon = "󰚩 ", color = "green", keys = { "r", "R", "m" } },
-    { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T" } },
+    -- Transcripts of the native agents, and the chats codecompanion-history
+    -- saved.
+    { "history",   icon = "󰓫 ", color = "purple", keys = { "t", "T", "o" } },
     -- Claude's own proposals, answered before they reach the disk.
     { "Claude diffs", icon = "󰓡 ", color = "orange", keys = { "a", "d" } },
     -- What changed since a round baseline, and starting a new round.
@@ -615,7 +617,6 @@ local sections = {
     -- Inline edits and the key profile they bill. The heading names the
     -- billing on purpose: these are the keys that spend API credits.
     { "HTTP · API credits", icon = "󰌆 ", color = "yellow", keys = { "e", "x" } },
-    { "companion", icon = "󰒓 ", color = "azure",  keys = { "p", "o" } },
   },
 
   ["<leader>m"] = {

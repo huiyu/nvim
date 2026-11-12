@@ -30,7 +30,7 @@ local FIXED = {
   [" at"] = "Read native agent transcript", [" aT"] = "Browse native agent transcripts",
   [" ax"] = "Switch API key profile…",
   [" av"] = "Review changes since round baseline", [" aV"] = "Start review round",
-  [" ap"] = "Companion actions…", [" ao"] = "Browse saved Companion chats",
+  [" ao"] = "Browse saved Companion chats",
 }
 local function desc(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true).desc or "" end
 for lhs, want in pairs(FIXED) do
@@ -64,26 +64,22 @@ for _, lhs in ipairs({ " ag", " aG", " ah", " aH" }) do
 end
 
 -- CodeCompanion keys sit directly under <leader>a, owned by the facade: e
--- inline, p actions, o saved chats. Visual mode takes the selection along.
-for _, lhs in ipairs({ " ae", " ap", " ao", " ax" }) do
+-- inline, o saved chats, x the key profile. Visual mode takes the selection
+-- along.
+for _, lhs in ipairs({ " ae", " ao", " ax" }) do
   t.ok(mapped(lhs), "<leader>" .. lhs:sub(2) .. " exists in Normal mode")
 end
-for _, lhs in ipairs({ " ae", " ap" }) do
-  t.ok(mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " exists in Visual mode")
-end
+t.ok(mapped(" ae", "x"), "<leader>ae exists in Visual mode")
 t.ok(not mapped(" ao", "x"), "<leader>ao is Normal-mode only")
--- <leader>ap is a leaf now: the old two-level keys are gone, and nothing longer
--- may make <leader>ap wait out 'timeoutlen'.
-for _, lhs in ipairs({ " apc", " apt", " apa", " api", " apb", " aph" }) do
-  t.ok(not mapped(lhs) and not mapped(lhs, "x"), "<leader>" .. lhs:sub(2) .. " is gone")
-end
+-- The action palette has no key: its chats and prompts are <leader>an's and
+-- <leader>ae's, and it stays :CodeCompanionActions.
 for _, mode in ipairs({ "n", "x" }) do
-  local longer = {}
+  local ap = {}
   for _, m in ipairs(vim.api.nvim_get_keymap(mode)) do
     local keys = vim.fn.keytrans(vim.keycode(m.lhs))
-    if keys:find("^<Space>ap.") then longer[#longer + 1] = keys end
+    if keys:find("^<Space>ap") then ap[#ap + 1] = keys end
   end
-  t.eq(longer, {}, "no <leader>ap* mapping in " .. mode .. " mode")
+  t.eq(ap, {}, "no <leader>ap mapping in " .. mode .. " mode")
 end
 t.ok(require("lazy.core.config").plugins["codecompanion.nvim"]._.loaded == nil,
   "defining them loaded no CodeCompanion")

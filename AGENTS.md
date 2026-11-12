@@ -198,9 +198,11 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   claudecode.nvim has loaded, whatever is on the right. The CodeCompanion keys
   are facade-owned too, not in its lazy spec; they load the plugin on first
   `require`. So are `<leader>av`/`aV` (review): a round belongs to a
-  conversation, and they load the review modules on first press. `<leader>ap`
-  is a leaf: no `<leader>ap*` mapping may return. `<leader>ag`/`aG`/`ah`/`aH`
-  are gone: a chat of either kind starts from `<leader>an`.
+  conversation, and they load the review modules on first press.
+  `<leader>ag`/`aG`/`ah`/`aH` are gone: a chat of either kind starts from
+  `<leader>an`. So is `<leader>ap`: the action palette's chats and prompts
+  are `<leader>an`'s and `<leader>ae`'s, and it stays `:CodeCompanionActions`
+  (a lazy `cmd` trigger).
 - Claude proposes its diffs in a tabpage of its own
   (`diff_opts.open_in_new_tab`, asserted by `tests/ai_terminal_spec.lua`):
   claudecode picks its target window by skipping `'diff'` windows, CodeDiff's
@@ -581,7 +583,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   directory; "project" names only the projects picker (`;p`). "/" joins
   single words without spaces ("Stage/unstage"), " / " phrases. A desc ends
   in "…" when the key asks something of its own -- a choice, typed input or a
-  confirmation -- before it acts: `<leader>an`/`al`/`ar`/`am`/`ae`/`ax`/`ap`,
+  confirmation -- before it acts: `<leader>an`/`al`/`ar`/`am`/`ae`/`ax`,
   `<leader>gM`/`gk`/`gK`, `<leader>Gc`, `<leader>mM`,
   `<leader>dA`/`dB`/`dL`/`de`/`dW`/`da`, `,a`, `,r`, `,ef`/`,eF`/`,ex`, `,R`,
   Python's `,v`, the status explorer's `X`. A picker whose list is itself the

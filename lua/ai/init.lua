@@ -394,10 +394,12 @@ end
 -- native-session keys (r R m) and the transcript keys (t T) reach the native
 -- agent on the right, else the one asked for.
 --
--- The CodeCompanion keys (e p o) are owned here rather than by its lazy spec,
+-- The CodeCompanion keys (e o) are owned here rather than by its lazy spec,
 -- like the rest; they load the plugin on first use, through `require` or its
--- commands. `<leader>ap` is a leaf -- a `<leader>ap*` mapping would make it
--- wait out 'timeoutlen' again; so are `<leader>an` and `<leader>al`.
+-- commands. `<leader>an` and `<leader>al` are leaves: a longer mapping would
+-- make them wait out 'timeoutlen'. The action palette has no key: its chats
+-- and prompts are `<leader>an`'s and `<leader>ae`'s, and it stays
+-- :CodeCompanionActions.
 local KEYS = {
   -- From Visual mode both take the selection to the chat they open.
   { { "n", "x" }, "n", M.new_chat, "New AI chat…" },
@@ -422,7 +424,6 @@ local KEYS = {
   { "n", "V", M.new_round, "Start review round" },
   -- The key profile of inline edits and command prompts (API credits).
   { "n", "x", function() require("ai.switch").pick() end, "Switch API key profile…" },
-  { { "n", "x" }, "p", "<cmd>CodeCompanionActions<cr>", "Companion actions…" },
   -- codecompanion-history's browser: every chat it auto-saved, either kind.
   -- A restored chat comes up through upstream's own open; the slot's guard
   -- makes the rest of the tabpage's AI windows give way to it.

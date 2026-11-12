@@ -423,7 +423,7 @@ output enter the wrapper tmux history.
 
 #### AI keys
 
-AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback) in a Git view's comma menu, starts its description with `[AI]`. The chat keys act on **the chat on the right** of the current tabpage — native Claude Code, native Codex or a CodeCompanion chat, whichever is shown there ([AI chats](#ai-chats-and-providers)) — so their descriptions name no agent. `ae`'s names the key profile it bills, and changes with `:AI key`; the Claude-only `aa` / `ad` and oil's `aS` say "Claude". A description ends in "…" when the key asks something before it acts (`an`, `al`, `ar`, `am`, `ae`, `ax`, `ap`); `aR` asks nothing, and the question every chat key may ask when nothing is on the right — which chat or agent — is not counted.
+AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback) in a Git view's comma menu, starts its description with `[AI]`. The chat keys act on **the chat on the right** of the current tabpage — native Claude Code, native Codex or a CodeCompanion chat, whichever is shown there ([AI chats](#ai-chats-and-providers)) — so their descriptions name no agent. `ae`'s names the key profile it bills, and changes with `:AI key`; the Claude-only `aa` / `ad` and oil's `aS` say "Claude". A description ends in "…" when the key asks something before it acts (`an`, `al`, `ar`, `am`, `ae`, `ax`); `aR` asks nothing, and the question every chat key may ask when nothing is on the right — which chat or agent — is not counted.
 
 | Key | Mode | Does |
 |-----|------|------|
@@ -440,7 +440,6 @@ AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback)
 | `aS` | n (oil) | Add the file under the cursor to Claude on the right |
 | `ae` | n, x | Inline edit (`:CodeCompanion`) on the API key profile |
 | `ax` | n | Switch the API key profile (`:AI key`) |
-| `ap` | n, x | CodeCompanion action palette |
 | `ao` | n | Browse saved CodeCompanion chats (a chat's `gh` is the same browser) |
 
 From Visual mode `an` and `al` take the selection to the chat they open. The
@@ -705,12 +704,15 @@ take the same place on the right as the native terminals:
 - `<leader>ae` opens `:CodeCompanion ` (with the range, from Visual mode) on
   the key profile, and `<C-c>` stops its request; with no prompt it asks in a
   float, where `<CR>` (or `<C-d>` from Insert mode) sends and `q` / `<Esc>`
-  close. `<leader>ap` is the action palette.
+  close. CodeCompanion's action palette has no key: its chats and prompts
+  are `<leader>an`'s and `<leader>ae`'s, and it is still
+  `:CodeCompanionActions`.
 - A missing key is caught before anything starts: `<leader>an` leaves out an
   API chat whose `NVIM_*` key is unset and an agent chat whose bridge is
   missing, and `<leader>ae` says so instead of a request that fails with 401.
   A chat restored from history, the action palette's *Inline prompt*
-  (`<leader>ap`) and `:CodeCompanion` typed by hand skip this check.
+  (`:CodeCompanionActions`) and `:CodeCompanion` typed by hand skip this
+  check.
 - CodeCompanion's own commands that name no adapter (a typed
   `:CodeCompanionChat`, the palette's chat) start a chat on the first `acp` in
   provider order (Claude Code, with the defaults), else on the first `api`;

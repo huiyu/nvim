@@ -387,12 +387,12 @@ labels and the listing; its header lists what it depends on.
   and `<leader>ac` brings back the last one this tabpage showed.
 - **A chat disappeared from another tabpage.** Upstream's own paths — a
   typed `:CodeCompanionChat` or `:CodeCompanionChat Toggle`, the action
-  palette (`<leader>ap`), `<leader>ao` — open a chat
+  palette (`:CodeCompanionActions`), `<leader>ao` — open a chat
   without naming a window, and CodeCompanion then closes its last chat
   wherever it is shown, another tabpage included. Nothing is lost (`:AI info`
   lists it as *hidden*); `<leader>al` shows it again. The chat keys (`an`,
-  `al`, `ac`, `af`, `ab`, `as`, `ai`) never take that path; `<leader>ap` and
-  `<leader>ao` are upstream's own, and do.
+  `al`, `ac`, `af`, `ab`, `as`, `ai`) never take that path; `<leader>ao` is
+  upstream's own, and does.
 - **Two AI windows on the right of one tabpage.** Showing a chat hides the
   others through their owners, and a `BufWinEnter` guard does the same for
   paths that never come through the facade. Neither touches a window its owner
@@ -486,7 +486,7 @@ labels and the listing; its header lists what it depends on.
 - Keys: `<leader>an` new chat (every available backend: the native
   terminals, ACP chats on the subscription, an API chat per key profile on API
   credits, each group in provider order); `<leader>al` switch chat;
-  `<leader>ac` / `af` toggle / focus the chat on the right; `<leader>ae` inline; `<leader>ap` actions; `<leader>ao` /
+  `<leader>ac` / `af` toggle / focus the chat on the right; `<leader>ae` inline; `<leader>ao` /
   `:CodeCompanionHistory` auto-saved history (also `gh` inside a chat).
 - History restores the local transcript; use `/resume` in a fresh agent chat
   to reload a stateful agent session.
@@ -511,7 +511,7 @@ labels and the listing; its header lists what it depends on.
   shell, or `:AI key <profile>` to one whose key is set (`:AI info` lists
   which). ACP chats and the native terminals are unaffected: they use the
   agent's own login. A chat restored from history, the action palette
-  (`<leader>ap`, whose *Inline prompt* runs on the key profile) and
+  (`:CodeCompanionActions`, whose *Inline prompt* runs on the key profile) and
   `:CodeCompanion` / `:CodeCompanionCmd` typed by hand skip this check and can
   still end in a 401.
 - **An ACP chat is missing from `<leader>an`.** Its bridge

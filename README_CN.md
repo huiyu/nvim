@@ -388,7 +388,7 @@ history。
 
 #### AI 快捷键
 
-AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git 视图逗号菜单中的 `,C`（审阅反馈），它的描述以 `[AI]` 开头。Chat 类的键作用于当前 tabpage **右侧的 Chat**——Native Claude Code、Native Codex 或 CodeCompanion Chat，右侧显示的是哪个就是哪个（见 [AI Chat 与 Provider](#ai-chat-与-provider)）——所以这些键的描述不写 agent 名。`ae` 的描述写明它计费所用的 key profile，并随 `:AI key` 更新；只属于 Claude 的 `aa` / `ad` 和 oil 里的 `aS` 写明 "Claude"。描述以 "…" 结尾的键会先询问再执行（`an`、`al`、`ar`、`am`、`ae`、`ax`、`ap`）；`aR` 不询问，右侧没有 Chat 时各 Chat 键都可能问的那个问题（发给哪个 Chat 或 agent）不算在内。
+AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git 视图逗号菜单中的 `,C`（审阅反馈），它的描述以 `[AI]` 开头。Chat 类的键作用于当前 tabpage **右侧的 Chat**——Native Claude Code、Native Codex 或 CodeCompanion Chat，右侧显示的是哪个就是哪个（见 [AI Chat 与 Provider](#ai-chat-与-provider)）——所以这些键的描述不写 agent 名。`ae` 的描述写明它计费所用的 key profile，并随 `:AI key` 更新；只属于 Claude 的 `aa` / `ad` 和 oil 里的 `aS` 写明 "Claude"。描述以 "…" 结尾的键会先询问再执行（`an`、`al`、`ar`、`am`、`ae`、`ax`）；`aR` 不询问，右侧没有 Chat 时各 Chat 键都可能问的那个问题（发给哪个 Chat 或 agent）不算在内。
 
 | 键 | 模式 | 作用 |
 |----|------|------|
@@ -405,7 +405,6 @@ AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git
 | `aS` | n（oil） | 把光标下的文件加给右侧的 Claude |
 | `ae` | n, x | Inline 编辑（`:CodeCompanion`），用 API key profile |
 | `ax` | n | 切换 API key profile（`:AI key`） |
-| `ap` | n, x | CodeCompanion 操作面板 |
 | `ao` | n | 浏览已保存的 CodeCompanion Chat（Chat 里的 `gh` 是同一个浏览器） |
 
 在 Visual 模式下，`an` 和 `al` 会把选区带给它们打开的 Chat。Native Agent 类的键作用于
@@ -623,10 +622,11 @@ CodeCompanion 的 Chat 是一个 Neovim buffer，分两种。打开后看起来�
   另一个 Chat 用 `<leader>al`。
 - `<leader>ae` 打开 `:CodeCompanion `（在 Visual 模式下带上范围），用的是 key
   profile，`<C-c>` 停止它的请求；不写提示词时会弹出浮窗，`<CR>`（Insert 模式下
-  `<C-d>`）发送，`q` / `<Esc>` 关闭。`<leader>ap` 是操作面板。
+  `<C-d>`）发送，`q` / `<Esc>` 关闭。CodeCompanion 的操作面板不占键位：它的 Chat 和
+  提示词由 `<leader>an`、`<leader>ae` 提供，需要时仍可输入 `:CodeCompanionActions`。
 - 缺 key 会在启动任何东西之前被发现：`NVIM_*` key 没设置的 API Chat、ACP bridge
   不在的 Agent Chat，`<leader>an` 都不会列出；`<leader>ae` 会直接提示，而不是发出
-  请求再收到 401。从历史恢复的 Chat、操作面板（`<leader>ap`）里的 *Inline prompt*，
+  请求再收到 401。从历史恢复的 Chat、操作面板（`:CodeCompanionActions`）里的 *Inline prompt*，
   以及手动输入的 `:CodeCompanion` 不经过这道检查。
 - CodeCompanion 自己那些不指定 adapter 的命令（手动输入的 `:CodeCompanionChat`、操作
   面板里的 Chat）会按 provider 顺序用第一个 `acp` 新建 Chat（默认配置下是 Claude
