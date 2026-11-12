@@ -1386,7 +1386,7 @@ function chat_ui:hide()
 end
 -- Upstream's own window for a chat, standing in: ui:open splits one in this
 -- tabpage, and Chat.open with a window (the handoff from another chat,
--- lua/ai/companion.lua show) takes that one.
+-- ai.slot.show_chat through companion.open) takes that one.
 function chat_ui:open()
   vim.cmd("botright split")
   api.nvim_win_set_buf(0, chat_buf)

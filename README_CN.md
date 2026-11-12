@@ -531,8 +531,9 @@ transcript 是唯一对两个 agent 都成立的方案，且重启 Nvim 后依�
   所以不会因为询问而丢失。Claude Code 收到所选行的文件引用，Codex 收到键入输入框的
   `@路径 lines X-Y` 引用，Chat 收到加进输入区的围栏代码块；都不会提交。两个 agent
   都读磁盘上已保存的文件，所以 buffer 有未保存修改时，Codex 改收精确的文本，Claude
-  Code 则给出警告。`<leader>ab` 只给 Native Agent；Chat 用选区，或在自己的输入区里
-  用 `#{buffer}`。
+  Code 则给出警告。`<leader>ab` 像 Chat 自己的 `/buffer` 一样，把文件作为 context
+  加进 Chat：API Chat 收到 buffer 的文本，包括未保存的修改；Agent Chat 只收到路径，
+  由它的 agent 读磁盘上已保存的文件，所以有未保存修改时同样给出警告。
 - 在 CodeDiff 视图里，这些键作用于打开该视图的那个页面，并切换到那里，视图里不会打开
   任何东西；在视图里取消询问会回到视图。
 - Claude Code 隐藏时仍能看到编辑器里的选区：claudecode 的选区跟踪一直开着，与右侧

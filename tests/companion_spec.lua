@@ -254,11 +254,11 @@ local parser = require("codecompanion.interactions.chat.parser")
 t.eq(parser.messages(restored, parser.headers(restored) + 1), { content = "next question" },
   "and the next question still parses on its own")
 restored:close()
-companion.show(anthropic)
+require("ai.slot").show_chat(anthropic)
 t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
 
 ---------------------------------------------------------------------------
--- Upstream internals the slot relies on (lua/ai/companion.lua show/create)
+-- Upstream internals the slot relies on (lua/ai/companion.lua open/create)
 ---------------------------------------------------------------------------
 
 -- A chat created hidden: rendered, announced, not on screen, and not
@@ -301,7 +301,7 @@ t.eq(vim.api.nvim_win_get_cursor(hidden.ui.winnr)[1], vim.api.nvim_buf_line_coun
 vim.api.nvim_del_augroup_by_id(event_group)
 hidden:close()
 vim.api.nvim_set_current_win(editor_win)
-companion.show(anthropic)
+require("ai.slot").show_chat(anthropic)
 t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
 
 ---------------------------------------------------------------------------
@@ -401,7 +401,7 @@ vim.api.nvim_set_current_win(editor_win)
 -- last_chat is the Anthropic chat now. Upstream's Add would append there; the
 -- OpenAI chat on the right gets it instead.
 t.eq(Chats.last_chat(), anthropic, "upstream's last chat is the Anthropic one")
-companion.show(openai)
+require("ai.slot").show_chat(openai)
 vim.api.nvim_set_current_win(editor_win)
 vim.api.nvim_win_set_cursor(0, { 2, 0 })
 vim.api.nvim_feedkeys("Vj as", "x", false)
@@ -440,7 +440,7 @@ fresh:close()
 
 -- Upstream's :'<,'>CodeCompanionChat Add appends to last_chat, which need not
 -- be the chat on the right: nothing falls back to it.
-companion.show(anthropic)
+require("ai.slot").show_chat(anthropic)
 local real_capture, real_cmd = companion.add_capture, vim.cmd
 local ran = {}
 companion.add_capture = function() error("spec: add broke") end

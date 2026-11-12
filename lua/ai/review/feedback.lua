@@ -1383,7 +1383,7 @@ local function sink(path, target, known)
       return notify({ "Could not add the feedback to the chat. Draft kept:", tostring(err or why) })
     end
     delivered(path, snapshot, known)
-    local shown_ok, show_err = pcall(companion.show_input, target.chat)
+    local shown_ok, show_err = pcall(require("ai.slot").focus_chat_prompt, target.chat, true)
     if not shown_ok then notify({ "The feedback is in the chat, which could not be shown:", tostring(show_err) }) end
     return
   end

@@ -1043,7 +1043,7 @@ the request goes, and who pays for it, does not:
 | Paid by | Subscription | Subscription | API credits |
 
 Each has its Codex or OpenAI twin. Once started, all three are reached the same
-way: they take turns on the right, and `as`, `ai`, `ac` and `af` act on
+way: they take turns on the right, and `as`, `ab`, `ai`, `ac` and `af` act on
 whichever is there.
 
 Pick by what you are doing:

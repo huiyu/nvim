@@ -141,7 +141,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   delivered silently to a hidden chat, another tabpage's or a provider picked
   for the user; `vim.t.ai_slot_last` only lets `ac`/`af` bring the last one
   back.
-  `ab` asks among the native agents alone, since a chat takes no file. A
+  `ab` gives a native agent a file mention and a chat the file as context,
+  as the chat's own `/buffer` adds it (`ai.companion.add_buffer`): an API
+  chat is sent the buffer's text, an ACP chat only the path, which its agent
+  reads from disk, so an unsaved buffer is said for it as for a native
+  agent; a buffer that is no file (a terminal, a panel, the chat itself) is
+  refused for a chat. A
   selection is captured with plain Neovim API before any question
   (`ai.selection.capture`): vim.ui.select is asynchronous, and Visual mode is
   gone by its answer. `ar`/`aR`/`am` and `at`/`aT` act on the native agent
@@ -847,7 +852,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `codecompanion.chat()` and `buf_get_chat()`'s entries, because upstream's
   Toggle and Add cannot be aimed at one chat, and its window-less `Chat.open`
   closes `last_chat` wherever it is shown. A chat is created hidden and shown
-  as exactly itself: gone to in another tabpage, handed a chat window here
+  as exactly itself (`ai.slot.show_chat`, which opens it through
+  `ai.companion.open`): gone to in another tabpage, handed a chat window here
   (`ui:hide({ keep_window = true })` then `Chat.open({ ui, winnr })`), or
   given a window by `ui:open()` once the slot has made room; it is not
   upstream's `last_chat` until first entered. Nothing here calls
@@ -859,23 +865,29 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   its successor in the closed chat's window, which becomes the successor's
   own (`ui.winnr`), and leaves the successor's buffer in the window of the
   tabpage that showed it: there it is still the chat on the right, shown in
-  a window that is not its own, which `show` and `focus_prompt` use where it
-  is and `<leader>ac` closes.
+  a window that is not its own, which `show_chat` and `focus_prompt` use
+  where it is and `<leader>ac` closes.
   `ai.slot` reaches chats only through `ai.companion` (`chats`, `chat_of`,
-  `key`, `buf`, `label`, `name`, `win`, `where`, `busy`, `hide`, `create`,
-  `focus_prompt`), which reads them in a pcall and checks what it gets. A
+  `key`, `buf`, `label`, `name`, `win`, `win_here`, `where`, `busy`, `hide`,
+  `open`, `create`, `focus_prompt`), which reads them in a pcall and checks
+  what it gets; `ai.companion` never calls back into the slot. A
   failure is reported as an error by the facade's guards; nothing falls back
   to an upstream command, which would aim at `last_chat` instead.
   `tests/companion_spec.lua` pins the internals without creating an ACP chat
   (that spawns the bridge) or sending a request, and
   `tests/ai_slot_spec.lua` the slot. Review feedback goes to one exact chat
-  through `add_text`, `busy` and `show_input`, which also read
+  through `add_text` and `busy`, which also read
   `chat.current_request` and the private
   `chat._turn_in_progress`: a tool loop clears `current_request` and makes the
   buffer editable between its steps, and only that flag stays set. It is read
   in a pcall, so a rename upstream loses that signal only; `add_text` answers
   `false, "gone"|"busy"|"failed"` rather than raising, and
-  `tests/review_feedback_spec.lua` pins the mid-loop refusal.
+  `tests/review_feedback_spec.lua` pins the mid-loop refusal. `<leader>ab`'s
+  file goes to one exact chat through `add_buffer`, which calls the output
+  of upstream's `/buffer` (`interactions.shared.slash_commands.buffer`,
+  `new` and `output`) on it, refuses as `add_text` does, and reads
+  `chat.messages` to tell whether it took (`output` reports a failure only
+  to CodeCompanion's log).
 - which-key keeps description-only spec entries in its own trie, so `maparg()`
   cannot see those. Entries with an RHS are created through `vim.keymap.set`
   after which-key's scheduled loader runs; assert those with `maparg()` after

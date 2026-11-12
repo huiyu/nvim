@@ -594,8 +594,10 @@ tabpages are left alone.
   selected lines, Codex the `@path lines X-Y` mention typed into its box, a
   chat a fenced block in its prompt; nothing is submitted. Both agents read
   the saved file, so for a buffer with unsaved changes Codex gets the exact
-  text instead and Claude Code a warning. `<leader>ab` is for the native
-  agents; a chat takes a selection, or `#{buffer}` in its own prompt.
+  text instead and Claude Code a warning. `<leader>ab` gives a chat the file
+  as context, as its own `/buffer` does: an API chat gets the buffer's text,
+  unsaved changes included; an agent chat gets the path and its agent reads
+  the saved file, so it warns of unsaved changes too.
 - From a CodeDiff view the keys act on the page the view was opened from,
   which becomes the current tabpage, so nothing opens inside the view; a
   question cancelled there goes back to it.

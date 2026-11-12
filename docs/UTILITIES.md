@@ -1315,6 +1315,12 @@ slot.switch(cb, opts?)    -- the switcher: open chats (here first, then by use)
 -- Showing and hiding.
 slot.reveal(item)         -- show here and focus (terminal input, chat prompt);
                           -- one shown in another tabpage is gone to
+slot.show_chat(chat, opts?) --> shown, "jumped"?: exactly that CodeCompanion
+                          -- chat. Shown here: focus; shown in another tabpage:
+                          -- go there; else take a chat window here in place,
+                          -- or split one after making room (companion.open).
+                          -- opts: focus (default true), toggled, quiet
+slot.focus_chat_prompt(chat, insert?) -- show_chat, then companion.focus_prompt
 slot.make_room(item, opts?) --> "here" | "elsewhere" | "room" | nil
                           -- before a backend shows `item`: go where it is
                           -- shown, or hide the rest here; a cold start goes to
@@ -1326,7 +1332,7 @@ slot.jump(item, opts?)    -- to the tabpage showing it; says so unless quiet
 slot.went(item, from)     -- "Sent to X (tab N)" when a delivery changed tabpage
 slot.toggle(), slot.focus()  -- <leader>ac (and q in a chat) / <leader>af
 
--- The pieces the facade (ai) and ai.companion build on.
+-- The pieces the facade (ai) builds on.
 slot.native_item(agent), slot.chat_item(chat)  -- an item for one agent / chat
 slot.buf_of(item)         -- its buffer; nil once it is gone
 slot.item_of_buf(buf)     -- the item `buf` shows, if it is an AI buffer
@@ -1378,10 +1384,10 @@ companion.preflight(what)      -- false (and an ERROR) when an "http" backend's
 companion.create(spec, extra?) -- a chat on one ai.config.backends() entry, created
                                -- hidden from the editor window and announced
                                -- ("New chat: <label>"); nil when refused
-companion.show(chat, opts?)    -- shown here: focus; shown in another tabpage: go
-                               -- there; else take a chat window here in place, or
-                               -- split one after the slot made room.
-                               -- opts: focus (default true), toggled, quiet
+companion.open(chat, opts?)    -- open its window here: in opts.win (a chat window
+                               -- handed over), else a split of its own; which, and
+                               -- what makes way, is slot.show_chat's.
+                               -- opts: win, toggled
 companion.hide(chat, opts?)    --> ok, err: ui:hide, never raising; keep_window
                                -- leaves the window for the next chat
 companion.chats()              -- every live chat, with buf_get_chat()'s entry
@@ -1391,8 +1397,8 @@ companion.win(chat), companion.win_here(chat), companion.where(chat)
 companion.add_capture(chat, cap) --> true | false, why
                                -- a captured selection (ai.selection.capture),
                                -- fenced with its source; never submits
-companion.focus_prompt(chat, insert?) -- show it, cursor at the end of its prompt;
-                               -- Insert mode unless it is replying
+companion.focus_prompt(chat, insert?) -- cursor at the end of its prompt, where it
+                               -- is shown here; Insert mode unless it is replying
 companion.inline_keys()        -- ":CodeCompanion " or "<Ignore>" (the <leader>ae expr)
 companion.sync()               -- write the live inline/cmd adapters, never the chat's
 
@@ -1401,8 +1407,16 @@ companion.busy(chat)           -- mid-turn: a request in flight, a tool loop bet
                                -- two steps, or a buffer that is not modifiable
 companion.add_text(chat, text) --> true | false, "gone"|"busy"|"failed", err?
                                -- append to that chat's prompt; never submits
-companion.show_input(chat)     -- focus_prompt(chat, true)
+
+-- For <leader>ab, aimed at one exact chat:
+companion.is_acp(chat)         -- an agent chat (ACP) rather than an API chat
+companion.add_buffer(chat, buf) --> true | false, "disabled"|"gone"|"busy"|"failed", err?
+                               -- the file as context, as the chat's own /buffer
+                               -- adds it; never submits
 ```
+
+Review feedback shows the chat it added to with
+`slot.focus_chat_prompt(chat, true)`.
 
 `add_text` writes to the chat CodeCompanion still keeps for `chat.bufnr`
 with the same `chat.id` -- never a newer chat that reuses the buffer -- and
@@ -1410,6 +1424,15 @@ refuses, changing nothing, while that chat is busy or gone. `prompt:add`
 writes at the buffer's last column, so text that is to follow what the user
 already typed starts with `"\n"`; review feedback always does. A chat whose
 buffer is gone is not busy, it is gone.
+
+`add_buffer` calls the output of upstream's `/buffer` on exactly that chat: a
+hidden message and an entry in its Context list. What the next turn carries is
+upstream's choice by transport: an API chat sends the buffer's text, unsaved
+edits included; an ACP chat sends only the path, and its agent reads the saved
+file -- which is why the facade warns of unsaved changes for an ACP chat
+(`is_acp`). It refuses as `add_text` does, and with `"disabled"` when
+CodeCompanion's `can_send_code()` is off. `output` reports a failure only to
+CodeCompanion's log, so success is read off the message count.
 
 `preflight` only guards what starts something: creating a chat (an agent chat
 spawns its bridge at once, an API chat already fetches the model list with the
@@ -1421,7 +1444,10 @@ The module reads CodeCompanion's internals: `chat.adapter`, `chat.ui`
 (`is_visible`, `is_visible_non_curtab`, `open`, `hide({ keep_window })`,
 `winnr`), `chat.title`, `chat.bufnr`, `chat.id`, `chat.prompt:add`,
 `interactions.chat.open({ ui, winnr })`, the `hidden` chat argument and
-`buf_get_chat()`'s entries; `busy`, `add_text` and `show_input` also read
+`buf_get_chat()`'s entries; `add_buffer` reads `config.can_send_code()`,
+`interactions.chat.slash_commands.buffer`, the `/buffer` command's module
+(`interactions.shared.slash_commands.buffer`, `new` and `output`) and
+`chat.messages`; `busy` and `add_text` also read
 `chat.current_request` and the private `chat._turn_in_progress`: between two
 steps of a tool loop `current_request` is already nil and the buffer editable
 again, and only that flag is still set. Each is read in a pcall, so a rename

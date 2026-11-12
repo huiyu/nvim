@@ -6,10 +6,10 @@
 --
 -- A chat is created by backend (create: one of ai.config.backends(), from
 -- <leader>an, hidden at first) and then put on screen as exactly that chat
--- (show). Upstream's Toggle and Add cannot be aimed at one chat: they only
--- know `last_chat`.
+-- (the slot's show_chat, which opens it through open() here). Upstream's
+-- Toggle and Add cannot be aimed at one chat: they only know `last_chat`.
 --
--- show() never calls upstream's Chat.open without a window. That path closes
+-- open() never calls upstream's Chat.open without a window. That path closes
 -- `last_chat` wherever it is shown, another tabpage included. Instead: a chat
 -- shown in another tabpage is gone to, not moved here; a chat window here is
 -- handed over in place (the shown chat's ui:hide({ keep_window = true }), then
@@ -23,13 +23,17 @@
 -- (is_visible / is_visible_non_curtab / open / hide / winnr), `chat.title`,
 -- `chat.bufnr`, `chat.id`, `chat.prompt:add`, `interactions.chat.open`, the
 -- `hidden` chat argument and buf_get_chat()'s entries. This module is the one
--- reader: the slot asks it (chats, chat_of, key, buf, label, name, win, where,
--- busy, hide, create, focus_prompt) rather than reading a chat itself, and the facade reports any failure as an error
+-- reader: the slot asks it (chats, chat_of, key, buf, label, name, win,
+-- win_here, where, busy, hide, open, create, focus_prompt) rather than
+-- reading a chat itself, and the facade reports any failure as an error
 -- rather than falling back to an upstream command aimed at some other chat.
 -- tests/companion_spec.lua pins the behaviour. Text goes to one exact chat
 -- through add_text (review feedback, a captured selection), which also reads
 -- `chat.current_request` and the private `chat._turn_in_progress` (busy), and
--- refuses rather than raise when they have changed.
+-- refuses rather than raise when they have changed. A file goes to one exact
+-- chat through add_buffer, which calls the output of upstream's /buffer
+-- (`interactions.shared.slash_commands.buffer`, new and output) on it and
+-- reads `chat.messages` to tell whether it took.
 --
 -- Nothing here requires CodeCompanion at the top level. The first call that
 -- needs it does, and lazy's module autoload loads the plugin then -- so the
@@ -133,11 +137,6 @@ function M.win_here(chat)
   end
 end
 
----Is the chat on screen in this tabpage, in its own window?
-local function here(chat)
-  return M.where(chat) == "here"
-end
-
 ---Hide the chat's own window through its ui (ui:hide), never raising.
 ---@param chat table
 ---@param opts? { keep_window?: boolean } leave the window for the next chat
@@ -220,54 +219,26 @@ function M.label(chat, entry)
   return ("%s · %s · %s"):format(adapter.formatted_name or adapter.name or "?", kind, name or ("#" .. chat.bufnr))
 end
 
-local function focus(chat)
-  local win = chat and M.win_here(chat)
-  if win then vim.api.nvim_set_current_win(win) end
-end
-
----Put exactly `chat` on screen. Shown in this tabpage already, in any window:
----there. Else shown in another tabpage: go there, nothing moves. Else in this
----tabpage, the slot's way (lua/ai/slot.lua): a chat window here hands itself
----over, or the AI windows here make way for a new one.
+---Open `chat`'s window in this tabpage: in `opts.win`, a chat window handed
+---over (Chat.open({ ui, winnr }), which is ui:show_in_win), else a split of
+---its own from the current window (ui:open). Which one, and what makes way
+---for it, is the slot's (show_chat in lua/ai/slot.lua).
 ---@param chat table a CodeCompanion.Chat
----@param opts? { focus?: boolean, toggled?: boolean, quiet?: boolean } focus defaults to true; toggled keeps the cursor where it was left; quiet: a jump says nothing (a delivery says where it went itself)
----@return boolean shown, "jumped"? how
-function M.show(chat, opts)
+---@param opts? { win?: integer, toggled?: boolean }
+function M.open(chat, opts)
   opts = opts or {}
-  local ui = chat.ui
-  if here(chat) or M.win_here(chat) then
-    if opts.focus ~= false then focus(chat) end
-    return true
-  end
-  local slot = require("ai.slot")
-  local item = slot.chat_item(chat)
-  if M.where(chat) == "elsewhere" then
-    slot.jump(item, { focus = opts.focus ~= false, quiet = opts.quiet })
-    return true, "jumped"
-  end
-  local from = vim.api.nvim_get_current_win()
-  local donor = slot.chat_window_here(item)
-  if donor then
-    slot.hide(donor.item, { keep_window = true })
-    require("codecompanion.interactions.chat").open({ ui = ui, winnr = donor.win, toggled = opts.toggled })
-    slot.cover(item)
+  if opts.win then
+    require("codecompanion.interactions.chat").open({ ui = chat.ui, winnr = opts.win, toggled = opts.toggled })
   else
-    slot.around(item, function() ui:open({ toggled = opts.toggled }) end)
+    chat.ui:open({ toggled = opts.toggled })
   end
-  slot.remember(item)
-  if opts.focus ~= false then
-    focus(chat)
-  elseif vim.api.nvim_win_is_valid(from) then
-    -- ui:open splits from the current window and stays in the split.
-    vim.api.nvim_set_current_win(from)
-  end
-  return here(chat)
 end
 
 ---Start a chat on one backend (an "acp" or "http" entry of
----ai.config.backends()), hidden: show() puts it on screen. Refused before
----anything starts when its key or bridge is missing. The chat is created from
----the editor window, so its context and its review root are the edited file's.
+---ai.config.backends()), hidden: ai.slot.show_chat puts it on screen.
+---Refused before anything starts when its key or bridge is missing. The chat
+---is created from the editor window, so its context and its review root are
+---the edited file's.
 ---@param spec ai.Backend
 ---@param extra table? more CodeCompanion.chat() arguments
 ---@return table|nil chat
@@ -358,13 +329,51 @@ function M.add_text(chat, text)
   return true
 end
 
----Put `chat` on screen (show) and the cursor at the end of its prompt. With
----`insert`, in Insert mode too -- unless the chat is mid-turn, whose buffer is
----locked: the first key typed would be E21, so it says so instead.
+---Is `chat` an agent chat (an agent CLI over ACP) rather than an API chat?
+---@param chat table a CodeCompanion.Chat
+---@return boolean
+function M.is_acp(chat)
+  return type(chat) == "table" and type(chat.adapter) == "table" and chat.adapter.type == "acp"
+end
+
+---Add the file in `buf` to exactly `chat` as context, through the output of
+---CodeCompanion's own /buffer (interactions/shared/slash_commands/buffer.lua):
+---a hidden message and an entry in the chat's Context list. Nothing is
+---submitted. What the next turn carries is upstream's choice by transport: an
+---API chat sends the buffer's text, unsaved edits included; an ACP chat sends
+---only "Sharing the following file as context: <path>" (build_messages in
+---adapters/acp/helpers.lua), and its agent reads the saved file.
+---
+---Refused while the chat is busy or gone, as add_text is. output() reports
+---its own failures through CodeCompanion's log and returns nothing, so success
+---is read off the hidden message it adds.
+---@param chat table a CodeCompanion.Chat
+---@param buf integer a buffer with a file name
+---@return boolean ok, "disabled"|"gone"|"busy"|"failed"|nil why, string? err
+function M.add_buffer(chat, buf)
+  if not require("codecompanion.config").can_send_code() then return false, "disabled" end
+  local live = exact(chat)
+  if not live then return false, "gone" end
+  if M.busy(live) then return false, "busy" end
+  local before = #live.messages
+  local ok, err = pcall(function()
+    local cc_config = require("codecompanion.config")
+    require("codecompanion.interactions.shared.slash_commands.buffer")
+      .new({ Chat = live, config = cc_config.interactions.chat.slash_commands.buffer, context = {} })
+      :output({ bufnr = buf, path = vim.api.nvim_buf_get_name(buf), name = vim.fn.bufname(buf) }, { silent = true })
+  end)
+  if not ok then return false, "failed", tostring(err) end
+  if #live.messages == before then return false, "failed" end
+  return true
+end
+
+---The cursor at the end of `chat`'s prompt, in its window in this tabpage
+---(the slot's focus_chat_prompt puts it on screen first). With `insert`, in
+---Insert mode too -- unless the chat is mid-turn, whose buffer is locked: the
+---first key typed would be E21, so it says so instead.
 ---@param chat table a CodeCompanion.Chat
 ---@param insert boolean?
 function M.focus_prompt(chat, insert)
-  if not (here(chat) or M.win_here(chat)) then M.show(chat) end
   local win = M.win_here(chat)
   if not win then return end
   vim.api.nvim_set_current_win(win)
@@ -375,13 +384,6 @@ function M.focus_prompt(chat, insert)
     return
   end
   vim.cmd("startinsert!")
-end
-
----Put `chat` on screen, the cursor at the end of its prompt, in Insert mode:
----where text add_text appended is to be read and finished.
----@param chat table a CodeCompanion.Chat
-function M.show_input(chat)
-  return M.focus_prompt(chat, true)
 end
 
 ---Keys for <leader>ae: the inline prompt's command line, or nothing when the

@@ -440,8 +440,13 @@ labels and the listing; its header lists what it depends on.
     unsaved changes), and `<leader>ab` warns that Codex reads the saved file.
   - A chat gets the selection as a fenced block at the end of its prompt.
     `The chat is replying: nothing was added` while it is mid-turn (a tool
-    loop included). `<leader>ab` sends a chat nothing: it takes a selection,
-    or `#{buffer}` in its own prompt.
+    loop included). `<leader>ab` adds the file to a chat as its own
+    `/buffer` does: an entry in its Context list and a hidden message, sent
+    with the next prompt. An API chat is sent the buffer's text; an agent
+    chat only `Sharing the following file as context: <path>`, and its agent
+    reads the saved file (`An agent chat reads the saved file` for a buffer
+    with unsaved changes). `Current buffer is not a file` from a terminal, a
+    panel or the chat itself.
   A Visual selection in oil goes only to Claude Code on the right, and
   nowhere when anything else is there: a listing's selection cannot wait for
   a question.
@@ -494,7 +499,7 @@ labels and the listing; its header lists what it depends on.
   *AI backends*, names each one missing. A CLI installed later is found at
   the next press; a variable exported in another shell is not, until Nvim is
   started from a shell that has it. The keys that take only a native agent
-  (`<leader>ab`, `ar`, `aR`, `am`, `at`, `aT`) say `No native agent is
+  (`ar`, `aR`, `am`, `at`, `aT`) say `No native agent is
   installed (claude, codex)` instead. An entry ending in `⚠ ANTHROPIC_API_KEY
   is set — it may bill the API` (or `OPENAI_API_KEY`) is listed, but its
   "subscription" may not hold: see *The agent bills the API* below.

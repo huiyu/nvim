@@ -138,7 +138,7 @@ local function deliver_capture(item, cap, from)
   if item.kind == "chat" then
     local ok, why = companion().add_capture(item.chat, cap)
     if not ok then return companion().refused(why) end
-    companion().show(item.chat, { quiet = true })
+    slot().show_chat(item.chat, { quiet = true })
   elseif item.agent == "claude" then
     if cap.path == "" then
       return notify("This buffer has no file, and Claude Code takes a selection as a file mention: save it, or <leader>ai",
@@ -208,26 +208,37 @@ function M.send_selection()
   end)
 end
 
----<leader>ab: the current buffer, as a file mention, to the native agent on
----the right. A chat takes a selection or its own #{buffer} instead -- so a
----question offers the native agents alone: a chat picked or created there
----would only be refused.
+---<leader>ab: the current buffer's file, to the chat on the right. A native
+---agent gets a file mention; a CodeCompanion chat gets it as context, as its
+---own /buffer adds it (ai.companion.add_buffer).
 function M.add_buffer()
   return guard("AI chat", "add_buffer", function()
     local buf = vim.api.nvim_get_current_buf()
     local path, modified = vim.api.nvim_buf_get_name(buf), vim.bo[buf].modified
+    local is_file = vim.bo[buf].buftype == ""
     slot().target(on_item("add_buffer", function(item, from)
-      if item.kind == "chat" then
-        return notify("A chat takes a selection (<leader>as),\nor #{buffer} / /buffer in its own prompt")
-      end
       if path == "" then return notify("Current buffer has no file path", vim.log.levels.WARN) end
+      if item.kind == "chat" then
+        -- A terminal, a panel or the chat itself has a name but no file.
+        if not is_file then return notify("Current buffer is not a file", WARN) end
+        local ok, why = companion().add_buffer(item.chat, buf)
+        if not ok then return companion().refused(why) end
+        slot().show_chat(item.chat, { quiet = true })
+        -- An agent chat is sent the path alone, and its agent reads the file
+        -- from disk, as a native agent's mention is.
+        if modified and companion().is_acp(item.chat) then
+          notify("An agent chat reads the saved file; this buffer has unsaved changes, so it will not see them"
+            .. " (<leader>as takes the selected text itself)", WARN)
+        end
+        return slot().went(item, from)
+      end
       local room = slot().make_room(item, { quiet = true })
       if not room then return end
       if item.agent == "claude" and room == "room" then backend("claude").reveal() end
       -- Both agents read the file from disk, and say so for an unsaved edit.
       backend(item.agent).add_path(path, modified)
       slot().went(item, from)
-    end), { prompt = "Add file to", native_only = true })
+    end), { prompt = "Add file to" })
   end)
 end
 
@@ -293,7 +304,7 @@ function M.compose()
           local ok, why = companion().add_capture(item.chat, cap)
           if not ok then return companion().refused(why) end
         end
-        return companion().focus_prompt(item.chat, true)
+        return slot().focus_chat_prompt(item.chat, true)
       end
       if editor.focus_open(seed, item.agent) then return end
       if not slot().make_room(item) then return end
