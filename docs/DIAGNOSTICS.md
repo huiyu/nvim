@@ -286,9 +286,14 @@ labels and the listing; its header lists what it depends on.
   panel, where it stages or unstages a file. `gf` opens the file in the
   previous tab and `<leader>gq` closes the view. These are whole keys: the key
   typed after one is not swallowed.
-- **`The diff view lost a pane, so its tab was closed`** — `:e` in the baseline
-  pane, or closing one pane, ends CodeDiff's session and leaves a dead tab
-  behind; this config closes it. Use `gf` to edit the file.
+- **`<file> cannot replace a CodeDiff pane`** — intended: `:e`, `:b`, `<C-o>`,
+  a quickfix or location jump, `[o`/`[j` or an LSP jump tried to put another
+  file in a pane or the file panel, and the view's buffer was put back (with
+  its scroll position). `gf` opens the pane's file in the previous tab and
+  `<leader>gq` closes the view. A swap under `:noautocmd` is not seen.
+- **`The diff view lost a pane, so its tab was closed`** — closing one pane
+  ends CodeDiff's session and leaves a dead tab behind; this config closes it.
+  Use `gf` to edit the file.
 - **`This tab already shows a CodeDiff view; <leader>gq closes it`** —
   `<leader>gv` in a CodeDiff tab: a bare `:CodeDiff` there would close the view
   instead.
