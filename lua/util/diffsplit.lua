@@ -18,7 +18,8 @@ local PREFIX = "gitsigns://"
 ---@param tab integer
 ---@return integer[]
 local function layout_wins(tab)
-  -- ui2 keeps its floats in every tabpage; only split windows make a layout.
+  -- Floats (notifications, noice's popups, incline) come and go in any
+  -- tabpage; only split windows make a layout.
   return vim.tbl_filter(function(win)
     return vim.api.nvim_win_get_config(win).relative == ""
   end, vim.api.nvim_tabpage_list_wins(tab))

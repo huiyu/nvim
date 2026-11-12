@@ -123,9 +123,10 @@ spec 刻意逐个运行：有些 spec 依赖同一时间只有一个 Nvim 在用
 | 插件 | 说明 |
 |------|------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识、当前 buffer 的 git 改动行数（取自 gitsigns）和语言服务器（忙碌时显示转圈） |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识、按了一半的命令或 Visual 选区大小（`2d`、`3x12`）、当前 buffer 的 git 改动行数（取自 gitsigns）和语言服务器（忙碌时显示转圈） |
 | [incline](https://github.com/b0o/incline.nvim) | 文件窗口右上角的文件名标签；当前窗口显示粉色，`[+]` 表示未保存的修改 |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择，`;B` 按标签字母选一个）；`<leader>bh` 关掉所有 tabpage 里都没有窗口在显示的 buffer |
+| [noice](https://github.com/folke/noice.nvim) | 命令行和消息：`:` 在屏幕上方的弹窗里输入，补全菜单跟在下面；`/` 和 `?` 留在最底一行；Vim 的消息和报错以通知弹出（由下面的 snacks 显示）；`:w`、撤销、quickfix 的确认以小字显示在右下角；`:messages` / `g<` 在分屏里查看；不再出现 "Press ENTER" 提示 |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | 粘性函数/类头（`<leader>uC`） |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
@@ -135,10 +136,6 @@ spec 刻意逐个运行：有些 spec 依赖同一时间只有一个 Nvim 在用
 | [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮；`]r` / `[r` 跳到它的下一处 / 上一处引用 |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL、CSS 变量颜色预览；前端文件支持 Tailwind 颜色 |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染（`,m`） |
-
-命令行和消息用的是 Neovim 自带的 ui2（实验性功能，见 `:help ui2`）：不再出现
-"Press ENTER" 提示；放不下的输出收起为 `[+N]`，用 `g<` 或 `:messages` 在分页
-窗口中查看（`q` 关闭）。通知由下面的 snacks 负责。
 
 #### 编辑器
 

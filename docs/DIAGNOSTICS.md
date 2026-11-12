@@ -27,7 +27,7 @@ servers, versions?) is filled by a native health provider: `:checkhealth config`
 | `<leader>av` finds no round, or delivering feedback refuses | `:checkhealth config` (review) · `git for-each-ref refs/nvim-review/` · [Review rounds](#review-rounds-and-agent-hooks) |
 | File search / terminal starts in an unexpected directory | `:pwd` · `:verbose pwd` · `:cd /path/to/project` |
 | Mason tool missing | `:Mason` (`<leader>mm`) · `:checkhealth mason` |
-| Error flashed by | `:messages` / `g<` (Vim's own messages) · `<leader>mnh` (plugin notifications) |
+| Error flashed by | `<leader>mnh` (every popup: plugin notifications and Vim's messages) · `:messages` / `g<` (Vim's own messages) |
 | "Where did this keymap/option come from?" | `:verbose map <lhs>` · `:verbose set <opt>?` |
 | Config won't load cleanly | headless self-check (below) |
 
@@ -1302,33 +1302,48 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   `;D` resolve a local directory with `util.cwd.buffer_dir()`: the file's parent,
   the displayed Oil directory, or the current window/tab cwd for terminals and
   other virtual buffers. Restart Nvim after updating to replace the old mappings.
-- **Where a message went** — two places, not one. Vim's own messages
-  (`:echomsg`, `:echoerr`, errors such as `E492`, Lua `print()` and
-  tracebacks) are in `:messages` (`<leader>mna`). Plain `:echo` is never kept
-  there: only `g<` (`<leader>mnl`) shows it again, and only while it is still
-  the last command's output. Both show in ui2's pager window, where `q`
-  closes. Anything sent through `vim.notify` --
-  plugins, LSP `window/showMessage`, this config's own warnings -- goes to the
-  snacks notifier instead and is only in its history: `<leader>mnh`, or
-  `<leader>mnt` to search it. `<leader>un` dismisses. Under
-  `--headless` neither ui2 nor the notifier is enabled, so `vim.notify` prints
-  to stderr as usual. A UI attached later (`nvim --headless --listen`, then
-  `nvim --remote-ui`) gets both on its first `UIEnter`.
-- **A message shows only its first line, with `[+N]`** — ui2 collapses output
-  taller than 'cmdheight'. Press `g<` to read it in full. A multi-line error is
-  not expanded at all, so its traceback is only reachable through `g<` or
-  `:messages`.
+- **Where a message went** — Vim's own messages (`:echomsg`, `:echoerr`,
+  errors such as `E492`, Lua `print()` and tracebacks) are in `:messages`
+  (`<leader>mna`). Plain `:echo` is never kept there: only `g<`
+  (`<leader>mnl`) shows it again, and only while it is still the last
+  command's output. noice (`lua/plugins/ui/noice.lua`) shows both in a split,
+  where `q` closes. noice also pops those messages up through the snacks
+  notifier, where anything sent through `vim.notify` -- plugins, LSP
+  `window/showMessage`, this config's own warnings -- goes directly. Its
+  history (`<leader>mnh`, or `<leader>mnt` to search it) keeps every
+  notification and each of Vim's errors and warnings, but Vim's ordinary
+  messages (`:echo`, `:echomsg`, `print()`, `:!` output) share one *Messages*
+  entry that the next one updates in place: `:messages` keeps the `:echomsg`
+  and `print()` ones, while `:echo` and `:!` output are kept in neither.
+  `:w`'s "written", `u`'s undo summary and `]q`'s "(2 of 9)" show small at the
+  bottom right for two seconds and stay out of the notification history;
+  `:messages` still has them. `<leader>un`
+  dismisses. Under `--headless` neither noice nor the
+  notifier is loaded -- noice waits for VeryLazy, which lazy.nvim fires on the
+  first `UIEnter` -- so messages and `vim.notify` print to stderr as usual. A
+  UI attached later (`nvim --headless --listen`, then `nvim --remote-ui`) gets
+  both on its first `UIEnter`.
+- **A message opens a split at the bottom** — noice sends a message of 20
+  lines or more to a split instead of a popup (`long_message_to_split`). It
+  does not take the cursor; `q` inside it, or `<leader>un`, closes it.
 - **A notification line ends at the window's edge** — the snacks notifier
   makes its windows at most 40% of the screen wide and cuts a longer line
   there instead of wrapping it. `<leader>mnh` shows the whole text. This
   config's own review and diff-view notices are written as short lines for
   that reason, with paths and git's messages on lines of their own.
-- **ui2 itself misbehaves** (a stuck message window, a cmdline drawn in the
-  wrong place) — it is experimental. `:lua require("vim._core.ui2").enable({ enable = false })`
-  switches the running Nvim back to the legacy message grid; to keep it off,
-  remove the `ui2.enable` call in `lua/config/options.lua`. If a future Nvim
-  moves the module, that call is skipped (it is pcall'd) and the legacy UI
-  comes back on its own.
+- **noice misbehaves** (a stuck popup, a cmdline drawn in the wrong place,
+  messages that never show) — `:checkhealth noice` first: a GUI that draws
+  its own cmdline or messages (`ext_cmdline`, `ext_messages`) and
+  'lazyredraw' both break it. `:Noice disable` switches the running Nvim back
+  to the builtin cmdline and message grid, `:Noice enable` back again. Do not
+  also turn on Nvim's ui2 (`vim._core.ui2`): it takes over the same message
+  grid. A message that never shows at all is one noice has no route for:
+  Nvim 0.11+ gives messages kinds of their own (`:help ui-messages`), and
+  noice drops a kind neither its defaults nor `routes` in
+  `lua/plugins/ui/noice.lua` name. Add it there; `g<` still shows it meanwhile.
+- **A pending `2d` or a Visual selection's size is not under the cursor's
+  line** — noice skips 'showcmd', so it is in the statusline (`showcmdloc`,
+  lualine's `%S`), to the left of the language servers.
 - `K` on whitespace or a keyword stays quiet: hover runs with `silent = true`
   (`lua/plugins/coding/lsp.lua`), which drops both "No information available" and
   "Empty hover response". The hover and `gK` popups have a rounded border, and

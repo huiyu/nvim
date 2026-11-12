@@ -86,6 +86,10 @@ return {
 				},
 			},
 			lualine_x = {
+				-- 'showcmd' (lua/config/options.lua puts it here, 'showcmdloc'): a
+				-- pending count, operator or register (`2d`, `"a`) and the
+				-- Visual selection size (`3x12`). Nvim fills %S on every redraw.
+				"%S",
 				-- The API key profile, only while one is pinned (:AI key <name>,
 				-- NVIM_AI_KEY_PROFILE): `auto` is the first provider whose key is
 				-- set, so it needs no reminder. A click reopens the key picker.

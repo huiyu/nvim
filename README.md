@@ -129,9 +129,10 @@ expects (the llama-server `util.llama` shares, git and gitsigns timing).
 | Plugin | Description |
 |--------|-------------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator, the buffer's git change counts (from gitsigns) and its language servers (a spinner while one is busy) |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator, a pending command or Visual selection size (`2d`, `3x12`), the buffer's git change counts (from gitsigns) and its language servers (a spinner while one is busy) |
 | [incline](https://github.com/b0o/incline.nvim) | Top-right filename labels in file windows; pink for the focused window, `[+]` for unsaved changes |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick (`;B` picks one by its tab letter); `<leader>bh` closes the buffers no window shows, in any tabpage |
+| [noice](https://github.com/folke/noice.nvim) | Command line and messages: `:` in a popup near the top with its completion menu, `/` and `?` on the bottom row, Vim's messages and errors as notifications (snacks below), `:w` / undo / quickfix confirmations small at the bottom right, `:messages` / `g<` in a split; no "Press ENTER" prompt |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | Sticky function/class header (`<leader>uC`) |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
@@ -141,11 +142,6 @@ expects (the llama-server `util.llama` shares, git and gitsigns timing).
 | [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor; `]r` / `[r` jump to its next / previous reference |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL and CSS variable previews; Tailwind colors in frontend files |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering (`,m`) |
-
-The command line and messages are Neovim's own ui2 (experimental, `:help ui2`):
-no "Press ENTER" prompt; output that does not fit collapses to `[+N]`, and
-`g<` or `:messages` opens it in a pager (`q` closes). Notifications come from
-snacks below.
 
 #### Editor
 

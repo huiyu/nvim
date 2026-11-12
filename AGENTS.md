@@ -896,16 +896,30 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   entry, which would outlive the filetype.
 - Window commands should normally affect the current tab only. Be deliberate
   before using global APIs such as `nvim_list_wins()`.
-- Messages and the cmdline come from Nvim's experimental ui2
-  (`lua/config/options.lua`), not a plugin. It keeps four floats (cmd, msg, pager,
-  dialog) in whichever tabpage is current, so a "last window here?" check must
-  count non-floating windows only; counting `nvim_tabpage_list_wins()` made the
-  transcript's `q` fail with E444. vim.notify goes to the snacks notifier.
-  Both stay off without a UI, so `--headless` keeps plain stderr messages and
-  the specs never exercise them: check message, cmdline and float changes in
-  a real UI as well. A UI that attaches after startup (`--remote-ui`) turns
-  both on from a once-`UIEnter` hook; decide on that event, not only on
-  `nvim_list_uis()` at spec-evaluation time.
+- Messages and the cmdline come from noice (`lua/plugins/ui/noice.lua`), which
+  hands Vim's messages to the snacks notifier; vim.notify goes to that
+  notifier directly (noice's own `notify` is off). noice's LSP progress, hover
+  and signature help are off too: lualine, `K` and blink.cmp own those, and a
+  second owner draws them twice. So is its `window/showMessage` handler, which
+  is nil at the pinned commit and dropped every server message: Nvim's own
+  goes to vim.notify. noice drops any message kind no route names, and Nvim
+  0.11+ has kinds its defaults miss (`:!` output, `:w`'s `progress`, undo,
+  quickfix); `routes` in `lua/plugins/ui/noice.lua` names them, and
+  `tests/messages_spec.lua` pins those routes. It skips
+  'showcmd' too, which therefore sits in the statusline (`showcmdloc`,
+  lualine's `%S`). Never enable Nvim's ui2 beside it: both take over the
+  message grid. Notifications, noice's popups and incline's label
+  are floats in the tabpage, so a "last window here?" check must count
+  non-floating windows only; counting `nvim_tabpage_list_wins()` made the
+  transcript's `q` fail with E444. Neither runs without a UI: noice loads on
+  VeryLazy, which lazy.nvim fires only on the first `UIEnter`, and the
+  notifier is enabled only with a UI attached. So `--headless` keeps plain
+  stderr messages and the specs never exercise them: check message, cmdline
+  and float changes in a real UI as well. A UI that attaches after startup
+  (`--remote-ui`) gets both on that first `UIEnter` -- the notifier from a
+  once-`UIEnter` hook that also marks it enabled, which noice reads before
+  routing to it; decide on that event, not only on `nvim_list_uis()` at
+  spec-evaluation time.
 - Neovim's built-in `gc`/`gcc` commenting is the default; do not reintroduce a
   comment plugin without a concrete missing capability.
 - Add or remove plugins through lazy.nvim specs and include the resulting

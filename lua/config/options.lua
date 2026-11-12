@@ -36,6 +36,10 @@ local options = {
   background = "dark",   -- Use colors that suit a dark background.
   wrap = false,
   showcmd = true,
+  -- In the statusline (lualine's %S): noice attaches ext_messages, and the
+  -- msg_showcmd it is then sent is one of the events it skips, so a pending
+  -- count, operator or register and the Visual selection size showed nowhere.
+  showcmdloc = "statusline",
   splitbelow = true,     -- ss / :split put the new window below,
   splitright = true,     -- sv / :vsplit to the right, as their descs say.
 
@@ -48,7 +52,7 @@ local options = {
   hidden = true,                           -- Hide files in the background instead of closing them.
   swapfile = false,                        -- Disable swap file
   writebackup = false,                     -- Disable write swap file
-  cmdheight = 1,                           -- one command-line row; ui2 (below) collapses taller output
+  cmdheight = 1,                           -- one command-line row: / and ? search there (noice's bottom_search)
   clipboard = "unnamedplus",               -- allows neovim to access the system clipboard
   completeopt = { "menuone", "noselect" }, -- builtin insert completion (<C-n>, <C-x>…); blink.cmp draws its own menu
   signcolumn = "yes",                      -- always show the sign column, otherwise it would shift the text each time
@@ -97,36 +101,6 @@ vim.diagnostic.config({
     },
   },
 })
-
--- Messages and the command line: Nvim's own ui2 instead of the legacy message
--- grid. No "Press ENTER" prompt; output taller than 'cmdheight' collapses to a
--- `[+N]` marker, and `g<` / `:messages` open it in a pager window (q closes).
--- Default routing keeps messages in the cmdline row, as before ui2.
---
--- Experimental, and reached through an internal module path, hence the pcall:
--- if a later Nvim moves it, startup falls back to the legacy UI instead of
--- failing. enable() returns early when no UI is attached, so --headless runs
--- (the specs, the startup check) keep plain stdout/stderr messages.
---
--- A UI that attaches later (`nvim --headless --listen` + `nvim --remote-ui`)
--- gets it on its first UIEnter instead; a headless run never fires that event.
--- The snacks notifier makes the same deferral (lua/plugins/editor/snacks.lua).
---
--- ui2 keeps its four floats (cmd, msg, pager, dialog) in whichever tabpage is
--- current, so nvim_tabpage_list_wins() never returns just the layout: a "last
--- window?" check must count non-floating windows only.
-local has_ui2, ui2 = pcall(require, "vim._core.ui2")
-if has_ui2 then
-  if #vim.api.nvim_list_uis() > 0 then
-    ui2.enable({})
-  else
-    vim.api.nvim_create_autocmd("UIEnter", {
-      once = true,
-      callback = function() ui2.enable({}) end,
-      desc = "Enable ui2 for a UI that attached after startup",
-    })
-  end
-end
 
 -- Disable netrw
 vim.g.loaded_netrw = 1

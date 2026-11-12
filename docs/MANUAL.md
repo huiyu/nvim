@@ -699,23 +699,29 @@ These live under Manage because they maintain the editor itself.
 
 ### Messages and notifications
 
-Messages appear in the command-line row, and nothing waits for **Enter**.
-Output taller than that row opens above it until the next key, then shrinks
-back to its first line, marked `[+N]` for the lines it hides; a long error
-shows only its first line from the start. Press **Enter** right after a command
-to read its output in a pager instead; `q` closes the pager. Notifications from plugins pop up at the top right and fade on their own.
+Typing `:` opens the command line in a popup near the top of the screen, with
+its completion menu right under it; `/` and `?` search from the bottom row as
+usual. Nothing waits for **Enter**: Vim's own messages and errors pop up at the
+top right, the way notifications from plugins do, and fade on their own.
+Confirmations of what just happened -- `:w`'s "written", an undo, `]q`'s
+"(2 of 9)" -- show small at the bottom right for two seconds instead. A popup
+cuts a long line off at its edge. A message of 20 lines or more opens in a
+split at the bottom instead; `q` closes it from inside, and `<Space>un` closes
+it together with the popups. A command you have started but not finished
+(`2d`, `"a`) and the size of a Visual selection show in the status line.
 
 | Key | Does |
 |---|---|
-| `g<` / `<Space>mnl` | The last command's output again, in the pager |
-| `:messages` / `<Space>mna` | Message history: `:echomsg`, `print()` and errors (a plain `:echo` is not kept) |
-| `<Space>mnh` | Notification history |
+| `g<` / `<Space>mnl` | The last command's output again, in a split |
+| `:messages` / `<Space>mna` | Message history, in a split: `:echomsg`, `print()` and errors (a plain `:echo` is not kept) |
+| `<Space>mnh` | Notification history: plugins' notifications, Vim's errors and warnings, and its latest ordinary message |
 | `<Space>mnt` | Search notifications in a picker |
 | `<Space>un` | Dismiss the notifications on screen |
 
-The two histories are separate. An error from Vim itself is in `:messages`; a
-plugin's notification is only in the notification history. Both sit under the
-`<Space>mn` group, *Messages/notifications*.
+A plugin's notification is only in the notification history. Vim's errors and
+warnings are in both. Vim's ordinary messages share one popup that the next
+one replaces, so `:messages` is the place to find an earlier one. Both
+histories sit under the `<Space>mn` group, *Messages/notifications*.
 
 ---
 

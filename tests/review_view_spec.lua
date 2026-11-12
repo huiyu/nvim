@@ -180,7 +180,7 @@ local function review_nothing(text)
 end
 
 ---What a tabpage's windows hold: compared before and after a review opens
----elsewhere. Its own windows only: floats (a notification, ui2's) come and go
+---elsewhere. Its own windows only: floats (a notification, noice's) come and go
 ---and resize on their own, which is no change to the tab's layout.
 local function layout(tab)
   local out = {}

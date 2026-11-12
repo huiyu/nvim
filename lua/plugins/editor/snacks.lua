@@ -362,14 +362,26 @@ return {
     -- No tree sidebar: directories are browsed and edited through oil (`-`,
     -- `;o`, lua/plugins/editor/oil.lua) and files are reached through the
     -- pickers above.
-    { "<leader>un", function() Snacks.notifier.hide() end, desc = "Dismiss notifications" },
+    {
+      "<leader>un",
+      function()
+        -- noice's dismiss also closes the split a long message opened
+        -- (lua/plugins/ui/noice.lua). It is only asked once loaded: requiring
+        -- it here would load it, and without a UI it must stay unloaded.
+        if package.loaded.noice then pcall(require("noice").cmd, "dismiss") end
+        Snacks.notifier.hide()
+      end,
+      desc = "Dismiss notifications",
+    },
 
     -- ── Messages (<leader>mn) ───────────────────────────────────────────
     -- Two histories: vim.notify goes to the snacks notifier and its own
     -- history, while Vim's messages (:echomsg, print(), errors; never a plain
-    -- :echo, which only g< shows again) stay in :messages, which
-    -- ui2 (lua/config/options.lua) shows in its pager. Dismissing notifications is
-    -- <leader>un alone: one act, one key.
+    -- :echo, which only g< shows again) stay in :messages. noice
+    -- (lua/plugins/ui/noice.lua) shows both of those in a split, and pops
+    -- Vim's messages up through the notifier as well: its history keeps
+    -- their errors and warnings, and the latest ordinary message.
+    -- Dismissing notifications is <leader>un alone: one act, one key.
     { "<leader>mnh", function() Snacks.notifier.show_history() end,  desc = "Notification history" },
     { "<leader>mnt", function() Snacks.picker.notifications() end,   desc = "Search notifications" },
     { "<leader>mnl", "g<",                                           desc = "Last command output" },
@@ -400,11 +412,17 @@ return {
     -- so a UI attached later through --remote-ui would keep the builtin
     -- vim.notify. Hand it over on that first UIEnter, the way setup() would
     -- have; the notifier module itself works whether or not it was enabled.
+    -- The flag goes on too: noice (VeryLazy, which runs after this on that
+    -- same UIEnter) sends Vim's messages to the notifier only when it reads
+    -- enabled, and to a view of its own otherwise.
     -- A headless run never fires UIEnter, so stderr keeps every message.
     if not opts.notifier.enabled then
       vim.api.nvim_create_autocmd("UIEnter", {
         once = true,
-        callback = function() vim.notify = Snacks.notifier.notify end,
+        callback = function()
+          Snacks.config.notifier.enabled = true
+          vim.notify = Snacks.notifier.notify
+        end,
         desc = "Route vim.notify to the snacks notifier for a UI that attached after startup",
       })
     end

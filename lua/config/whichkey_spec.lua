@@ -55,7 +55,7 @@ local spec = {
   -- things depending on mode -- a file path in Normal, the selection in Visual
   -- -- which read as one key with two meanings rather than a group.
   { "<leader>y",     group = "Yank",            mode = { "n", "x" } },
-  -- Two histories (snacks.lua): ui2's messages and the snacks notifier's.
+  -- Two histories (snacks.lua): Vim's messages and the snacks notifier's.
   { "<leader>mn",    group = "Messages/notifications" },
   { "<leader><tab>", group = "Tab" },
   -- Nvim 0.11's own LSP prefix, left unmodified. It is only reachable where no
