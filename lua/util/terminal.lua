@@ -2,32 +2,24 @@ local M = {}
 
 local pending_drift_fixes = {}
 
--- Snacks records the original command on every terminal buffer, which is what
--- tells an agent panel from a shell -- and which agent it is. Every agent a
--- provider offers counts: several can be running, and each panel keeps its
--- own rules.
----@param buf integer?
----@return string|nil agent the TUI kind
-function M.agent_of(buf)
-  buf = buf or vim.api.nvim_get_current_buf()
-  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "terminal" then return nil end
-  local info = vim.b[buf].snacks_terminal
-  return info ~= nil and require("ai.config").agent_of_command(info.cmd) or nil
-end
+-- Which terminals run a coding agent is the AI layer's to say: ai.terminal
+-- registers its test at startup (lua/ai/terminal.lua). Only those panels get
+-- the drift repair below -- applying it to plain shell terminals would make
+-- every Normal -> Terminal-mode transition flicker -- and the numbered
+-- terminals never hide one. Until a test is registered, no terminal is one.
+local is_agent = function(_) return false end
 
--- Only native coding-agent TUIs need the automatic resize workaround; applying
--- it to plain shell terminals would make every Normal -> Terminal-mode
--- transition flicker.
-function M.is_agent_buf(buf)
-  return M.agent_of(buf) ~= nil
+---@param fn fun(buf: integer): boolean
+function M.set_agent_test(fn)
+  is_agent = fn
 end
 
 -- Identifies a native AI agent's :terminal window in the current tabpage, if
--- visible. Matches edgy.lua's command-based filter.
+-- visible.
 local function find_agent_win()
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     local buf = vim.api.nvim_win_get_buf(win)
-    if M.is_agent_buf(buf) then return win end
+    if is_agent(buf) then return win end
   end
 end
 
@@ -180,7 +172,7 @@ local function hide_other_floats(keep)
       and info.id
       and info.id ~= keep
       and vim.api.nvim_win_get_config(win).relative ~= ""
-      and not M.is_agent_buf(buf)
+      and not is_agent(buf)
     then
       local other = Snacks.terminal.get(nil, { count = info.id, create = false })
       if other and other:win_valid() then other:hide() end
@@ -354,7 +346,7 @@ end
 
 ---Rejoin a yank from terminal `buf` across rows the terminal wrapped, so a
 ---long URL or sentence is copied as the program printed it rather than as
----the grid broke it. Runs from TextYankPost (`lua/autocmds.lua`), registered
+---the grid broke it. Runs from TextYankPost (`lua/config/autocmds.lua`), registered
 ---before yanky's handler so the ring stores the joined text too.
 ---@param buf integer
 function M.unwrap_yank(buf)

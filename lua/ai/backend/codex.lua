@@ -68,7 +68,7 @@ local function terminal_command(args)
     -- Keep mouse scrolling, but suppress tmux's pane menu on right-click.
     ";", "unbind-key", "-T", "root", "MouseDown3Pane",
     ";", "unbind-key", "-T", "root", "M-MouseDown3Pane",
-    -- <S-CR> reaches this pane as CSI u (ESC[13;2u) from lua/mappings.lua.
+    -- <S-CR> reaches this pane as CSI u (ESC[13;2u) from lua/config/keymaps.lua.
     -- Under tmux's default `extended-keys off` that collapses to a bare CR,
     -- which submits the message instead of inserting a newline (measured on
     -- tmux 3.6b). `always` keeps the modifier without waiting for the pane to
@@ -159,7 +159,7 @@ local function terminal_opts(root)
       position = "right",
       width = ai_config.panel.width,
       -- No winbar: Snacks titles every split terminal "<n>: <term title>"
-      -- unless told otherwise (as lua/plugin/lsp/ai.lua does for Claude).
+      -- unless told otherwise (as lua/plugins/ai/claudecode.lua does for Claude).
       wo = { winfixwidth = true, winbar = "" },
       -- Codex reads a quick double Esc itself; Snacks' own <esc> double-tap
       -- would swallow it. lua/ai/terminal.lua puts Esc back on the wire and

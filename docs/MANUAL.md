@@ -190,7 +190,9 @@ focus the AI panel and `<C-/>` for shell terminals, so file navigation keeps
 the editor window in place.
 Clicking a file tab focuses the editor area in the current tabpage, leaving
 chat and terminal panels visible. If only panels remain, it creates an editor
-split for the file.
+split for the file. The buffer keys do the same from a chat or another panel:
+`]B`, `]b` or `;B` there goes to the editor area and acts on its buffer list,
+and a cancelled `;B` stays where it was.
 
 A few single keys are just abbreviations: `D` = `d$`, `C` = `c$`, and `x` =
 `dl` with one difference: `x` deletes into the black hole register, so it
@@ -234,7 +236,7 @@ it is on this key:
 **which-key:** press `[`, `]`, `g`, or `z` and wait half a second — the popup
 lists the drawer, grouped under headings (`── diagnostics`, `── git`, …) with a
 colour per group, so a long list reads as a few blocks rather than an alphabet.
-The grouping is declared in `lua/whichkey_spec.lua`. In sectioned popups,
+The grouping is declared in `lua/config/whichkey_spec.lua`. In sectioned popups,
 anything not explicitly assigned to a group sorts last under `── others`,
 including new plugin keys and builtins. An empty `others` section is hidden;
 popups without declared sections, such as `z`, keep the default layout.
@@ -699,23 +701,29 @@ These live under Manage because they maintain the editor itself.
 
 ### Messages and notifications
 
-Messages appear in the command-line row, and nothing waits for **Enter**.
-Output taller than that row opens above it until the next key, then shrinks
-back to its first line, marked `[+N]` for the lines it hides; a long error
-shows only its first line from the start. Press **Enter** right after a command
-to read its output in a pager instead; `q` closes the pager. Notifications from plugins pop up at the top right and fade on their own.
+Typing `:` opens the command line in a popup near the top of the screen, with
+its completion menu right under it; `/` and `?` search from the bottom row as
+usual. Nothing waits for **Enter**: Vim's own messages and errors pop up at the
+top right, the way notifications from plugins do, and fade on their own.
+Confirmations of what just happened -- `:w`'s "written", an undo, `]q`'s
+"(2 of 9)" -- show small at the bottom right for two seconds instead. A popup
+cuts a long line off at its edge. A message of 20 lines or more opens in a
+split at the bottom instead; `q` closes it from inside, and `<Space>un` closes
+it together with the popups. A command you have started but not finished
+(`2d`, `"a`) and the size of a Visual selection show in the status line.
 
 | Key | Does |
 |---|---|
-| `g<` / `<Space>mnl` | The last command's output again, in the pager |
-| `:messages` / `<Space>mna` | Message history: `:echomsg`, `print()` and errors (a plain `:echo` is not kept) |
-| `<Space>mnh` | Notification history |
+| `g<` / `<Space>mnl` | The last command's output again, in a split |
+| `:messages` / `<Space>mna` | Message history, in a split: `:echomsg`, `print()` and errors (a plain `:echo` is not kept) |
+| `<Space>mnh` | Notification history: plugins' notifications, Vim's errors and warnings, and its latest ordinary message |
 | `<Space>mnt` | Search notifications in a picker |
 | `<Space>un` | Dismiss the notifications on screen |
 
-The two histories are separate. An error from Vim itself is in `:messages`; a
-plugin's notification is only in the notification history. Both sit under the
-`<Space>mn` group, *Messages/notifications*.
+A plugin's notification is only in the notification history. Vim's errors and
+warnings are in both. Vim's ordinary messages share one popup that the next
+one replaces, so `:messages` is the place to find an earlier one. Both
+histories sit under the `<Space>mn` group, *Messages/notifications*.
 
 ---
 
@@ -1035,7 +1043,7 @@ the request goes, and who pays for it, does not:
 | Paid by | Subscription | Subscription | API credits |
 
 Each has its Codex or OpenAI twin. Once started, all three are reached the same
-way: they take turns on the right, and `as`, `ai`, `ac` and `af` act on
+way: they take turns on the right, and `as`, `ab`, `ai`, `ac` and `af` act on
 whichever is there.
 
 Pick by what you are doing:
@@ -1464,7 +1472,7 @@ When a change counts:
 - A chat opened while its source was off starts no rounds even after you turn
   it on; turning a source off counts at once.
 - The `<Space>gh` / `<Space>gH` descriptions are written when the plugin specs
-  load, so set `history_limit` before `require("bootstrap")` in `init.lua`;
+  load, so set `history_limit` before `require("config")` in `init.lua`;
   the lists themselves follow the setting.
 
 ---
@@ -1558,7 +1566,7 @@ toggles the failures neotest shows as diagnostics.
 Set a breakpoint with `<Space>db`, put the cursor inside a test, then press
 `<Space>tM`. These direct entries save the current buffer first; an unsaved
 unnamed buffer or failed write aborts. They use the same keys in every supported
-language, with target logic in `lua/lang/*.lua`.
+language, with target logic in `lua/plugins/lang/*.lua`.
 
 | Language | `df` | `tM` / `tF` |
 |---|---|---|

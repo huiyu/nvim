@@ -135,7 +135,7 @@ configurations: zig, cpp, c, python, rust, go, swift   (no javascript/typescript
 Root cause: `mason-nvim-dap`'s `mappings/adapters/` ships `chrome.lua`, `node2.lua`
 and `firefox.lua` — but **no `js.lua`**. The `['js'] = 'js-debug-adapter'` entry in
 `mappings/source.lua` only decides *which package mason installs*; it registers no
-adapter. So `lang/typescript.lua`'s `handlers = { ["js"] = {} }` installs the
+adapter. So `plugins/lang/typescript.lua`'s `handlers = { ["js"] = {} }` installs the
 binary and stops there.
 
 That file's comment ("A single adapter covers BOTH runtimes: `pwa-node` … and

@@ -2,8 +2,8 @@ local t = dofile("tests/helper.lua")
 
 -- Two things are under test here.
 --
--- The section layout is declared in lua/whichkey_spec.lua and read by
--- lua/plugin/editor/whichkey.lua. A suffix listed there that maps to nothing is
+-- The section layout is declared in lua/config/whichkey_spec.lua and read by
+-- lua/plugins/editor/whichkey.lua. A suffix listed there that maps to nothing is
 -- dead weight nobody would notice, so the global file-search declarations are
 -- resolved against real mappings. context_actions_spec.lua covers filetype menus.
 --
@@ -21,7 +21,7 @@ if not ok_view then
   return
 end
 
-local Spec = require("whichkey_spec")
+local Spec = require("config.whichkey_spec")
 
 -- Description-only spec entries live in which-key's trie. Entries with an RHS
 -- become real mappings after scheduled setup; that has not run yet here.
@@ -212,7 +212,7 @@ for _, case in ipairs({
   { "<leader>a", "t", "history" }, { "<leader>a", "T", "history" },
   -- The keys that spend API credits: inline edits and the profile they bill.
   { "<leader>a", "e", "HTTP · API credits" }, { "<leader>a", "x", "HTTP · API credits" },
-  { "<leader>a", "p", "companion" }, { "<leader>a", "o", "companion" },
+  { "<leader>a", "o", "history" },
   { "<leader>a", "v", "review" }, { "<leader>a", "V", "review" },
   -- Case is the debug variant of the same run: tm/tM, tf/tF.
   { "<leader>t", "m", "run" }, { "<leader>t", "M", "run" },
@@ -230,15 +230,15 @@ if next(vim.fn.maparg("<leader>aa", "n", false, true)) ~= nil then
   end
 end
 -- The keys that spend API credits say so in their heading; the chats' billing
--- is in the new-chat picker's entries. <leader>ap is a leaf now, not the old
--- +CodeCompanion group.
+-- is in the new-chat picker's entries. <leader>ap, once the +CodeCompanion
+-- group and then the action palette, is gone.
 local ai_headings = headings(popup("<leader>a"))
 t.ok(#ai_headings >= 6, ("<leader>a popup is sectioned (%s)"):format(table.concat(ai_headings, ", ")))
 t.ok(vim.tbl_contains(ai_headings, "HTTP · API credits") and not vim.tbl_contains(ai_headings, "ACP chat · subscription"),
   "the API-credit keys have a billing heading, and no per-kind chat heading is left")
 t.ok(not vim.tbl_contains(ai_headings, "others"), "every <leader>a key is declared in a section")
 t.ok(not vim.iter(Spec.spec):any(function(entry) return entry[1] == "<leader>ap" end),
-  "<leader>ap is not declared as a group")
+  "<leader>ap is not declared")
 -- gs is buffer-local to vtsls buffers, so only the declaration can be checked here.
 local g_lsp = vim.iter(Spec.sections["g"]):find(function(section) return section[1] == "LSP" end)
 t.ok(g_lsp and vim.tbl_contains(g_lsp.keys, "s"), "gs is declared in the g LSP section")

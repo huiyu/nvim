@@ -280,7 +280,7 @@ local group = vim.api.nvim_create_augroup("ai_review_rounds", { clear = true })
 ---@param cwd? string
 ---@return table|nil entry
 function M.track_terminal(buf, cwd)
-  local agent = require("util.terminal").agent_of(buf)
+  local agent = require("ai.terminal").agent_of(buf)
   if not agent then return nil end
   local current = native[agent]
   if current and current.buf == buf then return current end
@@ -311,7 +311,7 @@ local function native_entry(agent)
   if entry and terminal_running(entry.buf) then return entry end
   local found
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    if terminal_running(buf) and require("util.terminal").agent_of(buf) == agent then found = buf end
+    if terminal_running(buf) and require("ai.terminal").agent_of(buf) == agent then found = buf end
   end
   return found and M.track_terminal(found) or entry
 end
@@ -583,6 +583,7 @@ local function run_submit(ev, done)
     last_round[key] = claim
     baseline().save(root, "round", {
       tree = tree,
+      keep = settings().retention.rounds,
       subject = ("nvim review: %s round %s"):format(SOURCE_LABELS[ev.source] or ev.source, os.date("%H:%M:%S")),
       Source = ev.source,
       Conversation = ev.conversation,
@@ -606,7 +607,7 @@ local function run_submit(ev, done)
       done()
       notify({ "Review round failed:", tostring(cb_err) })
     end
-  end, { priority = true })
+  end, { priority = true, max_file_size = settings().max_file_size })
 end
 
 ---Open a round for a prompt (or <leader>aV). The single place the round rules

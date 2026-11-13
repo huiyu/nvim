@@ -1,4 +1,4 @@
--- CodeDiff as this config wires it (lua/plugin/vcs/codediff.lua and
+-- CodeDiff as this config wires it (lua/plugins/git/codediff.lua and
 -- lua/util/codediff.lua), driven through real views on temporary repositories.
 --
 -- Needs CodeDiff's native library in the plugin directory; tests/run.sh sets
@@ -758,7 +758,7 @@ do
   local item = item_at(pview, staged_move)
   t.eq(item and { item.panel, item.type, item.path, item.old_path, item.status, item.group },
     { "explorer", "file", "c.txt", "b.txt", "R", "staged" }, "panel_item reads the explorer entry from them")
-  -- Files show as a directory tree by default (lua/plugin/vcs/codediff.lua);
+  -- Files show as a directory tree by default (lua/plugins/git/codediff.lua);
   -- `i` toggles a flat list.
   local options = require("codediff.config").options
   t.eq({ options.explorer.view_mode, options.history.view_mode }, { "tree", "tree" },

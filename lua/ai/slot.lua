@@ -21,8 +21,8 @@
 -- for nothing; when the windows to hide are all the tabpage has, the order
 -- turns round (E444).
 --
--- Between two chats the window is handed over in place (lua/ai/companion.lua,
--- show). Between a terminal and anything else it cannot be: Snacks' fixbuf
+-- Between two chats the window is handed over in place (show_chat, through
+-- companion.open). Between a terminal and anything else it cannot be: Snacks' fixbuf
 -- sends any other buffer back out of a terminal window, and closes the window
 -- when there is nowhere to send it -- so one window closes, another opens.
 --
@@ -342,6 +342,58 @@ local function to_editor()
   return true
 end
 
+---Put exactly `chat` (a CodeCompanion chat) on screen. Shown in this tabpage
+---already, in any window: there. Else shown in another tabpage: go there,
+---nothing moves. Else in this tabpage: a chat window here hands itself over,
+---or the AI windows here make way for a new one (companion.open does the
+---opening).
+---@param chat table a CodeCompanion.Chat
+---@param opts? { focus?: boolean, toggled?: boolean, quiet?: boolean } focus defaults to true; toggled keeps the cursor where it was left; quiet: a jump says nothing (a delivery says where it went itself)
+---@return boolean shown, "jumped"? how
+function M.show_chat(chat, opts)
+  opts = opts or {}
+  local cc = companion()
+  local function focus()
+    local win = cc.win_here(chat)
+    if win then api.nvim_set_current_win(win) end
+  end
+  if cc.where(chat) == "here" or cc.win_here(chat) then
+    if opts.focus ~= false then focus() end
+    return true
+  end
+  local item = M.chat_item(chat)
+  if cc.where(chat) == "elsewhere" then
+    M.jump(item, { focus = opts.focus ~= false, quiet = opts.quiet })
+    return true, "jumped"
+  end
+  local from = api.nvim_get_current_win()
+  local donor = M.chat_window_here(item)
+  if donor then
+    M.hide(donor.item, { keep_window = true })
+    cc.open(chat, { win = donor.win, toggled = opts.toggled })
+    M.cover(item)
+  else
+    M.around(item, function() cc.open(chat, { toggled = opts.toggled }) end)
+  end
+  M.remember(item)
+  if opts.focus ~= false then
+    focus()
+  elseif api.nvim_win_is_valid(from) then
+    -- ui:open splits from the current window and stays in the split.
+    api.nvim_set_current_win(from)
+  end
+  return cc.where(chat) == "here"
+end
+
+---Put `chat` on screen (show_chat) and the cursor at the end of its prompt;
+---with `insert`, in Insert mode too (companion.focus_prompt).
+---@param chat table a CodeCompanion.Chat
+---@param insert boolean?
+function M.focus_chat_prompt(chat, insert)
+  M.show_chat(chat)
+  return companion().focus_prompt(chat, insert)
+end
+
 ---Make room for `item`, which a backend method is about to show or start:
 ---go to the tabpage showing it, or hide the other AI windows here. The method
 ---itself shows it -- only on "room": on "here" and "elsewhere" a window shows
@@ -400,7 +452,7 @@ function M.reveal(item)
   end
   if M.state(item) == "elsewhere" then return M.jump(item) end
   if item.kind == "chat" then
-    companion().focus_prompt(item.chat)
+    M.focus_chat_prompt(item.chat)
     M.remember(item)
     return true
   end
@@ -460,16 +512,13 @@ end
 ---starts what is not running, and a session that started is announced. A
 ---CodeCompanion chat is created here, hidden, and announces itself.
 ---@param cb fun(item: ai.SlotItem)
----@param opts? { prompt?: string, native_only?: boolean, back?: integer } native_only: the terminals alone, for a key a chat cannot take; back: see back_to
+---@param opts? { prompt?: string, back?: integer } back: see back_to
 function M.pick_new(cb, opts)
   opts = opts or {}
-  local entries = vim.tbl_filter(function(b)
-    return b.available and (not opts.native_only or b.kind == "native")
-  end, config.backends())
+  local entries = vim.tbl_filter(function(b) return b.available end, config.backends())
   if #entries == 0 then
     back_to(opts.back)
-    return notify(opts.native_only and "No native agent is installed (claude, codex)"
-      or "No AI backend is available here — see :checkhealth config", WARN)
+    return notify("No AI backend is available here — see :checkhealth config", WARN)
   end
   local here = api.nvim_get_current_tabpage()
   select(entries, {
@@ -502,16 +551,10 @@ end
 ---Ask which open chat: the ones shown here first, then the most recently used.
 ---The last entry starts a new one; with none open, that is all there is to ask.
 ---@param cb fun(item: ai.SlotItem)
----@param opts? { prompt?: string, items?: ai.SlotItem[], new?: boolean, native_only?: boolean, back?: integer } see pick_new
+---@param opts? { prompt?: string, items?: ai.SlotItem[], new?: boolean, back?: integer } see pick_new
 function M.switch(cb, opts)
   opts = opts or {}
   local items = opts.items or M.list()
-  if opts.native_only then
-    local natives = vim.tbl_filter(function(item) return item.kind == "native" end, items)
-    -- Choosing among the chats shown here, none of them native: those are
-    -- what there is, and the caller says what a chat takes instead.
-    if #natives > 0 or opts.new ~= false then items = natives end
-  end
   if #items == 0 then return M.pick_new(cb, opts) end
   local rank = {}
   for _, item in ipairs(items) do
@@ -598,16 +641,15 @@ end
 ---(see home); of several, the current window's, else the one picked among
 ---them; with none, the one picked among every open chat, or a new one. A
 ---cancelled question calls nothing, and goes back to the tabpage the key
----was pressed in. `native_only` asks among the native agents alone, for a key
----only they take: a chat would be shown or created for nothing.
+---was pressed in.
 ---@param cb fun(item: ai.SlotItem, from: integer)
----@param opts? { prompt?: string, native_only?: boolean }
+---@param opts? { prompt?: string }
 function M.target(cb, opts)
   opts = opts or {}
   local shown, from = home()
   local function done(item) cb(item, from) end
   if #shown == 1 then return done(shown[1]) end
-  local ask_opts = { prompt = opts.prompt, native_only = opts.native_only, back = from }
+  local ask_opts = { prompt = opts.prompt, back = from }
   if #shown > 1 then
     local item = current_of(shown)
     if item then return done(item) end
@@ -675,7 +717,7 @@ local function into(shown, from)
   return M.switch(M.reveal, { items = shown, new = false, back = from })
 end
 
----<leader>ac, and q in a chat (lua/plugin/lsp/codecompanion.lua): hide what is
+---<leader>ac, and q in a chat (lua/plugins/ai/codecompanion.lua): hide what is
 ---on the right, or bring a chat back.
 function M.toggle()
   local shown, from = home()

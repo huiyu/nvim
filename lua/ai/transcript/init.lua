@@ -108,8 +108,9 @@ local function configure(buf, agent, session)
   map("R", function() M.refresh(buf) end, "Refresh transcript")
   map("q", function()
     -- Close only this window. Never touch buffers the viewer does not own.
-    -- Floats do not count: ui2 keeps its own in every tabpage, and closing
-    -- the last layout window beside them fails with E444.
+    -- Floats do not count: a notification, a noice popup or incline's label
+    -- can sit in the tabpage, and closing the last layout window beside them
+    -- fails with E444.
     local layout_wins = vim.tbl_filter(function(win)
       return vim.api.nvim_win_get_config(win).relative == ""
     end, vim.api.nvim_tabpage_list_wins(0))

@@ -25,9 +25,9 @@
 --     `git log --all` fatal there.
 --
 -- The trailers in a baseline's message are opaque key/value pairs to this
--- module; what Source or Conversation mean belongs to its callers. The
--- retention counts and the size cut-off come from ai.review.config, read on
--- each use.
+-- module; what Source or Conversation mean belongs to its callers. So do the
+-- size cut-off and the retention counts: each call that needs one is given
+-- it (`max_file_size`, `keep`), and this module reads no settings.
 --
 -- Every callback runs on the main loop, scheduled.
 local M = {}
@@ -35,8 +35,8 @@ local M = {}
 local uv = vim.uv
 
 M.NAMESPACE = "refs/nvim-review"
--- kind -> the ai.review.config retention key that caps it.
-M.KINDS = { round = "rounds", saved = "saved" }
+-- The kinds of baseline, each in a ref directory of its own.
+M.KINDS = { round = true, saved = true }
 
 -- Prefix of every git call made here:
 --   --no-optional-locks    no opportunistic index refresh, so nothing here
@@ -87,11 +87,6 @@ function M.git_cmd(args)
   local cmd = vim.list_slice(GIT)
   vim.list_extend(cmd, args)
   return cmd
-end
-
----Settings for this module, from the review config.
-local function settings()
-  return require("ai.review.config").get()
 end
 
 ---Hand `cb` its arguments on the main loop. Each delivery is scheduled on its
@@ -223,10 +218,11 @@ local function temp_index(gitdir)
   return path
 end
 
--- The snapshot itself: temporary index -> add --all -> write-tree.
+-- The snapshot itself: temporary index -> add --all -> write-tree. Untracked
+-- files over `max` bytes are left out (none when nil).
 -- `done(tree, info)` on success, `done(nil, err)` on failure.
-local function take(loc, done)
-  local max = settings().max_file_size
+local function take(loc, max, done)
+  max = max or math.huge
   local tmp, err = temp_index(loc.gitdir)
   if not tmp then return done(nil, err) end
   local env = { GIT_INDEX_FILE = tmp }
@@ -298,6 +294,13 @@ local function drain(loc)
   -- request made while a snapshot runs waits for the following one.
   local batch = q.waiting
   q.waiting, q.running = {}, true
+  -- The smallest cut-off asked for: no request gets a file hashed that it
+  -- would have left out. Callers pass the same setting, so in practice they
+  -- agree.
+  local max
+  for _, request in ipairs(batch) do
+    if request.max then max = math.min(max or request.max, request.max) end
+  end
   local called = false
   local function done(tree, info)
     if called then return end
@@ -312,7 +315,7 @@ local function drain(loc)
       deliver(request.cb, tree, type(info) == "table" and vim.deepcopy(info) or info)
     end
   end
-  local ok, err = pcall(take, loc, done)
+  local ok, err = pcall(take, loc, max, done)
   if not ok then done(nil, "snapshot failed: " .. tostring(err)) end
 end
 
@@ -328,11 +331,13 @@ end
 ---`cb(nil, err)` (a non-git directory degrades to that). Requests for one
 ---gitdir run one at a time and coalesce: all those waiting share the next
 ---snapshot. `opts.priority` puts a request first in line, so a prompt's
----baseline is not delivered behind a listing refresh. `(root, opts, cb)` is
----accepted as well.
+---baseline is not delivered behind a listing refresh. Untracked files over
+---`opts.max_file_size` bytes are left out and listed in `info.skipped` (none
+---without it; a shared snapshot uses the smallest asked for). `(root, opts,
+---cb)` is accepted as well.
 ---@param root string
 ---@param cb fun(tree: string|nil, info: baseline.Info|string)
----@param opts? { priority?: boolean }
+---@param opts? { priority?: boolean, max_file_size?: integer }
 function M.snapshot(root, cb, opts)
   if type(cb) == "table" then cb, opts = opts, cb end
   cb, opts = cb or noop, opts or {}
@@ -346,7 +351,7 @@ function M.snapshot(root, cb, opts)
     q = { running = false, waiting = {} }
     queues[loc.gitdir] = q
   end
-  local request = { cb = cb }
+  local request = { cb = cb, max = opts.max_file_size }
   if opts.priority then
     -- Behind earlier priority requests, ahead of everything else.
     local at = 1
@@ -364,7 +369,7 @@ local function one_line(value)
 end
 
 -- Keys of `meta` that are trailers: they start with an uppercase letter.
--- Lowercase keys are options (subject, tree, prune, exempt).
+-- Lowercase keys are options (subject, tree, max_file_size, keep, exempt).
 local function trailer_keys(meta)
   local keys = {}
   for key, value in pairs(meta) do
@@ -432,8 +437,9 @@ end
 
 ---Store a baseline: snapshot the worktree (or take `meta.tree`), commit it
 ---without a parent under the fixed identity, and create
----refs/nvim-review/<wtid>/<kind>/<id>. Then prune that kind, unless
----`meta.prune == false`; `meta.exempt` is passed on to prune.
+---refs/nvim-review/<wtid>/<kind>/<id>. `meta.max_file_size` is the
+---snapshot's (see snapshot). With `meta.keep`, then prune that kind to the
+---newest `keep`, `meta.exempt` passed on; without it, prune nothing.
 ---
 ---`meta.subject` is the first line (the display text); every key starting
 ---with an uppercase letter becomes a trailer (`true` -> "1", false/nil
@@ -484,7 +490,7 @@ function M.save(root, kind, meta, cb)
           root = loc.toplevel,
           wtid = loc.wtid,
         }, info)
-        if meta.prune ~= false then M.prune(loc.toplevel, kind, { exempt = meta.exempt }) end
+        if meta.keep then M.prune(loc.toplevel, kind, { keep = meta.keep, exempt = meta.exempt }) end
       end)
     end)
   end
@@ -492,7 +498,7 @@ function M.save(root, kind, meta, cb)
   if meta.tree then
     commit(meta.tree, { skipped = {}, untracked = 0, toplevel = loc.toplevel, gitdir = loc.gitdir, wtid = loc.wtid })
   else
-    M.snapshot(loc.toplevel, commit, { priority = kind == "round" })
+    M.snapshot(loc.toplevel, commit, { priority = kind == "round", max_file_size = meta.max_file_size })
   end
 end
 
@@ -691,22 +697,23 @@ local function is_exempt(entry, extra)
 end
 
 ---Apply retention to `kind` in the worktree that contains `root`: keep the
----newest N (ai.review.config retention.rounds / retention.saved), delete the
----rest except exempt ones (the set_exempt hook, or `opts.exempt`). Deleting a
----saved baseline names it in a notification unless `opts.quiet`.
+---newest `opts.keep` (the caller's retention count), delete the rest except
+---exempt ones (the set_exempt hook, or `opts.exempt`). Deleting a saved
+---baseline names it in a notification unless `opts.quiet`.
 ---`cb(deleted)`, or `cb({}, err)`. Objects are left to git's own gc.
 ---@param root string
 ---@param kind "round"|"saved"
----@param opts? { exempt?: fun(entry: baseline.Entry): boolean, quiet?: boolean }
+---@param opts { keep: integer, exempt?: (fun(entry: baseline.Entry): boolean), quiet?: boolean }
 ---@param cb? fun(deleted: baseline.Entry[], err?: string)
 function M.prune(root, kind, opts, cb)
   assert(M.KINDS[kind], "util.baseline.prune: kind must be round or saved")
   if type(opts) == "function" then opts, cb = nil, opts end
   opts, cb = opts or {}, cb or noop
+  local keep = opts.keep
+  assert(type(keep) == "number" and keep >= 0, "util.baseline.prune: opts.keep must be a count")
   if vim.in_fast_event() then
     return vim.schedule(function() M.prune(root, kind, opts, cb) end)
   end
-  local keep = settings().retention[M.KINDS[kind]]
   M.list(root, kind, function(entries, err)
     if err then return cb({}, err) end
     local doomed = {}

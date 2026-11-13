@@ -2,7 +2,7 @@
 -- RPC receiver scripts/agent-hook calls back into.
 --
 -- Both agents are given a hook per process, never through the user's own
--- settings: Claude through `--settings <json>` (lua/plugin/lsp/ai.lua), Codex
+-- settings: Claude through `--settings <json>` (lua/plugins/ai/claudecode.lua), Codex
 -- through `-c hooks=...` (lua/ai/backend/codex.lua). Both merge with whatever
 -- hooks the user configured instead of replacing them. Each is gated by
 -- sources.claude / sources.codex in ai.review.config.

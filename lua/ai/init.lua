@@ -1,7 +1,6 @@
 local M = {}
 
 local config = require("ai.config")
-local did_setup = false
 
 ---@param name string an agent (TUI kind, a key of ai.config.agents)
 local function backend(name)
@@ -139,7 +138,7 @@ local function deliver_capture(item, cap, from)
   if item.kind == "chat" then
     local ok, why = companion().add_capture(item.chat, cap)
     if not ok then return companion().refused(why) end
-    companion().show(item.chat, { quiet = true })
+    slot().show_chat(item.chat, { quiet = true })
   elseif item.agent == "claude" then
     if cap.path == "" then
       return notify("This buffer has no file, and Claude Code takes a selection as a file mention: save it, or <leader>ai",
@@ -209,26 +208,37 @@ function M.send_selection()
   end)
 end
 
----<leader>ab: the current buffer, as a file mention, to the native agent on
----the right. A chat takes a selection or its own #{buffer} instead -- so a
----question offers the native agents alone: a chat picked or created there
----would only be refused.
+---<leader>ab: the current buffer's file, to the chat on the right. A native
+---agent gets a file mention; a CodeCompanion chat gets it as context, as its
+---own /buffer adds it (ai.companion.add_buffer).
 function M.add_buffer()
   return guard("AI chat", "add_buffer", function()
     local buf = vim.api.nvim_get_current_buf()
     local path, modified = vim.api.nvim_buf_get_name(buf), vim.bo[buf].modified
+    local is_file = vim.bo[buf].buftype == ""
     slot().target(on_item("add_buffer", function(item, from)
-      if item.kind == "chat" then
-        return notify("A chat takes a selection (<leader>as),\nor #{buffer} / /buffer in its own prompt")
-      end
       if path == "" then return notify("Current buffer has no file path", vim.log.levels.WARN) end
+      if item.kind == "chat" then
+        -- A terminal, a panel or the chat itself has a name but no file.
+        if not is_file then return notify("Current buffer is not a file", WARN) end
+        local ok, why = companion().add_buffer(item.chat, buf)
+        if not ok then return companion().refused(why) end
+        slot().show_chat(item.chat, { quiet = true })
+        -- An agent chat is sent the path alone, and its agent reads the file
+        -- from disk, as a native agent's mention is.
+        if modified and companion().is_acp(item.chat) then
+          notify("An agent chat reads the saved file; this buffer has unsaved changes, so it will not see them"
+            .. " (<leader>as takes the selected text itself)", WARN)
+        end
+        return slot().went(item, from)
+      end
       local room = slot().make_room(item, { quiet = true })
       if not room then return end
       if item.agent == "claude" and room == "room" then backend("claude").reveal() end
       -- Both agents read the file from disk, and say so for an unsaved edit.
       backend(item.agent).add_path(path, modified)
       slot().went(item, from)
-    end), { prompt = "Add file to", native_only = true })
+    end), { prompt = "Add file to" })
   end)
 end
 
@@ -294,7 +304,7 @@ function M.compose()
           local ok, why = companion().add_capture(item.chat, cap)
           if not ok then return companion().refused(why) end
         end
-        return companion().focus_prompt(item.chat, true)
+        return slot().focus_chat_prompt(item.chat, true)
       end
       if editor.focus_open(seed, item.agent) then return end
       if not slot().make_room(item) then return end
@@ -371,61 +381,6 @@ function M.new_round()
   return guard("AI review", "start", function() return require("ai.review.rounds").start() end)
 end
 
----The providers, the key profile and every open chat, for :AI info.
----Never loads claudecode.nvim or CodeCompanion to answer.
-function M.info()
-  local function set(var) return (vim.env[var] or "") ~= "" end
-
-  local profiles = {}
-  for _, name in ipairs(config.key_names()) do
-    local p = config.key_profiles[name]
-    profiles[name] = { label = p.label, var = p.api_key, set = set(p.api_key) }
-  end
-
-  -- Each provider in order, with the parts it offers and whether each can
-  -- start here (ai.config.backends: PATH and the environment only).
-  local parts = {}
-  for _, b in ipairs(config.backends()) do
-    parts[b.provider] = parts[b.provider] or {}
-    local what = b.kind == "native" and "terminal" or b.kind == "acp" and "ACP" or "API"
-    table.insert(parts[b.provider], { what = what, available = b.available })
-  end
-  local providers = {}
-  local cli_keys = {}
-  for _, p in ipairs(config.providers) do
-    providers[#providers + 1] = { name = p.name, label = p.label, parts = parts[p.name] or {} }
-    if p.cli_api_key then cli_keys[p.cli_api_key] = set(p.cli_api_key) end
-  end
-
-  -- A summary must not fail on one chat's question.
-  local chats = {}
-  local ok, items = pcall(slot().list)
-  for _, item in ipairs(ok and items or {}) do
-    local got, label, where = pcall(function() return slot().label(item), slot().where(item) end)
-    if got then chats[#chats + 1] = { id = item.id, label = label, where = where } end
-  end
-
-  local chat, http = config.codecompanion.chat_adapter, config.codecompanion.http_adapter
-  return {
-    providers = providers,
-    key = {
-      name = config.key.name,
-      label = config.key.label,
-      auto = config.key.auto,
-      var = config.codecompanion.api_key,
-      set = config.codecompanion.api_key ~= nil and set(config.codecompanion.api_key),
-    },
-    profiles = profiles,
-    cli_keys = cli_keys,
-    codecompanion = {
-      chat = chat and (chat .. (chat == config.codecompanion.acp_adapter and " (ACP)" or " (HTTP)"))
-        or "CodeCompanion's own default",
-      inline = http and (http .. " (HTTP)") or "none (no provider offers api)",
-    },
-    chats = chats,
-  }
-end
-
 local function map(mode, lhs, rhs, desc)
   vim.keymap.set(mode, lhs, rhs, { desc = desc, silent = true })
 end
@@ -439,10 +394,12 @@ end
 -- native-session keys (r R m) and the transcript keys (t T) reach the native
 -- agent on the right, else the one asked for.
 --
--- The CodeCompanion keys (e p o) are owned here rather than by its lazy spec,
+-- The CodeCompanion keys (e o) are owned here rather than by its lazy spec,
 -- like the rest; they load the plugin on first use, through `require` or its
--- commands. `<leader>ap` is a leaf -- a `<leader>ap*` mapping would make it
--- wait out 'timeoutlen' again; so are `<leader>an` and `<leader>al`.
+-- commands. `<leader>an` and `<leader>al` are leaves: a longer mapping would
+-- make them wait out 'timeoutlen'. The action palette has no key: its chats
+-- and prompts are `<leader>an`'s and `<leader>ae`'s, and it stays
+-- :CodeCompanionActions.
 local KEYS = {
   -- From Visual mode both take the selection to the chat they open.
   { { "n", "x" }, "n", M.new_chat, "New AI chat…" },
@@ -467,7 +424,6 @@ local KEYS = {
   { "n", "V", M.new_round, "Start review round" },
   -- The key profile of inline edits and command prompts (API credits).
   { "n", "x", function() require("ai.switch").pick() end, "Switch API key profile…" },
-  { { "n", "x" }, "p", "<cmd>CodeCompanionActions<cr>", "Companion actions…" },
   -- codecompanion-history's browser: every chat it auto-saved, either kind.
   -- A restored chat comes up through upstream's own open; the slot's guard
   -- makes the rest of the tabpage's AI windows give way to it.
@@ -487,7 +443,7 @@ local function oil_keys(buf)
 end
 
 ---Define, relabel or remove the `<leader>a` keys for the current state.
----Idempotent: called from setup(), after every :AI key, and once
+---Idempotent: called when this module loads, after every :AI key, and once
 ---claudecode.nvim has loaded. which-key rereads the keymaps each time its popup
 ---opens, so it needs no notice of the change.
 function M.apply_keymaps()
@@ -546,7 +502,7 @@ local function review_events()
       -- unset under claude_cwd = "cwd". Read now, in the terminal's window.
       local cwd = vim.fn.getcwd()
       vim.schedule(guarded("terminal", function()
-        if vim.api.nvim_buf_is_valid(ev.buf) and require("util.terminal").agent_of(ev.buf) then
+        if vim.api.nvim_buf_is_valid(ev.buf) and require("ai.terminal").agent_of(ev.buf) then
           require("ai.review.rounds").track_terminal(ev.buf, cwd)
         end
       end))
@@ -555,7 +511,10 @@ local function review_events()
   vim.api.nvim_create_autocmd("User", {
     group = group,
     pattern = "CodeCompanionChatCreated",
-    callback = guarded("chat", function(ev) require("ai.review.rounds").chat_created(ev.data) end),
+    callback = guarded("chat", function(ev)
+      require("ai.review.rounds").chat_created(ev.data)
+      require("ai.progress").chat_created(ev.data)
+    end),
   })
   vim.api.nvim_create_autocmd("User", {
     group = group,
@@ -575,29 +534,58 @@ local function review_events()
   })
 end
 
-function M.setup()
-  if did_setup then return end
-  did_setup = true
+-- Loading the facade installs it, once (require caches the module): init.lua
+-- requires it before lazy.nvim, and every later require("ai") gets the same
+-- table. Nothing below may require("ai") synchronously -- the module is still
+-- loading, so that require fails with "loop or previous error" -- use M.
 
-  -- Input rules for every agent panel, whichever agent runs in it -- see
-  -- lua/ai/terminal.lua.
-  require("ai.terminal").setup()
+-- Input rules for every agent panel, whichever agent runs in it -- see
+-- lua/ai/terminal.lua.
+require("ai.terminal").setup()
 
-  M.apply_keymaps()
+M.apply_keymaps()
 
-  vim.api.nvim_create_autocmd("FileType", {
-    group = vim.api.nvim_create_augroup("ai_tree_keymaps", { clear = true }),
-    pattern = { "oil" },
-    callback = function(event) oil_keys(event.buf) end,
-  })
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("ai_tree_keymaps", { clear = true }),
+  pattern = { "oil" },
+  callback = function(event) oil_keys(event.buf) end,
+})
 
-  review_events()
+review_events()
 
-  -- One AI window per tabpage, whichever path opened it.
-  require("ai.slot").setup()
+-- One AI window per tabpage, whichever path opened it.
+require("ai.slot").setup()
 
-  -- :AI and :AIInfo. Defining them loads no plugin.
-  require("ai.switch").setup()
-end
+-- A key switch (:AI key, <leader>ax) relabels <leader>ae: ai.switch announces
+-- it, and the keys are this module's.
+vim.api.nvim_create_autocmd("User", {
+  group = vim.api.nvim_create_augroup("ai_keymaps", { clear = true }),
+  pattern = "AIStateChanged",
+  callback = function() M.apply_keymaps() end,
+})
+
+-- :AI and :AIInfo, the typed twins of <leader>al / an / ax. Defining them
+-- loads no plugin; the key profile's subcommands are ai.switch's.
+vim.api.nvim_create_user_command("AI", function(o)
+  local sub, arg = o.fargs[1], o.fargs[2]
+  -- The chat pickers of <leader>al / <leader>an (lua/ai/slot.lua).
+  if not sub then return M.switch_chat() end
+  if sub == "provider" then
+    return notify(":AI provider is gone: :AI new (<leader>an) picks each chat's backend;"
+      .. "\nthe picker lists the providers in the order of lua/ai/config.lua", vim.log.levels.ERROR)
+  end
+  if #o.fargs <= 2 then
+    if sub == "key" then return require("ai.switch").key(arg) end
+    if sub == "info" and not arg then return require("ai.switch").info() end
+    if sub == "new" and not arg then return M.new_chat() end
+  end
+  notify("Usage: :AI [new | key [name] | info]", vim.log.levels.ERROR)
+end, {
+  nargs = "*",
+  complete = function(...) return require("ai.switch").complete(...) end,
+  desc = "Switch AI chat, start one, or set API key profile",
+})
+vim.api.nvim_create_user_command("AIInfo", function() require("ai.switch").info() end,
+  { desc = "Show AI providers, key profile and open chats" })
 
 return M

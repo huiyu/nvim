@@ -38,7 +38,7 @@ llama-server --fim-qwen-7b-default                 # once: ghost-text model (~8 
 - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
 - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
 - **Rust (rustup)** — `rust-analyzer` (installed by Mason) needs `cargo`, and formats with the toolchain's `rustfmt` (`rustup component add rustfmt`); it adds `rust-src` through rustup itself
-- **JDK 25+** — runs `jdtls` (Java); projects may still target older releases. Found through `$JAVA_HOME`, then [SDKMAN!](https://sdkman.io/) (`~/.sdkman/candidates/java`), then PATH (see [`lua/lang/java.lua`](lua/lang/java.lua))
+- **JDK 25+** — runs `jdtls` (Java); projects may still target older releases. Found through `$JAVA_HOME`, then [SDKMAN!](https://sdkman.io/) (`~/.sdkman/candidates/java`), then PATH (see [`lua/plugins/lang/java.lua`](lua/plugins/lang/java.lua))
 - **TeX Live + Skim** (LaTeX) — `brew install --cask mactex-no-gui` for `latexmk`/`latexindent`/`chktex`, and `brew install --cask skim` for the SyncTeX PDF viewer. `texlab` is installed by Mason. For inverse search set Skim → Preferences → Sync → Custom: command `nvim`, arguments `--headless -c "VimtexInverseSearch %line '%file'"`
 
 If a Mason package fails to install, run `:Mason` (UI) or `:MasonLog` (raw log) to see the underlying error. The most common cause is a missing toolchain from the list above.
@@ -66,35 +66,38 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 ~/.config/nvim/
 ├── AGENTS.md                # Repository guidance for coding agents
 ├── CLAUDE.md                # Claude Code import of AGENTS.md
-├── init.lua                  # Entry point
+├── init.lua                  # Entry point: vim.loader, then require("config")
 ├── lua/
-│   ├── options.lua           # Vim options
-│   ├── mappings.lua          # Imperative core keymaps (side effects)
-│   ├── whichkey_spec.lua     # which-key groups, popup sections, spec keymaps (data)
-│   ├── autocmds.lua          # Autocommands
-│   ├── bootstrap.lua         # lazy.nvim setup
-│   ├── ai/                    # AI state, the chat slot, native Claude/Codex backends, CodeCompanion chats, review rounds (ai/review/)
-│   ├── config/
+│   ├── config/               # This configuration's own startup
+│   │   ├── init.lua          # The startup sequence, in order
+│   │   ├── cwd.lua           # Recover a deleted cwd; start in the first argument's root
+│   │   ├── options.lua       # Vim options
+│   │   ├── keymaps.lua       # Imperative core keymaps
+│   │   ├── autocmds.lua      # Autocommands
+│   │   ├── lazy.lua          # lazy.nvim: install, import lua/plugins/
+│   │   ├── whichkey_spec.lua # which-key groups, popup sections, spec keymaps (data)
 │   │   └── health.lua        # `:checkhealth config` provider
-│   ├── lang/                 # Language-specific configs
-│   │   ├── bash.lua
-│   │   ├── dart.lua
-│   │   ├── rust.lua
-│   │   ├── c.lua             # C / C++
-│   │   ├── frontend.lua      # HTML / CSS / Tailwind
-│   │   ├── go.lua
-│   │   ├── java.lua
-│   │   ├── json.lua
-│   │   ├── python.lua
-│   │   ├── tex.lua           # LaTeX (VimTeX + texlab)
-│   │   ├── typescript.lua    # JS / TS language (LSP, format, DAP)
-│   │   └── yaml.lua
-│   ├── plugin/
-│   │   ├── editor/           # Editor enhancement plugins
-│   │   ├── lsp/              # LSP, completion, formatting, debugging
-│   │   ├── ui/               # UI and theme plugins
-│   │   └── vcs/              # Git integration
-│   └── util/                 # Utility modules
+│   ├── plugins/              # lazy.nvim specs, imported in this order
+│   │   ├── editor/           # Editing, navigation, pickers, panels
+│   │   ├── coding/           # LSP, completion, formatting, linting, DAP, tests
+│   │   ├── ai/               # Claude Code, CodeCompanion, ghost text
+│   │   ├── ui/               # Colorscheme, statusline, tabline, treesitter
+│   │   ├── git/              # CodeDiff, gitsigns, GitHub
+│   │   └── lang/             # Per-language servers, tools and adapters
+│   │       ├── bash.lua
+│   │       ├── c.lua         # C / C++
+│   │       ├── dart.lua
+│   │       ├── frontend.lua  # HTML / CSS / Tailwind
+│   │       ├── go.lua
+│   │       ├── java.lua
+│   │       ├── json.lua
+│   │       ├── python.lua
+│   │       ├── rust.lua
+│   │       ├── tex.lua       # LaTeX (VimTeX + texlab)
+│   │       ├── typescript.lua # JS / TS language (LSP, format, DAP)
+│   │       └── yaml.lua
+│   ├── ai/                   # AI state, the chat slot, native Claude/Codex backends, CodeCompanion chats, review rounds (ai/review/)
+│   └── util/                 # Utility modules (no side effects on require)
 ├── .github/workflows/       # CI: spec suite + a headless startup check
 ├── scripts/                 # Agent TUI helpers, shared llama-server supervisor
 ├── tests/                   # Headless spec suite (tests/run.sh)
@@ -126,9 +129,10 @@ expects (the llama-server `util.llama` shares, git and gitsigns timing).
 | Plugin | Description |
 |--------|-------------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | Colorscheme |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator, the buffer's git change counts (from gitsigns) and its language servers (a spinner while one is busy) |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | Status line with a `● REC @q` macro recording indicator, a pending command or Visual selection size (`2d`, `3x12`), the buffer's git change counts (from gitsigns) and its language servers (a spinner while one is busy) |
 | [incline](https://github.com/b0o/incline.nvim) | Top-right filename labels in file windows; pink for the focused window, `[+]` for unsaved changes |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | Buffer tabs with pin/close/pick (`;B` picks one by its tab letter); `<leader>bh` closes the buffers no window shows, in any tabpage |
+| [noice](https://github.com/folke/noice.nvim) | Command line and messages: `:` in a popup near the top with its completion menu, `/` and `?` on the bottom row, Vim's messages and errors as notifications (snacks below), `:w` / undo / quickfix confirmations small at the bottom right, `:messages` / `g<` in a split; no "Press ENTER" prompt |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting, text objects |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | Sticky function/class header (`<leader>uC`) |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | Auto-close HTML/JSX tags |
@@ -138,11 +142,6 @@ expects (the llama-server `util.llama` shares, git and gitsigns timing).
 | [illuminate](https://github.com/RRethy/vim-illuminate) | Highlight word under cursor; `]r` / `[r` jump to its next / previous reference |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL and CSS variable previews; Tailwind colors in frontend files |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | In-editor markdown rendering (`,m`) |
-
-The command line and messages are Neovim's own ui2 (experimental, `:help ui2`):
-no "Press ENTER" prompt; output that does not fit collapses to `[+N]`, and
-`g<` or `:messages` opens it in a pager (`q` closes). Notifications come from
-snacks below.
 
 #### Editor
 
@@ -424,7 +423,7 @@ output enter the wrapper tmux history.
 
 #### AI keys
 
-AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback) in a Git view's comma menu, starts its description with `[AI]`. The chat keys act on **the chat on the right** of the current tabpage — native Claude Code, native Codex or a CodeCompanion chat, whichever is shown there ([AI chats](#ai-chats-and-providers)) — so their descriptions name no agent. `ae`'s names the key profile it bills, and changes with `:AI key`; the Claude-only `aa` / `ad` and oil's `aS` say "Claude". A description ends in "…" when the key asks something before it acts (`an`, `al`, `ar`, `am`, `ae`, `ax`, `ap`); `aR` asks nothing, and the question every chat key may ask when nothing is on the right — which chat or agent — is not counted.
+AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback) in a Git view's comma menu, starts its description with `[AI]`. The chat keys act on **the chat on the right** of the current tabpage — native Claude Code, native Codex or a CodeCompanion chat, whichever is shown there ([AI chats](#ai-chats-and-providers)) — so their descriptions name no agent. `ae`'s names the key profile it bills, and changes with `:AI key`; the Claude-only `aa` / `ad` and oil's `aS` say "Claude". A description ends in "…" when the key asks something before it acts (`an`, `al`, `ar`, `am`, `ae`, `ax`); `aR` asks nothing, and the question every chat key may ask when nothing is on the right — which chat or agent — is not counted.
 
 | Key | Mode | Does |
 |-----|------|------|
@@ -441,7 +440,6 @@ AI keys live under `<leader>a`; the one in another popup, `,C` (review feedback)
 | `aS` | n (oil) | Add the file under the cursor to Claude on the right |
 | `ae` | n, x | Inline edit (`:CodeCompanion`) on the API key profile |
 | `ax` | n | Switch the API key profile (`:AI key`) |
-| `ap` | n, x | CodeCompanion action palette |
 | `ao` | n | Browse saved CodeCompanion chats (a chat's `gh` is the same browser) |
 
 From Visual mode `an` and `al` take the selection to the chat they open. The
@@ -595,8 +593,10 @@ tabpages are left alone.
   selected lines, Codex the `@path lines X-Y` mention typed into its box, a
   chat a fenced block in its prompt; nothing is submitted. Both agents read
   the saved file, so for a buffer with unsaved changes Codex gets the exact
-  text instead and Claude Code a warning. `<leader>ab` is for the native
-  agents; a chat takes a selection, or `#{buffer}` in its own prompt.
+  text instead and Claude Code a warning. `<leader>ab` gives a chat the file
+  as context, as its own `/buffer` does: an API chat gets the buffer's text,
+  unsaved changes included; an agent chat gets the path and its agent reads
+  the saved file, so it warns of unsaved changes too.
 - From a CodeDiff view the keys act on the page the view was opened from,
   which becomes the current tabpage, so nothing opens inside the view; a
   question cancelled there goes back to it.
@@ -693,7 +693,9 @@ take the same place on the right as the native terminals:
   code block, without submitting it; `<leader>ai` puts the cursor in its
   prompt (from Visual, after adding the selection).
 - In a chat, `<CR>` sends (`<C-d>` from Insert mode) and `<C-c>` stops the
-  reply. `q` hides the chat, as `<leader>ac` does, which brings it back;
+  reply. From the send until the reply is done, the end of the chat says
+  `⠋ Waiting for Claude Code · 3s` (or `… is working` while an agent thinks
+  or runs a tool); it is hidden while the reply streams in. `q` hides the chat, as `<leader>ac` does, which brings it back;
   `,q` ends it, and CodeCompanion shows another open chat in its window.
   `,X` clears the messages, `,z` folds the code blocks, `,s` saves the chat,
   `gf` opens the file under the cursor and `?` / `g?` list every key.
@@ -702,12 +704,15 @@ take the same place on the right as the native terminals:
 - `<leader>ae` opens `:CodeCompanion ` (with the range, from Visual mode) on
   the key profile, and `<C-c>` stops its request; with no prompt it asks in a
   float, where `<CR>` (or `<C-d>` from Insert mode) sends and `q` / `<Esc>`
-  close. `<leader>ap` is the action palette.
+  close. CodeCompanion's action palette has no key: its chats and prompts
+  are `<leader>an`'s and `<leader>ae`'s, and it is still
+  `:CodeCompanionActions`.
 - A missing key is caught before anything starts: `<leader>an` leaves out an
   API chat whose `NVIM_*` key is unset and an agent chat whose bridge is
   missing, and `<leader>ae` says so instead of a request that fails with 401.
   A chat restored from history, the action palette's *Inline prompt*
-  (`<leader>ap`) and `:CodeCompanion` typed by hand skip this check.
+  (`:CodeCompanionActions`) and `:CodeCompanion` typed by hand skip this
+  check.
 - CodeCompanion's own commands that name no adapter (a typed
   `:CodeCompanionChat`, the palette's chat) start a chat on the first `acp` in
   provider order (Claude Code, with the defaults), else on the first `api`;
@@ -739,7 +744,7 @@ When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requi
 #### Native-agent tmux wrappers
 
 Claude Code and Codex are launched inside provider-specific, dedicated tmux
-servers. See `lua/plugin/lsp/ai.lua` and `lua/ai/backend/codex.lua`.
+servers. See `lua/plugins/ai/claudecode.lua` and `lua/ai/backend/codex.lua`.
 
 **Why**: both TUIs emit DEC mode 2026 (Synchronized Output) escape sequences for
 atomic frame updates. Nvim's `:terminal` buffer does not understand this
@@ -908,19 +913,19 @@ For troubleshooting (slow startup, LSP not attaching, missing formatter, etc.) s
 
 ### Customization
 
-**Add a plugin** — create a file in the appropriate `lua/plugin/*/` directory.
+**Add a plugin** — create a file in the appropriate `lua/plugins/*/` directory.
 
 **Add language support, an LSP server, or a formatter** — create or edit the
-matching contribution in `lua/lang/`. Language files extend the shared
+matching contribution in `lua/plugins/lang/`. Language files extend the shared
 `nvim-lspconfig`, Conform, lint, Treesitter, DAP, and test specs; the files in
-`lua/plugin/lsp/` contain editor-wide defaults only.
+`lua/plugins/coding/` contain editor-wide defaults only.
 
 **Add, remove or reorder an AI provider** — edit the `providers` list in
 `lua/ai/config.lua` ([AI chats and providers](#ai-chats-and-providers)). A
 provider whose `acp` and `api` name adapters CodeCompanion already has needs
 only the entry; a native terminal of a new kind needs code.
 
-**Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
+**Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugins/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
 
 Use `;i` (files) or `;?` (text) to respect `.gitignore` instead, with hidden files
 still visible and no extra directory exclusions. Under Manage, `<leader>mf`

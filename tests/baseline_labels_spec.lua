@@ -1,7 +1,7 @@
 -- Baseline labels (lua/ai/review/labels.lua) and what they read: session names
 -- and turn ends from the agents' own records (lua/ai/transcript/marks.lua,
 -- through the claude and codex adapters), shown by the <leader>g pickers
--- (lua/plugin/vcs/codediff.lua).
+-- (lua/plugins/git/codediff.lua).
 --
 -- Pinned here:
 --   * ISO 8601 becomes epoch seconds by arithmetic, not through the local UTC

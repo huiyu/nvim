@@ -3,12 +3,12 @@
 -- codediff.nvim's README calls everything under codediff.core and codediff.ui
 -- internal, and it has no API for the session, the hunks or its keymaps
 -- (upstream #577). What this config needs from there goes through this file,
--- like which-key's View.sort in lua/plugin/editor/whichkey.lua. Every access
+-- like which-key's View.sort in lua/plugins/editor/whichkey.lua. Every access
 -- is guarded -- pcall around the require, a type check before each call -- and
 -- setup() compares the plugin's VERSION with the one these hooks were written
 -- against. A mismatch warns once and leaves the patches below off. That
 -- fallback is safe: the upstream keys that would be dangerous here are already
--- disabled in lua/plugin/vcs/codediff.lua, so what remains is plain CodeDiff.
+-- disabled in lua/plugins/git/codediff.lua, so what remains is plain CodeDiff.
 -- tests/codediff_spec.lua pins every internal named here.
 --
 --   codediff.version                VERSION
@@ -1096,7 +1096,7 @@ end
 --
 -- It replaces the function for every caller: statistics.lua looks it up on
 -- the changes table at call time, for the first listing and every refresh.
--- That holds while explorer.line_stats is off (lua/plugin/vcs/codediff.lua);
+-- That holds while explorer.line_stats is off (lua/plugins/git/codediff.lua);
 -- with line stats on, their numbers would still come from upstream's
 -- `git diff <rev>` (core/git.lua, get_diff_revision_with_line_stats).
 --
@@ -1182,9 +1182,19 @@ local function size_text(bytes)
   return ("%d bytes"):format(bytes)
 end
 
-local function size_reason()
-  local ok, settings = pcall(function() return require("ai.review.config").get() end)
-  local limit = ok and settings.max_file_size and size_text(settings.max_file_size) or "the size limit"
+-- The size cut-off of every snapshot a view takes: setup's `max_file_size`
+-- hook (the lazy spec reads it from vim.g.ai_review). Nil until setup.
+local max_file_size_of
+
+local function max_file_size()
+  local ok, max = pcall(function() return max_file_size_of and max_file_size_of() end)
+  return ok and type(max) == "number" and max or nil
+end
+
+---@param max? integer the cut-off to name, else the hook's
+local function size_reason(max)
+  max = max or max_file_size()
+  local limit = max and size_text(max) or "the size limit"
   return ("untracked, over %s; vim.g.ai_review.max_file_size"):format(limit)
 end
 
@@ -1197,18 +1207,20 @@ local LEFT_OUT = {
 
 ---The lines that name `left_out` (M.listing's), one per reason, in the order
 ---a view's own notice gives them: "Not compared (<why>): a, b". With
----`limit`, a line names that many paths and counts the rest.
+---`limit`, a line names that many paths and counts the rest. `max_file_size`
+---is the cut-off the size line names, for a caller that may run before setup.
 ---@param left_out table<string, string[]>
 ---@param limit? integer
+---@param max_file_size? integer
 ---@return string[]
-function M.left_out_lines(left_out, limit)
+function M.left_out_lines(left_out, limit, max_file_size)
   local lines = {}
   for _, reason in ipairs(LEFT_OUT) do
     local paths = left_out[reason[1]] or {}
     if #paths > 0 then
       local named = limit and vim.list_slice(paths, 1, limit) or paths
       local more = #paths > #named and (" and %d more"):format(#paths - #named) or ""
-      lines[#lines + 1] = ("Not compared (%s): %s%s"):format(reason[2](), table.concat(named, ", "), more)
+      lines[#lines + 1] = ("Not compared (%s): %s%s"):format(reason[2](max_file_size), table.concat(named, ", "), more)
     end
   end
   return lines
@@ -1393,7 +1405,7 @@ local function patched_listing(original)
           if not result then return fallback(why) end
           answer(result)
         end)
-      end)
+      end, { max_file_size = max_file_size() })
     end)
     if not ok then fallback(tostring(err)) end
   end
@@ -1508,9 +1520,10 @@ end
 --- missing and VSCODE_DIFF_NO_AUTO_INSTALL is unset), so this runs from the
 --- lazy spec's config, at first use, never at startup.
 ---@param opts table CodeDiff's options
----@param hooks? { history_limit?: fun(): integer|false }
+---@param hooks? { history_limit?: (fun(): integer|false), max_file_size?: (fun(): integer) }
 function M.setup(opts, hooks)
   hooks = hooks or {}
+  max_file_size_of = hooks.max_file_size
   local version = internal("version")
   local found = version and version.VERSION
   degraded = found ~= M.VERSION

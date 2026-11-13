@@ -1,4 +1,4 @@
--- On-demand parser install (plugin/ui/treesitter.lua). A filetype whose parser
+-- On-demand parser install (plugins/ui/treesitter.lua). A filetype whose parser
 -- no list declares installs it on first open, at most once per session, and
 -- every buffer waiting on it starts highlighting when the build finishes.
 --

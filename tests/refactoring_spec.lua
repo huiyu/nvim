@@ -1,7 +1,7 @@
 -- refactoring.nvim broke twice without a startup error: an update removed the
 -- refactor() entry point every mapping called, and on Nvim 0.12 its fallback
 -- `require("async")` resolved to promise-async, which nvim-ufo loads on the
--- first file read (lua/plugin/editor/refactoring.lua). So this spec reads a
+-- first file read (lua/plugins/editor/refactoring.lua). So this spec reads a
 -- real file first, the order a session has, and drives the refactors through
 -- their mapped keys (all but ,eF), asserting the text that comes out.
 local t = dofile("tests/helper.lua")

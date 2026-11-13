@@ -109,10 +109,11 @@ if lua_ls then
   t.ok(#hints > 0, ("lua_ls returns inlay hints for lua/util/cwd.lua (%d)"):format(#hints))
 end
 
--- K is silent. Hovering a blank line is routine; noice used to filter out the
--- "No information available" notice it raises, and K now asks hover() not to
--- raise it. The unsilenced call first proves the server answers at that spot,
--- so the silence below is not just a slow server.
+-- K is silent. Hovering a blank line is routine, and K asks hover() not to
+-- raise the "No information available" notice it would raise each time (noice's
+-- own hover, which once filtered it out, is off: lua/plugins/ui/noice.lua). The
+-- unsilenced call first proves the server answers at that spot, so the
+-- silence below is not just a slow server.
 local notified = {}
 local real_notify = vim.notify
 vim.notify = function(msg) notified[#notified + 1] = tostring(msg) end
@@ -140,8 +141,8 @@ vim.wait(2000, function() return #notified > 0 end, 50)
 t.eq(notified, {}, "K on a blank line raises no notification")
 vim.notify = real_notify
 
--- <C-f>/<C-b> scroll an open hover from the code window (noice did this
--- before); with no popup they stay a page scroll. A plain float stands in for
+-- <C-f>/<C-b> scroll an open hover from the code window (noice's own hover
+-- is off, and its scroll keys with it); with no popup they stay a page scroll. A plain float stands in for
 -- the hover, tagged the way open_floating_preview tags one: the buffer var
 -- naming the window, plus the hover focus_id as a window var.
 local scroll_f, scroll_b = mapping("<C-f>"), mapping("<C-b>")

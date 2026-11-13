@@ -44,7 +44,7 @@ end
 -- so without this CLI no parser installs or updates, and every
 -- `build = ":TSUpdate"` asks for a rebuild. The floor is nvim-treesitter's own
 -- (README requirements, TREE_SITTER_MIN_VER in its health.lua); compare the two
--- when an update lands, as plugin/ui/treesitter.lua notes for the Nvim floor.
+-- when an update lands, as plugins/ui/treesitter.lua notes for the Nvim floor.
 local TREE_SITTER_MIN = "0.26.1"
 
 local function check_tree_sitter()
@@ -543,7 +543,7 @@ local function check_baselines()
   check_orphans(loc, B.NAMESPACE)
 
   -- CodeCompanion's own code_review (turned off in
-  -- lua/plugin/lsp/codecompanion.lua) kept its baselines as per-worktree refs.
+  -- lua/plugins/ai/codecompanion.lua) kept its baselines as per-worktree refs.
   local cc, cc_err = git(loc.toplevel, { "for-each-ref", "--format=%(refname)", "refs/worktree/codecompanion/" })
   local cc_refs = split_lines(cc)
   if not cc then

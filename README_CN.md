@@ -38,7 +38,7 @@ llama-server --fim-qwen-7b-default                 # 一次性：下载灰色补
 - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
 - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
 - **Rust（rustup）** — Mason 安装的 `rust-analyzer` 需要 `cargo`，格式化用的是工具链自带的 `rustfmt`（`rustup component add rustfmt`）；`rust-src` 由 rust-analyzer 自己通过 rustup 补装
-- **JDK 25+** — 用来运行 `jdtls`（Java）；项目本身仍可面向更早的版本。依次从 `$JAVA_HOME`、[SDKMAN!](https://sdkman.io/)（`~/.sdkman/candidates/java`）、PATH 中查找（见 [`lua/lang/java.lua`](lua/lang/java.lua)）
+- **JDK 25+** — 用来运行 `jdtls`（Java）；项目本身仍可面向更早的版本。依次从 `$JAVA_HOME`、[SDKMAN!](https://sdkman.io/)（`~/.sdkman/candidates/java`）、PATH 中查找（见 [`lua/plugins/lang/java.lua`](lua/plugins/lang/java.lua)）
 - **TeX Live + Skim**（LaTeX）— `brew install --cask mactex-no-gui` 提供 `latexmk`/`latexindent`/`chktex`，`brew install --cask skim` 提供支持 SyncTeX 的 PDF 阅读器；`texlab` 由 Mason 安装。反向跳转需在 Skim → 偏好设置 → Sync 中选 Custom：命令填 `nvim`，参数填 `--headless -c "VimtexInverseSearch %line '%file'"`
 
 如果 Mason 安装失败，运行 `:Mason`（UI）或 `:MasonLog`（原始日志）查看具体错误。最常见的原因是上面这些工具链没装。
@@ -61,35 +61,38 @@ nvim
 ~/.config/nvim/
 ├── AGENTS.md                # Coding agent 的仓库级约定
 ├── CLAUDE.md                # Claude Code 对 AGENTS.md 的导入
-├── init.lua                  # 入口文件
+├── init.lua                  # 入口：开启 vim.loader，然后 require("config")
 ├── lua/
-│   ├── options.lua           # Vim 选项
-│   ├── mappings.lua          # 命令式核心键位（副作用）
-│   ├── whichkey_spec.lua     # which-key 分组、弹窗分区、spec 键位（数据）
-│   ├── autocmds.lua          # 自动命令
-│   ├── bootstrap.lua         # lazy.nvim 初始化
-│   ├── ai/                    # AI 状态、Chat 槽位、Native Claude/Codex 后端、CodeCompanion Chat、审阅轮次（ai/review/）
-│   ├── config/
+│   ├── config/               # 本配置自身的启动流程
+│   │   ├── init.lua          # 启动顺序，按序 require
+│   │   ├── cwd.lua           # 恢复已删除的 cwd；按第一个参数定位到其根目录
+│   │   ├── options.lua       # Vim 选项
+│   │   ├── keymaps.lua       # 命令式核心键位
+│   │   ├── autocmds.lua      # 自动命令
+│   │   ├── lazy.lua          # lazy.nvim：安装，导入 lua/plugins/
+│   │   ├── whichkey_spec.lua # which-key 分组、弹窗分区、spec 键位（数据）
 │   │   └── health.lua        # `:checkhealth config` 提供者
-│   ├── lang/                 # 语言专属配置
-│   │   ├── bash.lua
-│   │   ├── dart.lua
-│   │   ├── rust.lua
-│   │   ├── c.lua             # C / C++
-│   │   ├── frontend.lua      # HTML / CSS / Tailwind
-│   │   ├── go.lua
-│   │   ├── java.lua
-│   │   ├── json.lua
-│   │   ├── python.lua
-│   │   ├── tex.lua           # LaTeX（VimTeX + texlab）
-│   │   ├── typescript.lua    # JS / TS 语言（LSP、格式化、DAP）
-│   │   └── yaml.lua
-│   ├── plugin/
-│   │   ├── editor/           # 编辑器增强插件
-│   │   ├── lsp/              # LSP、补全、格式化、调试
-│   │   ├── ui/               # 界面和主题插件
-│   │   └── vcs/              # Git 集成
-│   └── util/                 # 工具模块
+│   ├── plugins/              # lazy.nvim spec，按此顺序导入
+│   │   ├── editor/           # 编辑、导航、picker、面板
+│   │   ├── coding/           # LSP、补全、格式化、lint、调试、测试
+│   │   ├── ai/               # Claude Code、CodeCompanion、幽灵文本补全
+│   │   ├── ui/               # 主题、状态栏、标签栏、Treesitter
+│   │   ├── git/              # CodeDiff、gitsigns、GitHub
+│   │   └── lang/             # 各语言的服务器、工具和适配器
+│   │       ├── bash.lua
+│   │       ├── c.lua         # C / C++
+│   │       ├── dart.lua
+│   │       ├── frontend.lua  # HTML / CSS / Tailwind
+│   │       ├── go.lua
+│   │       ├── java.lua
+│   │       ├── json.lua
+│   │       ├── python.lua
+│   │       ├── rust.lua
+│   │       ├── tex.lua       # LaTeX（VimTeX + texlab）
+│   │       ├── typescript.lua # JS / TS 语言（LSP、格式化、DAP）
+│   │       └── yaml.lua
+│   ├── ai/                   # AI 状态、Chat 槽位、Native Claude/Codex 后端、CodeCompanion Chat、审阅轮次（ai/review/）
+│   └── util/                 # 工具模块（require 时无副作用）
 ├── .github/workflows/       # CI：spec 套件 + 一次 headless 启动检查
 ├── scripts/                 # Agent TUI 辅助脚本、共享 llama-server 的守护脚本
 ├── tests/                   # Headless spec 套件（tests/run.sh）
@@ -120,9 +123,10 @@ spec 刻意逐个运行：有些 spec 依赖同一时间只有一个 Nvim 在用
 | 插件 | 说明 |
 |------|------|
 | [solarized-osaka](https://github.com/craftzdog/solarized-osaka.nvim) | 配色方案 |
-| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识、当前 buffer 的 git 改动行数（取自 gitsigns）和语言服务器（忙碌时显示转圈） |
+| [lualine](https://github.com/nvim-lualine/lualine.nvim) | 状态栏，显示 `● REC @q` 宏录制标识、按了一半的命令或 Visual 选区大小（`2d`、`3x12`）、当前 buffer 的 git 改动行数（取自 gitsigns）和语言服务器（忙碌时显示转圈） |
 | [incline](https://github.com/b0o/incline.nvim) | 文件窗口右上角的文件名标签；当前窗口显示粉色，`[+]` 表示未保存的修改 |
 | [bufferline](https://github.com/akinsho/bufferline.nvim) | 缓冲区标签页（固定/关闭/选择，`;B` 按标签字母选一个）；`<leader>bh` 关掉所有 tabpage 里都没有窗口在显示的 buffer |
+| [noice](https://github.com/folke/noice.nvim) | 命令行和消息：`:` 在屏幕上方的弹窗里输入，补全菜单跟在下面；`/` 和 `?` 留在最底一行；Vim 的消息和报错以通知弹出（由下面的 snacks 显示）；`:w`、撤销、quickfix 的确认以小字显示在右下角；`:messages` / `g<` 在分屏里查看；不再出现 "Press ENTER" 提示 |
 | [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | 语法高亮、文本对象 |
 | [treesitter-context](https://github.com/nvim-treesitter/nvim-treesitter-context) | 粘性函数/类头（`<leader>uC`） |
 | [nvim-ts-autotag](https://github.com/windwp/nvim-ts-autotag) | HTML/JSX 自动闭合标签 |
@@ -132,10 +136,6 @@ spec 刻意逐个运行：有些 spec 依赖同一时间只有一个 Nvim 在用
 | [illuminate](https://github.com/RRethy/vim-illuminate) | 光标下单词高亮；`]r` / `[r` 跳到它的下一处 / 上一处引用 |
 | [colorizer](https://github.com/catgoose/nvim-colorizer.lua) | Hex/RGB/HSL、CSS 变量颜色预览；前端文件支持 Tailwind 颜色 |
 | [render-markdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) | 编辑器内 Markdown 渲染（`,m`） |
-
-命令行和消息用的是 Neovim 自带的 ui2（实验性功能，见 `:help ui2`）：不再出现
-"Press ENTER" 提示；放不下的输出收起为 `[+N]`，用 `g<` 或 `:messages` 在分页
-窗口中查看（`q` 关闭）。通知由下面的 snacks 负责。
 
 #### 编辑器
 
@@ -388,7 +388,7 @@ history。
 
 #### AI 快捷键
 
-AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git 视图逗号菜单中的 `,C`（审阅反馈），它的描述以 `[AI]` 开头。Chat 类的键作用于当前 tabpage **右侧的 Chat**——Native Claude Code、Native Codex 或 CodeCompanion Chat，右侧显示的是哪个就是哪个（见 [AI Chat 与 Provider](#ai-chat-与-provider)）——所以这些键的描述不写 agent 名。`ae` 的描述写明它计费所用的 key profile，并随 `:AI key` 更新；只属于 Claude 的 `aa` / `ad` 和 oil 里的 `aS` 写明 "Claude"。描述以 "…" 结尾的键会先询问再执行（`an`、`al`、`ar`、`am`、`ae`、`ax`、`ap`）；`aR` 不询问，右侧没有 Chat 时各 Chat 键都可能问的那个问题（发给哪个 Chat 或 agent）不算在内。
+AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git 视图逗号菜单中的 `,C`（审阅反馈），它的描述以 `[AI]` 开头。Chat 类的键作用于当前 tabpage **右侧的 Chat**——Native Claude Code、Native Codex 或 CodeCompanion Chat，右侧显示的是哪个就是哪个（见 [AI Chat 与 Provider](#ai-chat-与-provider)）——所以这些键的描述不写 agent 名。`ae` 的描述写明它计费所用的 key profile，并随 `:AI key` 更新；只属于 Claude 的 `aa` / `ad` 和 oil 里的 `aS` 写明 "Claude"。描述以 "…" 结尾的键会先询问再执行（`an`、`al`、`ar`、`am`、`ae`、`ax`）；`aR` 不询问，右侧没有 Chat 时各 Chat 键都可能问的那个问题（发给哪个 Chat 或 agent）不算在内。
 
 | 键 | 模式 | 作用 |
 |----|------|------|
@@ -405,7 +405,6 @@ AI 相关的键都在 `<leader>a` 下；唯一出现在别的弹窗里的是 Git
 | `aS` | n（oil） | 把光标下的文件加给右侧的 Claude |
 | `ae` | n, x | Inline 编辑（`:CodeCompanion`），用 API key profile |
 | `ax` | n | 切换 API key profile（`:AI key`） |
-| `ap` | n, x | CodeCompanion 操作面板 |
 | `ao` | n | 浏览已保存的 CodeCompanion Chat（Chat 里的 `gh` 是同一个浏览器） |
 
 在 Visual 模式下，`an` 和 `al` 会把选区带给它们打开的 Chat。Native Agent 类的键作用于
@@ -531,8 +530,9 @@ transcript 是唯一对两个 agent 都成立的方案，且重启 Nvim 后依�
   所以不会因为询问而丢失。Claude Code 收到所选行的文件引用，Codex 收到键入输入框的
   `@路径 lines X-Y` 引用，Chat 收到加进输入区的围栏代码块；都不会提交。两个 agent
   都读磁盘上已保存的文件，所以 buffer 有未保存修改时，Codex 改收精确的文本，Claude
-  Code 则给出警告。`<leader>ab` 只给 Native Agent；Chat 用选区，或在自己的输入区里
-  用 `#{buffer}`。
+  Code 则给出警告。`<leader>ab` 像 Chat 自己的 `/buffer` 一样，把文件作为 context
+  加进 Chat：API Chat 收到 buffer 的文本，包括未保存的修改；Agent Chat 只收到路径，
+  由它的 agent 读磁盘上已保存的文件，所以有未保存修改时同样给出警告。
 - 在 CodeDiff 视图里，这些键作用于打开该视图的那个页面，并切换到那里，视图里不会打开
   任何东西；在视图里取消询问会回到视图。
 - Claude Code 隐藏时仍能看到编辑器里的选区：claudecode 的选区跟踪一直开着，与右侧
@@ -613,18 +613,20 @@ CodeCompanion 的 Chat 是一个 Neovim buffer，分两种。打开后看起来�
   地交接。
 - `<leader>as` 把 Visual 选区作为带围栏的代码块加进右侧的 Chat，不会提交；
   `<leader>ai` 把光标放进它的输入区（从 Visual 模式调用时先加入选区）。
-- 在 Chat 里，`<CR>` 发送（Insert 模式下用 `<C-d>`），`<C-c>` 停止回复。`q`
-  隐藏 Chat，与 `<leader>ac` 相同，再按 `<leader>ac` 即可带回；`,q` 结束它，
+- 在 Chat 里，`<CR>` 发送（Insert 模式下用 `<C-d>`），`<C-c>` 停止回复。从发送到
+  回复结束，Chat 末尾显示 `⠋ Waiting for Claude Code · 3s`（agent 思考或运行工具时是
+  `… is working`），回复流式写入时隐藏。`q` 隐藏 Chat，与 `<leader>ac` 相同，再按 `<leader>ac` 即可带回；`,q` 结束它，
   CodeCompanion 会在它的窗口里显示另一个打开着的 Chat。`,X` 清空消息，`,z` 折叠
   代码块，`,s` 保存 Chat，`gf` 打开光标下的文件，`?` / `g?` 列出全部键。Insert 中的
   `<C-c>` 退出 Insert 模式，`gx` 打开 URL，`{` / `}` 按段落移动，与别处一致；换到
   另一个 Chat 用 `<leader>al`。
 - `<leader>ae` 打开 `:CodeCompanion `（在 Visual 模式下带上范围），用的是 key
   profile，`<C-c>` 停止它的请求；不写提示词时会弹出浮窗，`<CR>`（Insert 模式下
-  `<C-d>`）发送，`q` / `<Esc>` 关闭。`<leader>ap` 是操作面板。
+  `<C-d>`）发送，`q` / `<Esc>` 关闭。CodeCompanion 的操作面板不占键位：它的 Chat 和
+  提示词由 `<leader>an`、`<leader>ae` 提供，需要时仍可输入 `:CodeCompanionActions`。
 - 缺 key 会在启动任何东西之前被发现：`NVIM_*` key 没设置的 API Chat、ACP bridge
   不在的 Agent Chat，`<leader>an` 都不会列出；`<leader>ae` 会直接提示，而不是发出
-  请求再收到 401。从历史恢复的 Chat、操作面板（`<leader>ap`）里的 *Inline prompt*，
+  请求再收到 401。从历史恢复的 Chat、操作面板（`:CodeCompanionActions`）里的 *Inline prompt*，
   以及手动输入的 `:CodeCompanion` 不经过这道检查。
 - CodeCompanion 自己那些不指定 adapter 的命令（手动输入的 `:CodeCompanionChat`、操作
   面板里的 Chat）会按 provider 顺序用第一个 `acp` 新建 Chat（默认配置下是 Claude
@@ -653,7 +655,7 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 #### Native Agent 的 tmux 包裹
 
 Claude Code 和 Codex 默认分别在 provider 专属的 tmux server 中启动，见
-`lua/plugin/lsp/ai.lua` 与 `lua/ai/backend/codex.lua`。
+`lua/plugins/ai/claudecode.lua` 与 `lua/ai/backend/codex.lua`。
 
 **原因**：两个 TUI 都会发出 DEC mode 2026（Synchronized Output）序列来做
 原子帧更新。Neovim 的 `:terminal` buffer 不识别该协议，因此半帧可能留下
@@ -798,11 +800,11 @@ CLI 的变量。
 
 ### 自定义
 
-**添加插件** — 在对应 `lua/plugin/*/` 目录下创建文件。
+**添加插件** — 在对应 `lua/plugins/*/` 目录下创建文件。
 
-**添加语言支持、LSP 服务器或格式化工具** — 在 `lua/lang/` 中创建或修改
+**添加语言支持、LSP 服务器或格式化工具** — 在 `lua/plugins/lang/` 中创建或修改
 对应语言贡献。语言文件负责扩展共享的 nvim-lspconfig、Conform、lint、
-Treesitter、DAP 和测试 spec；`lua/plugin/lsp/` 只放编辑器级公共默认配置。
+Treesitter、DAP 和测试 spec；`lua/plugins/coding/` 只放编辑器级公共默认配置。
 
 **添加、删除或调整 AI provider 的顺序** — 修改 `lua/ai/config.lua` 里的
 `providers` 列表（见 [AI Chat 与 Provider](#ai-chat-与-provider)）。`acp` 和 `api`
@@ -811,7 +813,7 @@ Treesitter、DAP 和测试 spec；`lua/plugin/lsp/` 只放编辑器级公共默�
 
 **调整文件/grep 搜索范围** — `;f` 与 `;/` 默认显示隐藏和被
 gitignore 的文件；`.git/` 始终排除，`node_modules`、`target`、`.venv`、
-`Pods` 等重型目录由 `lua/plugin/editor/snacks.lua` 的 `search_exclude` 统一
+`Pods` 等重型目录由 `lua/plugins/editor/snacks.lua` 的 `search_exclude` 统一
 过滤。这个过滤不区分是否被 Git 跟踪，因此不要随意加入 `bin`、`out`、
 `vendor` 这类可能包含源码的通用目录名。
 

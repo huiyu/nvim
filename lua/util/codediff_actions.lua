@@ -19,7 +19,7 @@
 --            to. CodeDiff's own hunk staging builds its patch against the left
 --            side instead, and in a rev-vs-working-tree view it put lines at
 --            the wrong place in the index without a word; its keys stay off
---            (lua/plugin/vcs/codediff.lua).
+--            (lua/plugins/git/codediff.lua).
 --   ,U       In the status view's Staged group (left HEAD, right the index):
 --            CodeDiff's own unstage, through util.codediff, which is right
 --            there and only there.
@@ -896,7 +896,7 @@ local function discard(tab, range)
 
   -- Only this buffer, and only what (a) and (b) proved is on disk plus the
   -- hunks. BufWritePre is skipped for this one write: conform formats there,
-  -- lua/lang/go.lua organizes imports there whatever vim.b.autoformat says,
+  -- lua/plugins/lang/go.lua organizes imports there whatever vim.b.autoformat says,
   -- and Nvim's own editorconfig sets 'endofline' and trims whitespace there.
   -- BufWritePost still runs, so LSP, gitsigns and the view hear about the
   -- write. 'fixeol' off: no newline added to a file that had none; and

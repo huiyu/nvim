@@ -1,4 +1,4 @@
--- Inline completion: minuet (lua/plugin/lsp/minuet.lua) in front of the
+-- Inline completion: minuet (lua/plugins/ai/minuet.lua) in front of the
 -- llama-server that util.llama shares between Nvims (scripts/llama-supervise).
 -- tests/fixtures/llama_fake.lua stands in for the server -- an 8 GB model is
 -- not a test dependency -- and rejects any /infill body that real llama-server

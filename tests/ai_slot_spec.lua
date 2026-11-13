@@ -326,7 +326,7 @@ local function text(chat) return table.concat(api.nvim_buf_get_lines(chat.bufnr,
 t.ok(anthropic and text(anthropic):find("```lua\nlocal bc = 2\nlocal d = 3\n```", 1, true) ~= nil,
   "the selection captured before the question lands in it, fenced")
 t.ok(anthropic and text(anthropic):find("Here is some code from " .. file, 1, true) ~= nil, "with its source")
-t.ok(anthropic and companion.show and anthropic.ui:is_visible() and not anthropic.ui:is_visible_non_curtab(),
+t.ok(anthropic and anthropic.ui:is_visible() and not anthropic.ui:is_visible_non_curtab(),
   "and it is shown here")
 t.eq(#wins(), 2, "in one window beside the file")
 
@@ -567,7 +567,7 @@ vim.cmd("silent edit!")
 -- Two chats, one on the right and the other upstream's last chat: the
 -- selection goes to the one on the right.
 editor()
-companion.show(anthropic, { focus = false })
+slot.show_chat(anthropic, { focus = false })
 t.eq(api.nvim_get_current_buf(), api.nvim_win_get_buf(editor_win), "shown without focus, the cursor stays in the file")
 -- Upstream's last chat is the chat buffer entered last.
 api.nvim_exec_autocmds("BufEnter", { buffer = openai.bufnr, modeline = false })
@@ -590,11 +590,31 @@ cc_config.can_send_code = real_can_send
 t.ok(noted("Sending code to CodeCompanion is disabled") ~= nil and text(anthropic) == before,
   "with sending code turned off, <leader>as refuses and adds nothing")
 
--- <leader>ab has nothing for a chat but a pointer.
+-- <leader>ab on a chat: the file as context, as its own /buffer adds it.
 editor()
+local msgs = #anthropic.messages
+ai.add_buffer()
+local added = anthropic.messages[#anthropic.messages]
+t.ok(#anthropic.messages == msgs + 1 and added.opts.visible == false
+  and added.content:find('<attachment filepath="' .. file .. '"', 1, true) ~= nil
+  and added.content:find("local bc = 2", 1, true) ~= nil,
+  "<leader>ab gives the chat on the right the file's text, in a hidden message")
+t.ok(vim.tbl_contains(vim.tbl_map(function(c) return c.path end, anthropic.context_items), file),
+  "listed in its context")
+t.eq(anthropic.current_request, nil, "nothing is submitted")
 notes = {}
 ai.add_buffer()
-t.ok(noted("A chat takes a selection") ~= nil, "<leader>ab on a chat says what to use instead")
+t.ok(noted("Current buffer is not a file") ~= nil and #anthropic.messages == msgs + 1,
+  "from the chat itself, nothing is added")
+-- An agent chat is sent the path alone, so an unsaved edit is said.
+editor()
+api.nvim_buf_set_lines(0, 0, 1, false, { "local a = 10" })
+anthropic.adapter.type, notes = "acp", {}
+ai.add_buffer()
+anthropic.adapter.type = "http"
+t.eq((noted("An agent chat reads the saved file") or {}).level, WARN, "<leader>ab warns an agent chat of unsaved changes")
+editor()
+vim.cmd("silent edit!")
 
 -- <leader>ai on a chat: its own prompt; from Visual, the selection first.
 editor()
@@ -935,20 +955,15 @@ t.eq(layout(first_tab), first_layout, "nothing there moved")
 t.ok(noted("Sent to Anthropic (tab 1)") ~= nil and not noted("went there"), "saying where it went, once")
 api.nvim_set_current_tabpage(third_tab)
 
--- <leader>ab asks among the native agents alone: a chat picked or made there
--- would only refuse it.
-local chats_before = #companion.chats()
+-- <leader>ab with nothing on the right asks among every chat, as <leader>as
+-- does; cancelled, nothing is added.
+local counts = { #anthropic.messages, #openai.messages }
 asked = {}
-choose("New chat…")
 ai.add_buffer()
-local function terminals_only(question)
-  local lines = vim.tbl_filter(function(line) return line ~= "New chat…" end, question and question.shown or {})
-  return #lines > 0 and #vim.tbl_filter(function(line) return not line:find(" · terminal · ", 1, true) end, lines) == 0
-end
 t.eq(asked[1] and asked[1].prompt, "Add file to", "<leader>ab with nothing on the right asks, worded as its desc")
-t.ok(terminals_only(asked[1]), "among the native agents only (" .. table.concat(asked[1] and asked[1].shown or {}, " | ") .. ")")
-t.ok(terminals_only(asked[2]), "and its New chat… offers the terminals only")
-t.eq(#companion.chats(), chats_before, "no chat is created for it")
+t.ok(listed("^Anthropic · API · API credits · .* · tab 1$"),
+  "offering the chats too (" .. table.concat(asked[1] and asked[1].shown or {}, " | ") .. ")")
+t.eq({ #anthropic.messages, #openai.messages }, counts, "cancelled, nothing is added")
 
 -- A tabpage of nothing but an AI window: the new one is shown first, then the
 -- old one hidden (E444 otherwise).
@@ -1457,6 +1472,8 @@ local expected = {
   "Sending code to CodeCompanion is disabled",
   "This buffer has no file",
   "Claude Code reads the saved file",
+  "An agent chat reads the saved file",
+  "Current buffer is not a file",
   "Only Claude Code takes files from a directory listing",
   "A directory listing cannot wait for a question",
   "is this tabpage's only window",

@@ -1,7 +1,7 @@
 -- Run the current file with a per-filetype command.
 --
--- Language modules (lua/lang/*.lua) register their runner via M.register(ft,
--- builder); a single ,x keymap (see lua/mappings.lua) dispatches by the
+-- Language modules (lua/plugins/lang/*.lua) register their runner via M.register(ft,
+-- builder); a single ,x keymap (see lua/config/keymaps.lua) dispatches by the
 -- current buffer's filetype. Scope is deliberately small: "quickly run this
 -- script", not a task runner or build/debug system.
 local M = {}
@@ -43,7 +43,7 @@ function M.run_current()
     vim_error.notify(err, "Run file")
     return
   end
-  -- A plain :split, so 'splitbelow' (lua/options.lua) puts the output under
+  -- A plain :split, so 'splitbelow' (lua/config/options.lua) puts the output under
   -- the file, the same place `ss` would.
   vim.cmd("split | terminal " .. builder(path))
 end

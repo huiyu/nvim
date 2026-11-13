@@ -153,7 +153,7 @@ local function said(text)
   end
 end
 local function press(keys) vim.api.nvim_feedkeys(vim.keycode(keys), "x", false) end
--- ui2 and the notifier keep floats in a tabpage; the split is what counts.
+-- Notifications and noice's popups are floats in a tabpage; the split is what counts.
 local function layout()
   return vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative == "" end,
     vim.api.nvim_tabpage_list_wins(0))
@@ -422,7 +422,7 @@ local second_tab = vim.api.nvim_get_current_tabpage()
 file_win = vim.api.nvim_get_current_win()
 t.ok(open(2), "<leader>gd opens ours and theirs in a second tabpage")
 vim.api.nvim_win_close(file_win, false)
--- ui2 keeps floats in every tabpage (a headless run has none): one is no split.
+-- A float in the tabpage (a notification; a headless run has none) is no split.
 vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false,
   { relative = "editor", row = 0, col = 0, width = 10, height = 1 })
 notices = {}

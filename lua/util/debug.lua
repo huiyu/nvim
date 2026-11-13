@@ -7,7 +7,7 @@
 ---all this memory / all these extmarks" during a slowdown.
 ---
 ---@example
----dd(vim.bo.filetype)              -- global, wired up in init.lua
+---dd(vim.bo.filetype)              -- global, wired up in lua/config/init.lua
 ---require("util.debug").module_leaks("snacks")
 local M = {}
 
@@ -53,7 +53,7 @@ function M._dump(value, opts)
 end
 
 ---Pretty-print any number of values, tagged with the call site.
----Bound to the global `dd` and to `vim.print` in init.lua.
+---Bound to the global `dd` and to `vim.print` in lua/config/init.lua.
 function M.dump(...)
   local args = { ... }
   ---@type any

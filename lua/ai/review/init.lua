@@ -96,7 +96,7 @@ end
 ---@param left_out? table<string, string[]>
 ---@return string[]
 local function left_out_lines(left_out)
-  return codediff().left_out_lines(left_out or {}, NAMED)
+  return codediff().left_out_lines(left_out or {}, NAMED, require("ai.review.config").get().max_file_size)
 end
 
 ---------------------------------------------------------------------------
@@ -383,7 +383,7 @@ local function check(root, entry, gen)
         end))
       end))
     end))
-  end))
+  end), { max_file_size = require("ai.review.config").get().max_file_size })
 end
 
 ---<leader>av: show the changes since a round's baseline (design §5.5; the

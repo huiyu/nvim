@@ -1,4 +1,4 @@
--- Manual comparison (lua/plugin/vcs/codediff.lua): <leader>gk compares any
+-- Manual comparison (lua/plugins/git/codediff.lua): <leader>gk compares any
 -- two ends, <leader>gK saves a named baseline, <leader>gM offers baselines.
 --
 -- :CodeDiff is stubbed to record its arguments, and util.codediff.open to

@@ -105,10 +105,10 @@ t.eq(vim.api.nvim_get_current_buf(), current, "UC-17: no sessions opens no buffe
 local ok = pcall(view.pick, "claude")
 t.ok(ok, "UC-12: pick() does not raise when there are no sessions")
 
--- q in the only layout window, with floats around. ui2 (lua/options.lua) keeps
--- hidden cmd/msg/pager/dialog floats in the current tabpage, so counting every
--- window made q try to close the last real one and fail with E444. Headless
--- never enables ui2, so a hidden float stands in for its windows.
+-- q in the only layout window, with floats around (a notification, a noice
+-- popup, incline's label). Counting every window made q try to close the last
+-- real one and fail with E444. Headless shows none of them, so a hidden float
+-- stands in.
 stub({ { id = "s1", path = "/tmp/fixture-a.jsonl", mtime = 2, title = "Newest" } }, entries)
 view.open_current("claude")
 local transcript = vim.api.nvim_get_current_buf()

@@ -141,7 +141,7 @@ t.eq(vim.opt.fillchars:get().diff, "╱", "diff filler lines are drawn with ╱"
 t.eq(vim.go.fillchars:find("diff:╱", 1, true) ~= nil, true, "the global value carries it")
 
 -- The bytecode loader is on before init.lua's first require, not only from
--- lazy.nvim's bootstrap on.
+-- lazy.nvim's own setup on.
 t.eq(vim.loader.enabled, true, "vim.loader is enabled")
 local first_statement
 for line in io.lines("init.lua") do

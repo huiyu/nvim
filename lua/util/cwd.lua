@@ -1,8 +1,6 @@
--- A shell whose directory was deleted under it still starts Nvim, but the
--- process then has no working directory: `vim.uv.cwd()` is nil, and the first
--- thing to hash it -- Snacks' dashboard terminal sections, at UIEnter -- dies
--- with a traceback for what is really "your directory is gone". Recover
--- before anything else loads and say so in one line.
+-- Working-directory resolution. Requiring this module changes nothing: the
+-- startup wiring (recover, then pick the startup cwd at VimEnter) lives in
+-- lua/config/cwd.lua, the first step of lua/config/init.lua.
 local M = {}
 
 local function is_dir(path)
@@ -54,6 +52,11 @@ end
 
 --- Recover from a working directory that no longer exists.
 ---
+--- A shell whose directory was deleted under it still starts Nvim, but the
+--- process then has no working directory: `vim.uv.cwd()` is nil, and the first
+--- thing to hash it -- Snacks' dashboard terminal sections, at UIEnter -- dies
+--- with a traceback for what is really "your directory is gone".
+---
 --- The shell's `$PWD` still names the lost directory, so the nearest ancestor
 --- that survived is the best guess at where the user wanted to be -- a pruned
 --- worktree lands in its repository, a removed temp dir in its parent. Home is
@@ -75,48 +78,19 @@ function M.recover()
   )
 end
 
---- Startup entry point, run from init.lua before options and plugins.
---- Files start at their Git root (or parent); directory arguments stay exact.
-function M.setup()
-  local report = M.recover()
-
-  -- Capture an absolute argument before plugins can change the buffer or cwd.
-  -- Apply only once, after startup has resolved every relative file argument.
-  local first = vim.fn.argc() > 0 and vim.fn.argv(0) or nil
-  if type(first) == "string" and first ~= "-" and not first:match("^%a[%w+.-]*://") then
-    local path = vim.fn.fnamemodify(first, ":p")
-    local initial_cwd = vim.fn.getcwd()
-    vim.api.nvim_create_autocmd("VimEnter", {
-      group = vim.api.nvim_create_augroup("startup_cwd", { clear = true }),
-      once = true,
-      desc = "Set startup cwd from the first file or directory",
-      callback = function()
-        -- Respect an explicit :cd/:lcd/:tcd or a restored session's directory.
-        if vim.fn.getcwd() ~= initial_cwd or vim.fn.haslocaldir() ~= 0 then return end
-        local target = vim.uv.fs_realpath(path) or path
-        if not is_dir(target) then
-          target = nearest_existing(vim.fs.dirname(target))
-          if target then target = vim.fs.root(target, ".git") or target end
-        end
-        if target then vim.cmd.cd(vim.fn.fnameescape(target)) end
-      end,
-    })
-  end
-
-  if not report then return end
-
-  -- At init time vim.notify is the builtin echo, and the dashboard's first
-  -- draw wipes the command line. The snacks notifier, which keeps the report
-  -- on screen and in its history, is in place once lazy has set snacks up;
-  -- this handler is registered before lazy's, so the notify is scheduled past
-  -- the whole VeryLazy chain rather than fired inside it.
-  vim.api.nvim_create_autocmd("User", {
-    pattern = "VeryLazy",
-    once = true,
-    callback = function()
-      vim.schedule(function() vim.notify(report, vim.log.levels.WARN) end)
-    end,
-  })
+--- The directory Nvim starts in for a file or directory argument.
+---
+--- A directory is used exactly. A file uses its nearest `.git` ancestor (a
+--- `.git` file counts, so worktrees and submodules keep their own root), else
+--- its parent. Symlinks resolve to their target first, and a parent that does
+--- not exist yet falls back to its nearest existing ancestor.
+---@param path string an absolute path
+---@return string?
+function M.startup_dir(path)
+  local target = vim.uv.fs_realpath(path) or path
+  if is_dir(target) then return target end
+  local dir = nearest_existing(vim.fs.dirname(target))
+  return dir and (vim.fs.root(dir, ".git") or dir)
 end
 
 return M

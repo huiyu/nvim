@@ -18,7 +18,7 @@
 --     worktree, and each worktree has a wtid of its own;
 --   * detached HEAD, an unborn repository with and without an index;
 --   * no signing and no user hooks, whatever the config says;
---   * retention (defaults and ai.review.config), the exemption hook,
+--   * retention to an explicit keep, the exemption hook,
 --     compare-and-swap deletes, and a listing that drops refs whose commit
 --     is missing with one warning;
 --   * a non-git directory, a bare repository and GIT_DIR give an error text;
@@ -282,7 +282,7 @@ loc = assert(B.locate(mixed .. "/build"))
 t.eq({ loc.toplevel, loc.gitdir }, { mixed, mixed .. "/.git" }, "locate() from a subdirectory finds the toplevel")
 t.eq(loc.wtid, vim.fn.sha256(mixed .. "/.git"):sub(1, 12), "wtid is sha256(realpath(gitdir)):sub(1, 12)")
 
-local r = await("snapshot", function(cb) B.snapshot(mixed, cb) end)
+local r = await("snapshot", function(cb) B.snapshot(mixed, cb, { max_file_size = 10 * 1024 * 1024 }) end)
 local tree, info = r[1], r[2]
 t.ok(type(tree) == "string" and tree:match("^%x+$") ~= nil, "snapshot of the mixed repository yields a tree")
 t.ok(r.fast == false, "callbacks run on the main loop, not in a fast event")
@@ -314,11 +314,11 @@ local round, round_info = save(mixed, "round", {
   Late = true,
   Skipped = false,
   tree = tree,
-  prune = false,
 })
 t.ok(round and round.tree == tree, "save() with meta.tree commits that tree")
 t.ok(round_info and round_info.toplevel == mixed, "save() hands back the snapshot info")
-local saved = save(mixed, "saved", { subject = "saved · before refactor", Label = "before refactor" })
+local saved = save(mixed, "saved",
+  { subject = "saved · before refactor", Label = "before refactor", max_file_size = 10 * 1024 * 1024 })
 t.ok(saved and saved.tree == tree, "save() without a tree snapshots first; an unchanged worktree gives the same tree")
 t.ok(not exists(mixed, big_sha), "saving does not hash the big file either")
 
@@ -346,7 +346,7 @@ t.eq(listed_round and {
 } or nil, { round.sha, tree, "Spec round 12:00:00", round.trailers, round.id, mixed },
   "list() parses sha, tree, subject, trailers and id back")
 t.eq(list(mixed, "saved")[1].trailers, { Label = "before refactor" }, "a saved baseline keeps its Label")
-t.eq(#prune(mixed, "round"), 0, "prune under the retention count deletes nothing")
+t.eq(#prune(mixed, "round", { keep = 20 }), 0, "prune under the retention count deletes nothing")
 
 same_fingerprint(before, fingerprint(mixed), "mixed repository")
 t.eq(temp_indexes(mixed .. "/.git"), {}, "no temporary index is left in the gitdir")
@@ -409,7 +409,7 @@ print(("info - control copy without the mtime went stale in %d of %d tries"):for
 local gc = new_repo("gc")
 commit(gc, "initial")
 write(gc .. "/u.txt", "gc-untracked\n")
-local g1 = save(gc, "round", { subject = "gc 1", prune = false })
+local g1 = save(gc, "round", { subject = "gc 1" })
 local g1_blob = tree_entries(gc, g1.tree)["u.txt"].sha
 must(gc, "gc", "-q", "--prune=now")
 t.ok(exists(gc, g1.sha) and exists(gc, g1_blob), "gc --prune=now keeps a baseline and its untracked blob")
@@ -432,10 +432,10 @@ t.eq(linked_loc.gitdir, uv.fs_realpath(must(linked, "rev-parse", "--absolute-git
 t.ok(vim.startswith(linked_loc.gitdir, main .. "/.git/worktrees/"), "under the main repository's worktrees/")
 t.ok(main_loc.wtid ~= linked_loc.wtid, "two worktrees of one repository have different wtids")
 write(linked .. "/ul.txt", "linked-secret\n")
-local L = save(linked, "round", { subject = "linked", prune = false })
+local L = save(linked, "round", { subject = "linked" })
 local L_blob = tree_entries(linked, L.tree)["ul.txt"].sha
 write(main .. "/um.txt", "main-secret\n")
-local M_ = save(main, "round", { subject = "main", prune = false })
+local M_ = save(main, "round", { subject = "main" })
 t.ok(vim.startswith(L.ref, "refs/nvim-review/" .. linked_loc.wtid .. "/round/"), "the linked worktree's ref uses its wtid")
 t.eq(vim.tbl_map(function(e) return e.sha end, list(main)), { M_.sha }, "list() in main shows only main's baselines")
 t.eq(vim.tbl_map(function(e) return e.sha end, list(linked)), { L.sha }, "list() in linked shows only linked's")
@@ -462,7 +462,7 @@ must(det, "commit", "-q", "-am", "two")
 must(det, "checkout", "-q", "--detach", "HEAD~1")
 local det_head = must(det, "rev-parse", "HEAD")
 write(det .. "/f", "3\n")
-local D = save(det, "round", { subject = "detached", prune = false })
+local D = save(det, "round", { subject = "detached" })
 t.eq(D and blob(det, D.tree, "f"), "3\n", "a detached HEAD snapshots normally")
 t.eq({ must(det, "rev-parse", "HEAD"), (select(2, git(det, "symbolic-ref", "-q", "HEAD"))) }, { det_head, 1 },
   "HEAD is still detached at the same commit")
@@ -476,7 +476,7 @@ t.ok(uv.fs_stat(unborn .. "/.git/index") == nil, "the snapshot did not create .g
 t.eq(temp_indexes(unborn .. "/.git"), {}, "and left no temporary index")
 must(unborn, "add", "x.txt")
 write(unborn .. "/y.txt", "y\n")
-local U = save(unborn, "round", { subject = "unborn", prune = false })
+local U = save(unborn, "round", { subject = "unborn" })
 t.eq(U and { blob(unborn, U.tree, "x.txt"), blob(unborn, U.tree, "y.txt") }, { "x\n", "y\n" },
   "an unborn repository with an index saves a baseline")
 t.ok(select(2, git(unborn, "rev-parse", "-q", "--verify", "HEAD")) ~= 0, "HEAD is still unborn")
@@ -503,7 +503,7 @@ must(hooks, "config", "commit.gpgSign", "true")
 must(hooks, "config", "user.signingKey", "spec")
 must(hooks, "config", "gpg.program", tmp_root .. "/fake gpg")
 write(hooks .. "/u.txt", "u\n")
-local H = save(hooks, "round", { subject = "hooks", prune = false })
+local H = save(hooks, "round", { subject = "hooks" })
 t.ok(H ~= nil, "save() works with commit.gpgSign=true and a failing gpg.program")
 t.ok(H and not must(hooks, "cat-file", "commit", H.sha):find("gpgsig", 1, true), "the baseline is not signed")
 t.ok(uv.fs_stat(gpg_log) == nil, "gpg was never called")
@@ -537,8 +537,8 @@ end
 
 local miss = new_repo("missing")
 commit(miss, "initial")
-local m1 = save(miss, "round", { subject = "missing 1", prune = false })
-local m2 = save(miss, "round", { subject = "missing 2", prune = false })
+local m1 = save(miss, "round", { subject = "missing 1" })
+local m2 = save(miss, "round", { subject = "missing 2" })
 assert(os.remove(("%s/.git/objects/%s/%s"):format(miss, m1.sha:sub(1, 2), m1.sha:sub(3))))
 local missing_listed
 local notes = notes_during(function() missing_listed = list(miss, "round") end)
@@ -574,40 +574,39 @@ local function subjects(dir, kind)
 end
 
 local gone
-notes = notes_during(function() gone = prune(ret, "round") end)
-t.eq(vim.tbl_map(function(e) return e.subject end, gone), { "r2", "r1" }, "default retention keeps 20 rounds")
+notes = notes_during(function() gone = prune(ret, "round", { keep = 20 }) end)
+t.eq(vim.tbl_map(function(e) return e.subject end, gone), { "r2", "r1" }, "keep = 20 keeps 20 rounds")
 t.eq(#notes, 0, "deleting rounds is silent")
 local left = subjects(ret, "round")
 t.eq({ #left, left[1], left[#left] }, { 20, "r22", "r3" }, "the newest 20 rounds remain")
 local saved_gone
-notes = notes_during(function() saved_gone = prune(ret, "saved") end)
-t.eq(vim.tbl_map(function(e) return e.subject end, saved_gone), { "saved · s1" }, "default retention keeps 10 saved")
+notes = notes_during(function() saved_gone = prune(ret, "saved", { keep = 10 }) end)
+t.eq(vim.tbl_map(function(e) return e.subject end, saved_gone), { "saved · s1" }, "keep = 10 keeps 10 saved")
 t.ok(#notes == 1 and notes[1].level == INFO and notes[1].msg:find('"saved · s1"', 1, true) ~= nil,
   "deleting a saved baseline names it")
 
 make("round", 23, "r23")
 make("round", 24, "r24")
 B.set_exempt(function(e) return e.subject == "r3" end)
-gone = prune(ret, "round")
+gone = prune(ret, "round", { keep = 20 })
 t.eq(vim.tbl_map(function(e) return e.subject end, gone), { "r4" }, "the exemption hook keeps an old round")
 t.eq(#subjects(ret, "round"), 21, "the exempt round is kept beyond the count")
 B.set_exempt(function() error("boom") end)
-notes = notes_during(function() gone = prune(ret, "round") end)
+notes = notes_during(function() gone = prune(ret, "round", { keep = 20 }) end)
 t.eq(#gone, 0, "a failing exemption hook deletes nothing")
 t.ok(#notes == 1 and notes[1].level == WARN, "and warns")
 B.set_exempt(nil)
-gone = prune(ret, "round", { exempt = function(e) return e.subject == "r3" end })
+gone = prune(ret, "round", { keep = 20, exempt = function(e) return e.subject == "r3" end })
 t.eq(#gone, 0, "opts.exempt is honoured as well")
 
-vim.g.ai_review = { retention = { rounds = 3, saved = 2 } }
-gone = prune(ret, "round")
-t.eq(subjects(ret, "round"), { "r24", "r23", "r22" }, "retention.rounds from ai.review.config applies")
-t.eq(#notes_during(function() prune(ret, "saved", { quiet = true }) end), 0, "opts.quiet silences the saved notice")
-t.eq(#subjects(ret, "saved"), 2, "retention.saved from ai.review.config applies")
-local auto = save(ret, "round", { subject = "auto" })
+gone = prune(ret, "round", { keep = 3 })
+t.eq(subjects(ret, "round"), { "r24", "r23", "r22" }, "a smaller keep prunes further")
+t.eq(#notes_during(function() prune(ret, "saved", { keep = 2, quiet = true }) end), 0,
+  "opts.quiet silences the saved notice")
+t.eq(#subjects(ret, "saved"), 2, "keep applies to saved baselines too")
+local auto = save(ret, "round", { subject = "auto", keep = 3 })
 eventually(function() return #list(ret, "round") == 3 end)
-t.eq(subjects(ret, "round"), { "auto", "r24", "r23" }, "save() prunes its kind afterwards")
-vim.g.ai_review = nil
+t.eq(subjects(ret, "round"), { "auto", "r24", "r23" }, "save() with meta.keep prunes its kind afterwards")
 
 local victims = list(ret, "round")
 local skipped
@@ -632,8 +631,8 @@ local objects = must(dd, "count-objects", "-v")
 local d2 = snapshot(dd)
 t.eq(d2, d1, "an unchanged worktree snapshots to the same tree")
 t.eq(must(dd, "count-objects", "-v"), objects, "and writes no new object")
-local s1 = save(dd, "saved", { subject = "one", tree = d1, prune = false })
-local s2 = save(dd, "saved", { subject = "two", tree = d1, prune = false })
+local s1 = save(dd, "saved", { subject = "one", tree = d1 })
+local s2 = save(dd, "saved", { subject = "two", tree = d1 })
 t.ok(s1.sha ~= s2.sha and s1.tree == s2.tree, "two baselines of one state share the tree")
 
 -- 12. Many untracked files ---------------------------------------------------------
@@ -680,7 +679,7 @@ vim.fn.writefile({
   "local trees, errors, ref = {}, {}, nil",
   "local function step(n)",
   "  if n == 0 then",
-  "    B.save(vim.env.BASELINE_DIR, 'round', { subject = 'child ' .. vim.env.CHILD, prune = false }, function(e, err)",
+  "    B.save(vim.env.BASELINE_DIR, 'round', { subject = 'child ' .. vim.env.CHILD }, function(e, err)",
   "      ref = e and e.ref; if not e then errors[#errors + 1] = err end",
   "    end)",
   "    return",

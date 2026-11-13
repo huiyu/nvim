@@ -1,4 +1,4 @@
--- The AI providers (lua/ai/config.lua) and :AI (lua/ai/switch.lua): an
+-- The AI providers (lua/ai/config.lua) and :AI (lua/ai/init.lua, ai.switch): an
 -- ordered provider list with no default backend, and an HTTP key profile
 -- :AI key switches.
 --

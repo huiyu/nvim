@@ -202,7 +202,7 @@ for _, case in ipairs({
   { "tex", "]m", "n", "Next environment start", "vimtex-]m" },
   { "tex", "]*", "o", "Next comment end", "vimtex-]*" },
   -- No global map holds ]]/[[ (the references are ]r/[r), so VimTeX maps its
-  -- Normal section motion too; lua/lang/tex.lua puts back the Normal frame
+  -- Normal section motion too; lua/plugins/lang/tex.lua puts back the Normal frame
   -- motions that the global ]r/[r made VimTeX skip.
   { "tex", "]]", "n", "Next section start", "vimtex-]]" },
   { "tex", "]r", "n", "Next frame start", "vimtex-]r" },

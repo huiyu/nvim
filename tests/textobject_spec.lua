@@ -4,7 +4,7 @@
 -- itself, so which-key cannot see the objects it adds: after `di` the popup
 -- listed the builtin objects and treesitter-textobjects' `f`/`c`, but not
 -- mini.ai's `a` (argument) or `o` (block). The manual promises "press d, then
--- i, and the menu lists the rest", so lua/whichkey_spec.lua carries desc-only
+-- i, and the menu lists the rest", so lua/config/whichkey_spec.lua carries desc-only
 -- entries for every object the manual documents. Description-only entries stay
 -- in which-key's trie, so this correctly asserts against the table rather than
 -- maparg() (functional entries with an RHS are real mappings after VimEnter).
@@ -30,7 +30,7 @@ local want = {
   ["in"] = "child node",
 }
 local found = {}
-for _, entry in ipairs(require("whichkey_spec").spec) do
+for _, entry in ipairs(require("config.whichkey_spec").spec) do
   if type(entry[1]) == "string" and want[entry[1]] and entry.desc then
     local modes = type(entry.mode) == "table" and entry.mode or { entry.mode }
     found[entry[1]] = { desc = entry.desc, modes = modes }
@@ -81,7 +81,7 @@ end
 
 -- UC-R4: `g[f`/`g]f` go through mini.ai's custom treesitter `f`, not its
 -- function-call default -- the reason that custom object stays even though
--- treesitter-textobjects owns `af`/`if` (lua/whichkey_spec.lua "g]f = function
+-- treesitter-textobjects owns `af`/`if` (lua/config/whichkey_spec.lua "g]f = function
 -- end").
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
   "local function outer(x)",

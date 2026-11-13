@@ -44,15 +44,16 @@ for lhs, modes in pairs({
   ["<leader>al"] = { n = true, x = true },
   ["<leader>ac"] = { n = true },
   ["<leader>af"] = { n = true },
-  -- CodeCompanion: inline edits and actions take a Visual range; saved chats
-  -- have nothing to take. The per-kind chat keys are gone: <leader>an starts a
-  -- chat of any kind.
+  -- CodeCompanion: inline edits take a Visual range; saved chats have nothing
+  -- to take. The per-kind chat keys and the action palette's key are gone:
+  -- <leader>an starts a chat of any kind, and the palette stays
+  -- :CodeCompanionActions.
   ["<leader>ag"] = {},
   ["<leader>aG"] = {},
   ["<leader>ah"] = {},
   ["<leader>aH"] = {},
   ["<leader>ae"] = { n = true, x = true },
-  ["<leader>ap"] = { n = true, x = true },
+  ["<leader>ap"] = {},
   ["<leader>ao"] = { n = true },
   -- Review rounds: opening the review and starting a round take no selection.
   ["<leader>av"] = { n = true },

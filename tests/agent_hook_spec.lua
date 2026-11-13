@@ -50,7 +50,7 @@ end
 
 ---claudecode's terminal_cmd exactly as lazy evaluates it, under `vars`.
 local function claude_terminal_cmd(vars)
-  return with_env(vars, function() return dofile("lua/plugin/lsp/ai.lua")[1].opts.terminal_cmd end)
+  return with_env(vars, function() return dofile("lua/plugins/ai/claudecode.lua")[1].opts.terminal_cmd end)
 end
 
 ---------------------------------------------------------------------------
