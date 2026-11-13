@@ -1,6 +1,7 @@
 -- Native local plugins: host selection, real offline Codex discovery, isolated
--- config writes, refresh of local edits and byte-exact arguments through tmux.
--- No conversation, model request, MCP server or plugin hook is started.
+-- config writes and refresh of local edits. The launch argv through both
+-- Codex wrappers is tests/agent_hook_spec.lua's. No conversation, model
+-- request, MCP server or plugin hook is started.
 local t = dofile("tests/helper.lua")
 local plugins = require("ai.plugins")
 local root = vim.fn.tempname() .. " plug in 'quoted'"
@@ -151,29 +152,6 @@ if vim.fn.executable("codex") == 1 then
   t.eq(table.concat(vim.fn.readfile(home .. "/config.toml"), "\n"), configured,
     "the configured global marketplace source and enablement remain byte-for-byte unchanged")
 
-  -- Build with the real installer, then record the final command with a fake
-  -- CLI. Resume flags must stay after the hook and plugin overrides.
-  local backend = require("ai.backend.codex")
-  local command = backend._codex_command({ "resume", "--last" })
-  local expected = vim.list_slice(command, 2)
-  local bin, out = root .. "/bin", root .. "/argv.json"
-  write(bin .. "/codex", "#!/usr/bin/env python3\nimport json,sys\nopen(" .. vim.json.encode(out) .. ", 'w').write(json.dumps(sys.argv[1:]))")
-  vim.fn.setfperm(bin .. "/codex", "rwx------")
-  vim.env.PATH = bin .. ":" .. saved.path
-  local wrapping = vim.env.CODEX_WRAP_TMUX
-  for _, wrap in ipairs(vim.fn.executable("tmux") == 1 and { "0", "1" } or { "0" }) do
-    vim.env.CODEX_WRAP_TMUX = wrap
-    vim.fn.delete(out)
-    local job = vim.fn.jobstart(backend._terminal_command(command), {
-      cwd = root, pty = wrap == "1", width = 100, height = 30,
-    })
-    vim.wait(10000, function() return vim.fn.filereadable(out) == 1 end, 20)
-    vim.fn.jobwait({ job }, 5000)
-    pcall(vim.fn.jobstop, job)
-    local got = vim.fn.filereadable(out) == 1 and vim.json.decode(table.concat(vim.fn.readfile(out), "\n")) or nil
-    t.eq(got, expected, "Codex " .. (wrap == "1" and "tmux" or "direct") .. ": plugin paths with quotes/spaces and appended resume args arrive intact")
-  end
-  vim.env.CODEX_WRAP_TMUX = wrapping
   -- Only this test's generated marketplace is removed; never the real cache.
   vim.fn.delete(vim.fn.stdpath("cache") .. "/ai-plugins/" .. market, "rf")
 else

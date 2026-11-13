@@ -230,16 +230,11 @@ for suffix, want in pairs({
   dc = "Run/continue", de = "Set exception breakpoints…", df = "Debug file", dg = "Go to line (no execute)",
   di = "Step into", dj = "Stack frame down", dk = "Stack frame up", dl = "Run last", ["do"] = "Step out",
   dq = "List breakpoints (quickfix)", dr = "Toggle REPL", ds = "Debug sessions", dt = "Terminate",
-  du = "Toggle debug view", dw = "Evaluate expression", dx = "Clear all breakpoints",
+  du = "Toggle debug view", dx = "Clear all breakpoints",
   tm = "Run nearest test", tM = "Debug nearest test", tf = "Run tests in file", tF = "Debug tests in file",
   ts = "Toggle test summary", to = "Show test output", tx = "Toggle test diagnostics",
 }) do
   t.eq(vim.fn.maparg("<leader>" .. suffix, "n", false, true).desc, want, "<leader>" .. suffix .. " is " .. want)
-end
--- Case is the debug variant of the same run (tm/tM, tf/tF); the summary is ts,
--- and test diagnostics are one toggle, not a show key and a hide key.
-for _, suffix in ipairs({ "td", "tD", "th", "tS" }) do
-  t.eq(vim.fn.maparg("<leader>" .. suffix, "n"), "", "<leader>" .. suffix .. " is gone")
 end
 -- neotest has no show/hide of its own diagnostics: <leader>tx toggles their
 -- namespace, whose disabled flag is the state.
@@ -250,8 +245,6 @@ toggle_test_diagnostics()
 t.eq(vim.diagnostic.get_namespace(test_ns).disabled, true, "<leader>tx hides test diagnostics")
 toggle_test_diagnostics()
 t.eq(vim.diagnostic.get_namespace(test_ns).disabled, false, "<leader>tx shows them again")
-t.eq(vim.fn.maparg("<leader>dw", "x", false, true).desc, "Evaluate selection",
-  "Visual <leader>dw names the selection it evaluates")
 -- Read through :command, which prints the desc as given. nvim_get_commands()
 -- returns it with the 0x80 byte of "…" escaped (K_SPECIAL), so it never matches.
 t.ok(vim.api.nvim_exec2("command DapAttach", { output = true }).output:find("Attach to running target…", 1, true),

@@ -43,13 +43,13 @@ end
 -- Everything is typed first and asserted after: an assertion printed between
 -- two typeahead runs loses its newline in the headless output.
 local typed = {}
+-- One key per kind that leaked; the scan at the end holds every other lhs.
 for _, keys in ipairs({
   "Z",            -- the control case: a plain letter
-  "<", ">",       -- Indent left/right (Visual)
-  ",f", ",F",     -- Format, Search and replace
-  " yy", " yc",   -- Yank selection to register/clipboard
-  " db", " dc",   -- Toggle breakpoint, Run/continue
-  " tm", " ts",   -- Run nearest test, Toggle test summary
+  "<",            -- Indent left (Visual)
+  ",f",           -- Format
+  " yy",          -- Yank selection to register
+  " db",          -- Toggle breakpoint
 }) do
   local before, line = type_into_placeholder(keys)
   typed[#typed + 1] = { keys = keys, before = before, line = line }
@@ -97,7 +97,6 @@ for lhs, desc in pairs({
 }) do
   local visual = map(lhs, "x")
   t.eq({ visual.desc, visual.mode }, { desc, "x" }, lhs .. " is a Visual-mode (x) key")
-  t.eq(map(lhs, "s"), {}, lhs .. " is not mapped in Select mode")
 end
 -- dw evaluates the selection in Visual mode and <cexpr> in Normal mode, and
 -- each popup says which.
@@ -111,7 +110,6 @@ for _, suffix in ipairs({
   local lhs = "<leader>" .. suffix
   t.ok(next(map(lhs, "n")) ~= nil, lhs .. " is mapped in Normal mode")
   t.eq(map(lhs, "x"), {}, lhs .. " is not mapped in Visual mode (it reads no selection)")
-  t.eq(map(lhs, "s"), {}, lhs .. " is not mapped in Select mode")
 end
 
 -- which-key groups: "v" would add Select mode, where the group alone makes

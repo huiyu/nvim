@@ -77,7 +77,6 @@ t.eq(vim.fn.getcompletion("AI key ", "cmdline"), { "auto", "anthropic", "openai"
 t.eq(vim.fn.getcompletion("AI key o", "cmdline"), { "openai" }, "completion filters on what is typed")
 t.eq(vim.fn.getcompletion("AI key openai ", "cmdline"), {}, "nothing completes after a name")
 t.eq(vim.fn.exists(":AIInfo"), 2, ":AIInfo is kept as an alias")
-t.eq(desc(" ax"), "Switch API key profile…", "<leader>ax picks the API key profile")
 
 -- Bare :AI is the switcher; with nothing open it is the new-chat picker.
 -- The picker lists available backends only, and CI has no agent CLI, no ACP
@@ -106,9 +105,10 @@ for _, cmd in ipairs({ "AI provider", "AI provider codex", "AI provider nope" })
     and last().msg:find("lua/ai/config.lua", 1, true) ~= nil,
     (":%s is gone, and says where its job went: %s"):format(cmd, last().msg))
 end
+notes = {}
 vim.cmd("AI key nope")
-t.ok(last().level == ERROR and last().msg:find("Unknown AI key profile", 1, true) ~= nil,
-  "an unknown key profile is an error")
+t.ok(#notes == 1 and last().level == ERROR and last().msg:find("Unknown AI key profile", 1, true) ~= nil,
+  "an unknown key profile is an error, said once")
 vim.cmd("AI bogus")
 t.ok(last().level == ERROR and last().msg:find("Usage", 1, true) ~= nil, "an unknown subcommand prints usage")
 vim.cmd("AI key auto")
@@ -225,8 +225,7 @@ refused({ { name = "x", label = "X", api = { adapter = "openai", api_key = "OPEN
 t.ok(pcall(config.build, DEFAULT_LIST), "the shipped list is accepted")
 
 -- A fresh Nvim: the same picker and keys, and no startup knob left. An old
--- NVIM_AI_PROVIDER or vim.g.ai_provider only earns a warning -- even a value
--- that was never valid.
+-- NVIM_AI_PROVIDER or vim.g.ai_provider only earns a warning.
 local probe = [[
   vim.wait(200, function() return #_G.spec_notes > 0 end)
   local c = require("ai.config")
@@ -244,7 +243,6 @@ for _, k in ipairs(LHS) do here[k] = desc(k) or vim.NIL end
 for _, case in ipairs({
   { env = { NVIM_AI_PROVIDER = "" }, warns = nil },
   { env = { NVIM_AI_PROVIDER = "codex" }, warns = "NVIM_AI_PROVIDER" },
-  { env = { NVIM_AI_PROVIDER = "gemini" }, warns = "NVIM_AI_PROVIDER" },
   { env = { NVIM_AI_PROVIDER = "" }, pre = "let g:ai_provider = 'codex'", warns = "vim.g.ai_provider" },
 }) do
   local got = child(vim.tbl_extend("force", case.env, { SPEC_LHS = lhs_json }), probe, case.pre)
@@ -258,9 +256,6 @@ for _, case in ipairs({
   else
     t.eq(#said, 0, what .. ": no warning")
   end
-end
-for _, lhs in ipairs({ " ag", " aG", " ah", " aH", " aa", " ad" }) do
-  t.eq(here[lhs], vim.NIL, "<leader>" .. lhs:sub(2) .. " is not mapped at startup")
 end
 
 ---------------------------------------------------------------------------
@@ -292,6 +287,10 @@ t.eq({ config.key.name, config.key.auto }, { pinned, false }, ":AI key <name> pi
 t.eq(events[#events], { axis = "key", from = "auto", to = pinned }, "and announces it")
 t.eq(config.codecompanion.api_key, config.key_profiles[pinned].api_key, "the HTTP key follows the profile")
 t.eq(desc(" ae"), ("Inline edit · %s (HTTP)…"):format(config.key_profiles[pinned].label), "<leader>ae is relabelled")
+-- Nothing else moves with it.
+local after_switch = {}
+for _, k in ipairs(LHS) do after_switch[k] = desc(k) or vim.NIL end
+t.eq(after_switch, here, "after :AI key, every other <leader>a key reads as before")
 t.eq(vim.tbl_map(function(b) return b.id end, config.backends()), ids, "the picker stays as it was")
 vim.cmd("AI key auto")
 t.eq({ config.key.name, config.key.auto }, { follows, true }, ":AI key auto resolves again")
@@ -489,32 +488,11 @@ t.eq(config.agent_of_prompt(vim.env.HOME .. "/.codex/editor/0193.md"), "codex", 
 t.eq(config.agent_of_prompt("/tmp/somewhere/else.md"), nil, "anything else belongs to no agent")
 
 t.eq(config.agent_of_command({ "codex", "--no-alt-screen", "--yolo" }), "codex", "a Codex command is recognised")
-t.eq(config.agent_of_command(Config.spec.plugins["claudecode.nvim"].opts.terminal_cmd), "claude",
-  "the Claude wrapper command is recognised")
 t.eq(config.agent_of_command({ "tmux", "-L", "claude-nvim-1", "-L", "codex-nvim-1" }), nil,
   "a socket name is not an agent")
 t.eq(config.agent_of_command({ vim.o.shell }), nil, "a shell is no agent")
 t.ok(config.is_native_command({ "claude" }) and config.is_native_command({ "codex" }),
   "is_native_command recognises every configured agent")
-
----------------------------------------------------------------------------
--- claudecode.nvim is declared, lazily, whatever the providers
----------------------------------------------------------------------------
-
-local declared_probe = [[
-  local Config = require("lazy.core.config")
-  local plugin = Config.plugins["claudecode.nvim"]
-  io.stdout:write(vim.json.encode({
-    declared = plugin ~= nil, lazy = plugin ~= nil and plugin.lazy == true,
-    opts_table = type((Config.spec.plugins["claudecode.nvim"] or {}).opts) == "table",
-    loaded = plugin ~= nil and plugin._.loaded ~= nil,
-    to_clean = #Config.to_clean, stub = vim.fn.exists(":ClaudeCode"), open = vim.fn.exists(":ClaudeCodeOpen"),
-  }))
-  vim.cmd("qa!")
-]]
-local want = { declared = true, lazy = true, opts_table = true, loaded = false, to_clean = 0, stub = 2, open = 2 }
-t.eq(child({}, declared_probe), want,
-  "claudecode is declared and lazy, nothing to clean, unloaded, :ClaudeCodeOpen a trigger")
 
 if start_key ~= "auto" then config.use_key(start_key) end
 vim.notify = real_notify

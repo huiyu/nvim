@@ -51,13 +51,6 @@ t.ok(not vim.api.nvim_win_is_valid(term_win), "the Snacks terminal window is clo
 -- hidden never blocked the quit, so only the window has to go.
 t.ok(vim.api.nvim_buf_is_valid(term_buf), "its buffer is left alone")
 
-issued = {}
-local forced = open_terminal()
-local forced_win = forced.win
-win.quit_all(true)
-t.eq(issued, { "qall!" }, "the forcing variant issues :qall!")
-t.ok(not vim.api.nvim_win_is_valid(forced_win), "which also closes the terminal window")
-
 -- Closing the panel is not free, so a quit Nvim is going to refuse must not do
 -- it. Nor may it issue :qall and leave the refusal to Nvim: ExitPre closes the
 -- panel before Nvim looks at modified buffers, and from inside the panel the

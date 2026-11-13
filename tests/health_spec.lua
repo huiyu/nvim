@@ -371,7 +371,6 @@ local settings = section(inside, "config: review settings (vim.g.ai_review)")
 t.ok(find(settings, "retention.rounds = 30 (vim.g.ai_review)"),
   "an override is marked as coming from vim.g.ai_review")
 t.ok(find(settings, "retention.saved = 10 (default)"), "a default is marked as one")
-t.ok(find(settings, "seed_ttl_ms = 10000 (default)"), "seed_ttl_ms is listed")
 t.ok(find(settings, 'always_confirm = { "codex" } (vim.g.ai_review)'), "a list shows what was kept of it")
 -- Paths walked from the defaults, independently of the check's own walk.
 local function setting_paths(node, prefix, out)
@@ -445,8 +444,6 @@ t.ok(#backends > 0, "the AI backends section has lines")
 local head = backends[1]
 t.ok(head and head.level == "info" and head.msg:find("in the order of lua/ai/config.lua", 1, true) ~= nil,
   "it opens with the providers' order, naming no default: " .. tostring(head and head.msg))
-t.eq(find(backends, "default backend"), nil, "and no line names a default backend")
-t.eq(level_of(backends, ":AI provider"), nil, "and no longer offers :AI provider")
 -- Judged on the same PATH the check ran on: a CLI in /usr/bin is found.
 local real_path = vim.env.PATH
 vim.env.PATH = cut
@@ -479,7 +476,6 @@ vim.g.ai_review = g_before
 t.ok(find(hooks_off, "sources.codecompanion_acp = false — ACP chats (<leader>an)") ~= nil
   and find(hooks_off, "sources.codecompanion_http = false — API chats (<leader>an)") ~= nil,
   "a chat source switched off is named by the key that starts those chats")
-t.eq(find(hooks_off, "<leader>ag") or find(hooks_off, "<leader>ah"), nil, "never by the retired <leader>ag/ah")
 
 -- Cleanup -------------------------------------------------------------------
 

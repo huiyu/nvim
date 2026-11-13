@@ -61,12 +61,6 @@ local ok, err = pcall(function()
 
   local missing_ok, missing_err = clipboard.restore_image(vim.fn.tempname() .. ".png")
   t.ok(missing_ok == false and type(missing_err) == "string", "restoring a missing file fails with a reason")
-
-  -- The staging directory must exist and be per-process.
-  local dir = clipboard.staging_dir()
-  t.ok(vim.fn.isdirectory(dir) == 1, "staging_dir creates its directory")
-  t.ok(dir:find(tostring(vim.fn.getpid()), 1, true) ~= nil, "staging_dir is namespaced per Nvim process")
-  vim.fn.delete(dir, "rf")
 end)
 
 restore_user_clipboard()

@@ -1,8 +1,8 @@
 -- Review rounds (lua/ai/review/rounds.lua): the registry of native terminals
 -- and CodeCompanion chats, the round rules every source goes through
 -- (submit), the CodeCompanion source, the delivery checks (resolve_sink), the
--- <leader>av/aV facade keys, ai.feed's make_room, and CodeCompanion's own
--- code review being off.
+-- <leader>av/aV facade keys and ai.feed's make_room; first of all, the review
+-- loop's settings (lua/ai/review/config.lua).
 --
 -- Every repository is a scratch one under tempname(), with a space in its
 -- path. No agent is started: the "agent terminals" run `cat` and carry the
@@ -14,6 +14,289 @@
 local t = dofile("tests/helper.lua")
 
 t.eq(package.loaded["ai.review.rounds"], nil, "the round registry is not loaded at startup")
+
+---------------------------------------------------------------------------
+-- The review loop's settings (lua/ai/review/config.lua)
+---------------------------------------------------------------------------
+
+-- vim.g.ai_review merged over the defaults on every get().
+--
+-- What is pinned here: the defaults, a partial and a nested override, and the
+-- rule that an unknown key, a wrong type or a value outside a setting's domain
+-- warns once per distinct problem and falls back to the default while the rest
+-- of the table still applies. Requiring the module loads no plugin and runs no
+-- process. It comes first, before ai.review.rounds is required, so the loaded
+-- plugins it compares are the ones startup left; its locals stay in this do
+-- block, and it puts back vim.notify and vim.g.ai_review when it is done.
+do
+  local Config = require("lazy.core.config")
+  local WARN = vim.log.levels.WARN
+
+  local function loaded_plugins()
+    local names = {}
+    for name, plugin in pairs(Config.plugins) do
+      if plugin._.loaded then names[#names + 1] = name end
+    end
+    table.sort(names)
+    return names
+  end
+
+  -- Require it fresh, with every way of starting a process stubbed out, so the
+  -- assertions cover the module's own load and its first calls.
+  local spawned = {}
+  local real = {
+    system = vim.system,
+    fn_system = vim.fn.system,
+    systemlist = vim.fn.systemlist,
+    jobstart = vim.fn.jobstart,
+    popen = io.popen,
+    execute = os.execute,
+    spawn = vim.uv.spawn,
+  }
+  local function record(name) return function(...) spawned[#spawned + 1] = { name, ... } end end
+  vim.system, vim.fn.system, vim.fn.systemlist = record("vim.system"), record("system"), record("systemlist")
+  vim.fn.jobstart, io.popen = record("jobstart"), record("popen")
+  os.execute, vim.uv.spawn = record("execute"), record("spawn")
+
+  local plugins_before = loaded_plugins()
+  local saved_g = vim.g.ai_review
+  vim.g.ai_review = nil
+  package.loaded["ai.review.config"] = nil
+  local config = require("ai.review.config")
+  config.get()
+  config.defaults()
+  config.overrides()
+
+  vim.system, vim.fn.system, vim.fn.systemlist = real.system, real.fn_system, real.systemlist
+  vim.fn.jobstart, io.popen, os.execute, vim.uv.spawn = real.jobstart, real.popen, real.execute, real.spawn
+
+  t.eq(loaded_plugins(), plugins_before, "requiring and reading the settings loads no plugin")
+  t.eq(spawned, {}, "requiring and reading the settings starts no process (no git)")
+
+  local notes = {}
+  local real_notify = vim.notify
+  vim.notify = function(msg, level, opts)
+    notes[#notes + 1] = { msg = tostring(msg), level = level, title = opts and opts.title }
+  end
+  -- Warnings are scheduled (vim.notify cannot run in a fast event); let them land.
+  local function warnings()
+    vim.wait(20, function() return false end)
+    local out = notes
+    notes = {}
+    return out
+  end
+
+  local DEFAULTS = {
+    retention = { rounds = 20, saved = 10 },
+    max_file_size = 10 * 1024 * 1024,
+    sources = { claude = true, codex = true, codecompanion_acp = true, codecompanion_http = true },
+    hook_wait_ms = 2500,
+    claude_cwd = "git_root",
+    unknown_session = "confirm",
+    always_confirm = {},
+    redirect = true,
+    seed_ttl_ms = 10000,
+    history_limit = 100,
+  }
+  local function with(overrides) return vim.tbl_deep_extend("force", vim.deepcopy(DEFAULTS), overrides) end
+
+  -- Defaults ---------------------------------------------------------------
+
+  vim.g.ai_review = nil
+  t.eq(config.get(), DEFAULTS, "without vim.g.ai_review, get() is the §10.7 defaults")
+  t.eq(config.defaults(), DEFAULTS, "defaults() is the same table")
+  t.eq(config.overrides(), {}, "nothing is overridden")
+  vim.g.ai_review = {}
+  t.eq(config.get(), DEFAULTS, "an empty vim.g.ai_review is the defaults")
+
+  local copy = config.defaults()
+  copy.retention.rounds, copy.always_confirm[1] = 1, "codex"
+  local got = config.get()
+  got.sources.claude = false
+  t.eq(config.defaults(), DEFAULTS, "defaults() is a deep copy: changing it leaves the next one alone")
+  t.eq(config.get(), DEFAULTS, "get() is a fresh table: changing it leaves the next one alone")
+  t.eq(warnings(), {}, "the defaults raise no warning")
+
+  -- Overrides --------------------------------------------------------------
+
+  vim.g.ai_review = { claude_cwd = "cwd", sources = { codex = false }, always_confirm = { "codex" } }
+  t.eq(config.get(), with({ claude_cwd = "cwd", sources = { codex = false }, always_confirm = { "codex" } }),
+    "a partial override changes only the keys it names; sibling sources stay true")
+  t.eq(config.overrides(), { claude_cwd = true, ["sources.codex"] = true, always_confirm = true },
+    "overrides() names each key that came from vim.g.ai_review")
+
+  vim.g.ai_review = { retention = { rounds = 30 } }
+  local nested = config.get()
+  t.eq(nested.retention, { rounds = 30, saved = 10 }, "retention.rounds alone keeps retention.saved at its default")
+  t.eq(nested, with({ retention = { rounds = 30 } }), "a nested override touches nothing else")
+  t.eq(config.overrides(), { ["retention.rounds"] = true }, "overrides() names the nested key by its dotted path")
+
+  vim.g.ai_review = { history_limit = false, redirect = false, hook_wait_ms = 0 }
+  local falsy = config.get()
+  t.eq({ falsy.history_limit, falsy.redirect, falsy.hook_wait_ms }, { false, false, 0 },
+    "false and 0 are values, not a missing key")
+
+  -- A list replaces the default; it is not merged entry by entry.
+  vim.g.ai_review = { always_confirm = { "claude", "codex" } }
+  t.eq(config.get().always_confirm, { "claude", "codex" }, "always_confirm takes the user's list")
+
+  -- Vimscript spelling reaches the same table.
+  vim.cmd([[let g:ai_review = {'retention': {'saved': 3}, 'unknown_session': 'refuse', 'redirect': v:false}]])
+  t.eq(config.get(), with({ retention = { saved = 3 }, unknown_session = "refuse", redirect = false }),
+    "a Vimscript dict with v:false works the same")
+  t.eq(warnings(), {}, "valid overrides raise no warning")
+
+  -- Bad input: warn once per distinct problem, fall back, keep the rest -----
+
+  local function bad(case)
+    vim.g.ai_review = case.input
+    local effective = config.get()
+    t.eq(effective, case.want, case.what .. ": the bad value falls back to its default, the rest applies")
+    local first = warnings()
+    t.eq(#first, 1, case.what .. ": warns once")
+    local note = first[1] or {}
+    t.ok(note.level == WARN and note.title == "AI review", case.what .. ": WARN titled AI review")
+    -- Compared through t.eq so a failure prints the actual message.
+    local msg = tostring(note.msg)
+    t.eq(msg:find(case.mentions, 1, true) and case.mentions or msg, case.mentions,
+      case.what .. ": the warning names the problem")
+    config.get()
+    config.overrides()
+    t.eq(warnings(), {}, case.what .. ": the same problem does not warn again")
+    t.eq(config.overrides(), case.overrides or {}, case.what .. ": overrides() lists only what took effect")
+  end
+
+  bad({
+    what = "unknown top-level key",
+    input = { retension = { rounds = 5 } },
+    want = DEFAULTS,
+    mentions = "vim.g.ai_review.retension is not a setting",
+  })
+  bad({
+    what = "unknown nested key",
+    input = { retention = { round = 5 } },
+    want = DEFAULTS,
+    mentions = "vim.g.ai_review.retention.round is not a setting; ignored (known: rounds, saved)",
+  })
+  bad({
+    what = "wrong type for a setting",
+    input = { retention = { rounds = "30" } },
+    want = DEFAULTS,
+    mentions = 'retention.rounds should be a positive integer, not "30"; using 20',
+  })
+  bad({
+    what = "wrong type for a group",
+    input = { sources = false },
+    want = DEFAULTS,
+    mentions = "vim.g.ai_review.sources should be a table, not false",
+  })
+  bad({
+    what = "wrong type for a boolean",
+    input = { sources = { claude = 1 } },
+    want = DEFAULTS,
+    mentions = "sources.claude should be a boolean, not 1",
+  })
+  bad({
+    what = "out-of-enum value",
+    input = { claude_cwd = "home" },
+    want = DEFAULTS,
+    mentions = 'claude_cwd should be "git_root" or "cwd", not "home"; using "git_root"',
+  })
+  bad({
+    what = "out-of-enum unknown_session",
+    input = { unknown_session = "allow" },
+    want = DEFAULTS,
+    mentions = 'unknown_session should be "confirm" or "refuse"',
+  })
+  bad({
+    what = "zero where a positive integer is required",
+    input = { retention = { saved = 0 } },
+    want = DEFAULTS,
+    mentions = "retention.saved should be a positive integer, not 0; using 10",
+  })
+  bad({
+    what = "fractional byte count",
+    input = { max_file_size = 1.5 },
+    want = DEFAULTS,
+    mentions = "max_file_size should be a positive integer (bytes), not 1.5",
+  })
+  bad({
+    what = "negative wait",
+    input = { hook_wait_ms = -1 },
+    want = DEFAULTS,
+    mentions = "hook_wait_ms should be a non-negative integer (milliseconds), not -1",
+  })
+  bad({
+    what = "zero seed TTL",
+    input = { seed_ttl_ms = 0 },
+    want = DEFAULTS,
+    mentions = "seed_ttl_ms should be a positive integer (milliseconds), not 0; using 10000",
+  })
+  bad({
+    what = "true where only false or a count is allowed",
+    input = { history_limit = true },
+    want = DEFAULTS,
+    mentions = "history_limit should be a positive integer or false, not true",
+  })
+  bad({
+    what = "always_confirm that is not a list",
+    input = { always_confirm = "codex" },
+    want = DEFAULTS,
+    mentions = 'always_confirm should be a list of "claude" or "codex", not "codex"; using {}',
+  })
+  bad({
+    what = "vim.g.ai_review that is not a table",
+    input = "cwd",
+    want = DEFAULTS,
+    mentions = 'vim.g.ai_review should be a table, not "cwd"; using the defaults',
+  })
+  -- A bad entry in always_confirm is dropped on its own: falling back to {} would
+  -- silently remove the confirmations the valid entries asked for.
+  bad({
+    what = "unknown agent in always_confirm",
+    input = { always_confirm = { "codex", "claud" } },
+    want = with({ always_confirm = { "codex" } }),
+    mentions = 'vim.g.ai_review.always_confirm[2] should be "claude" or "codex", not "claud"; ignored',
+    overrides = { always_confirm = true },
+  })
+  -- One bad key leaves its valid siblings in effect.
+  bad({
+    what = "a bad key beside good ones",
+    input = { retention = { rounds = 30, saved = -2 }, claude_cwd = "cwd" },
+    want = with({ retention = { rounds = 30 }, claude_cwd = "cwd" }),
+    mentions = "retention.saved should be a positive integer, not -2",
+    overrides = { ["retention.rounds"] = true, claude_cwd = true },
+  })
+
+  -- Distinct problems are counted apart, and a fixed value stops warning.
+  vim.g.ai_review = { claude_cwd = "home", unknown_session = "allow", retention = { rounds = "30" } }
+  config.get()
+  t.eq(warnings(), {}, "problems already reported stay quiet when they come back together")
+  vim.g.ai_review = { claude_cwd = "nowhere" }
+  config.get()
+  t.eq(#warnings(), 1, "another bad value for the same key is a new problem and warns")
+  vim.g.ai_review = { claude_cwd = "cwd" }
+  t.eq(config.get().claude_cwd, "cwd", "once fixed, the value applies")
+  t.eq(warnings(), {}, "and nothing warns")
+
+  -- util.baseline chains vim.system callbacks, fast events where vim.notify is
+  -- not allowed; a setting read there still works and its warning still arrives.
+  vim.g.ai_review = { retention = { rounds = 7 }, hook_wait_ms = "soon" }
+  local result
+  real.system({ "true" }, {}, function()
+    local ok, value = pcall(config.get)
+    result = { fast = vim.in_fast_event(), ok = ok }
+    if ok then result.rounds, result.wait = value.retention.rounds, value.hook_wait_ms end
+  end)
+  vim.wait(5000, function() return result ~= nil end, 10)
+  t.eq(result, { fast = true, ok = true, rounds = 7, wait = 2500 }, "get() works inside a vim.system callback")
+  local fast_notes = warnings()
+  t.ok(#fast_notes == 1 and fast_notes[1].msg:find("hook_wait_ms", 1, true) ~= nil,
+    "a warning raised in a fast event is delivered once the loop is free")
+
+  vim.notify = real_notify
+  vim.g.ai_review = saved_g
+end
 
 local rounds = require("ai.review.rounds")
 local hook = require("ai.review.hook")
@@ -307,10 +590,10 @@ t.ok(rec.done and rec.round == nil, "a steer (same turn_id) opens no new round")
 rec = settled(codex_submit("t2"), true)
 t.ok(rec.round ~= nil and not rec.reused, "the next turn does")
 
--- Subagents and teammates belong to the parent's turn.
+-- Subagents and teammates belong to the parent's turn. The receiver drops an
+-- event carrying agent_id (tests/agent_hook_spec.lua sends one through the real
+-- script and receiver), and native_event drops it again.
 local before = #submits
-t.eq(hook_event("codex", "submit", { session_id = "c-child", turn_id = "t9", agent_id = "sub", cwd = R1 }), "ignored",
-  "an event with agent_id is dropped by the receiver")
 local released = false
 rounds.native_event({ agent = "claude", event = "submit", payload = { session_id = "s-sub", agent_id = "x" },
   done = function() released = true end, gave_up = function() return false end })
@@ -718,10 +1001,6 @@ http.current_request = {}
 target, reason = resolve(http_conv, R1)
 t.ok(target == nil and reason == "busy" and #selects == 0, "a chat with a request in flight: refused")
 http.current_request = nil
-http._turn_in_progress = true
-target, reason = resolve(http_conv, R1)
-t.ok(target == nil and reason == "busy", "a chat between two steps of its tool loop: refused too")
-http._turn_in_progress = nil
 target, reason = resolve("cc:1-2:4242", R1, choose("Keep"))
 t.ok(target == nil and reason == "owner-gone" and kinds()[1] == "ai_review_redirect",
   "a chat id from another Nvim (other nonce): refused, with the offer")
@@ -907,9 +1186,6 @@ Curl.request_sync = function(opts)
   return nil, { message = "stubbed by review_round_spec" }
 end
 
-t.eq(vim.fn.exists(":CodeCompanionCodeReview"), 0, ":CodeCompanionCodeReview is gone")
-t.eq(require("codecompanion.config").interactions.code_review.enabled, false, "CodeCompanion's code review is off")
-
 vim.fn.chdir(R1)
 vim.cmd.edit(vim.fn.fnameescape(R1 .. "/a.txt"))
 local chat = require("codecompanion").chat({ params = { adapter = config.codecompanion.http_adapter } })
@@ -975,12 +1251,7 @@ end
 -- <leader>av / <leader>aV
 ---------------------------------------------------------------------------
 
-local function keymap(lhs, mode) return vim.fn.maparg(lhs, mode or "n", false, true) end
-local DESCS = { [" av"] = "Review changes since round baseline", [" aV"] = "Start review round" }
-for lhs, desc in pairs(DESCS) do
-  t.eq(keymap(lhs).desc, desc, ("%s: %q, naming no agent"):format(lhs, desc))
-  t.eq(keymap(lhs, "x"), {}, lhs .. " is Normal-mode only")
-end
+local function keymap(lhs) return vim.fn.maparg(lhs, "n", false, true) end
 local calls = {}
 local real_view, real_start = package.loaded["ai.review"], rounds.start
 package.loaded["ai.review"] = { open = function() calls[#calls + 1] = "open" end }

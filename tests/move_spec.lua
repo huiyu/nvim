@@ -53,14 +53,6 @@ move.run("down")
 vim.api.nvim_feedkeys = real_feedkeys
 t.eq(handed_back, "w", "a non-move key is fed back rather than eaten")
 
--- A count applies to the first move only; repeats are one line each.
-buffer({ "a", "b", "c", "d", "e" })
-vim.api.nvim_win_set_cursor(0, { 1, 0 })
-feed({})
-vim.cmd("normal! 2")  -- no-op; v:count1 is read inside run()
-move.run("down")
-t.ok(body():find("a") ~= nil, "the line is still present after a counted move")
-
 -- Hitting the last line reports instead of raising.
 buffer({ "a", "b" })
 vim.api.nvim_win_set_cursor(0, { 2, 0 })

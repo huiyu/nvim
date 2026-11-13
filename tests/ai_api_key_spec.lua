@@ -6,10 +6,11 @@
 -- Either key profile can be active after :AI key, and <leader>an starts an
 -- API chat on either, so BOTH HTTP adapters are checked under several
 -- provider lists (lua/ai/config.lua), each in a fresh child Nvim -- the
--- shipped one, Codex first, Codex alone (the built-in anthropic adapter must
--- still read its NVIM_* key) and Claude alone (the built-in openai adapter
--- too) -- plus the Codex ACP adapter, which must stay on the ChatGPT login
--- even when no provider offers it.
+-- shipped one, Codex alone (the built-in anthropic adapter must still read
+-- its NVIM_* key) and Claude alone (the built-in openai adapter too) -- plus
+-- the Codex ACP adapter, which must stay on the ChatGPT login even when no
+-- provider offers it. The order of a list changes only `auto` and the inline
+-- adapter, which this does not read, so Codex first is not run again.
 local t = dofile("tests/helper.lua")
 
 -- Resolve every adapter the way CodeCompanion does before a request, under the
@@ -55,7 +56,7 @@ local adapters = {
   openai = { cli = "OPENAI_API_KEY", own = "NVIM_OPENAI_API_KEY" },
 }
 
-for _, order in ipairs({ "claude,codex", "codex,claude", "codex", "claude" }) do
+for _, order in ipairs({ "claude,codex", "codex", "claude" }) do
   local both = resolve({
     NVIM_AI_KEY_PROFILE = "",
     ANTHROPIC_API_KEY = "cli-anthropic", NVIM_ANTHROPIC_API_KEY = "nvim-anthropic",

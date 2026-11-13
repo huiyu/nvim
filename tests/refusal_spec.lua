@@ -140,20 +140,6 @@ t.eq(offered, ai_config.agent_names(), "it offers the agents in provider order")
 t.eq(asked_for, ai_config.agent_names()[2], "and reads the agent picked, not the first listed")
 transcript.open_current = real_open
 
--- :AI with a subcommand or a name it does not know, and the one it no longer
--- has.
-local key_before = ai_config.key_setting()
-reset()
-ok = pcall(vim.cmd, "AI key nope")
-t.ok(ok, ":AI key with an unknown name does not raise")
-t.eq(#notified, 1, "it notifies once")
-t.ok(last() and last().level == vim.log.levels.ERROR and said("Unknown AI key profile"), "with the reason, as an error")
-t.eq(ai_config.key_setting(), key_before, "and the key profile is unchanged")
-reset()
-ok = pcall(vim.cmd, "AI provider codex")
-t.ok(ok and #notified == 1 and last().level == vim.log.levels.ERROR and said(":AI new"),
-  ":AI provider is gone, and says where its job went")
-
 -- <leader>aa answers Claude's diffs whatever is on the right, so a failure
 -- there is reported against Claude.
 local claude_backend = require("ai.backend.claude")

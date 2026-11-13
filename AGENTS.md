@@ -368,7 +368,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   sharing only the real plugin cache; never write the user's config or change
   global enablement. Preserve native hook trust. Nothing installs at Nvim
   startup or for CodeCompanion. `tests/native_plugins_spec.lua` exercises
-  offline discovery and both Codex terminal launch paths without a thread.
+  offline discovery without a thread.
 - The native agents' prompt hooks are injected per process, never through
   the user's configuration. Claude gets `--settings <json>`
   (`build_terminal_cmd` in `lua/plugins/ai/claudecode.lua`): UserPromptSubmit, plus
@@ -476,7 +476,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - Exercised by `tests/review_round_spec.lua` (round rules, the
   `resolve_sink` matrix), `tests/review_view_spec.lua`,
   `tests/review_feedback_spec.lua` (drafts, sinks, seed slots),
-  `tests/compose_spec.lua` (`<leader>ai`'s seeds) and
+  `tests/editor_spec.lua` (`<leader>ai`'s seeds) and
   `tests/review_loop_spec.lua` (submit to delivery, no agent started).
 
 ## Editing Conventions
@@ -566,8 +566,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   "Browse saved Companion chats", as `<leader>ao` does.
 - Under a which-key popup the letter may be a mnemonic or an accident, but the
   `desc` is the interface: it is exact, and one act is worded one way
-  everywhere (`tests/key_descriptions_spec.lua`; `tests/ai_keymap_spec.lua`
-  for `<leader>a`, and the view and LSP specs for theirs). Sentence case: the
+  everywhere (`tests/key_descriptions_spec.lua`, `<leader>a` included, and
+  the view and LSP specs for theirs). Sentence case: the
   first word capitalised, the rest lowercase but for proper nouns and acronyms
   (LSP, DAP, REPL, AI, API, ACP, URL, PR, Git, GitHub, Claude, Codex,
   CodeCompanion, CodeDiff, Lazygit, Mason, Harpoon, Treesitter, Nvim, oil).
@@ -730,7 +730,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `codediff-history`) is the second test, for a tabpage CodeDiff let go of
   with its panel still on screen. A single-file `:CodeDiff file` has no
   panel, so a new prefix-blocking view sets that tab variable (and adds its
-  panel filetypes). `tests/first_tab_spec.lua` stands a view in with the
+  panel filetypes). `tests/tabline_panel_spec.lua` stands a view in with the
   variable alone.
 - Both paths that place a stopped frame -- nvim-dap's `switchbuf`
   (`util.dap.jump`) and nvim-dap-ui's `select_window` -- must stay scoped to the
