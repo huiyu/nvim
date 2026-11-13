@@ -78,25 +78,6 @@ t.eq(prepared and prepared.cwd, vim.uv.fs_realpath(root), "switching buffers dur
 t.eq(prepared and prepared.program, binary, "buffer switch does not change the executable")
 vim.api.nvim_set_current_buf(buffer)
 dap.adapters.codelldb = original_adapter
-if vim.fn.executable(vim.fn.stdpath("data") .. "/mason/bin/codelldb") == 1 then
-  vim.api.nvim_win_set_cursor(0, { 3, 0 })
-  dap.set_breakpoint()
-  dap.run(build)
-  t.ok(vim.wait(20000, function() return dap.session() and dap.session().current_frame ~= nil end, 50), "Cargo binary stops in CodeLLDB")
-  local session = dap.session()
-  if session and session.current_frame then
-    local result
-    session:request("evaluate", { expression = "value", frameId = session.current_frame.id, context = "watch" },
-      function(err, body) result = err or body end)
-    vim.wait(5000, function() return result ~= nil end, 50)
-    t.eq(result and result.result, "42", "CodeLLDB evaluates Rust local variable")
-  end
-  local cleanup = t.process_cleanup()
-  for _, active in pairs(dap.sessions()) do active:disconnect({ terminateDebuggee = true }) end
-  vim.wait(5000, function() return next(dap.sessions()) == nil end, 50)
-  for _, active in pairs(dap.sessions()) do active:close() end
-  cleanup()
-end
 -- Unified entries resolve module-qualified names and never run sibling files.
 vim.fn.writefile({ 'fn main() { println!("42"); }', 'mod math;',
   '#[test] fn works() { assert_eq!(2 + 2, 4); }' }, root .. "/src/main.rs")

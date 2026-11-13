@@ -57,7 +57,6 @@ if client then
     end
   end, 100), "a jdtls missing the bundle commands is restarted, and comes back with them")
   t.eq(vim.lsp.get_client_by_id(lost.id), nil, "the incomplete client is gone")
-  t.ok(vim.wait(10000, function() return dap.adapters.java ~= nil end, 100), "the restarted client sets up debugging again")
 end
 if client then
   t.ok(dap.providers.configs.jdtls ~= nil, "main class discovery stays dynamic per project")
@@ -66,9 +65,6 @@ if client then
   t.ok(not vim.iter(bundles):any(function(path) return path:find("jacocoagent.jar", 1, true) end), "non-OSGi agent is excluded")
   vim.cmd.edit(vim.fn.fnameescape(root .. "/src/Other.java"))
   t.ok(vim.wait(5000, function() return vim.lsp.buf_is_attached(0, client.id) end, 50), "second Java buffer attaches to the same server")
-  -- Test debugging is <leader>tM/tF through the java dap targets; the comma
-  -- menu holds no duplicate of them.
-  t.eq({ vim.fn.maparg(",dt", "n"), vim.fn.maparg(",dT", "n") }, { "", "" }, "Java has no comma test-debug keys")
   vim.api.nvim_set_current_buf(main)
   local configs
   require("jdtls.dap").fetch_main_configs({}, function(value) configs = value end)

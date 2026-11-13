@@ -64,23 +64,28 @@ t.eq(started.agent_root, repo, "the agents use the same project")
 t.eq(started.later_cwd, repo, "editing another repository leaves cwd alone")
 
 t.eq(child({ "project with spaces/src/one.txt" }).cwd, repo, "relative paths resolve before cwd changes")
-t.eq(child({ repo .. "/src/new/deeper/file.txt" }).cwd, repo, "a new file with missing parents finds its repository")
-t.eq(child({ other }).cwd, worktree, "a .git file identifies a worktree or submodule root")
-t.eq(child({ loose .. "/plain.txt" }).cwd, loose, "a non-Git file uses its parent directory")
-t.eq(child({ loose .. "/missing/new.txt" }).cwd, loose, "a missing non-Git parent uses its nearest existing ancestor")
-t.eq(child({ repo .. "/src" }).cwd, repo .. "/src", "a directory argument stays at that exact directory")
 local directory = child({ "project with spaces/src" })
 t.eq(directory.cwd, repo .. "/src", "a relative directory argument sets cwd correctly")
 t.eq(directory.oil_dir, repo .. "/src/", "Oil opens the original directory after cwd changes")
 t.eq(child({}).cwd, base, "startup without arguments keeps the shell directory")
 t.eq(child({ "-" }, { stdin = "text\n" }).cwd, base, "stdin keeps the shell directory")
 
+-- An absolute argument reaches util.cwd.startup_dir with nothing but ':p'
+-- applied (lua/config/cwd.lua), so the path cases call it in this process
+-- rather than each starting a child Nvim.
+local cwd = require("util.cwd")
+t.eq(cwd.startup_dir(repo .. "/src/new/deeper/file.txt"), repo, "a new file with missing parents finds its repository")
+t.eq(cwd.startup_dir(other), worktree, "a .git file identifies a worktree or submodule root")
+t.eq(cwd.startup_dir(loose .. "/plain.txt"), loose, "a non-Git file uses its parent directory")
+t.eq(cwd.startup_dir(loose .. "/missing/new.txt"), loose, "a missing non-Git parent uses its nearest existing ancestor")
+t.eq(cwd.startup_dir(repo .. "/src"), repo .. "/src", "a directory argument stays at that exact directory")
+
 local nested = repo .. "/vendor/inner"
 vim.fn.mkdir(nested .. "/.git", "p")
 vim.fn.writefile({ "nested" }, nested .. "/nested.txt")
-t.eq(child({ nested .. "/nested.txt" }).cwd, nested, "the nearest nested repository wins")
+t.eq(cwd.startup_dir(nested .. "/nested.txt"), nested, "the nearest nested repository wins")
 assert(vim.uv.fs_symlink(file, base .. "/link.txt"))
-t.eq(child({ base .. "/link.txt" }).cwd, repo, "a symlinked file uses the target repository")
+t.eq(cwd.startup_dir(base .. "/link.txt"), repo, "a symlinked file uses the target repository")
 
 for _, scope in ipairs({ "cd", "lcd", "tcd" }) do
   t.eq(child({ file, "-c", scope .. " " .. vim.fn.fnameescape(loose) }).cwd, loose,
@@ -93,4 +98,48 @@ t.eq(multiple.next_file, other, "changing cwd preserves subsequent relative argu
 t.eq(multiple.later_cwd, repo, ":next does not change cwd again")
 
 vim.fn.delete(base, "rf")
+
+-- util.cwd.recover: a deleted working directory
+-- is recovered into a surviving ancestor with a one-line report, never a
+-- traceback (Snacks' dashboard terminal sections hash vim.uv.cwd() at UIEnter
+-- and die on nil). This Nvim never left its own cwd: the children above ran
+-- in `base`.
+do
+  local root = vim.uv.cwd()
+  t.ok(root ~= nil, "the suite starts in a real directory")
+  t.eq(cwd.recover(), nil, "an existing cwd is left alone")
+  t.eq(vim.uv.cwd(), root, "and not moved")
+
+  local saved_pwd = vim.env.PWD
+
+  -- Deleted subtree: land in the nearest ancestor that survived, not in ~.
+  local base = vim.fn.tempname()
+  local leaf = base .. "/a/b"
+  vim.fn.mkdir(leaf, "p")
+  vim.fn.chdir(leaf)
+  vim.fn.delete(base, "rf")
+  t.eq(vim.uv.cwd(), nil, "a deleted directory leaves the process without a cwd")
+  vim.env.PWD = leaf
+  local report = cwd.recover()
+  local parent = vim.fn.fnamemodify(base, ":h")
+  -- realpath: macOS hands out /var/... temp names while getcwd() reports the
+  -- resolved /private/var/...
+  t.eq(vim.uv.cwd(), vim.uv.fs_realpath(parent), "recovers into the nearest surviving ancestor")
+  t.ok(type(report) == "string", "reports what it did")
+  t.ok(report:find(vim.fn.fnamemodify(leaf, ":~"), 1, true) ~= nil, "the report names the lost directory")
+  t.ok(report:find(vim.fn.fnamemodify(parent, ":~"), 1, true) ~= nil, "and where it went")
+  t.ok(not report:find("\n"), "the report is one line")
+
+  -- Nothing to work from: home is the fallback.
+  local base2 = vim.fn.tempname()
+  vim.fn.mkdir(base2, "p")
+  vim.fn.chdir(base2)
+  vim.fn.delete(base2, "d")
+  vim.env.PWD = nil
+  cwd.recover()
+  t.eq(vim.uv.cwd(), vim.uv.os_homedir(), "without $PWD it falls back to home")
+
+  vim.env.PWD = saved_pwd
+  vim.fn.chdir(root)
+end
 t.done()

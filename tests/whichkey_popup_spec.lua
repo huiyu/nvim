@@ -194,40 +194,17 @@ local function owner_of(prefix, key)
     elseif row.key == key then return owner end
   end
 end
+-- A few representatives: each case restates one entry of
+-- lua/config/whichkey_spec.lua, so the rest add nothing the lookup proves.
 for _, case in ipairs({
-  { ";", "c", "positions" }, { ";", "j", "positions" }, { ";", "m", "positions" },
-  { "<leader>y", "l", "path" }, { "<leader>y", "g", "path" },
-  { "<leader>g", "D", "diff" }, { "<leader>b", "h", "delete" },
-  -- One letter per act (#30, part 3): moving a buffer along the bar and the
-  -- file's diagnostics. <leader><tab>n is mapped only once which-key's setup
-  -- has run; tests/key_descriptions_spec.lua finds it in the popup's tree.
-  { "<leader>b", "<", "move" }, { "<leader>b", ">", "move" },
-  { "<leader>x", "b", "diagnostics" },
-  -- The chat on the right: new, switch, toggle, focus; what goes to it.
-  { "<leader>a", "n", "chats" }, { "<leader>a", "l", "chats" },
-  { "<leader>a", "c", "chats" }, { "<leader>a", "f", "chats" },
-  { "<leader>a", "b", "context" }, { "<leader>a", "i", "context" },
-  { "<leader>a", "r", "native session" }, { "<leader>a", "R", "native session" },
-  { "<leader>a", "m", "native session" },
-  { "<leader>a", "t", "history" }, { "<leader>a", "T", "history" },
+  { ";", "c", "positions" },
   -- The keys that spend API credits: inline edits and the profile they bill.
   { "<leader>a", "e", "HTTP · API credits" }, { "<leader>a", "x", "HTTP · API credits" },
-  { "<leader>a", "o", "history" },
-  { "<leader>a", "v", "review" }, { "<leader>a", "V", "review" },
-  -- Case is the debug variant of the same run: tm/tM, tf/tF.
-  { "<leader>t", "m", "run" }, { "<leader>t", "M", "run" },
-  { "<leader>t", "f", "run" }, { "<leader>t", "F", "run" },
-  { "<leader>t", "s", "view" }, { "<leader>t", "o", "view" }, { "<leader>t", "x", "view" },
+  -- Case is the debug variant of the same run: tM sits with tm.
+  { "<leader>t", "M", "run" },
   { "]", "r", "code" }, { "[", "r", "code" },
 }) do
   t.eq(owner_of(case[1], case[2]), case[3], ("%s%s sits under %s"):format(case[1], case[2], case[3]))
-end
--- Claude's diff keys exist while a Claude diff can arrive (lua/ai/init.lua);
--- whenever they do, they have a heading of their own, apart from review.
-if next(vim.fn.maparg("<leader>aa", "n", false, true)) ~= nil then
-  for _, key in ipairs({ "a", "d" }) do
-    t.eq(owner_of("<leader>a", key), "Claude diffs", "<leader>a" .. key .. " sits under Claude diffs")
-  end
 end
 -- The keys that spend API credits say so in their heading; the chats' billing
 -- is in the new-chat picker's entries. <leader>ap, once the +CodeCompanion

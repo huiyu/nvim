@@ -3,13 +3,14 @@
 -- (Close a window or view, Delete a buffer, Discard a change), one word per
 -- scope ("file" the current file, "cwd" Nvim's working directory, "repo" the
 -- Git repository, "here" the file's directory), no articles, and "…" only on a
--- key that asks something before it acts. This pins the editor, Git, GitHub
--- and window keys; tests/ai_keymap_spec.lua holds <leader>a to the same rules,
--- and the CodeDiff, chat and LSP specs pin their own views.
+-- key that asks something before it acts. This pins the editor, Git, GitHub,
+-- window and <leader>a keys (<leader>ae, relabelled by :AI key, is
+-- tests/ai_switch_spec.lua's), and the CodeDiff, chat and LSP specs pin their
+-- own views.
 local t = dofile("tests/helper.lua")
 
 -- Entries with an RHS in lua/config/whichkey_spec.lua become keymaps once which-key's
--- scheduled loader has run (as in tests/escape_mapping_spec.lua).
+-- scheduled loader has run (as in tests/input_method_spec.lua).
 vim.cmd("Lazy! load which-key.nvim")
 vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })
 vim.wait(100, function() return vim.fn.maparg("sd", "n") ~= "" end)
@@ -135,6 +136,32 @@ for _, m in ipairs(vim.api.nvim_get_keymap("n")) do
     t.ok(not (m.desc or ""):find("GitHub", 1, true), lhs .. " does not repeat the GitHub heading")
   end
 end
+
+-- <leader>a. No key names an
+-- agent: the chat keys reach whatever the tabpage shows on its right
+-- (lua/ai/slot.lua), the native keys the native agent there, else the one
+-- asked for. n/l open a picker, from Visual mode taking the selection along.
+-- "…" marks a key that asks something of its own before it acts (a choice,
+-- typed input): not aR, whose only question is the shared which-agent one, nor
+-- aT/ao, whose list is where they go.
+expect({
+  ["<leader>an"] = "New AI chat…",
+  ["<leader>al"] = "Switch AI chat…",
+  ["<leader>ac"] = "Toggle AI chat",
+  ["<leader>af"] = "Focus AI chat",
+  ["<leader>ab"] = "Add file to AI chat",
+  ["<leader>ai"] = "Compose prompt for AI chat",
+  ["<leader>ar"] = "Resume native agent…",
+  ["<leader>aR"] = "Continue native agent",
+  ["<leader>am"] = "Select native agent model…",
+  ["<leader>at"] = "Read native agent transcript",
+  ["<leader>aT"] = "Browse native agent transcripts",
+  ["<leader>ax"] = "Switch API key profile…",
+  ["<leader>av"] = "Review changes since round baseline",
+  ["<leader>aV"] = "Start review round",
+  ["<leader>ao"] = "Browse saved Companion chats",
+})
+expect({ ["<leader>as"] = "Add selection to AI chat" }, "x")
 
 -- Toggle only where the key toggles; the quickfix and location lists are
 -- named one way, window or picker.

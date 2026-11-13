@@ -117,9 +117,6 @@ for _, case in ipairs({ { ";f", true, false }, { ";i", false, true }, { ";?", fa
   picker:close()
   vim.wait(50, function() return false end, 10)
 end
-for _, key in ipairs({ ";n", ";N" }) do
-  t.eq(vim.fn.maparg(key, "n", false, true), {}, key .. " no longer opens editor management files")
-end
 local config_files = open_picker("<leader>mf", "files")
 t.eq(config_files.opts.cwd, vim.fn.stdpath("config"),
   "<leader>mf searches the Nvim configuration from another project")

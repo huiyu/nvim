@@ -9,8 +9,8 @@
 -- is stubbed through package.loaded, so ,C records what it would hand over.
 -- Pinned here:
 --   * the round <leader>av picks, through the real select_round: the current
---     buffer's conversation, the chat on the right's session, this process's
---     newest, the newest there at all;
+--     buffer's conversation, this process's newest, the newest there at all
+--     (the chat on the right's session is review_round_spec's);
 --   * one review tab per root: the same round is focused (its explorer),
 --     another round replaces it -- three rounds in a row leave one tab -- and
 --     no other tabpage's windows change; the new tab opens where the old one
@@ -31,9 +31,11 @@
 --     done(nil), and no open's label or tab variables land on a view that
 --     is not the one it asked for;
 --   * ,C in Normal and Visual mode on every buffer of a round view, a status
---     view, a rev-vs-rev view and a history view, handing comment() the
---     window, buffer, mode and ordered line range; repeated CodeDiffKeys
---     passes keep exactly one ,C and leave ,S ,U ,X alone.
+--     view, a rev-vs-rev view and a history view; on the round view it hands
+--     comment() the window, buffer, mode and ordered line range (one
+--     callback serves every view); a rev-vs-rev or history view gets none
+--     of ,S ,U ,X; repeated CodeDiffKeys passes keep exactly one ,C and
+--     leave ,S ,U ,X alone.
 -- Every repository lives under tempname() with a space in its path, with
 -- git's system and global config shut out.
 local t = dofile("tests/helper.lua")
@@ -348,7 +350,7 @@ t.eq(vim.t[tab].codediff_label, ("Review · Manual · round %s → working tree"
 t.ok(said("No conversation: delivering feedback asks where it goes") ~= nil, "and says it has no owner " .. heard())
 
 ---------------------------------------------------------------------------
--- ... the session on the right; the current buffer's conversation
+-- ... the current buffer's conversation
 ---------------------------------------------------------------------------
 
 local terminals = {}
@@ -368,49 +370,28 @@ local function agent_terminal(agent, session)
   rounds._state().native[agent].session = session
   return buf
 end
--- Either agent can be the one on the right: the first listed here, and the
--- other is registered beside it.
-local right = config.agent_names()[1]
+-- The second agent listed, so the label below is not the first provider's.
+-- Which round wins between the buffer, the chat on the right and this
+-- process is review_round_spec's (select_round); this checks the wiring.
 local other = config.agent_names()[2]
-local right_term = agent_terminal(right, "s-right")
 local other_term = agent_terminal(other, "s-other")
-t.ok(rounds.conversation_of(other_term) == other .. ":s-other", "the stand-in terminals are registered")
+t.ok(rounds.conversation_of(other_term) == other .. ":s-other", "the stand-in terminal is registered")
 
 local O = save_round(R, { Source = other, Conversation = other .. ":s-other" })
-local A = save_round(R, { Source = right, Conversation = right .. ":s-right" })
 local P2
 rounds.submit({ source = "manual", root = R, force = true, on_round = function(round) P2 = round end })
 vim.wait(10000, function() return P2 ~= nil end, 20)
 edit(R)
 
--- ai.slot reads the chat on the right off the windows, and knows a native
--- agent by its backend: the stand-in is that backend's terminal here.
-local right_backend = require("ai.backend." .. right)
-local backend_saved = { running = right_backend.running, buf = right_backend.buf }
-right_backend.running = function() return vim.api.nvim_buf_is_valid(right_term) end
-right_backend.buf = function() return right_term end
-vim.api.nvim_set_current_tabpage(editor_tab)
-vim.api.nvim_set_current_buf(file_buf)
-vim.cmd("botright vsplit")
-local right_win = vim.api.nvim_get_current_win()
-vim.api.nvim_win_set_buf(right_win, right_term)
-vim.cmd("stopinsert")
-vim.cmd("wincmd p")
-tab = review(A.id)
-t.ok(tab ~= nil, "from a file, the newest round of the session on the right, over a newer one of this process " .. heard())
-t.eq(review_tabs(R), { tab }, "still one review tab")
-
 vim.api.nvim_set_current_tabpage(editor_tab)
 vim.api.nvim_set_current_buf(other_term)
 tab = review(O.id)
-t.ok(tab ~= nil, "from an agent terminal, its own session's newest round, over the one on the right's " .. heard())
+t.ok(tab ~= nil, "from an agent terminal, its own session's newest round, over this process's newer one " .. heard())
 t.eq(review_tabs(R), { tab }, "still one review tab")
 t.eq(vim.t[tab].codediff_label, ("Review · %s · round %s → working tree"):format(
   other == "claude" and "Claude" or "Codex", when(O.time)), "labelled by the owner's agent")
 t.eq(layout(bystander), bystander_layout, "another tabpage keeps its windows throughout")
 local round_tab = tab
-pcall(vim.api.nvim_win_close, right_win, true)
-for k, fn in pairs(backend_saved) do right_backend[k] = fn end
 
 ---------------------------------------------------------------------------
 -- ,C on a round view
@@ -532,13 +513,20 @@ for _, case in ipairs({
       end
     end
     t.eq(vim.t[tb].ai_review, nil, "a " .. case.mode .. " view is no review of a round")
-    t.eq(press(v.modified_win, 1), { tab = tb, win = v.modified_win, buf = v.modified_bufnr, mode = "n" },
-      "Normal ,C in a " .. case.mode .. " view")
-    if vim.api.nvim_buf_line_count(v.modified_bufnr) >= 2 then
-      t.eq(visual(v.modified_win, "1GVj,C").range, { first = 1, last = 2 }, "Visual ,C in a " .. case.mode .. " view")
+    if case.mode ~= "status" then
+      -- Nothing to stage or discard in a rev-vs-rev or a history view. Not
+      -- vacuous: codediff_actions attaches on the same CodeDiffKeys pass that
+      -- installed the ,C other_view waited for.
+      local staging = {}
+      for _, buf in ipairs({ v.modified_bufnr, v.original_bufnr }) do
+        for _, lhs in ipairs({ ",S", ",U", ",X" }) do
+          for _, mode in ipairs({ "n", "x" }) do
+            if desc(buf, lhs, mode) then staging[#staging + 1] = mode .. lhs end
+          end
+        end
+      end
+      t.eq(staging, {}, "a " .. case.mode .. " view has none of ,S ,U ,X")
     end
-    t.eq(press(v.panel_win), { tab = tb, win = v.panel_win, buf = v.panel_bufnr, mode = "n" },
-      "Normal ,C in its " .. (case.mode == "history" and "history list" or "explorer"))
     cd.close(tb)
     vim.wait(3000, function() return not vim.api.nvim_tabpage_is_valid(tb) end, 20)
   end

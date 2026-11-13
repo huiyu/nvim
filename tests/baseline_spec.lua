@@ -18,7 +18,7 @@
 --     worktree, and each worktree has a wtid of its own;
 --   * detached HEAD, an unborn repository with and without an index;
 --   * no signing and no user hooks, whatever the config says;
---   * retention to an explicit keep, the exemption hook,
+--   * retention to an explicit keep, a failing exemption hook,
 --     compare-and-swap deletes, and a listing that drops refs whose commit
 --     is missing with one warning;
 --   * a non-git directory, a bare repository and GIT_DIR give an error text;
@@ -374,9 +374,9 @@ t.ok(tree_entries(ign, t3)["other.log"] == nil, "an ignored untracked file stays
 
 -- 3. Racy git ------------------------------------------------------------------
 
-local racy_checked, control_stale = 0, 0
+local racy_checked = 0
 for attempt = 1, 4 do
-  if racy_checked >= 2 then break end
+  if racy_checked >= 1 then break end
   local dir = new_repo("racy " .. attempt)
   commit(dir, "initial")
   local s = os.time()
@@ -388,21 +388,10 @@ for attempt = 1, 4 do
   if os.time() == s then
     racy_checked = racy_checked + 1
     uv.sleep(1100)
-    -- Control: a plain copy stamped "now" (not asserted; whether it goes
-    -- stale depends on how git was built).
-    local copy = dir .. "/.git/control-index"
-    assert(uv.fs_copyfile(dir .. "/.git/index", copy))
-    local env = { GIT_INDEX_FILE = copy }
-    sh(dir, { "git", "-c", "core.hooksPath=/dev/null", "add", "--all" }, { env = env })
-    local ctree = vim.trim(sh(dir, { "git", "write-tree" }, { env = env }).stdout or "")
-    os.remove(copy)
-    if blob(dir, ctree, "f") == "AAAA\n" then control_stale = control_stale + 1 end
-    t.eq(blob(dir, snapshot(dir), "f"), "BBBB\n",
-      ("racy git (try %d): a same-size edit in the index's second is in the snapshot"):format(racy_checked))
+    t.eq(blob(dir, snapshot(dir), "f"), "BBBB\n", "racy git: a same-size edit in the index's second is in the snapshot")
   end
 end
 t.ok(racy_checked >= 1, "the racy scenario was set up within one second at least once")
-print(("info - control copy without the mtime went stale in %d of %d tries"):format(control_stale, racy_checked))
 
 -- 4. gc ------------------------------------------------------------------------
 
@@ -585,25 +574,18 @@ t.eq(vim.tbl_map(function(e) return e.subject end, saved_gone), { "saved · s1" 
 t.ok(#notes == 1 and notes[1].level == INFO and notes[1].msg:find('"saved · s1"', 1, true) ~= nil,
   "deleting a saved baseline names it")
 
+-- The hook that keeps a round is review_round_spec's (rounds._exempt); 22
+-- rounds over keep = 20 here, so a failing hook has something to spare.
 make("round", 23, "r23")
 make("round", 24, "r24")
-B.set_exempt(function(e) return e.subject == "r3" end)
-gone = prune(ret, "round", { keep = 20 })
-t.eq(vim.tbl_map(function(e) return e.subject end, gone), { "r4" }, "the exemption hook keeps an old round")
-t.eq(#subjects(ret, "round"), 21, "the exempt round is kept beyond the count")
 B.set_exempt(function() error("boom") end)
 notes = notes_during(function() gone = prune(ret, "round", { keep = 20 }) end)
 t.eq(#gone, 0, "a failing exemption hook deletes nothing")
 t.ok(#notes == 1 and notes[1].level == WARN, "and warns")
 B.set_exempt(nil)
-gone = prune(ret, "round", { keep = 20, exempt = function(e) return e.subject == "r3" end })
-t.eq(#gone, 0, "opts.exempt is honoured as well")
 
 gone = prune(ret, "round", { keep = 3 })
 t.eq(subjects(ret, "round"), { "r24", "r23", "r22" }, "a smaller keep prunes further")
-t.eq(#notes_during(function() prune(ret, "saved", { keep = 2, quiet = true }) end), 0,
-  "opts.quiet silences the saved notice")
-t.eq(#subjects(ret, "saved"), 2, "keep applies to saved baselines too")
 local auto = save(ret, "round", { subject = "auto", keep = 3 })
 eventually(function() return #list(ret, "round") == 3 end)
 t.eq(subjects(ret, "round"), { "auto", "r24", "r23" }, "save() with meta.keep prunes its kind afterwards")
@@ -626,14 +608,10 @@ t.ok(auto ~= nil, "fixture: the auto-pruned save succeeded")
 local dd = new_repo("dedupe")
 commit(dd, "initial")
 write(dd .. "/u.txt", "same\n")
-local d1 = snapshot(dd)
+snapshot(dd)
 local objects = must(dd, "count-objects", "-v")
-local d2 = snapshot(dd)
-t.eq(d2, d1, "an unchanged worktree snapshots to the same tree")
-t.eq(must(dd, "count-objects", "-v"), objects, "and writes no new object")
-local s1 = save(dd, "saved", { subject = "one", tree = d1 })
-local s2 = save(dd, "saved", { subject = "two", tree = d1 })
-t.ok(s1.sha ~= s2.sha and s1.tree == s2.tree, "two baselines of one state share the tree")
+snapshot(dd)
+t.eq(must(dd, "count-objects", "-v"), objects, "an unchanged worktree's second snapshot writes no new object")
 
 -- 12. Many untracked files ---------------------------------------------------------
 

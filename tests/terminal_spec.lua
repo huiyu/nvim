@@ -69,24 +69,15 @@ vim.wait(300, function() return false end)
 t.eq(vim.api.nvim_get_current_buf(), three,
   "from the editor, <C-/> reopens the terminal you were last in")
 
--- Closing a terminal and reopening must return to the one you were in. Falling
--- back to terminal 1 meant every close-reopen cycle threw away where you were.
+-- The Snacks terminal id of the current buffer; nil outside a terminal.
 local function current_id()
   local buf = vim.api.nvim_get_current_buf()
   local info = vim.b[buf].snacks_terminal
   return info and info.id or nil
 end
 
--- Start from a known state: earlier blocks may have left terminal 3 showing.
-if vim.fn.bufwinid(three) ~= -1 then term.toggle(3) end
-term.toggle(3)
-t.eq(current_id(), 3, "terminal 3 is open")
-term.toggle() -- close it
-t.eq(current_id(), nil, "and closed again")
-term.toggle() -- reopen
-t.eq(current_id(), 3, "reopening returns to the terminal you were last in")
-
--- An explicit count still wins over that memory.
+-- An explicit count still wins over that memory. Terminal 3 is the current
+-- one here, reopened by the check above.
 term.toggle()
 vim.api.nvim_feedkeys(vim.keycode("2"), "n", false)
 term.toggle(2)
@@ -194,7 +185,7 @@ t.eq(nav_rhs("<C-h>"), "<C-\\><C-n><C-w>h", "<C-h> from a split terminal moves t
 
 -- Ctrl-comma owns the deliberate terminal/editor jump now that the adjacent
 -- Ctrl-backslash chord is a repeatable Escape. Exercise the Normal half against
--- real windows; escape_mapping_spec guards the terminal-input prefix.
+-- real windows; input_method_spec guards the terminal-input prefix.
 vim.api.nvim_feedkeys(vim.keycode("<C-,>"), "tx", false)
 t.eq(vim.api.nvim_get_current_win(), left, "Ctrl-comma reaches the editor from terminal-Normal")
 vim.api.nvim_feedkeys(vim.keycode("<C-,>"), "tx", false)

@@ -136,8 +136,8 @@ the current tabpage, never another one.
 
 `open()` implements Normal-mode `gx`: open the nearest HTTP(S) URL or existing
 local file on the current row. URLs use `vim.ui.open`; file references use
-`:edit`, focusing `util.window.ensure_editor_win()` first in special buffers so
-terminal panels remain intact. File candidates must exist and be regular files.
+`:edit`, focusing `util.buffer.editor_target()` first so a chat or terminal
+panel remains intact. File candidates must exist and be regular files.
 Absolute and `~/` paths work; relative paths resolve beside an ordinary source
 file, against a Snacks terminal's recorded `cwd`, or via `util.cwd.buffer_dir()`
 otherwise. Quotes and backticks support paths containing spaces, including
@@ -447,8 +447,11 @@ window.focus_editor()
 -- window when it is one, else the one the cursor last left, else the widest;
 -- nil when there is none. focus_editor toggles (pressed in the editor it jumps
 -- back out), so code that needs "the edited file's window" -- a native agent's
--- cold start, a new chat -- asks here instead.
-window.editor_win()  --> win | nil
+-- cold start, a new chat -- asks here instead. With `file_target`, only a
+-- window a file can be opened into counts (as for ensure_editor_win: a modified
+-- Oil or GitHub view does not), and nil comes back instead of a new split;
+-- util.buffer (editor_target, the GitHub pickers) uses it.
+window.editor_win(file_target?)  --> win | nil
 
 -- The tabpage a prefix-blocking view (CodeDiff) was opened from: the nearest
 -- one before it that is no such view itself, so a second view opened from the
@@ -466,7 +469,7 @@ window.track_editor_win()
 -- listing or issue/PR reading view can receive the file in place; pending edits
 -- stay visible and untouched. Does not move focus; the caller decides when to
 -- enter it.
--- Used by file-tab clicks, location pickers, Oil's terminal entry points, and
+-- Used by util.buffer (editor_target, the location pickers) and
 -- both debug frame paths: nvim-dap's `switchbuf` (via `util.dap.jump`) and
 -- nvim-dap-ui's `select_window`. Being scoped to the current tabpage is what
 -- keeps a stopped frame in the tabpage the user is actually in.
@@ -621,12 +624,50 @@ change. Use `<leader>md` for a manual repair.
 
 ## Buffers (`util.buffer`)
 
-Housekeeping for listed buffers that bufferline and Snacks do not cover.
+Where a buffer this config opens goes, and housekeeping for listed buffers
+that bufferline and Snacks do not cover. Every key, picker hook and callback
+here that puts a buffer in a window asks this module for the window, since the
+current one may be a panel (a chat, an agent terminal, aerial, quickfix). The
+editor-area model it applies is `util.window`'s.
 
 #### API Reference
 
 ```lua
 local buffer = require("util.buffer")
+
+-- The window a buffer opened from here goes into: the current one when it is
+-- a non-floating window showing a file, else util.window.ensure_editor_win()
+-- (an unmodified Oil listing or GitHub view there can take it). Not the
+-- current listing, GitHub view or dashboard itself: none is in the buffer
+-- list, so [b/]b would have nothing to cycle from. Leaving a terminal stops
+-- terminal-input mode. Does not move focus. gx focuses it before its :edit.
+buffer.editor_target()  --> win
+
+-- Focus editor_target() only when the current window is a panel (a
+-- non-floating window outside util.window's editor area: a chat, an agent
+-- terminal, help, quickfix). For commands that read the buffer they start
+-- from: Oil (- and ;o) still lists a listing's directory from that listing.
+buffer.leave_panel()
+
+-- `fn` wrapped to run with the editor target current: bufferline's cycling
+-- and first/last keys, Harpoon's ;1-;9 and ;h.
+buffer.in_editor(fn)  --> fun()
+
+-- A file-tab click: shows `buf` in the editor target, scheduled like
+-- bufferline's default, and focuses it.
+buffer.open(buf)
+
+-- ;B: bufferline's pick in the editor target. A pick that changed nothing
+-- goes back where it started and closes the editor window it had to open.
+buffer.pick()
+
+-- The Snacks pickers' `on_show`. Location sources (files, grep, buffers,
+-- diagnostics, git_diff, todo_comments, ...) are aimed at
+-- ensure_editor_win(); the GitHub ones (gh_issue, gh_pr, gh_diff) at an
+-- editor window only when one exists, since their actions menu mostly opens
+-- nothing. A picker whose caller passed its own `main` keeps it
+-- (CodeCompanion's /file and /buffer).
+buffer.picker_on_show(picker)
 
 -- True for a listed, plain file buffer whose file no longer exists on disk.
 -- Terminals, URI-scheme buffers (oil://, codediff://) and unnamed scratch

@@ -20,7 +20,7 @@
 --     one against the working tree marks the view (codediff_baseline, plus
 --     ai_review for a round through ai.review.rounds, which may be absent);
 --   * <leader>gK names a saved baseline (subject and Label), defaults the
---     name to the time, and retention removes the oldest past 10 with a word;
+--     name to the time, and retention.saved removes the oldest past it;
 --   * <leader>gM lists baselines next to branches, tags and commits;
 --   * both pickers and the views they open label a baseline through
 --     ai.review.labels ("<name>: Saved <time>", "Claude <start>" for a round
@@ -299,17 +299,11 @@ args, spec = press("<leader>gk", { rev("docs"), WORKING })
 t.eq(args, C(DOCS), "a branch named like a top-level directory compares (docs → working tree)")
 t.ok(not said("ambiguous"), "without git refusing the name as ambiguous")
 t.eq(spec and spec.label, "docs → working tree", "labelled with the name")
-args = press("<leader>gk", { rev("docs"), rev("old") })
-t.eq(args, C(DOCS, OLD), "docs → old as well")
-args = press("<leader>gk", { rev("docs"), INDEX })
-t.eq(args, C("--staged", DOCS), "and docs → index")
 args = press("<leader>gk", { TYPE, "old...docs" })
 t.eq(args, C(OLD .. "..." .. DOCS), "a typed range naming it goes as a range of shas")
 args, spec = press("<leader>gk", { rev("history"), WORKING })
 t.eq(args, C(HISTORY), "a branch named like CodeDiff's history subcommand goes as its sha")
 t.eq(spec and spec.label, "history → working tree", "labelled with the name")
-args = press("<leader>gk", { rev("history"), rev("main") })
-t.eq(args, C(HISTORY, MAIN), "history → main as well")
 
 args, spec = press("<leader>gk", { INDEX, WORKING })
 t.eq(args, C(), "index → working tree: the status view")
@@ -503,18 +497,17 @@ t.eq(spec and spec.label, "main → working tree", "labelled with its name")
 -- Retention of saved baselines
 ---------------------------------------------------------------------------
 
+-- One press past retention.saved shows <leader>gK hands that count to the
+-- save; the default (10) is ai.review.config's, and pruning the oldest with
+-- a notice naming it is baseline_spec's.
 local have = #baselines(root, "saved")
-for i = have + 1, 10 do
-  press("<leader>gK", { "filler " .. i }, function() return said("Saved baseline") end)
-end
-t.eq(#baselines(root, "saved"), 10, "ten saved baselines are kept")
-press("<leader>gK", { "the eleventh" }, function() return said("Removed 1 old saved baseline") end)
+vim.g.ai_review = { retention = { saved = have } }
+press("<leader>gK", { "one more" }, function() return said("Removed 1 old saved baseline") end)
 saved = baselines(root, "saved")
-t.eq(#saved, 10, "an eleventh removes the oldest")
-t.eq(saved[1].subject, "saved · the eleventh", "keeping the new one")
+t.eq(#saved, have, "one past retention.saved removes the oldest")
+t.eq(saved[1].subject, "saved · one more", "keeping the new one")
 t.ok(not vim.tbl_contains(vim.tbl_map(function(e) return e.sha end, saved), before_refactor.sha),
   "the oldest is gone")
-t.ok(said('"saved · before refactor"'), "and the notice names it")
 t.eq(#baselines(root, "round"), 1, "rounds are not touched")
 
 vim.cmd.CodeDiff = real_codediff

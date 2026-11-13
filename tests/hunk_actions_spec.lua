@@ -194,8 +194,6 @@ for _, b in ipairs({ buf, lbuf }) do
   t.eq(desc(b, ",X"), "Discard hunk back to baseline " .. when, ",X names the baseline it discards back to in " .. where)
   t.eq(desc(b, ",S", "x"), "Stage selected lines", "Visual ,S stages the selected lines in " .. where)
   t.eq(desc(b, ",X", "x"), "Discard selected hunks back to baseline " .. when, "Visual ,X in " .. where)
-  -- S/U/X as the status explorer's file keys: u no longer stages.
-  t.eq({ map(b, ",u"), map(b, ",u", "x") }, { {}, {} }, ",u is not mapped in " .. where)
 end
 t.eq(map(s.panel_bufnr, ",S"), {}, "the explorer gets none of them")
 
@@ -302,11 +300,9 @@ do
   t.eq(said("failed"), nil, "without reporting it")
   t.eq(index(), staged_insert, "and stages the line")
   t.ok(unstaged_count(2), "gitsigns sees it staged")
-  notices = {}
-  press(right, 11, ",U")
-  t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it again " .. heard())
-  t.eq(index(), base, "back to the index it had")
-  t.ok(unstaged_count(3), "gitsigns sees it unstaged")
+  -- ,U itself is covered above; the spec puts the index back by hand.
+  assert(git("reset", "-q", "--", "f.txt"))
+  t.ok(unstaged_count(3), "gitsigns catches up with the reset")
 end
 
 -- gitsigns throttles attaches per buffer: one asked for while another is
@@ -327,11 +323,8 @@ do
   gs.attach = real
   t.eq(said("does not track"), nil, "without calling the file untracked")
   t.eq(index(), staged_insert, "the inserted line is staged")
-  notices = {}
-  press(right, 11, ",U")
-  t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it " .. heard())
-  t.eq(index(), base, "back to the index it had")
-  t.ok(unstaged_count(3), "gitsigns sees it unstaged")
+  assert(git("reset", "-q", "--", "f.txt"))
+  t.ok(unstaged_count(3), "gitsigns catches up with the reset")
 
   -- An attach can also come to nothing on a busy machine (CI): the stage
   -- asks again rather than give up after the first.
@@ -352,10 +345,10 @@ do
   gs.attach = real
   t.ok(asked >= 2, "after asking gitsigns to attach again")
   t.eq(index(), staged_insert, "the inserted line is staged")
-  notices = {}
-  press(right, 11, ",U")
-  t.ok(finished("Unstaged line 11 of f.txt"), "and ,U unstages it again " .. heard())
-  t.ok(unstaged_count(3), "gitsigns sees it unstaged")
+  assert(git("reset", "-q", "--", "f.txt"))
+  t.ok(unstaged_count(3), "gitsigns catches up with the reset")
+  -- Let gitsigns' index watcher fire on the reset before the next stage.
+  settle(700)
 end
 
 -- From the left pane: the hunk under the cursor there (baseline lines 18-19).
@@ -637,24 +630,6 @@ t.eq(keyset({ buf }), {}, "closing the view hands the file's keys back")
 -- rev vs working tree without a baseline (<leader>gm): stage keys, no ,X.
 tab, s = open(root, "f.txt", { "HEAD" }, nil)
 t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), { "n,S", "n,U", "x,S", "x,U" }, "a rev-vs-working-tree view has ,S ,U and no ,X")
-close(tab)
-
--- rev vs rev and history: nothing to stage or discard.
-tab, s = open(root, "g.txt", { "HEAD~1", "HEAD" }, nil)
-t.eq(s.mode, "revisions", "a rev-vs-rev view")
-t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), {}, "has none of the keys")
-close(tab)
-vim.cmd.edit(vim.fn.fnameescape(root .. "/g.txt"))
-cd.open({ args = { "history" } })
-t.ok(vim.wait(15000, function()
-  local h = cd.session(0)
-  return h and h.mode == "history" and h.panel_bufnr and desc(h.panel_bufnr, ";") == "Disabled in CodeDiff"
-    and type(h.modified_bufnr) == "number" and vim.api.nvim_buf_is_valid(h.modified_bufnr)
-    and vim.api.nvim_buf_get_name(h.modified_bufnr):match("^codediff://") ~= nil
-end, 20), "a history view opens")
-tab, s = vim.api.nvim_get_current_tabpage(), cd.session(0)
-settle(200)
-t.eq(keyset({ s.modified_bufnr, s.original_bufnr }), {}, "the history view has none of the keys")
 close(tab)
 
 ---------------------------------------------------------------------------

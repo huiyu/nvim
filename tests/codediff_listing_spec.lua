@@ -20,8 +20,7 @@
 --     CodeDiff's history subcommand;
 --   * a modified buffer whose file changed on disk is named once per disk
 --     mtime, and only for files the listing shows;
---   * a failing snapshot falls back to upstream's listing with one warning;
---   * <leader>gk on a round baseline sets the view's tab variables.
+--   * a failing snapshot falls back to upstream's listing with one warning.
 --
 -- Needs CodeDiff's native library; tests/run.sh sets VSCODE_DIFF_NO_AUTO_INSTALL
 -- so a missing one fails here instead of being downloaded. Every repository
@@ -200,26 +199,21 @@ local EXPECTED = {
 }
 table.sort(EXPECTED)
 
--- Through <leader>gk: the round baseline, then the working tree. The round
--- metadata comes from ai.review.rounds, stubbed here.
-local saved_rounds = package.loaded["ai.review.rounds"]
-local REVIEW = { id = round.id, sha = round.sha, conversation = "claude:spec", source = "claude", root = root, late = false }
-package.loaded["ai.review.rounds"] = {
-  review_vars = function(entry) return entry.kind == "round" and vim.deepcopy(REVIEW) or nil end,
-}
+-- Through <leader>gk: the round baseline, then the working tree. The round is
+-- picked by its sha, since ai.review.labels names it in the picker; the tab
+-- variables and label the view gets are manual_compare_spec's and
+-- review_view_spec's.
+local function the_round(item) return item.rev == round.sha end
 vim.cmd.cd(vim.fn.fnameescape(root))
 vim.cmd.enew()
 local editor_tab = vim.api.nvim_get_current_tabpage()
 notices = {}
-script = { display("nvim review: Claude round"), display("Working tree") }
+script = { the_round, display("Working tree") }
 key("<leader>gk")()
 t.ok(vim.wait(15000, ready, 20), "<leader>gk opens the round baseline against the working tree")
 local view_tab = vim.api.nvim_get_current_tabpage()
 t.eq(view_list(view_tab), EXPECTED, "the view lists A/M/D/R from the two trees")
 t.eq(cd.session(0).base_revision, round.sha, "CodeDiff was given the baseline's sha")
-t.eq(vim.t.codediff_baseline, { sha = round.sha, kind = "round" }, "the view is marked as a baseline view")
-t.eq(vim.t.ai_review, REVIEW, "and carries the round from ai.review.rounds")
-t.eq(vim.t.codediff_label, "nvim review: Claude round 11:22:33 → working tree", "labelled with the baseline's subject")
 t.eq(count("Not compared"), 1, "the skipped files are named once")
 t.ok(said("big.bin") and said("huge.bin") and said("1024 bytes"), "both of them, with the limit")
 
@@ -254,7 +248,7 @@ t.ok(left_name:match("^codediff://") ~= nil and left_name:find(round.sha, 1, tru
 t.ok(close(view_tab), "the view closes")
 -- Per view: opening it again names the skipped files again.
 notices = {}
-script = { display("nvim review: Claude round"), display("Working tree") }
+script = { the_round, display("Working tree") }
 key("<leader>gk")()
 t.ok(vim.wait(15000, ready, 20), "the same comparison opens again")
 t.eq(count("Not compared"), 1, "and names the skipped files once more, for this view")
@@ -427,7 +421,6 @@ t.eq(count("fell back to upstream's"), 1, "warning only once")
 B.snapshot = real_snapshot
 t.ok(not vim.list_contains(listing(round.sha, root), "?? u.txt"), "the patched listing is back afterwards")
 
-package.loaded["ai.review.rounds"] = saved_rounds
 vim.ui.select, vim.ui.input = real_select, real_input
 vim.notify = real_notify
 vim.g.ai_review = nil

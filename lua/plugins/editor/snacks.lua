@@ -79,31 +79,6 @@ local search_exclude = {
   "dist",
 }
 
--- Sources whose confirmation target is an editor location. Snacks otherwise
--- falls back to the first non-floating window when a tab contains only panels,
--- which can replace Oil or an agent terminal. Non-location pickers such as
--- commands, registers and vim.ui.select must not split the layout just by
--- opening, so keep this list explicit instead of applying the hook globally.
-local editor_picker_sources = {
-  buffers = true,
-  diagnostics = true,
-  diagnostics_buffer = true,
-  files = true,
-  git_files = true,
-  git_status = true,
-  grep = true,
-  grep_word = true,
-  jumps = true,
-  loclist = true,
-  lsp_incoming_calls = true,
-  lsp_symbols = true,
-  lsp_workspace_symbols = true,
-  marks = true,
-  qflist = true,
-  recent = true,
-  smart = true,
-}
-
 -- Dashboard banner pool. One is drawn at random per Nvim start.
 -- Keep entries single-line; cowsay wraps them (see `cowsay_quote` below).
 local quotes = {
@@ -442,20 +417,10 @@ return {
       enabled = true,
       ui_select = true, -- replace vim.ui.select with snacks picker
       -- Give location pickers somewhere legitimate to put the file they open.
-      --
-      -- snacks/picker/core/main.lua filters non-file buffers out of its target
-      -- search, but records a `non_float` fallback *before* that filter and
-      -- returns it when nothing qualifies. A tab holding only an oil listing
-      -- and an agent panel therefore gets the file dropped on top of one of
-      -- them, and no window variable prevents it -- the fallback is
-      -- unconditional. util.window.ensure_editor_win() reuses the editor area
-      -- (including unmodified Oil/GitHub views) and only splits when no safe
-      -- target exists.
-      on_show = function(picker)
-        if editor_picker_sources[picker.opts.source] then
-          picker.main = require("util.window").ensure_editor_win()
-        end
-      end,
+      -- snacks/picker/core/main.lua falls back to a panel's window when no
+      -- window in the tab holds a plain file; util.buffer aims them at the
+      -- editor area instead and holds the list of sources it does this for.
+      on_show = function(picker) require("util.buffer").picker_on_show(picker) end,
       -- Toggle hidden files moves from <M-h> to <M-.>: tmux takes Alt-h for
       -- pane navigation before Nvim sees it, and `.` is oil's `g.`. Both
       -- windows also answer g?, the help key of every other view, beside

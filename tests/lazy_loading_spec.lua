@@ -24,6 +24,10 @@ t.ok(loaded("lualine.nvim"), "lualine is loaded for the first frame")
 for _, name in ipairs({ "claudecode.nvim", "codecompanion.nvim" }) do
   t.ok(require("lazy.core.config").plugins[name] ~= nil and not loaded(name), name .. " is declared and stays unloaded at startup")
 end
+-- A spec made conditional would be pruned from the lock and listed for
+-- :Lazy clean; declared, claudecode's commands are its lazy triggers.
+t.eq(#Config.to_clean, 0, "nothing is left for :Lazy clean to delete")
+t.eq(vim.fn.exists(":ClaudeCode"), 2, ":ClaudeCode is a lazy trigger")
 -- CodeDiff's setup loads its native library (and would download it), so it
 -- waits for :CodeDiff or a <leader>g key. Nothing of the review loop loads
 -- or runs git before its first use either.

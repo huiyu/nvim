@@ -83,11 +83,6 @@ end
 -- Refusals come first, and need nothing loaded
 ---------------------------------------------------------------------------
 
-t.ok(not loaded(), "the chat keys exist before CodeCompanion loads")
-for _, lhs in ipairs({ " ag", " aG", " ah", " aH" }) do
-  t.eq(key(lhs), {}, "<leader>" .. lhs:sub(2) .. " is gone: <leader>an starts a chat of either kind")
-end
-
 vim.env.NVIM_ANTHROPIC_API_KEY = nil
 notes = {}
 press(" an")
@@ -190,38 +185,22 @@ local base_windows = windows()
 answers = { "api:anthropic" }
 press(" an")
 local anthropic = chats()[1]
-t.ok(anthropic ~= nil and #chats() == 1, "<leader>an starts the API chat picked")
-t.eq({ anthropic.adapter.type, anthropic.adapter.name }, { "http", "anthropic" }, "on the profile its entry names")
-t.ok(shown(anthropic) and vim.api.nvim_get_current_win() == anthropic.ui.winnr, "on screen here, and focused")
-t.eq(windows(), base_windows + 1, "in one window")
 local llm_role = require("codecompanion.config").interactions.chat.roles.llm
 t.eq(llm_role(anthropic.adapter), "CodeCompanion (Anthropic · API)", "API replies are headed with the backend and the kind")
 -- Resolving an ACP adapter only builds the table; the bridge starts with a chat.
 t.eq(llm_role(require("codecompanion.adapters").resolve("claude_code")), "CodeCompanion (Claude Code · ACP)",
   "and so are agent replies")
-local slot = anthropic.ui.winnr
 
 vim.api.nvim_set_current_win(editor_win)
-press(" ac")
-t.ok(not shown(anthropic) and #chats() == 1, "<leader>ac hides it, and starts nothing")
-press(" ac")
-t.ok(shown(anthropic) and #chats() == 1, "and again brings the same chat back")
-slot = anthropic.ui.winnr
 
--- Another profile is another chat, in the same window -- whatever :AI key
--- says, which is about inline edits.
+-- Another profile is another chat -- whatever :AI key says, which is about
+-- inline edits. Creating, showing and swapping chats in the one window is
+-- tests/ai_slot_spec.lua's.
 answers = { "api:openai" }
 press(" an")
 local openai = vim.iter(chats()):find(function(c) return c ~= anthropic end)
-t.ok(openai ~= nil and openai.adapter.name == "openai" and config.key.name == "anthropic",
-  "<leader>an starts an OpenAI chat, with the key profile still on Anthropic")
-t.ok(shown(openai) and not shown(anthropic), "which takes the place of the Anthropic chat")
-t.eq({ openai.ui.winnr, windows() }, { slot, base_windows + 1 }, "in the same window")
-
-answers = { anthropic }
-press(" al")
-t.ok(shown(anthropic) and not shown(openai) and #chats() == 2, "<leader>al swaps the Anthropic chat back in, starting nothing")
-t.eq({ anthropic.ui.winnr, windows() }, { slot, base_windows + 1 }, "still in the one window")
+t.ok(openai ~= nil and config.key.name == "anthropic",
+  "<leader>an starts another chat, with the key profile still on Anthropic")
 
 -- A pinned model reaches the new chat with the profile.
 local providers = vim.deepcopy(config.providers)

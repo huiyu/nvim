@@ -98,9 +98,8 @@ t.eq(lines(), {
   "return f",
 }, "Visual ,ef extracts the lines into a function with their inputs as parameters")
 
-for _, mode in ipairs({ "n", "x" }) do
-  t.eq(vim.fn.maparg(",R", mode, false, true).desc, "Select refactor…", ",R offers every refactor in mode " .. mode)
-end
+-- Normal ,R's desc is pinned in tests/key_descriptions_spec.lua.
+t.eq(vim.fn.maparg(",R", "x", false, true).desc, "Select refactor…", ",R offers every refactor in mode x")
 
 -- ,R asks vim.ui.select (the snacks picker in a session) which refactor to
 -- run, then replays the chosen operator over the same selection with `gv`

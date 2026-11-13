@@ -8,68 +8,12 @@ local function shown_in_bufferline(buf)
     and not vim.api.nvim_buf_get_name(buf):match("^codediff://")
 end
 
--- The window a buffer from the list goes into: the current one when it shows
--- a file, else the editor area's. bufferline opens a buffer in the current
--- window, so from a panel the file landed in the panel's own window: a
--- CodeCompanion chat (or aerial, quickfix, help) simply took it, and in a
--- Snacks panel :buffer invokes fixbuf, whose fallback closes the panel (not
--- the job) when no file window remains.
-local function editor_target()
-  local win = vim.api.nvim_get_current_win()
-  if vim.bo.buftype == "terminal" then vim.cmd.stopinsert() end
-  if vim.bo.buftype ~= "" or vim.api.nvim_win_get_config(win).relative ~= "" then
-    win = require("util.window").ensure_editor_win()
-  end
-  return win
-end
-
-local function open_file(buf)
-  -- Match bufferline's scheduled default, but choose the file's destination
-  -- before switching buffers.
-  vim.schedule(function()
-    if not vim.api.nvim_buf_is_valid(buf) then return end
-    vim.api.nvim_set_current_win(editor_target())
-    vim.api.nvim_set_current_buf(buf)
-  end)
-end
-
--- A buffer-list key, run from the editor window. Pressed in a panel, whose
--- own buffer is not in the list, [b/]b found nothing to cycle from while [B/]B
--- opened the file in the panel's window; both now act on the editor's list.
-local function in_editor(fn)
-  return function()
-    vim.api.nvim_set_current_win(editor_target())
-    fn()
-  end
-end
-
--- ;B picks in the editor window too. bufferline's pick takes no callback, so
--- a pick that changed nothing there (a cancel, or the buffer already shown)
--- goes back to the panel, closing the editor window it had to open for the
--- pick when the panel was alone in the tabpage.
-local function pick()
-  local from = vim.api.nvim_get_current_win()
-  local had = {}
-  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do had[w] = true end
-  local win = editor_target()
-  vim.api.nvim_set_current_win(win)
-  local before = vim.api.nvim_win_get_buf(win)
-  require("bufferline").pick()
-  if win ~= from and vim.api.nvim_win_is_valid(from) and vim.api.nvim_get_current_win() == win
-    and vim.api.nvim_win_get_buf(win) == before then
-    vim.api.nvim_set_current_win(from)
-    if not had[win] then
-      -- ensure_editor_win's `:new` left an empty buffer there: it goes too,
-      -- or it would stay in the list as [No Name].
-      pcall(vim.api.nvim_win_close, win, false)
-      if vim.api.nvim_buf_is_valid(before) and vim.api.nvim_buf_get_name(before) == ""
-        and not vim.bo[before].modified and vim.api.nvim_buf_line_count(before) == 1
-        and vim.api.nvim_buf_get_lines(before, 0, 1, false)[1] == "" then
-        pcall(vim.api.nvim_buf_delete, before, {})
-      end
-    end
-  end
-end
+-- bufferline opens a buffer in the current window, so the keys below that
+-- open one and the tab click go through util.buffer, which picks the editor
+-- window when the current one is a panel (a chat, an agent terminal, aerial,
+-- quickfix).
+local buffer = require("util.buffer")
+local in_editor = buffer.in_editor
 
 return {
   "akinsho/bufferline.nvim",
@@ -90,7 +34,7 @@ return {
     { "]B",         in_editor(function() require("bufferline").go_to(-1, true) end), desc = "Last buffer" },
     -- Picking a buffer by its tab letter answers "where do I want to be", so
     -- it sits on `;` beside ;b, and a CodeDiff view's `;` block covers it.
-    { ";B",         pick,                                      desc = "Pick buffer" },
+    { ";B",         buffer.pick,                               desc = "Pick buffer" },
     { "<leader>bd", function() Snacks.bufdelete() end,         desc = "Delete buffer" },
     { "<leader>bD", "<cmd>:bd<cr>",                            desc = "Delete buffer and window" },
     { "<leader>bo", function() Snacks.bufdelete.other() end,   desc = "Delete other buffers" },
@@ -99,7 +43,12 @@ return {
     { "<leader>b<", "<cmd>BufferLineMovePrev<cr>",             desc = "Move buffer left" },
     { "<leader>b>", "<cmd>BufferLineMoveNext<cr>",             desc = "Move buffer right" },
     { "<leader>bp", "<cmd>BufferLineTogglePin<cr>",            desc = "Toggle pin" },
-    { "<leader>bP", "<cmd>BufferLineGroupClose ungrouped<cr>", desc = "Delete unpinned buffers" },
+    -- Not :BufferLineGroupClose, which deletes with force = true. The function
+    -- form of an action on a group (what bufferline's docs call group_action)
+    -- lets Snacks.bufdelete ask about unsaved changes, as close_command does.
+    { "<leader>bP", function()
+        require("bufferline.groups").action("ungrouped", function(b) Snacks.bufdelete(b.id) end)
+      end,                                                     desc = "Delete unpinned buffers" },
     { "<leader>bx", function() require("util.buffer").delete_missing() end, desc = "Delete buffers of missing files" },
     -- Unlike <leader>bo this leaves every visible split alone, in this
     -- tabpage and the others.
@@ -187,6 +136,13 @@ return {
       },
       options = {
         diagnostics = "nvim_lsp",
+        -- A tab's close icon, a right click and <leader>bl/br all go through
+        -- close_command, upstream's `bdelete! %d`: a buffer with unsaved
+        -- changes was thrown away without a word, and windows showing it
+        -- closed. Snacks.bufdelete asks first (save/discard/cancel) and keeps
+        -- the layout, as <leader>bd does.
+        close_command = function(buf) Snacks.bufdelete(buf) end,
+        right_mouse_command = function(buf) Snacks.bufdelete(buf) end,
         -- The tabline is permanent. Left to itself bufferline hides it whenever
         -- it has at most one buffer to show, counting buffers only --
         -- `toggle_bufferline` reads `get_buf_count()` outside "tabs" mode, so
@@ -202,7 +158,7 @@ return {
         separator_style = "slant",
         show_tab_indicators = true,
         custom_filter = shown_in_bufferline,
-        left_mouse_command = open_file,
+        left_mouse_command = buffer.open,
       },
     }
   end,

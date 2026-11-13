@@ -277,11 +277,9 @@ function M.open()
     end
   end
   if best and best.file then
-    -- Agent terminals protect their windows from buffer replacement. Reuse
-    -- the editor in this tab, leaving the terminal and its process intact.
-    if vim.bo.buftype ~= "" then
-      vim.api.nvim_set_current_win(require("util.window").ensure_editor_win())
-    end
+    -- From a panel (an agent terminal, a chat) the file goes to the editor
+    -- in this tab, leaving the panel and its process intact.
+    vim.api.nvim_set_current_win(require("util.buffer").editor_target())
     vim.cmd.edit({ args = { best.target }, magic = { file = false, bar = false } })
     return
   end

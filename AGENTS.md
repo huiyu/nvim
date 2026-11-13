@@ -368,7 +368,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   sharing only the real plugin cache; never write the user's config or change
   global enablement. Preserve native hook trust. Nothing installs at Nvim
   startup or for CodeCompanion. `tests/native_plugins_spec.lua` exercises
-  offline discovery and both Codex terminal launch paths without a thread.
+  offline discovery without a thread.
 - The native agents' prompt hooks are injected per process, never through
   the user's configuration. Claude gets `--settings <json>`
   (`build_terminal_cmd` in `lua/plugins/ai/claudecode.lua`): UserPromptSubmit, plus
@@ -476,7 +476,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
 - Exercised by `tests/review_round_spec.lua` (round rules, the
   `resolve_sink` matrix), `tests/review_view_spec.lua`,
   `tests/review_feedback_spec.lua` (drafts, sinks, seed slots),
-  `tests/compose_spec.lua` (`<leader>ai`'s seeds) and
+  `tests/editor_spec.lua` (`<leader>ai`'s seeds) and
   `tests/review_loop_spec.lua` (submit to delivery, no agent started).
 
 ## Editing Conventions
@@ -566,8 +566,8 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   "Browse saved Companion chats", as `<leader>ao` does.
 - Under a which-key popup the letter may be a mnemonic or an accident, but the
   `desc` is the interface: it is exact, and one act is worded one way
-  everywhere (`tests/key_descriptions_spec.lua`; `tests/ai_keymap_spec.lua`
-  for `<leader>a`, and the view and LSP specs for theirs). Sentence case: the
+  everywhere (`tests/key_descriptions_spec.lua`, `<leader>a` included, and
+  the view and LSP specs for theirs). Sentence case: the
   first word capitalised, the rest lowercase but for proper nouns and acronyms
   (LSP, DAP, REPL, AI, API, ACP, URL, PR, Git, GitHub, Claude, Codex,
   CodeCompanion, CodeDiff, Lazygit, Mason, Harpoon, Treesitter, Nvim, oil).
@@ -730,13 +730,27 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `codediff-history`) is the second test, for a tabpage CodeDiff let go of
   with its panel still on screen. A single-file `:CodeDiff file` has no
   panel, so a new prefix-blocking view sets that tab variable (and adds its
-  panel filetypes). `tests/first_tab_spec.lua` stands a view in with the
+  panel filetypes). `tests/tabline_panel_spec.lua` stands a view in with the
   variable alone.
 - Both paths that place a stopped frame -- nvim-dap's `switchbuf`
   (`util.dap.jump`) and nvim-dap-ui's `select_window` -- must stay scoped to the
   current tabpage. `usetab`, or anything else that hunts across tabpages, turns
   the debug view into something that steals focus from an editor tabpage on
   every step, which is more intrusive than the split layout it replaced.
+- A buffer this config opens goes where `util.buffer` says
+  (`editor_target`, `leave_panel`, `in_editor`, `open`, `pick`, and
+  `picker_on_show`, the Snacks pickers' `on_show`, which holds the list of
+  location sources), never
+  into whatever window is current: that may be a chat, an agent terminal or
+  another panel, and the buffer replaced it -- a chat simply takes it, and
+  Snacks' terminal fixbuf sends it back out and closes the panel when no plain
+  file window is left. A new key, picker or callback that opens a buffer calls
+  `util.buffer`; a case it does not cover is added there, not patched at the
+  call site (bufferline, `gx`, Oil and the picker hook each carried a copy of
+  their own before, and Harpoon's keys had none). Which windows make up the editor area stays
+  `util.window`'s model (`editor_win`, `ensure_editor_win`), which
+  `util.dap`'s frame placement uses directly. Typed commands (`:e`, `:b`) and
+  upstream plugins' own jumps are out of its reach and out of scope.
 - Do not force-delete ordinary buffers from terminal-specific mappings.
 - Popup sections are declared as data in `lua/config/whichkey_spec.lua` (`sections`,
   keyed by prefix then suffix) and only read by `lua/plugins/editor/whichkey.lua`.
@@ -799,8 +813,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   asks CodeDiff for its library and watcher versions (next item);
   `lua/util/window.lua` sizes edgy's panels through `edgy.editor`, the
   edgebars in `edgy.config.layout` and `edgy.layout.update` (window sizing,
-  above); and `lua/util/diffsplit.lua` tells gitsigns' revision windows by
-  their `gitsigns://` buffer names, which `tests/gitsigns_spec.lua` pins. The `sort`
+  above); `lua/util/diffsplit.lua` tells gitsigns' revision windows by
+  their `gitsigns://` buffer names, which `tests/gitsigns_spec.lua` pins;
+  and `<leader>bP` calls `bufferline.groups.action` with a function -- the
+  `group_action` bufferline documents but the pinned release does not
+  export -- since `:BufferLineGroupClose` deletes with `force = true`
+  (`tests/tabline_panel_spec.lua`). The `sort`
   replacement is guarded (a renamed `sort` drops headings and colours,
   ordering still works through the supported `sort` option, nothing errors)
   and covered by `tests/whichkey_popup_spec.lua`, with real contextual menus

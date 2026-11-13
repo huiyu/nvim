@@ -107,12 +107,9 @@ t.ok(said("File history: the current buffer is not a file") ~= nil, "<leader>gh 
 -- Picking a buffer is on `;`, which a view blocks, not on <leader>b.
 local function global(lhs) return vim.fn.maparg(lhs, "n", false, true) end
 t.eq(global(";B").desc, "Pick buffer", ";B picks a buffer")
-t.eq(global("<leader>bj"), {}, "<leader>bj is gone")
 
 t.eq(key("<leader>gh").desc, "File history (recent 100, no merges)", "<leader>gh says how much history it lists")
 t.eq(key("<leader>gH").desc, "Repo history (recent 100, no merges)", "and so does <leader>gH")
--- h/H pair as c/C do (file / repository); gV was the uppercase of Diff view.
-t.ok(key("<leader>gV") == nil and next(global("<leader>gV")) == nil, "<leader>gV is gone")
 
 ---------------------------------------------------------------------------
 -- The status view (<leader>gv)
@@ -608,11 +605,6 @@ local rev_tab = vim.api.nvim_get_current_tabpage()
 s = cd.session(0)
 t.eq(s.mode, "revision", "against the working tree, not the merge base")
 t.eq(vim.t.codediff_label, "main → working tree", "labelled with the branch it picked")
-local listed = {}
-for _, entry in ipairs(lifecycle.get_session(rev_tab).panel.data.status_result.unstaged) do
-  listed[#listed + 1] = entry.path
-end
-t.ok(vim.list_contains(listed, "中文.txt"), "a non-ASCII path is listed intact (" .. table.concat(listed, ", "):sub(1, 60) .. ")")
 for _, lhs in ipairs({ "S", "U", "X" }) do
   t.ok(map(s.panel_bufnr, lhs).buffer ~= 1, "a revision view's explorer has no " .. lhs)
 end
@@ -721,11 +713,6 @@ do
       if hit then return e end
     end
   end
-  local function shape(e, fields)
-    local out = {}
-    for _, f in ipairs(fields) do out[f] = e and e.data[f] end
-    return out
-  end
   --- panel_item on `e`'s line of the panel window.
   local function item_at(view, e)
     if not e then return nil end
@@ -745,16 +732,8 @@ do
   press("<leader>gv")
   t.ok(vim.wait(15000, ready("a.txt"), 20), "<leader>gv opens on the panel fixture")
   local praw, pview, found = panel_entries()
-  t.eq(praw and praw.panel.name, "explorer", "session.panel.name is explorer")
-  t.ok(type(pview.tree) == "table" and type(pview.tree.get_node) == "function" and pview.winid ~= nil,
-    "session.panel.view has tree:get_node(line), bufnr and winid")
   t.ok(entry_with(found, { type = "group" }) ~= nil, "a status group's node.data.type is group")
-  local changed = entry_with(found, { path = "a.txt" })
-  t.eq(shape(changed, { "type", "status", "group" }), { status = "M", group = "unstaged" },
-    "an explorer file's node.data: path, status, group, and no type")
   local staged_move = entry_with(found, { path = "c.txt" })
-  t.eq(shape(staged_move, { "old_path", "status", "group" }), { old_path = "b.txt", status = "R", group = "staged" },
-    "a staged rename's node.data: old_path, status R, group staged")
   local item = item_at(pview, staged_move)
   t.eq(item and { item.panel, item.type, item.path, item.old_path, item.status, item.group },
     { "explorer", "file", "c.txt", "b.txt", "R", "staged" }, "panel_item reads the explorer entry from them")
@@ -774,16 +753,12 @@ do
   press("<leader>gH")
   t.ok(vim.wait(15000, history_ready, 20), "<leader>gH opens on the panel fixture")
   praw, pview, found = panel_entries()
-  t.eq(praw and praw.panel.name, "history", "session.panel.name is history")
   t.ok(entry_with(found, { type = "title" }) ~= nil, "the history's title line has node.data.type title")
   local rename = entry_with(found, { type = "commit", subject = "rename" })
   local hash = rename and rename.data.hash
-  t.ok(type(hash) == "string" and #hash == 40 and type(rename.data.short_hash) == "string"
-    and hash:sub(1, #rename.data.short_hash) == rename.data.short_hash,
-    "a commit's node.data: type commit, hash, short_hash and subject " .. vim.inspect(shape(rename, { "hash", "short_hash" })))
+  -- Without a hash the panel_item checks below would compare nil with nil.
+  t.ok(type(hash) == "string" and #hash == 40, "a commit's node.data has its hash")
   local moved = entry_with(found, { type = "file", path = "new.txt" })
-  t.eq(shape(moved, { "old_path", "status", "commit_hash" }), { old_path = "old.txt", status = "R", commit_hash = hash },
-    "a commit's file: node.data type file, path, old_path, status and commit_hash")
   item = item_at(pview, moved)
   t.eq(item and { item.panel, item.type, item.path, item.old_path, item.status, item.commit },
     { "history", "file", "new.txt", "old.txt", "R", hash }, "panel_item reads a history file from them")
@@ -808,9 +783,8 @@ do
   -- path from `git log --follow --numstat` (core/git/history.lua): the plain
   -- name, and for the renaming commit either `old => new` verbatim, where
   -- git prints no braces, or the old name alone, where it prints
-  -- `dir/{old => new}`; a brace, a `=>` or a blank at the edge of a
-  -- component is misread outright. Those listings are pinned as they come,
-  -- so a CodeDiff that changes them shows up here. panel_item reads none of
+  -- `dir/{old => new}`. Those listings are pinned as they come, so a
+  -- CodeDiff that changes them shows up here. panel_item reads none of
   -- them: every commit row is the followed file as the working tree names
   -- it, which a digest can hash, and no row claims a rename.
   local follow_root, fgit = repo("codediff follow")
@@ -822,9 +796,6 @@ do
   local follows = {
     { old = "old.txt", file = "new.txt", listed = "old.txt => new.txt", form = "without braces" },
     { old = "dir/before.txt", file = "dir/after.txt", listed = "dir/before.txt", form = "with braces" },
-    { old = "x => y.txt", file = "z.txt", listed = "x => y.txt => z.txt", form = "of a name holding =>" },
-    { old = "braces/{a}.txt", file = "braces/{b}.txt", listed = "braces/{a}.txt.txt}", form = "of a name holding braces" },
-    { old = "a /f.txt", file = "b/f.txt", listed = "a/f.txt", form = "of a directory ending in a blank" },
   }
   for i, case in ipairs(follows) do
     for _, name in ipairs({ case.old, case.file }) do

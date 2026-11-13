@@ -44,6 +44,8 @@ for lhs, modes in pairs({
   ["<leader>al"] = { n = true, x = true },
   ["<leader>ac"] = { n = true },
   ["<leader>af"] = { n = true },
+  -- The prompt editor seeds from a Visual selection.
+  ["<leader>ai"] = { n = true, x = true },
   -- CodeCompanion: inline edits take a Visual range; saved chats have nothing
   -- to take. The per-kind chat keys and the action palette's key are gone:
   -- <leader>an starts a chat of any kind, and the palette stays
@@ -64,6 +66,27 @@ for lhs, modes in pairs({
       ("%s is %smapped in %s"):format(lhs, modes[mode] and "" or "not ", mode))
   end
 end
+-- <leader>an and <leader>al are leaves: a longer mapping would make them wait
+-- out 'timeoutlen'.
+for _, mode in ipairs({ "n", "x" }) do
+  local longer = {}
+  for _, m in ipairs(vim.api.nvim_get_keymap(mode)) do
+    local keys = vim.fn.keytrans(vim.keycode(m.lhs))
+    if keys:find("^<Space>a[nl].") then longer[#longer + 1] = keys end
+  end
+  t.eq(longer, {}, "no <leader>an* / <leader>al* mapping in " .. mode .. " mode")
+end
+
+-- Terminal mode keeps its window keys. <C-q> used to close the terminal and
+-- was removed deliberately: `exit`, <C-/> and :bd! already cover it, so the
+-- chord only offered a way to force-delete a buffer. <C-c> must stay unmapped
+-- in Terminal mode, because it is SIGINT and shadowing it would make a runaway
+-- process unkillable.
+for _, lhs in ipairs({ "<C-h>", "<C-l>", "<C-S-l>" }) do
+  t.ok(next(mapping(lhs, "t")) ~= nil, "terminal-mode " .. lhs .. " is unchanged")
+end
+t.eq(mapping("<C-q>", "t"), {}, "close-terminal chord stays removed")
+t.eq(mapping("<C-c>", "t"), {}, "terminal-mode <C-c> stays unmapped (SIGINT)")
 
 -- Ordinary files must not inherit the terminal-only localleader digit row.
 -- The Ctrl-digit chords died inside an outer tmux (Ghostty encodes ctrl+digit

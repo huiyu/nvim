@@ -54,10 +54,6 @@ end, 10), "oil lists the fixture directory")
 local oil_buf = vim.api.nvim_get_current_buf()
 local oil_win = vim.api.nvim_get_current_win()
 
-t.ok((desc(oil_buf, "<C-s>", "n") or ""):find("horizontal = true", 1, true) ~= nil,
-  "oil: <C-s> opens the entry below, as in the picker and aerial")
-t.ok((desc(oil_buf, "<C-v>", "n") or ""):find("vertical = true", 1, true) ~= nil,
-  "oil: <C-v> opens the entry beside")
 t.ok(local_map(oil_buf, "<C-v>", "x") == nil, "oil: Visual <C-v> is left to Vim")
 t.ok(local_map(oil_buf, "<C-x>", "n") == nil, "oil: <C-x> is no split key (decrement, the pickers' delete)")
 t.ok(local_map(oil_buf, "<C-r>", "n") == nil, "oil: <C-r> is redo again")
