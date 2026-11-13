@@ -12,14 +12,13 @@
 -- is in this directory" and "change these files", then closes again.
 local function open_oil(floating)
   local dir
-  if vim.bo.buftype == "terminal" then
-    -- Snacks protects its terminal window with fixbuf. Opening Oil there
-    -- makes it swap buffers during :edit, leaving focus on the agent. Choose
-    -- and focus an editor window first, keeping the terminal's directory.
-    dir = require("util.cwd").buffer_dir()
-    vim.api.nvim_set_current_win(require("util.window").ensure_editor_win())
-    vim.cmd("stopinsert")
-  end
+  -- An agent terminal lists the directory it runs in.
+  if vim.bo.buftype == "terminal" then dir = require("util.cwd").buffer_dir() end
+  -- From a panel the listing, and the file picked from it, would land in the
+  -- panel's window: a chat takes it, and Snacks' terminal fixbuf swaps it out
+  -- during :edit and leaves focus on the agent. Oil opens from the editor
+  -- then; from a listing or a file it stays where it is.
+  require("util.buffer").leave_panel()
   if floating then
     require("oil").open_float(dir, { preview = {} })
   else

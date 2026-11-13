@@ -737,6 +737,20 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   current tabpage. `usetab`, or anything else that hunts across tabpages, turns
   the debug view into something that steals focus from an editor tabpage on
   every step, which is more intrusive than the split layout it replaced.
+- A buffer this config opens goes where `util.buffer` says
+  (`editor_target`, `leave_panel`, `in_editor`, `open`, `pick`, and
+  `picker_on_show`, the Snacks pickers' `on_show`, which holds the list of
+  location sources), never
+  into whatever window is current: that may be a chat, an agent terminal or
+  another panel, and the buffer replaced it -- a chat simply takes it, and
+  Snacks' terminal fixbuf sends it back out and closes the panel when no plain
+  file window is left. A new key, picker or callback that opens a buffer calls
+  `util.buffer`; a case it does not cover is added there, not patched at the
+  call site (bufferline, `gx`, Oil and the picker hook each carried a copy of
+  their own before, and Harpoon's keys had none). Which windows make up the editor area stays
+  `util.window`'s model (`editor_win`, `ensure_editor_win`), which
+  `util.dap`'s frame placement uses directly. Typed commands (`:e`, `:b`) and
+  upstream plugins' own jumps are out of its reach and out of scope.
 - Do not force-delete ordinary buffers from terminal-specific mappings.
 - Popup sections are declared as data in `lua/config/whichkey_spec.lua` (`sections`,
   keyed by prefix then suffix) and only read by `lua/plugins/editor/whichkey.lua`.

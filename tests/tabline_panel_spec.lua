@@ -267,6 +267,14 @@ do
       and (case[2] or vim.api.nvim_get_current_buf() ~= before),
       case[1] .. " acts on the editor's buffer list, in the editor")
   end
+  -- Oil goes through the same target: from the chat it used to take the
+  -- chat's own window, since only a terminal was sent to the editor.
+  vim.api.nvim_set_current_win(chat_win)
+  vim.api.nvim_feedkeys("-", "mx", false)
+  settle()
+  t.ok(vim.api.nvim_win_get_buf(chat_win) == chat and vim.api.nvim_get_current_win() ~= chat_win
+    and vim.bo.filetype == "oil", "- from the chat opens Oil in the editor")
+  vim.api.nvim_set_current_buf(files[1])
   vim.api.nvim_win_close(chat_win, false)
   vim.api.nvim_buf_delete(chat, {})
 
@@ -324,7 +332,9 @@ do
   vim.cmd("BufferLineCycleNext")
   settle()
   t.eq(vim.api.nvim_win_get_buf(editor), last, "next buffer skips the agent and opens the env file")
-  t.eq(#vim.api.nvim_tabpage_list_wins(0), 2, "cycling keeps the editor and one agent panel")
+  -- Non-floating windows only: incline's label is a float in the tabpage.
+  t.eq(#vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative == "" end,
+    vim.api.nvim_tabpage_list_wins(0)), 2, "cycling keeps the editor and one agent panel")
   t.ok(require("edgy.editor").get_win(editor) == nil, "the editor is not absorbed into the AI edgebar")
   t.eq(vim.api.nvim_win_get_buf(panel.win), panel.buf, "the original agent panel keeps its buffer")
 

@@ -192,7 +192,11 @@ Clicking a file tab focuses the editor area in the current tabpage, leaving
 chat and terminal panels visible. If only panels remain, it creates an editor
 split for the file. The buffer keys do the same from a chat or another panel:
 `]B`, `]b` or `;B` there goes to the editor area and acts on its buffer list,
-and a cancelled `;B` stays where it was.
+and a cancelled `;B` stays where it was. So do Oil (`-`, `;o`), Harpoon (`;1`–`;9`,
+`;h`), `gx` on a file path and the file and search pickers: what this config
+opens from a panel goes to the editor area, never into the panel's own
+window. The GitHub pickers do the same when the tab has an editor window; they
+do not split one off, since most of their actions open nothing.
 
 A few single keys are just abbreviations: `D` = `d$`, `C` = `c$`, and `x` =
 `dl` with one difference: `x` deletes into the black hole register, so it
@@ -908,7 +912,10 @@ says so once — `:e!` takes the disk's version, `:w` keeps yours.
 
 GitHub issue/PR buffers are reading views, with line numbers and the fold
 column hidden. From an unmodified reading view, `;f` opens the selected file
-in the same window; cancelling keeps the view and layout in place.
+in the same window; cancelling keeps the view and layout in place. An issue or
+PR opened from `<Space>Gi`/`<Space>Gp` lands in the editor area the same way,
+even when the picker was started from the chat or an agent panel, which keeps
+its place on the right.
 
 `<Space>gD` shows the current file's changes inside its own window: each line
 removed since the index is drawn, read-only, where it used to be, so a changed

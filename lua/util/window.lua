@@ -292,11 +292,15 @@ end
 --- widest. `focus_editor` is the key, and it toggles -- pressed inside the
 --- editor it jumps back out, usually to a side panel -- so code that needs
 --- "the edited file's window" asks here instead.
+---
+--- With `file_target`, only a window a file can be opened into counts, as for
+--- `ensure_editor_win`, but nil comes back instead of a new split.
+---@param file_target boolean|nil
 ---@return integer|nil win
-function M.editor_win()
+function M.editor_win(file_target)
   local cur = vim.api.nvim_get_current_win()
-  if is_editor_win(cur) then return cur end
-  return pick_editor_win(false)
+  if is_editor_win(cur, file_target) then return cur end
+  return pick_editor_win(file_target)
 end
 
 --- Guarantee a window a file can be opened into, and return it.

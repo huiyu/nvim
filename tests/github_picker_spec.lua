@@ -71,6 +71,18 @@ local function open_picker()
   return assert(picker)
 end
 
+--- The issue/PR picker <leader>Gi/<leader>Gp open, listing nothing, so no
+--- request reaches GitHub.
+local function open_gh_picker(kind)
+  local picker = Snacks.picker["gh_" .. kind]({
+    finder = function() return {} end,
+    format = "text",
+    preview = "none",
+  })
+  settle()
+  return picker
+end
+
 -- An unmodified Oil listing is a reading view too: oil buffers are `acwrite`,
 -- like GitHub's, and ;f used to leave a blank split below Oil.
 for _, kind in ipairs({ "oil", "issue", "pr" }) do
@@ -111,6 +123,15 @@ for _, kind in ipairs({ "oil", "issue", "pr" }) do
     t.eq(vim.fn.winlayout(), original_layout, "cancelling preserves the original layout")
     t.eq(vim.api.nvim_win_get_buf(reading_win), buf, "cancelling leaves the reading buffer visible")
     agent_intact(agent)
+    -- "Open in buffer" from the issue/PR pickers jumps to the same target.
+    -- Upstream's fallback is the window of the least recently used buffer,
+    -- which put the next PR into the chat or agent panel beside the view.
+    if gh then
+      local gh_picker = open_gh_picker(kind)
+      t.eq(gh_picker.main, reading_win, kind .. " picker opens into the reading view from either side")
+      gh_picker:close()
+      settle()
+    end
     -- Keep the failing version's extra window from masking the next case.
     for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
       if win ~= reading_win and win ~= agent.win then vim.api.nvim_win_close(win, false) end
@@ -146,6 +167,15 @@ for _, kind in ipairs({ "oil", "issue", "pr" }) do
   end
 end
 
+-- A caller that names its own target keeps it: CodeCompanion's /file and
+-- /buffer pass `main`, so the file picked is added to the chat it came from.
+vim.api.nvim_set_current_win(agent.win)
+local own = Snacks.picker.files({ main = { file = false, float = true } })
+settle()
+t.eq(own.main, agent.win, "a picker given its own main keeps it")
+own:close()
+settle()
+
 -- Only unmodified reading views may be replaced. Keep any pending content
 -- visible rather than broadening the exception to every acwrite buffer.
 vim.api.nvim_set_current_win(reading_win)
@@ -153,6 +183,12 @@ local buf = vim.api.nvim_get_current_buf()
 vim.bo[buf].modifiable = true
 vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "pending content" })
 local pending = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+-- Most of the PR picker's actions open nothing (browse, checkout, comment), so
+-- with no window to take a buffer it leaves the layout alone instead.
+local gh_picker = open_gh_picker("pr")
+t.eq(vim.fn.winlayout(), original_layout, "the PR picker splits nothing when no window can take a buffer")
+gh_picker:close()
+settle()
 local picker = open_picker()
 t.ok(picker.main ~= reading_win and picker.main ~= agent.win, "pending edits get a separate file target")
 picker:close()
