@@ -43,7 +43,12 @@ return {
     { "<leader>b<", "<cmd>BufferLineMovePrev<cr>",             desc = "Move buffer left" },
     { "<leader>b>", "<cmd>BufferLineMoveNext<cr>",             desc = "Move buffer right" },
     { "<leader>bp", "<cmd>BufferLineTogglePin<cr>",            desc = "Toggle pin" },
-    { "<leader>bP", "<cmd>BufferLineGroupClose ungrouped<cr>", desc = "Delete unpinned buffers" },
+    -- Not :BufferLineGroupClose, which deletes with force = true. The function
+    -- form of an action on a group (what bufferline's docs call group_action)
+    -- lets Snacks.bufdelete ask about unsaved changes, as close_command does.
+    { "<leader>bP", function()
+        require("bufferline.groups").action("ungrouped", function(b) Snacks.bufdelete(b.id) end)
+      end,                                                     desc = "Delete unpinned buffers" },
     { "<leader>bx", function() require("util.buffer").delete_missing() end, desc = "Delete buffers of missing files" },
     -- Unlike <leader>bo this leaves every visible split alone, in this
     -- tabpage and the others.
@@ -131,6 +136,13 @@ return {
       },
       options = {
         diagnostics = "nvim_lsp",
+        -- A tab's close icon, a right click and <leader>bl/br all go through
+        -- close_command, upstream's `bdelete! %d`: a buffer with unsaved
+        -- changes was thrown away without a word, and windows showing it
+        -- closed. Snacks.bufdelete asks first (save/discard/cancel) and keeps
+        -- the layout, as <leader>bd does.
+        close_command = function(buf) Snacks.bufdelete(buf) end,
+        right_mouse_command = function(buf) Snacks.bufdelete(buf) end,
         -- The tabline is permanent. Left to itself bufferline hides it whenever
         -- it has at most one buffer to show, counting buffers only --
         -- `toggle_bufferline` reads `get_buf_count()` outside "tabs" mode, so

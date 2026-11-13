@@ -380,4 +380,37 @@ do
   vim.fn.delete(dir, "rf")
 end
 
+---------------------------------------------------------------------------
+-- Closing tabs asks about unsaved changes
+---------------------------------------------------------------------------
+-- bufferline's own close is `bdelete! %d` and its group close forces too, so
+-- a buffer with unsaved changes went without a word. Cancel now keeps it.
+do
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  local bufs = {}
+  for i = 1, 2 do
+    vim.cmd.edit(dir .. "/close" .. i .. ".txt")
+    bufs[i] = vim.api.nvim_get_current_buf()
+  end
+  vim.api.nvim_buf_set_lines(bufs[2], 0, -1, false, { "unsaved" })
+  vim.api.nvim_set_current_buf(bufs[1])
+  vim.cmd.redrawtabline()
+  local confirm = vim.fn.confirm
+  vim.fn.confirm = function() return 3 end -- Cancel
+  vim.api.nvim_feedkeys(vim.keycode("<leader>br"), "mx", false)
+  settle()
+  t.ok(vim.api.nvim_buf_is_valid(bufs[2]) and vim.bo[bufs[2]].modified,
+    "<leader>br keeps a buffer with unsaved changes when the question is cancelled")
+  vim.cmd.redrawtabline()
+  vim.api.nvim_feedkeys(vim.keycode("<leader>bP"), "mx", false)
+  settle()
+  vim.fn.confirm = confirm
+  t.ok(vim.api.nvim_buf_is_valid(bufs[2]) and vim.bo[bufs[2]].modified, "so does <leader>bP")
+  for _, b in ipairs(bufs) do
+    if vim.api.nvim_buf_is_valid(b) then vim.bo[b].modified = false end
+  end
+  vim.fn.delete(dir, "rf")
+end
+
 t.done()

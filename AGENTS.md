@@ -813,8 +813,12 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   asks CodeDiff for its library and watcher versions (next item);
   `lua/util/window.lua` sizes edgy's panels through `edgy.editor`, the
   edgebars in `edgy.config.layout` and `edgy.layout.update` (window sizing,
-  above); and `lua/util/diffsplit.lua` tells gitsigns' revision windows by
-  their `gitsigns://` buffer names, which `tests/gitsigns_spec.lua` pins. The `sort`
+  above); `lua/util/diffsplit.lua` tells gitsigns' revision windows by
+  their `gitsigns://` buffer names, which `tests/gitsigns_spec.lua` pins;
+  and `<leader>bP` calls `bufferline.groups.action` with a function -- the
+  `group_action` bufferline documents but the pinned release does not
+  export -- since `:BufferLineGroupClose` deletes with `force = true`
+  (`tests/tabline_panel_spec.lua`). The `sort`
   replacement is guarded (a renamed `sort` drops headings and colours,
   ordering still works through the supported `sort` option, nothing errors)
   and covered by `tests/whichkey_popup_spec.lua`, with real contextual menus
