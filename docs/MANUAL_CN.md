@@ -367,7 +367,7 @@ Nvim 把这个上一个 buffer 称为 **alternate buffer（交替缓冲区）**�
 `;F`、`;D` 使用当前文件所在目录或 Oil 正在显示的目录；
 在终端等面板中则使用当前窗口/标签页的工作目录。
 
-在终端（含 Claude/Codex）中，先用 `Ctrl-\` 或 `jk` 离开终端输入模式，
+在终端（含 Codex）中，先用 `Ctrl-\` 或 `jk` 离开终端输入模式，
 再按 `-` 或 `;o`。Oil 会在当前标签页的编辑区域打开并获得焦点；没有编辑窗口时
 会新建一个空白分屏。`q` 关闭 Oil 并返回编辑区域，终端保持打开。
 
@@ -604,7 +604,7 @@ Ctrl-,                             直达编辑器，再按跳回
 | `<Space>d` | 调试 | 断点、单步、查看变量 |
 | `<Space>t` | 测试 | 运行 / 调试最近的测试（`tm` / `tM`）和本文件（`tf` / `tF`）、汇总、输出、诊断 |
 | `<Space>x` | 诊断 | 错误列表、当前文件的（`xb`）、quickfix、location list |
-| `<Space>a` | AI | 右侧的 Chat——Claude / Codex 面板和 CodeCompanion Chat（`an` 新建、`al` 切换、`ac` / `af`）、prompt、transcript、审阅轮次（`av` / `aV`）、API key（`ax`） |
+| `<Space>a` | AI | 右侧的 Chat——Codex 面板和 CodeCompanion Chat（`an` 新建、`al` 切换、`ac` / `af`）、prompt、transcript、审阅轮次（`av` / `aV`）、API key（`ax`） |
 | `<Space>b` | Buffer | 删除、固定、移动（`b<` / `b>`）、删除其他、删除隐藏的（`bh`） |
 | `<Space>m` | 管理 | 配置、插件源码、help、man、键位、消息、Lazy、Mason、LSP 状态 |
 | `<Space>s` | 会话 | 保存 / 恢复工作布局 |
@@ -819,460 +819,181 @@ index 那一侧有未保存的修改时不会关闭：在那里 `:w` 会暂存�
 
 ### 终端与 AI
 
-```
-Ctrl-/       切换终端
-3<Ctrl-/>    从文件直接打开终端 3（Normal 模式）
-,1 … ,9      在终端 buffer 中选择第 1-9 个终端（先按 jk）
-<Space>an    新建 AI Chat：Claude Code、Codex 或 CodeCompanion Chat
-<Space>al    切换到另一个已打开的 Chat
-<Space>ac    隐藏右侧的 Chat，或把它找回来
-<Space>ai    在真正的 Neovim buffer 里写 prompt
-<Space>av    审阅自上一条 prompt 以来的改动
-Ctrl-l       （Insert）接受灰色的 AI 建议
-```
+`<C-/>` 打开普通编号终端，`<Space>an` 新建 AI chat。终端 Normal 模式下的
+`,1`–`,9` 选择编号，再按不会关闭。`al` 切 chat，`ac` 隐藏/恢复上次 chat，
+`af` 聚焦，`ai` 编辑 prompt。
 
-`Ctrl-]` 退出终端输入但不打扰里面运行的程序——因为 `Esc` 属于 AI CLI 自己。
+本期原生后端是 Codex；CodeCompanion 提供 Codex ACP 和 OpenAI HTTP chat。
+`an` 列出传输方式、计费和可用性；运行中的原生入口复用同一会话。显示一个目标只隐藏
+本 tab 的其他 AI 窗口，保留 buffer 和进程。目标在其他 tab 可见时跳转并提示。
+本 tab 显示的终端副本仍是此处的投递目标。唯一普通窗口不能隐藏，浮窗不算额外窗口。
 
-一个 tabpage 的右侧只放一个 AI 窗口——*右侧的 Chat*：Claude Code 或 Codex 的终端，
-或一个 CodeCompanion Chat。`<Space>an` 在你已有的任一后端上新建一个（列表里写明各自
-怎么计费），`<Space>al` 切换到另一个已打开的，而 `<Space>a` 下那些往外发东西的键
-——`as`、`ab`、`ai`——发给右侧显示的那个。显示一个会隐藏同一 tabpage 里的其他几个，
-但不会停掉它们：agent 隐藏时照样在干活，`<Space>al`（或 `<Space>ac`，找回这个
-tabpage 上次显示的那个）就能把它找回来。右侧什么都没有时，键会先问发到哪里；它从不
-自作主张发给隐藏的 Chat。在 CodeDiff 视图里，这些键作用于打开该视图的那个页面。
+`as` 在 picker 前捕获 Visual 内容，不自动按 Enter。已保存选区使用文件/行范围引用，
+未保存文本精确粘贴并提示。`ab` 加入文件；native/ACP 从磁盘读取，未保存会提示。
+HTTP chat 接收 buffer 文本。目录列表明确拒绝，本期没有 Claude 专属 Oil 操作。
+从 CodeDiff 使用 chat 键时，作用于来源 tab。
 
-没有哪个 agent 是默认的，启动时也不选。*provider*——开箱即有 Claude 和 Codex——是
-`lua/config/ai.lua` 里的一个有序列表。这个文件只返回可编辑的配置表，`key_profile`
-设置启动时的 HTTP profile，`panel.width` 设置面板宽度；修改后重启 Nvim。运行中可用
-`:AI key <name>` 切换 HTTP profile，不用修改文件。
-provider 顺序是后端的唯一偏好：`<Space>an` 先列出所有
-终端，再列所有 Agent Chat，最后列所有 API Chat，每组内都按这个顺序；只有 native agent
-响应的键（`ar`、`am`、`at` 等）作用于右侧的 native agent，没有时按同样的顺序在已安装的
-agent 里询问（只装了一个就直接用它）。列表里去掉的 provider 不会出现，某个部分在本机
-缺 CLI 或缺 key 的，那一项也不会出现。Inline prompt 用排在最前、`NVIM_*` key 已设置的
-那个 provider 的 key，除非 `<Space>ax` 固定了别的。`:AI info` 按顺序列出各 provider
-及其提供的部分、每个已打开的 Chat 和它在哪里，以及 Inline prompt 会用哪个 API key。
-详见 [AI Chat 与 provider](../README_CN.md#ai-chat-与-provider)。
+`ai` 通过 Codex 的 `ctrl+g` 和 `$EDITOR` 把真实输入草稿交给本 Nvim。
+`<C-d>` 返回，取消保留原输入。`<C-v>` 暂存图片，在 editor 关闭后交给 Codex 自身
+的附件通道。其他程序的 editor 请求没有 agent owner，不接受 seed 或图片。
+`ar` 恢复，`aR` 继续，`am` 选模型；会话运行时只聚焦，不向可能含草稿或审批的输入框
+写入命令。`at`/`aT` 阅读 JSONL transcript，独立于终端滚动历史。
 
-要让 agent 看某段代码，`<Space>yl` 复制相对仓库根目录的 `path:12`（Visual 模式下是
-选中几行的 `path:12-18`）。agent 的 prompt 认这种写法，`gF` 和终端里的链接也认。
+`config/ai.lua` 声明 provider、HTTP profile、面板、原生 argv、本地插件目录和 terminal。
+`terminal.provider` 可为 `native`、`snacks` 或自定义内嵌 adapter。tmux 渲染独立选择，
+`CODEX_WRAP_TMUX=0` 关闭。runner/watchdog/teardown 保留启动错误、CJK、滚动历史，
+清理所属后代进程；不写 CLI 配置。
 
-在文件里打字时，光标后可能出现一段灰色文字，是对这一行剩余部分的建议。
-它来自本机运行的模型，而不是面板里的 agent（安装见
-[行内 AI 补全](../README_CN.md#行内-ai-补全)）。`Ctrl-l` 接受。不理它也没有代价：
-继续打字，只要你打的内容还和它对得上，它就跟着走，否则换成新的建议。
-Markdown、纯文本、提交信息和没有 filetype 的 buffer 里不会自动出现；
-`:Minuet virtualtext toggle` 可以为当前 buffer 打开或关闭。
-
-`,` 加编号会聚焦或创建对应终端，再按同一个编号也不会关闭它。
-`<C-/>` 用来打开、关闭当前或上次使用的终端。
-
-如果面板里的文字残留在旁边的窗口上（常见于滚动查看印地语等天城文字的历史），
-先按 `q` 回到实时输出，再按 `<Space>ur` 让 Nvim 清屏重绘。
+`ae` 消耗 HTTP API credits；`ax` / `:AI key` 只切当前进程的 HTTP profile，
+不动终端和已有 chat。默认 OpenAI key 为 `NVIM_OPENAI_API_KEY`；CLI 自己的
+`OPENAI_API_KEY` 可能改变计费并会提示。ACP 使用 `chat-gpt` 登录，不静默借用 CLI key。
+详见 [AI 快捷键](../README_CN.md#ai-快捷键)。
 
 ### 原生终端的本地插件
 
-启动 Nvim 前导出 `NVIM_AI_PLUGIN_DIR`，它替代原来的 `CLAUDE_PLUGIN_DIR`。
-多个目录用逗号分隔：
-
-```sh
-export NVIM_AI_PLUGIN_DIR="$HOME/plugins/my-plugin,$HOME/plugins/distribution"
-```
-
-每一项可以是插件目录，也可以是包含 `claude/<plugin>` 和 `codex/<plugin>` 的
-发行目录。原生终端会选择对应宿主的包。例如 GPK 填 `dist/marketplace`，无需固定为
-`claude/gpk`。Claude 读取 `.claude-plugin/plugin.json`；Codex 依次识别根目录
-`plugin.json`、`.codex-plugin/plugin.json` 和 Claude 兼容清单。重复目录会去重；
-不同目录的插件同名时报错。
-
-Claude 接收多个 `--plugin-dir` 参数。Codex 优先复用上级目录已有的原生 marketplace，
-例如 GPK 保留 `gpk@gpk`；没有时在 Nvim 缓存下生成。每次启动前刷新本地文件，通过
-本次启动的 `-c` 参数指定来源并启用，避免旧的全局来源导致重复加载。安装时仅共享 Codex 的
-插件缓存，配置写入临时目录；原有配置、登录和全局插件启用状态保持原样。Codex 需要
-支持 `plugin add` 和本地 marketplace（已用 0.167.1 验证）。
-
-skills、MCP 和 hooks 由原生 CLI 加载。Codex 仍按自身规则审核 hook 信任，首次加载
-后可用 `/hooks` 审核；这里不会将任意 Claude 专属行为自动翻译成 Codex 行为。
-tmux 与直接启动两条路径使用相同插件，恢复会话时也生效。CodeCompanion 的 ACP 和
-HTTP Chat 暂不读取该变量，后续工作记录在 [GPK #3](https://github.com/knotmark-ai/gpk/issues/3)。
+`config/ai.lua` 的 `plugin_dirs` 声明目录，`NVIM_AI_PLUGIN_DIR` 覆盖。
+入口可为插件目录或带 `codex/<plugin>` 的分发根目录。只在原生启动时解析，
+不在 Nvim 启动或 CodeCompanion 启动时安装。Codex 使用临时 `CODEX_HOME` 运行
+`plugin add` 刷新快照，仅共享真实 plugin cache；marketplace/enabled 覆盖只属于本次调用，
+不改变用户配置和全局启用状态。
 
 ### 三种问 AI 的方式
 
-`<Space>an` 提供三样不同的东西。它们能做的事有重叠，但请求发到哪里、由谁付费
-各不相同：
+| 工作流 | 传输 / 计费 | 用途 |
+| --- | --- | --- |
+| 原生 Codex | 原生 CLI / ChatGPT 登录 | 完整 TUI 和 prompt editor |
+| Codex ACP chat | CodeCompanion + codex-acp / ChatGPT 登录 | 带 CLI 工具的 chat UI |
+| OpenAI API chat / inline | HTTP / API credits | 对话或 `ae` 行内编辑 |
 
-| | Native 面板 | Agent Chat | API Chat |
-|---|---|---|---|
-| `<Space>an` 里的条目 | `Claude Code · terminal · subscription` | `Claude Code · CodeCompanion ACP · subscription` | `Anthropic · CodeCompanion API · API credits` |
-| 是什么 | agent 自己的终端程序 | 同一个 agent，放在 Neovim 的 Chat buffer 里（CodeCompanion 走 ACP） | 直接调用模型 API，同样是 Chat buffer（CodeCompanion 走 HTTP） |
-| 谁付费 | 订阅 | 订阅 | API 额度 |
+Picker 标明区别和可用性。HTTP key 读取 `NVIM_*`；chat 创建后 adapter 固定。
+本地 transcript history 与 `/resume` 恢复 ACP agent 有状态会话是两回事。
 
-每一种都有对应的 Codex 或 OpenAI 版本。开起来之后三者的用法一样：轮流占用右侧，
-`as`、`ab`、`ai`、`ac`、`af` 作用于右侧显示的那个。
-
-按手头的事来选：
-
-- **把任务交出去：用 Native 面板。** 它就是完整的 agent——会改文件、跑命令，
-  Claude 提出的修改以 diff 的形式回来，开在独立的 tabpage 里（`<Space>aa` 接受，
-  `<Space>ad` 拒绝；Claude 拿到答复后这个 tab 就关闭）。`<Space>ai` 可以在真正的
-  buffer 里写 prompt。
-- **在 buffer 里把问题理清楚：用 Agent Chat。** 同一个 agent、同一份订阅，但对话是
-  一个 Markdown buffer，可以像普通文件一样搜索、复制、修改。Visual 模式下按
-  `<Space>as` 把选区加进去。
-- **直接问模型：用 API Chat。** 中间没有 agent，按 API key 计费（设置见
-  [API key](../README_CN.md#api-key)）。它有 CodeCompanion 自己的 `@` 工具，
-  可以用 `/save` 把对话存成 session，用 `/compact` 压缩长对话。`<Space>ae` 是它的
-  一次性用法：在命令行写一句指令，作用于选区或光标所在位置，按 `<Space>ax` 选的 key
-  profile 计费。
-
-在任一种 Chat 里，在最后一个 `## Me` 标题下面写，然后在 Normal 模式按 `Enter`
-（或在 Insert 模式按 `Ctrl-d`）发送；按下之前什么都不会发出去。`Ctrl-c` 停止回复。
-`q` 隐藏 Chat，与 `<Space>ac` 完全相同，再按 `<Space>ac` 即可带回；`,q` 结束它，
-CodeCompanion 会在它的窗口里显示另一个打开着的 Chat。`,X` 清空消息，`,z` 折叠代码块，
-`,s` 保存 Chat，`gf` 打开光标下的文件，`?` 或 `g?` 列出全部键。Insert 模式的 `Ctrl-c`
-只是退出 Insert 模式，`gx` 打开 URL，`{` / `}` 按段落移动，与任何 buffer 一样；换到
-另一个 Chat 用 `<Space>al`。回复的标题会写明是哪一种——
-`CodeCompanion (Claude Code · ACP)` 或 `CodeCompanion (Anthropic · API)`——`<Space>al`
-里的标签也一样。会花 API 额度的键放在菜单分组 *HTTP · API credits* 下。
-
-两个 Chat 之间切换时，右侧的窗口原地交接。Chat 保留创建时的后端；换后端就是另一个
-Chat，从 `<Space>an` 新建。`<Space>ao`（Chat 里按 `gh` 也一样）浏览已保存的 Chat 并重新打开，两种都可以。key 没设置
-的 API Chat 不会出现在列表里，`<Space>ae` 会提示，并且不发出任何请求。
-
-批准一处修改和审阅修改是两回事。`<Space>aa` / `<Space>ad` 回答的是 Claude *提出*
-的一处修改，在它写到磁盘之前；只有 Native Claude 会问（Codex 带 `--yolo` 运行，什么
-都不问；两种 Chat 有 CodeCompanion 自己的工具批准）。审阅则是事后去看自你发出 prompt
-以来磁盘上变了的一切，不管是三者中的哪一个改的：`<Space>av` 把它显示出来，你可以在
-那里写反馈、暂存，或把一个 hunk 丢弃回基线。下一章从头讲一遍。
-
----
+幽灵文本是独立的第四条路径：本地 llama-server，只在附着 UI 且文件符合条件时启动。
+`<C-l>` 接受，不理它就继续打字。`config/completion.lua` 管模型和服务偏好，
+`config/keymaps.lua` 管接受键。Markdown/text/commit 默认排除；
+`:Minuet virtualtext toggle` 切换当前 buffer。
 
 ## 审阅一轮 agent 修改
 
-agent 会自己改文件，一条 prompt 往往改好几个。审阅就是把你提问之后改动过的所有东西
-看一遍，再告诉 agent 你怎么看。你每提交一条 prompt，就开始一个**轮次**：在 agent 动手
-之前给工作区拍一张快照，存成一个隐藏的 Git commit，这就是这一轮的*基线*。`<Space>av`
-显示自基线以来的改动，`,C` 对你看到的内容写反馈，`<C-d>` 把反馈交回这一轮所属的对话。
-
-```
-（发送 prompt）    轮次 11:22:33 开始：基线就是当时的代码
-<Space>av          自这个基线以来的改动，开在审阅 tab 里
-,C                 对光标下的 hunk / 选区 / 文件写一条评论
-,C …               更多评论，收在同一份草稿里
-<C-d>              草稿进入 agent 的输入框，由你来发送
-（发送它）         轮次 11:40:02 开始
-<Space>av          新的一轮，还在同一个审阅 tab 里
-```
+轮次是绑定到对话的不可变 worktree 基线。它只证明修改发生在基线之后，不判断修改者；
+同仓库的用户操作或其他 agent 修改也会出现。审阅是修改后的 Git 比较，不是未来写入的审批。
 
 ### 轮次从哪里来
 
-每种对话开启轮次的方式都一样：
+Codex `UserPromptSubmit` hook 在 prompt 执行前取快照；CodeCompanion 的
+`on_before_submit` 为 ACP/HTTP chat 做同一件事。`aV` 手动开轮次；`gK` 保存另外的、
+无对话 owner 的基线。Codex 相同 turn id 的 steer 不开新轮次；重复事件去重，树未变化
+复用上一轮；带 `agent_id` 的子线程属于父轮次。有变化的新 turn 才新开一轮。
 
-| 对话 | 轮次开始于 |
-|---|---|
-| Native Claude 或 Codex（`<Space>an`） | 你在面板里提交一条 prompt |
-| Agent Chat 或 API Chat（`<Space>an`） | 你发送一条消息，或重新生成回复 |
-| 不属于任何对话 | 你按下 `<Space>aV` |
+原生 root 固定为启动 cwd 的 Git 根目录，chat 在创建时固定。之后 agent 改目录仍记录
+原 root，并提示一次。hook 最多等 `hook_wait_ms`（2500 ms）；迟到的基线标为 Late，
+因为最早修改可能已进入快照。Nvim 来不及处理整个事件时，不在事后补拍基线。
+集成错误不会阻止用户 prompt。
 
-prompt 会等它的快照，最多 2.5 秒；在普通仓库里，快照只要其中一小部分时间。快照用时
-更长时，prompt 先发出去，这一轮标为 **Late**：它的基线里可能已经有 agent 的头几处修改，
-审阅视图会提示这一点。除此之外没有任何东西会拖住 prompt，也不会往 prompt 里加任何
-内容——这里出了问题，丢的是这一轮，不是 prompt。
-
-一个轮次只覆盖一个仓库，即对话的*根*：agent 工作目录所在的 Git 根目录，在对话开始时
-确定。Native Claude 和 Codex 从当前文件所在的仓库启动，Chat 从 Nvim 的工作目录启动。
-agent 在这个仓库之外做的修改不属于任何轮次。
-
-- 每条 Claude prompt 开始一轮。Codex 的一个回合还在运行时发出的消息属于这个回合的
-  轮次，Chat 的一次工具循环算一轮：只有你自己发出去的才算。
-- 一条 prompt 发现自这个对话在本 Nvim 里的上一轮以来什么都没变，就沿用那一轮，而不是
-  再开一个一模一样的。
-- 子 agent（Claude 的 Task agent、Codex 派生的线程）不开轮次：它们的 prompt 属于父
-  对话的回合。
-- Claude 为了继续你的工作而自己醒来时，也不开轮次：它启动的后台任务（长时间运行的
-  Bash 命令、workflow）完成时，或它启动的后台 agent 交回结果时。这时带来的改动，以及
-  这些工作结束的时间，都算在这个对话最新的一轮里——通常就是你那条 prompt 的轮次，除非
-  你在这期间又发了 prompt。Claude 自己定时的唤醒（`ScheduleWakeup`、`/loop`）和普通
-  prompt 一样。
-- 不在 Git 里时什么都不开。
-
-快照也包含未跟踪的文件，但不包括当时被 `.gitignore` 排除的文件，以及超过 10 MiB 的
-未跟踪文件——后者根本不会被读取。所以 agent 改了 `.env` 或 `node_modules` 时，什么也
-不会显示。
-
-轮次只能证明一处改动发生在基线*之后*。你自己在同一个 worktree 里的修改，或另一个
-agent 的修改，也一样会出现——所以每条消息都写 "changes since round 11:22:33"，从不说
-"agent 的改动"。
-
-轮次在重启后仍然保留。每个 worktree 保留最新的 20 轮；草稿里还有反馈的轮次不受这个
-数量限制。
+hook 通过本次进程的 `-c hooks=...` 和对应 trust record 注入，保留用户配置和其他 hook。
+Codex 在提交 prompt 时才报告当前 session；resume/new/fork 后、下一次 prompt 前，
+Nvim 无法证明输入框属于谁，投递可能询问确认。普通 shell 启动的 CLI 没有注入 hook。
 
 ### `<Space>av`：审阅视图
 
-`<Space>av` 在一个独立的 CodeDiff tab 里打开这一轮的基线对比工作区。哪个仓库：在 agent
-面板或 Chat 里按时，是对话的根；否则是当前文件所在的仓库（在 CodeDiff 视图里，就是它
-正在对比的仓库），再否则是工作目录所在的仓库。哪一轮，取下面第一个存在的：
+对话 buffer 优先其最新轮次；其他位置优先本 tab 右侧 chat（CodeDiff 使用来源 tab），
+再选本进程在该 root 最新的轮次，最后是存储里的最新轮次。没有可见 chat 时不会拿第一个
+provider 当 owner。每个 root 保留一个 review tab，不重排其他 root 的视图。
 
-1. 当前面板或 Chat 所属对话的最新一轮；
-2. 右侧 Chat 的最新一轮（在 CodeDiff 视图里，是打开该视图的那个页面右侧的 Chat）；
-3. 本 Nvim 在这个仓库里开启的最新一轮；
-4. 这个仓库里的最新一轮，不论是谁开的。
-
-每个仓库只有一个审阅 tab。`<Space>av` 要显示的正是它已经显示的那一轮时，聚焦它的文件
-面板；是另一轮时，旧的审阅 tab 关闭，新的在原来的位置打开。其他 tab 都不受影响。视图
-出现后，一条提示说明它在对比什么：
-
-```
-Changes since round 11:22:33 (baseline → working tree)
-Root: ~/proj
-Conversation: Claude Code session 7f0c1a2b…
-```
-
-状态栏显示 `Review · Claude · round 11:22:33 → working tree`。
-
-- **还没有任何改动。** 如果这个对话的上一轮有改动——你已经发出下一条 prompt，agent 还
-  没写任何东西——就改为打开上一轮："Round 11:40:02 has no changes yet; showing round
-  11:22:33"。否则提示 "No changes since round 11:22:33 in ~/proj"，什么也不打开。视图
-  无法对比的路径不算改动；提示里会列出它们。
-- **一个轮次都没有。** 提示会说明这一点，建议按 `<Space>aV`；如果你确实发过 prompt，
-  它指向 `:checkhealth config`（[排错](DIAGNOSTICS.md#review-rounds-and-agent-hooks)）。
-
-视图本身就是一个普通的 [CodeDiff 视图](#git)，对比基线和工作区：`,S` / `,U` 暂存和取消
-暂存，`,X` 把一个 hunk 丢弃回基线。`<Space>gq`，或在它的文件面板里按 `q`，关闭
-这个 tab；agent 照常运行。
+CodeDiff 使用不可变基线 SHA 比较工作区。标题说明来源、时间、对话、root 和 Late。
+保留策略之后删除 ref 也不会改变已打开的比较。视图内保持布局敏感前缀的保护；逗号动作、
+文件/LSP 键按 Git 工作流的原有作用域应用。
 
 ### `,C`：反馈
 
-`,C` 在 Normal 和 Visual 模式下可用，覆盖 Git 仓库的每个 CodeDiff 视图的每个窗口，
-不只是审阅视图。每按一次往草稿里加一条：
+Git 视图内以 `,C` 为所选行/hunk 加评论。上下文和正文先进入持久草稿，不直接发 chat。
+编辑草稿、删改条目后以 `<C-d>` 投递。草稿原子存储于
+`state/ai-review/<root hash>/`，关视图和重启仍保留。并发非重叠修改合并；冲突另存
+conflict 文件并提示，不覆盖另一份内容。
 
-| 在哪里按 | 这一条引用 |
-|---|---|
-| 对比窗格里的一个 hunk | 这个 hunk，写成两侧的 diff，带三行上下文：`## src/parser.lua:42-47 (working tree) · was 40-43 at the baseline` |
-| 对比窗格里，不在任何 hunk 上 | 光标所在行 |
-| 右侧窗格里的选区 | 选中的行；文件有未保存的修改时标为 `unsaved buffer` |
-| 左侧窗格里的选区 | 基线里的这几行，标为 `(baseline side, not on disk)` |
-| 文件面板里的一个文件 | 只有路径和状态：`## src/new.lua (R src/old.lua→src/new.lua)` |
-| 历史里某个 commit 下的一个文件 | 文件、它的状态和 commit：`## src/new.lua (M in 1a2b3c4d)` |
-| 单个文件历史（`<Space>gh`）里的一个 commit | 这个文件和 commit：`## src/new.lua (changed in 1a2b3c4d "Fix the parser")` |
-
-仓库历史（`<Space>gH`）里的 commit 行不对应任何一个文件，在那里按 `,C` 会提示改到
-列表里的某个文件上。路径都是相对仓库的真实路径。左侧的行号在磁盘上的任何文件里都
-不存在，所以一条评论引用的是代码本身，而不是指向行号。对比两个 revision 的视图会把
-两者都写上。
-
-草稿开在一个浮窗里，光标停在新条目的 `> ` 行上，处于 Insert 模式，直接写评论即可。
-浮窗标题写明是哪一轮，顶部一行写明 `<C-d>` 会投递到哪里：
-
-| 键 | 在草稿里 |
-|---|---|
-| `<C-d>` | 投递（Normal 或 Insert 模式） |
-| `q` | 隐藏浮窗；草稿保留 |
-
-其余部分就是普通的 Markdown buffer：可以随意改写或删除条目，`@` 补全仓库里的文件。
-不管以什么方式离开浮窗都会保存，下一次 `,C` 追加到同一份草稿并重新显示它。
-`<!-- nvim-review … -->` 这些行属于草稿自身：它们为下文的过期检查记下每一条对应的
-文件，永远不会被发送。删掉其中一行，它那一条就并入上面一条，那一条的文件也不再检查。
-
-草稿是文件，所有 Nvim 共用：每个轮次一份，不属于任何轮次的视图（`gv`、`gm`、没有
-轮次的 `gk`）每个仓库一份，都在 `~/.local/state/nvim/ai-review/` 下。两个 Nvim 添加的
-评论会合并，同一条里改了不同的行也会合并。两边改了同一条里的同一些行，或者一个 Nvim
-在另一个已经投递或删掉的条目里写了字时，草稿保留先保存的版本，另一边写的内容放在
-旁边，名为 `<round>.conflict.md`（这个名字已被占用时依次是 `.conflict-2.md`、……），
-并有一条警告指出它。
+草稿头记录 root/owner；丢失头会拒绝投递。`<id>.last-sent.md` 留存最后一次已确认投递，
+只有文字确实到达才清空待发送草稿。含非空反馈草稿的轮次不受 retention 删除。
 
 ### `<C-d>`：投递
 
-`<C-d>` 把草稿（去掉标记行）发给拥有这一轮的对话。它先切到显示那个 agent 面板或 Chat
-的 tab；没有的话，从 CodeDiff 视图切到打开该视图的那个 tab（它前面最近的一个不是
-视图的 tab）。
-
-- **Native Claude 或 Codex。** 反馈开在那个 agent 自己的 prompt 编辑器里——就是
-  `<Space>ai` 打开的那个浮窗——接在输入框里已有的内容后面。读一遍，在那里按 `<C-d>`
-  把它放进输入框，回车发送。如果那个 agent 的 prompt 编辑器已经开着，反馈直接加进去。
-- **Chat。** 加到那一个 Chat 的消息里，接在你已经输入的内容下面；Chat 会显示出来，
-  光标停在末尾，处于 Insert 模式。照常发送即可。
-
-只有文字确实送到之后草稿才会清空，同时留一份副本 `<round>.last-sent.md`（每次投递都会
-覆盖）。如果 agent 在 10 秒内没有打开 prompt 编辑器——通常是因为它正在一个回合当中——
-这次投递就算失败："Claude Code did not open its prompt editor (busy?)"，草稿保持原样。
-投递还在等待时，对同一个 agent 按 `<Space>ai` 也会同样取消它。发给 Claude 的反馈永远
-不会被 Codex 的 prompt 编辑器拿走，反之亦然。
-
-**过期的条目。** 每一条都记得你评论时它的文件是什么样。`<C-d>` 会重新检查这些文件；
-文件此后变了（或不在了）的条目，标题里会加上 `⚠ changed since this comment`，并问你：
-*Deliver anyway* 还是 *Edit first*。检查以文件为单位，所以可能标出 hunk 其实没变的
-条目；真正变了的则一条也不会漏。
+原生反馈为确切 Codex prompt editor 暂存 seed，editor 消费才确认成功。
+取消、超时、被替换或失败都保留草稿。TUI 自己的 editor handoff 处理真实输入内容。
+ACP/HTTP 反馈加入确切的本进程 chat，成功才确认。Chat 忙碌时拒绝；工具循环中即使两次
+请求之间没有 HTTP 请求，也算忙碌。
 
 ### 谁会收到
 
-一个轮次属于开启它的那个对话，`<C-d>` 在发送任何东西之前，先确认反馈仍然送得到那个
-对话。每次拒绝都会保留草稿并说明原因。
+按顺序检查：
 
-1. **同一个仓库。** 草稿的仓库、视图的仓库和目标会话的仓库必须是同一个目录——linked
-   worktree 算另一个目录。没有任何办法绕过这一条，也不会询问。
-2. **同一个对话。** Native agent 必须在本 Nvim 里运行，并且处在这一轮的会话里。如果它
-   上次报告会话之后你又在它的终端里打过字（可能是 `/new`、`/resume` 或 `/fork`），或者
-   它还没报告过会话，会先给一条说明，再问你 "… Deliver anyway?"。Chat 必须在本 Nvim
-   里开着；重启之前的 Chat 已经不在了。
-3. **没在忙。** Chat 还在回复，或处在工具循环的两步之间时会拒绝：等它完成再投递。
-   Native agent 是否在忙从这里看不出来，由那 10 秒的等待兜底。
+1. 视图 root、草稿 root、目标 root 的 realpath 必须一致，没有确认可以绕过 root 检查。
+2. 原生 terminal 必须运行所属 session；chat 必须仍在本 Nvim 打开。未报告或报告后输入过
+   的原生 session 先确认；`unknown_session = "refuse"` 则拒绝。
+3. Chat 处于 turn/工具循环中时拒绝。
+4. Owner 已消失时拒绝。除非 `redirect = false`，可以选择同 root 的当前 session/chat，
+   再确认一次改投。取消保留草稿。
 
-| 提示开头 | 原因 | 接下来 |
-|---|---|---|
-| `Claude Code is not running in this Nvim.` | 这一轮所属的 agent 没有运行 | `<Space>ar` 恢复会话，再按一次 `<C-d>` |
-| `Codex is not running in this Nvim.` | 同上 | `<Space>ar`（`codex resume`）；Codex 要到你的第一条 prompt 才报告会话，所以下一次 `<C-d>` 会先询问 |
-| `Claude Code is in another session now.` | 面板里运行的是另一个对话 | 在 TUI 里 `/resume` 这一轮的会话 |
-| `Claude Code runs in another root now:` | agent 从另一个仓库重新启动了 | 退出它，从这一轮所在仓库里的某个文件恢复会话 |
-| `That chat is closed or belongs to an earlier Nvim.` | 这个 Chat 已经不在了 | 发给当前的某个会话（见下） |
-| `Refused: the target session is in another root.` | 这一轮自己的会话在另一个仓库里运行 | 从这一轮所在仓库里的某个文件恢复它；没有任何办法绕过 |
-| `The chat is replying.` | Chat 正在一个回合当中 | 等一等，再按 `<C-d>` |
-| `No session to deliver to.` | 这个仓库里没有运行任何 agent 或 Chat | 在那里启动一个 |
-
-所属对话不在了时——前五行——拒绝的同时还会提供 **Send to a current session…**：先列出
-同一仓库里正在运行的会话，再确认一次，把两边都写明（"This round belongs to Claude Code
-session 7f0c1a2b…"、*Send to Codex · session 3e9a5d10…*）。它只改变这一次投递的去向；
-这一轮的所属不变。完全没有所属的草稿——没有绑定任何对话的 `<Space>aV` 轮次，或 `gv`、
-`gm` 视图——会直接打开这个列表；选中就算确认。
+不按 provider 顺序或隐藏 chat 猜目标。原生 conversation id 包含 session id，
+chat id 包含本进程 nonce，因此另一个 Nvim 同编号 chat 不是同 owner。
+历史 Claude owner 可以读取；没有该后端时只能按同样的显式同 root 规则改投。
 
 ### 各 agent 的局限
 
-| | Native Claude | Native Codex | Agent Chat（ACP） | API Chat（HTTP） |
-|---|---|---|---|---|
-| 基线 | prompt 运行前拍下；prompt 最多等 2.5 秒 | 同左 | 消息发出前拍下；最多等 2.5 秒 | 同左 |
-| Nvim 何时得知会话 | 启动、`/clear`、`/resume`、`/compact` 以及每条 prompt | 只在 prompt 时：`/new`、`/clear`、`/fork`、`/resume` 或以 `codex resume` 启动之后，要等到下一条 | Chat 打开时 | 同左 |
-| `<C-d>` 何时先询问 | 你在它的终端里打过字之后 | 第一条 prompt 之前，或你打过字之后 | 从不 | 从不 |
-| 重启 Nvim 之后 | `<Space>ar` 恢复同一个会话，投递照常 | `<Space>ar`，然后确认投递（或先发一条 prompt） | 旧 Chat 不在了：发给当前的某个会话 | 同左 |
-| 什么会让它不开轮次 | `--bare`、关闭 hook 的托管设置、信任提示还没确认的目录 | 改变 hook 信任方式的 Codex 更新 | — | — |
-| 写入前的批准 | `<Space>aa` / `<Space>ad` | 没有（`--yolo`） | Chat 自己的工具批准 | 同左 |
+| | 原生 Codex | ACP / HTTP chat |
+| --- | --- | --- |
+| 基线 | prompt 前、有上限等待 | submit callback 前、有上限等待 |
+| 何时认识 session | UserPromptSubmit | 创建 chat |
+| 确认 | 首次 prompt 前、输入之后，或 always_confirm | 不询问原生 session |
+| 重启后 | resume 后确认，或先发 prompt | 原进程 chat owner 已消失 |
+| 写前审批 | CLI 自己配置的策略 | Chat 工具审批 |
 
-Native agent 是通过 hook 得知 prompt 的：这些 hook 由本 Nvim 加给它启动的 agent，也只加
-给这些 agent——Claude 用 `--settings`，Codex 用 `-c`。不会往 `~/.claude` 或 `~/.codex`
-写任何东西，在普通 shell 里启动的 Claude 或 Codex 不会开轮次；hook 也从不输出任何内容，
-所以模型看不到它。Chat 不需要 hook；Nvim 能看到它们的消息发出。
-
-Codex 只在一个线程的第一个回合开始时运行它的 session-start hook。所以 `/new`、`/fork`
-或 `/resume`，以及用 `codex resume` 启动的 Codex，切换线程时不会通知 Nvim，要等你下一次
-提交 prompt；在此期间，谁也说不清它的输入框属于哪个对话。这就是投递给 Codex 时会询问
-而不是拒绝的原因：如果拒绝，每次 Codex 重启后都得先等一条 prompt。
-
-Codex 还会在运行一个 hook 之前要你审核它（"hooks need review before they can run"）；
-这个 hook 从不询问。它的信任记录随它一起放在同一个 `-c` 选项里，所以 Codex 把它当作
-已审核，而不往 `~/.codex/config.toml` 写任何东西。`--dangerously-bypass-hook-trust`
-也能跳过这个询问，但对所有 hook 都生效，包括任何项目自己的 `.codex/hooks.json`。
-这个 `-c` 有一个看得见的代价：Codex 启动时会提示它在 "without the shared background server"
-下运行，因为只要带 `-c`，它就自己起一个服务；`sources.codex = false` 会同时去掉 hook 和这条提示。
-
-Native Claude 和 Codex 一样从当前文件的 Git 根目录启动，所以两个 agent 的轮次都属于
-你正在工作的项目；`claude_cwd = "cwd"` 改回 Nvim 的工作目录。`cd` 到另一个仓库的
-Claude 仍然把轮次记在它启动的地方，并提示一次。
+原生 argv 保留 `--no-alt-screen --yolo`。Git review 不等于 IDE 提案接受/拒绝。
+Claude IDE protocol/openDiff 及对应键位留待后续扩展。
 
 ### 手动轮次、保存的基线与任选两端
 
-- `<Space>aV`（*Start review round*）不用 prompt，立即开一轮——比如在你动手改之前，
-  或在以别的方式开始一个任务之前。它属于你按下它时所在面板或 Chat 的对话；否则属于
-  右侧的 Chat（前提是它在这个仓库里工作，并且是本 Nvim 认得的对话：已报告会话的
-  agent，或一个 Chat）；再否则不属于任何对话，`<C-d>` 会问你反馈发到哪里。如果自那个对话的上一轮以来什么都没变，
-  它会提示那一轮已经就是当前状态。
-- `<Space>gK`（*Save baseline…*）保存一个有名字的快照，不属于任何
-  对话——比如 "before refactor"。它会预填这个仓库里正在工作的 agent 会话的名字（右侧
-  Chat 的优先）；可以改，清空则用当时的时间。每个 worktree 保留最新的 10 个，删掉
-  的会在提示里列出。
-- `<Space>gk`（*Compare two*）对比任意两端。选一个更早轮次的基线对比工作区，就能一次
-  看到自更早某条 prompt 以来、跨越好几轮的全部改动：这个视图算作那一轮的审阅 tab，
-  `,C` 的反馈归那一轮的所属对话。任何基线对比工作区的视图也有 `,X`。`<Space>gM`
-  同样会列出这些基线。
+`aV` 手动开轮次：对话 buffer 属于该 owner；文件属于右侧同 root 可见 chat，否则无 owner。
+`gK` 保存命名、无 owner 的基线；`gk` 列出已保存基线；`gM` 比较任选两端。
+标签可读取原生 session 的名称和时间，包括历史 Claude JSONL。重命名/隐藏会话不改变
+已打开比较的不可变 SHA。
 
-两个 picker 都用会话、来源和时间来标一轮：
-
-```text
-修复 scanner 报错: Claude 11:16:38 - 11:43:18    今天的一轮
-整理 parser: Claude 11-09 20:36 - 21:39          其他日期的一轮
-对比配置差异: Codex 07:48:39 - …                 会话还在做这一轮
-Agent chat 09:03:20                             没有会话记录可读
-before refactor: Saved 11-09 23:08              手动保存的基线
-```
-
-- **名字**是会话最初的名字——Claude Code 自动生成的标题（`/resume` 里列的那个），或
-  在它之前用 `/rename` 起的名字；Codex 则是 thread 的名字。它从 agent 自己的会话记录
-  里读出，之后再改名也不变。超过 40 列会截断并加 `…`。
-- **开始时间**是这一轮的基线拍下的时间，也就是 prompt 发出的那一刻。
-- **结束时间**是这个会话的下一轮开始之前，它最后一次答完（或被打断）的时间。如果一条
-  prompt 之后代码自上一轮以来没有变化，就沿用上一轮，所以结束时间可能来自之后的
-  prompt；一轮答到下一条 prompt 发出之后才结束的，就没有结束时间。
-- **`…`** 表示会话正在做这一轮：它在最后一次答完之后又收到了 prompt（或被后台任务唤
-  醒），而且还活着——
-  它的终端在这个 Nvim 里运行，或者它的会话记录在最近 30 分钟内有写入。所以答到一半被
-  杀掉的会话不会一直显示 `…`；在另一个 Nvim 里、某一步 30 分钟没有写记录的会话也会暂
-  时不显示。手动轮次（`<Space>aV`）不是 prompt，要等它的会话再收到 prompt 才显示 `…`。
-- Chat、没有所属对话的手动轮次，或会话记录不在这台机器上的，只显示来源和开始时间。
-  Codex 会把大约十天没动过的 rollout 压缩成 `.jsonl.zst`；装了 `zstd` 时照样读取它的
-  轮次，否则这样的一轮只显示名字和开始时间。
-
-选中一个基线打开的视图只标开始时间，比如 `修复 scanner 报错: Claude 11:16:38 → working
-tree`：它显示的是从那时到现在的全部改动，和结束时间无关。
-
-要和一个对话重新开始，发送下一条 prompt 或按 `<Space>aV`；`<Space>av` 总是选最新的
-一轮。
+快照使用唯一临时 index，不改 HEAD、真实 index、分支、stash 或 reflog。
+长期写入是 objects 和 `refs/nvim-review/<wtid>/...`。忽略规则每次重新读取；过大未跟踪
+文件在哈希前排除。Retention 删除 refs，objects 交给 Git gc。如何从图和 mirror 排除
+这些 refs，见 [诊断](DIAGNOSTICS.md#what-review-baselines-leave-in-a-repository)。
 
 ### 每个动作改变什么
 
-| 动作 | 键 | 改变 | 不动 |
-|---|---|---|---|
-| 反馈 | `,C`，然后 `<C-d>` | 仓库里什么都不变：文字出现在 agent 的输入框或 Chat 里，由你发送 | 一切 |
-| 暂存 / 取消暂存 | `,S` / `,U` | 真正的 index——下一次 `git commit` 提交的内容 | 工作区、基线 |
-| 丢弃 | `,X` | 工作区文件里的一个 hunk，写入磁盘 | index、基线、文件的其余部分 |
-| Claude 的批准 | `<Space>aa` / `<Space>ad` | Claude 提出的一处修改，在它写入*之前* | 审阅视图：两者无关 |
-
-它们没有一个叫*接受*或*批准*，因为没有一个会告诉 agent 任何事：暂存是你和 Git 之间的
-事，只有反馈会送进对话，而且要你亲自发送。
+| 动作 | 作用 |
+| --- | --- |
+| `aV` | 现在取快照，能确定时绑定轮次 owner |
+| `av` | 工作区与轮次基线比较 |
+| `gK` | 保存独立基线 |
+| `,C` | 持久捕获反馈 |
+| 草稿 `<C-d>` | 检查目标后投递，确认到达才清空 |
+| 支持的基线文件 `,X` | 在视图保护下把 hunk 丢弃回基线 |
 
 ### 设置：`vim.g.ai_review`
 
-默认值集中在 `lua/config/review.lua` 的纯配置表中，修改后重启 Nvim 生效；
-整体赋值 `vim.g.ai_review` 可在当前进程中覆盖指定设置。
-
-
-默认值适合大多数情况。要改其中几项，在 `init.lua` 里只写这几个键：
-
-```lua
-vim.g.ai_review = { retention = { rounds = 30 }, claude_cwd = "cwd" }
-```
-
-要整表赋值：`vim.g` 给出的是副本，所以 `vim.g.ai_review.retention.rounds = 30` 什么也
-改不了。不是设置项的键，或类型、取值范围不对的值，会警告一次并使用默认值；表里其余
-部分照常生效。每项设置都在用到时才读取，所以 Nvim 运行中做的修改从下一次使用起生效，
-下文另有说明的除外。`:checkhealth config` 列出当前生效的值。
+可编辑默认值放 `config/review.lua`，共享 Git 值放 `config/git.lua`，setup 时复制。
+运行中给 `vim.g.ai_review` 整表赋值才能覆盖，改嵌套副本无效。
+未知/错误 leaf 警告一次，合法同级项继续生效。`:checkhealth config` 显示有效值。
 
 | 键 | 默认值 | 含义 |
-|---|---|---|
-| `retention.rounds` | `20` | 每个 worktree 保留的轮次数，从最新的算起。草稿里还有反馈的轮次永远不会被删除 |
-| `retention.saved` | `10` | 每个 worktree 保留的已保存基线（`<Space>gK`）数 |
-| `max_file_size` | `10485760`（10 MiB） | 大于这个字节数的未跟踪文件不进入任何快照，也从不读取 |
-| `sources.claude` | `true` | `false`：Native Claude 不注入 hook，它的 prompt 不开轮次 |
-| `sources.codex` | `true` | Native Codex 同上 |
-| `sources.codecompanion_acp` | `true` | `false`：Agent Chat 不开轮次 |
-| `sources.codecompanion_http` | `true` | `false`：API Chat 不开轮次 |
-| `hook_wait_ms` | `2500` | prompt 等待基线的最长时间，超时就带着一个 Late 轮次先发出去；`0` 表示从不等待 |
-| `claude_cwd` | `"git_root"` | Native Claude 从哪里启动：`"git_root"` 是当前文件的 Git 根目录，`"cwd"` 是 Nvim 的工作目录 |
-| `unknown_session` | `"confirm"` | `<C-d>` 无法确认的 native 会话：`"confirm"` 询问，`"refuse"` 拒绝 |
-| `always_confirm` | `{}` | 即使会话已确认、投递时也总要询问的 agent：`"claude"`、`"codex"` |
-| `redirect` | `true` | `false`：所属对话不在了时直接拒绝，不提供 *Send to a current session…* |
-| `seed_ttl_ms` | `10000` | Native agent 为一次投递打开 prompt 编辑器的时限 |
-| `history_limit` | `100` | `<Space>gh` 和 `<Space>gH` 列出的 commit 数；`false` 列出全部 |
+| --- | --- | --- |
+| `retention.rounds` | 20 | 每 worktree 保留的轮次数；待发草稿豁免 |
+| `sources.codex` | true | 注入/接收原生 submit hook |
+| `sources.codecompanion_acp` / `codecompanion_http` | true | Chat 提交时开轮次 |
+| `hook_wait_ms` | 2500 | 等基线上限；0 立即继续提交 |
+| `unknown_session` | `"confirm"` | `"refuse"` 拒绝无法证明的原生 owner |
+| `always_confirm` | `{}` | `{ "codex" }` 每次原生投递均确认 |
+| `redirect` | true | Owner 消失时提供显式同 root 改投 |
+| `seed_ttl_ms` | 10000 | Prompt editor 消费时限 |
 
-修改何时生效：
-
-- Claude 的 hook 是它启动命令的一部分，在 claudecode.nvim 加载时（第一次按 Claude 的键
-  时）确定。之后打开 `sources.claude`，或改 `hook_wait_ms`，要重启才生效；关闭则立即
-  生效，因为事件会被丢弃。
-- Codex 的命令每次启动时重新生成，所以它的 sources 和等待时间从下一次启动起生效，关闭
-  则立即生效。
-- 来源关闭期间打开的 Chat，之后即使再打开来源也不会开轮次；关闭来源立即生效。
-- `<Space>gh` / `<Space>gH` 的描述在插件 spec 加载时写定，所以要在 `init.lua` 里
-  `require("config")` 之前设置 `history_limit`；列表本身随设置变化。
-
----
+Git 默认值为 `max_file_size = 10485760`、`retention.saved = 10`、
+`history_limit = 100`（或 false）。这些字段在 `vim.g.ai_review` 的旧运行时覆盖继续保留。
+`sources.claude`、`claude_cwd` 已移除。原生命令/hook 修改下次启动生效，关闭来源立即
+丢弃事件。来源关闭时创建的 chat 不会事后自动补装 hook。setup 声明修改需重启；HTTP
+key 切换仅属于当前进程。
 
 ## 忘了键位怎么办
 

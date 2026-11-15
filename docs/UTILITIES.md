@@ -4,7 +4,7 @@ This document provides detailed documentation for all utility modules in the Neo
 
 ## Overview
 
-The utility modules provide focused helpers for logging, debug inspection, LSP, table manipulation, macOS input sources, terminals, windows, gitsigns' diff split, review baselines, the CodeDiff views, and running the current file. The AI modules follow, with the review loop's under [AI Review](#ai-review-aireview). For diagnostic and debugging workflows (health checks, profiling, LSP/treesitter inspection), see [DIAGNOSTICS.md](DIAGNOSTICS.md).
+The utility modules provide focused helpers for logging, debug inspection, LSP, table manipulation, macOS input sources, terminals, windows, gitsigns' diff split, review baselines, the CodeDiff views, and running the current file. The AI modules follow, with the review loop's under [AI Review](#ai-review-agent_workbenchreview). For diagnostic and debugging workflows (health checks, profiling, LSP/treesitter inspection), see [DIAGNOSTICS.md](DIAGNOSTICS.md).
 
 ## Core Utilities
 
@@ -129,7 +129,7 @@ The debug view owns a tabpage of its own. `open_panels()` creates it with
 and that tabpage, unless it is the last tabpage left. `toggle_panels()` is
 `<leader>du`. A root session's `event_initialized` opens the view, and the end
 of the last root session closes it. `jump(bufnr, line, column)` is nvim-dap's
-`switchbuf`: it places a stopped frame in `util.window.ensure_editor_win()` of
+`switchbuf`: it places a stopped frame in `editor_core.window.ensure_editor_win()` of
 the current tabpage, never another one.
 
 ### URLs and local files (`editor_core.url`)
@@ -155,7 +155,7 @@ up to 16 consecutive rows in the same table column. Alignment uses display
 width, including CJK text; padding and vertical rules separate columns. The
 full target must reach its closing delimiter before continuation is accepted.
 Quoted local paths can also span rows. Any target, bare or enclosed, that runs
-into the right edge of a row the terminal wrapped (`util.terminal_text.soft_wraps`)
+into the right edge of a row the terminal wrapped (`editor_core.terminal_text.soft_wraps`)
 continues from column 0 of the next row, whatever column it started in; that
 join needs no closing delimiter, and a file path whose joined form does not
 exist falls back to its first row.
@@ -651,7 +651,7 @@ editor-area model it applies is `editor_core.window`'s.
 local buffer = require("editor_core.buffer")
 
 -- The window a buffer opened from here goes into: the current one when it is
--- a non-floating window showing a file, else util.window.ensure_editor_win()
+-- a non-floating window showing a file, else editor_core.window.ensure_editor_win()
 -- (an unmodified Oil listing or GitHub view there can take it). Not the
 -- current listing, GitHub view or dashboard itself: none is in the buffer
 -- list, so [b/]b would have nothing to cycle from. Leaving a terminal stops
@@ -982,7 +982,7 @@ pass of that scope made and this one does not repeat is released.
 same rule the listing patch applies to every such view, for a caller that has
 to know before it opens one whether CodeDiff will show anything (an empty
 listing gets a bare "No changes to show" and no view, #582). `tree` and
-`info` are a `util.baseline.snapshot()` of the worktree, and
+`info` are a `git_review.baseline.snapshot()` of the worktree, and
 `diff-tree -r -M -z <revision> <tree>` compares them. `done({ listed,
 left_out })`, or `done(nil, err)` when git failed. `listed` holds CodeDiff's
 status entries, `{ status, path, old_path? }`, a type change reading `M`;
@@ -1005,7 +1005,7 @@ focused; `]h`/`[h` on the panes, CodeDiff's own next / previous hunk (as its
 status view, the explorer's `-`/`S`/`U`/`X`; and a buffer-local which-key
 group `Conflict` where `,go` exists. Each pass then fires
 `User CodeDiffKeys` with `data.tabpage`, on which
-`util.codediff_actions.attach` (from the plugin spec) and `agent_workbench.review.attach`
+`git_review.actions.attach` (from the plugin spec) and `agent_workbench.review.attach`
 (from the AI facade, `local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua`) install theirs. A pass runs after
 `CodeDiffOpen`, `CodeDiffFileSelect` and every pane buffer swap (a file
 picked, a refresh, a layout toggle).
@@ -1014,7 +1014,7 @@ Tab variables, set when a view opens and cleared when it closes:
 
 | Variable | Set by | Read by |
 |---|---|---|
-| `blocks_global_prefixes` | git_review.view, on every view | `util.window.blocks_global_prefixes` |
+| `blocks_global_prefixes` | git_review.view, on every view | `editor_core.window.blocks_global_prefixes` |
 | `codediff_label` | `open()`'s label, else a default (`index/HEAD ↔ working tree`, `<rev> → working tree`, ...) | the statusline |
 | `codediff_baseline` = `{ sha, kind }` | `<leader>av`, and `<leader>gk`/`<leader>gM` comparing a baseline with the working tree (`tab_vars`) | `git_review.actions` (`,X`), `agent_workbench.review.feedback` |
 | `ai_review` = `{ id, sha, conversation?, source?, root, late }` | the same, when that baseline is a round's (`rounds.review_vars`) | `agent_workbench.review` (one review tab per root), `agent_workbench.review.feedback` (which draft) |
@@ -1027,7 +1027,7 @@ evens out the two panes when the tabpage gains or loses a window; and, from
 the listing, names the files left out (once per view) and a listed file with
 unsaved edits whose disk copy changed since (once per change on disk).
 
-`util.codediff_actions.attach(tab)` installs the hunk keys for the view's
+`git_review.actions.attach(tab)` installs the hunk keys for the view's
 kind, under its own `"actions"` scope, on every `User CodeDiffKeys`. It
 reaches CodeDiff only through `git_review.view` and gitsigns only through its
 public API. The letters are the status explorer's `S`/`U`/`X` (stage,
@@ -1138,217 +1138,67 @@ llama.url("/infill")   -- "http://127.0.0.1:8012/infill"
 llama.log()            -- <dir>/server.log, rewritten at each server start
 ```
 
-## AI Settings and State (`config.ai`, `agent_workbench.state`, `agent_workbench.switch`)
+## Public plugin setup and AI state
 
-`config.ai` only returns the editable settings table: `providers`,
-`key_profile` (default `"auto"`) and `panel.width`. Requiring it performs no
-validation, environment reads or setup. Edit it and restart Nvim to apply
-changes. `agent_workbench.state` reads a copy, validates the providers and derives the
-backends and live HTTP key state when required; consumers use `agent_workbench.state`.
-The plugin specs wire that state into the native agents and CodeCompanion.
+The supported third-party surface, typed opts, native operations and custom
+terminal lifecycle are documented in
+[agent-workbench.nvim](../local-plugin/agent-workbench.nvim/README.md).
+The implementation-owner modules below describe this repository's internal
+contracts, not a promise that consumers may mutate live state tables.
 
-The ways to chat are an ordered `providers` list in `lua/config/ai.lua`,
-written like CodeCompanion's adapters; the HTTP **key profile** is the one
-setting `:AI key` switches in-process. Nothing is persisted. A provider has a
-`name`, a `label`, an optional `cli_api_key` (the variable its CLIs bill
-against instead of the subscription login: the picker and `:checkhealth
-config` warn while it is set) and the parts it offers; a part left out is not
-offered:
+`require("agent_workbench")` is inert; `setup(opts)` runs once through a normal
+local lazy spec. Defaults are native Codex, native terminal, integrations off,
+no keymaps. The host explicitly supplies Snacks, CodeCompanion/review integration,
+key choices, native argv and context callbacks. A minimal host needs none of
+this configuration's private config/util modules. Editor-core, Git-review and
+llama-service also have their own local specs and package README files.
 
-- `tui = { kind }` -- its native terminal agent. `kind` is one this config
-  implements, `claude` or `codex`, each offered at most once: a new kind needs
-  code (a backend module, a tmux wrapper, the prompt hooks, a transcript
-  reader), not just an entry.
-- `acp = { adapter, command, auth_method? }` -- its CLI driven by
-  CodeCompanion over ACP, on the subscription. `auth_method` becomes the
-  adapter's default; Codex's is `"chat-gpt"`, since codex-acp's own default
-  bills `OPENAI_API_KEY`.
-- `api = { adapter, label?, api_key, model?, name? }` -- a CodeCompanion HTTP
-  chat on API credits, and a key profile. `api_key` names an `NVIM_*`
-  variable, never a CLI's own. The profile's name, `api.name` (default
-  `api.adapter`), must be unique: it is also the CodeCompanion adapter it
-  registers, so a chat restored from history finds its key again.
+`config.ai` only returns declarations: providers, native, terminal, plugin_dirs,
+key_profile and panel. `agent_workbench.options` validates/copies them; lists
+replace, dictionaries partially override and false disables optional behavior.
+`options()` returns a copy. `agent_workbench.state.build(list)` validates and
+derives provider, native agent, key-profile and ACP records. The only implemented
+native kind is codex. Bad providers fail startup naming the provider, rather than
+leaving a key that fails later. `_set_providers` is a test seam, not consumer API.
 
-The defaults are `claude` (terminal `claude`, ACP `claude_code` through
-`claude-agent-acp`, API `anthropic` on `NVIM_ANTHROPIC_API_KEY`), then `codex`
-(terminal `codex`, ACP `codex` through `codex-acp` on the ChatGPT login, API
-`openai` on `NVIM_OPENAI_API_KEY`). A second key on one API is one more
-provider with only an `api` part; the file has a commented example. `build`
-checks the list at load, and a bad entry stops startup naming the provider.
+Live state is separate: state.use_key selects an HTTP profile and updates the
+inline/cmd adapter observations; native sessions live in terminal_provider,
+chat routing in slot, review owners in review.rounds. A copied setup snapshot
+cannot mutate these by editing the original declaration or a returned table.
+A nonempty env NVIM_AI_KEY_PROFILE > vim.g.ai_key_profile > opts.key_profile
+sets startup preference. auto resolves again on each explicit selection.
 
-The order is the only preference; no backend is the default. The new-chat
-picker lists every available terminal, then every ACP chat, then every API
-chat, each group in provider order. A key only a native agent answers acts on
-the native agent on the right, else asks among the installed terminals in
-that order (with one installed, that one). CodeCompanion's own paths that
-name no adapter (a typed `:CodeCompanionChat`, the action palette) use the
-first `acp` in provider order, else the first `api`. The key profile is
-`auto` -- the first profile whose `NVIM_*` key is set, else the first --
-until `:AI key` pins one. Startup precedence is `NVIM_AI_KEY_PROFILE` >
-`vim.g.ai_key_profile` > `agent_workbench.config.key_profile` (default `"auto"`).
+Providers have unique name/label, optional cli_api_key, and any of:
 
-Some of CodeCompanion's built-in adapters are set up whatever the list holds,
-since a chat restored from history or an upstream path can name one that no
-provider offers: `anthropic` and `openai` read `NVIM_ANTHROPIC_API_KEY` /
-`NVIM_OPENAI_API_KEY` (`builtin_http_keys`), never a CLI's own variable, and
-the `codex` ACP adapter uses the ChatGPT login (`builtin_acp_auth`). A
-provider's `api` that keeps a built-in's name (no `api.name` of its own) sets
-its own `NVIM_*` key there, and an `acp.auth_method` overrides the login.
+- `tui = { kind = "codex" }`, one per native kind;
+- `acp = { adapter, command, auth_method? }`, CLI bridge/subscription;
+- `api = { adapter, api_key, name?, label?, model? }`, HTTP/API credits.
 
-`NVIM_AI_PROVIDER` and `vim.g.ai_provider` are no longer read: a leftover
-value earns one warning, not a failed start. Every consumer holds the one
-`agent_workbench.state` table and reads it per call, so a key switch mutates it in place.
-The editable settings table is left alone.
+`api_key` must name NVIM_*. Built-in Anthropic/OpenAI adapter safeguards also
+cover restored chats; builtin Codex ACP defaults to chat-gpt authentication.
+No code writes billing variables. backends() yields native, ACP, HTTP in provider
+order and reports availability and billing. Missing CLI/bridge/key entries are
+not offered. Chat adapter identity is fixed at creation; switching keys never
+moves or restarts a terminal/chat.
 
-#### API Reference
-
-```lua
-local state = require("agent_workbench.state")
-
-state.providers       -- the list, in order, as written
-state.agents          -- the native terminals offered, by kind: { name (the
-                       -- kind), provider, label, command, prompt_pattern,
-                       -- capabilities, cli_api_key? }
-state.agent_names()   -- their kinds, in provider order
-state.acp             -- the ACP chats offered, in order: { provider, label,
-                       -- adapter, command, auth_method?, cli_api_key? }
-state.key_profiles    -- the key profiles, by name: { name, provider, adapter
-                       -- (the built-in it extends), label, api_key, model? }
-state.key_names()     -- their names, in provider order
-state.auto_key()      -- what `auto` stands for now: the first profile whose
-                       -- key is set, else the first; nil when no provider offers `api`
-state.builtin_http_keys -- { anthropic = "NVIM_ANTHROPIC_API_KEY", openai = "NVIM_OPENAI_API_KEY" }
-state.builtin_acp_auth  -- { codex = "chat-gpt" }
-state.codecompanion   -- { acp_adapter, chat_adapter, http_adapter, api_key, model }
-state.key             -- { name, label, auto }; name nil (label "none") when
-                       -- no provider offers `api`
-state.panel.width     -- 90 columns, shared by both agent panels and the chat window
-
--- codecompanion.acp_adapter is the adapter of the first `acp` in provider
--- order (nil when no provider offers one); chat_adapter, what CodeCompanion's
--- own chats use, is acp_adapter, else the first key profile, else nil
--- (CodeCompanion's own default). Both are fixed at load. http_adapter,
--- api_key and model are the key profile's and follow :AI key.
-
--- Check a provider list and derive the tables above from it. Pure: nothing
--- is assigned, so a spec can feed it any list. Raises at level 0, with
--- "AI providers: …" saying which entry, on an empty list, a missing name or
--- label, a name listed twice, a provider with no part, a cli_api_key that is
--- not a string, a tui.kind not implemented or already offered, an acp
--- without adapter and command, an api without adapter, or an adapter or api
--- name used twice; and through check_key_profile on an api_key that is not
--- NVIM_*.
-state.build(list)  --> { providers, agents, agent_names, key_profiles, key_names, acp }
-
--- Specs only: run with another list in-process, as if lua/config/ai.lua held
--- it. `auto` resolves again, and a pinned key the new list lacks falls back
--- to it; what a plugin read at its load (CodeCompanion's adapters) stays.
-state._set_providers(list)
-
--- Every way to start a chat, available or not, for the new-chat picker:
--- the terminals, then the ACP chats, then the API chats, each in provider
--- order. Reads PATH and the environment only; loads no plugin.
---   { id = "claude"|"codex"|"acp:<adapter>"|"api:<profile>",
---     kind = "native"|"acp"|"http", provider, agent?, adapter?, command?,
---     profile?, api_key?, model?, label, available, why?, warn? }
--- `provider` is the providers entry's name; `label` names transport and
--- billing ("Codex · terminal · subscription", "OpenAI · CodeCompanion API ·
--- API credits"); `why` says what is missing; `warn` names a CLI billing
--- variable that is set.
-state.backends()
-
-state.use_key(name)       -- "auto" resolves now (auto_key), a profile name pins it
-state.key_setting()       -- "auto" or the pinned profile name
-state.http_adapter_spec() -- inline/cmd adapter: name, or { name, model }
-state.check_key_profile(name, profile) -- error unless api_key is NVIM_*, never a CLI's own
-
--- Which native agent a terminal command runs (any CLI a provider's `tui`
--- offers), and which agent handed over a prompt file, from the temp path its
--- CLI chose: nil for a path none uses (an agent's pane running `git commit`).
--- Nothing falls back to a provider picked for the user.
-state.agent_of_command(cmd)     -- the TUI kind ("claude" / "codex") or nil
-state.agent_of_prompt(path)     -- the TUI kind ("claude" / "codex") or nil
-state.is_native_command(cmd)
-
-local switch = require("agent_workbench.switch")
-switch.key(name)            -- :AI key [name]; nil opens the picker
-switch.pick()               -- vim.ui.select over auto and every profile (<leader>ax)
-switch.info()               -- :AI info / :AIInfo
-switch.complete(arglead, cmdline)  -- :AI's completion
-```
-
-`:AI` and `:AIInfo` are defined by the facade (`local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua`), beside the
-keys they are the typed twins of: `:AI` is the chat switcher (`<leader>al`),
-`:AI new` the new-chat picker (`<leader>an`), and `key`/`info` go to the
-functions above; `:AI provider` is gone and says so, pointing at `:AI new` and
-the order of `lua/config/ai.lua`. A key switch runs `use_key`, then
-`require("agent_workbench.companion").sync()` (CodeCompanion's live inline and cmd
-adapters), then fires `User AIStateChanged` with `data = { axis = "key",
-from, to }`: the facade relabels `<leader>ae` (the one key whose description
-names a profile) on it, and lualine listens too. An invalid name is an error
-notification and changes nothing. CodeCompanion's `opts` is a function, so a
-plugin loaded after a switch starts from the switched key; its chat adapter is
-`codecompanion.chat_adapter`, set then and never changed, and nothing writes
-`vim.g.codecompanion_adapter`. `:AI info` loads no plugin: it lists the
-providers in order with the parts each offers (terminal · ACP · API, `✗`
-where one cannot start here), the adapter CodeCompanion's own chats use, the
-key, every profile's variable (set or not), the CLIs' own key variables, and
-every open chat with where it is.
-
-Both native backends answer `running()`, `buf()`, `window()` (any tabpage),
-`visible()` (current tabpage), `hide()` (current tabpage only; the job stays)
-and `reveal()` (show here and focus, starting it when none runs; never
-hides), without loading claudecode.nvim -- what the slot (`agent_workbench.slot`, below)
-is built on. `add_path(path, modified)` mentions a file, warning when the
-buffer has unsaved changes, since both agents read the saved file. Claude's
-`send_range(path, l1, l2)` mentions captured lines through claudecode's
-`send_at_mention`, and Codex's `send_text(text)` types a captured draft into
-its box as one paste; neither submits. A backend's `asks_first` names the
-methods whose cold start asks something before it shows a window (Claude's
-`select_model`, claudecode's model question): nothing is hidden for them
-until the terminal shows.
-
-```lua
-local ai = require("ai")
-
--- Call one agent's backend method by name, whatever is on the right. A
--- method that feeds the panel (edit_prompt, send_selection, tree_add) first
--- makes room for *that* agent's panel: every other AI window of this tabpage
--- gives way to it (unless it is on screen somewhere already). Review feedback
--- reaches the round's agent this way. An unknown agent or a method its
--- backend lacks is a WARN; a method that raises, an ERROR.
-agent_workbench.feed(agent, method, ...)
-
--- What review feedback sends: the backend stages `seed` for that agent
--- (agent_workbench.editor.stage_seed) and presses the TUI's own ctrl+g.
-agent_workbench.feed("claude", "edit_prompt", { seed = text, on_consumed = fn, on_expired = fn, ttl_ms = 10000 })
-
--- Images go to the agent that owns the prompt, never to one guessed at: a
--- prompt that names no agent (nil) has its staged files deleted, attached to
--- nothing, saying so.
-agent_workbench.attach_images(paths, agent)
-```
-
-Both backends' `edit_prompt(opts)` take `{ seed?, on_consumed?, on_expired?,
-ttl_ms? }` and pass them to `stage_seed` with their own agent; `<leader>ai`
-passes only `seed`.
+Public native observations are `session`, `sessions`, `session_of_buffer`,
+`backends`, `options`; operations are `open`, `show`, `hide`, `stop`,
+`send_context`, plus the host mapping facade. Session ids are native:codex;
+generations protect replacements from stale exits. The native provider owns a
+PTY/view; the registry owns metadata. `on_buffer` runs before TermOpen,
+`on_view` reports an owned window and `on_exit` is generation-scoped. No caller
+finds an agent through Snacks command data. External nonembedded providers are
+unsupported rather than silently pretending to have editor capabilities.
 
 ## AI Slot (`agent_workbench.slot`)
 
-Per tabpage the right shows at most one AI window: native Claude, native
-Codex or a CodeCompanion chat -- a "chat" in the keys' words. What is open is
-computed from live state on every call, never registered; nothing here loads
-claudecode.nvim or CodeCompanion to answer. Showing one hides the others in
-the current tabpage through their own owner's hide (claudecode's `cc_hide`,
-Snacks' hide, CodeCompanion's `ui:hide`): never a stop, close or wipe, never
-edgy's hide/close, never another tabpage. A window its owner cannot hide
-(claudecode's copy of its terminal in a diff tabpage) is left alone and still
-counts as shown here. A `BufWinEnter` guard holds the rule for upstream's own
-paths (`<leader>ao`, a typed `:CodeCompanionChat`, the action palette, the
-chat CodeCompanion shows in place of one ended with `,q`, claudecode
-re-showing its terminal, a model picked at claudecode's question): it
-records the tabpage when the event fires, ignores floats, and the latest AI
-window entered in a tick wins.
+Per tab the right shows one native Codex terminal or CodeCompanion chat.
+Showing one hides another through its owner's hide in this tab, preserving the
+PTY/session/buffer; never edgy hide, stop or another tab. A visible terminal copy
+is still the target here and cannot hide the owner's other-tab window. Floats
+are ignored for ownership/last-normal-window checks. BufWinEnter also covers
+upstream chat/history/successor paths, records its event tab, and lets the latest
+AI window entered in a tick win. Looking up chats loads no CodeCompanion.
 
 #### API Reference
 
@@ -1365,7 +1215,7 @@ slot.where(item)          -- "● here", "tab N" or "hidden"
 slot.state(item)          -- the owner's window: "here", "elsewhere" or "hidden"
 
 -- The chat on the right, read off the windows: the one shown here; from a
--- prefix-blocking view (CodeDiff), the one shown in util.window.origin_tab --
+-- prefix-blocking view (CodeDiff), the one shown in editor_core.window.origin_tab --
 -- which becomes the current tabpage; of several, the current window's.
 slot.target(cb, opts?)    -- cb(item, from); else asks: the switcher, or the
                           -- new-chat picker when none is open. A cancel calls
@@ -1398,7 +1248,7 @@ slot.focus_chat_prompt(chat, insert?) -- show_chat, then companion.focus_prompt
 slot.make_room(item, opts?) --> "here" | "elsewhere" | "room" | nil
                           -- before a backend shows `item`: go where it is
                           -- shown, or hide the rest here; a cold start goes to
-                          -- util.window.editor_win first; nil when refused.
+                          -- editor_core.window.editor_win first; nil when refused.
                           -- opts: jump, editor, hide (false: leave the rest to
                           -- the guard), quiet (no "went there" notice)
 slot.cover(keep?)         -- hide every AI window here an owner can hide, but keep's
@@ -1558,27 +1408,19 @@ It reads a chat's `add_callback`, `bufnr` and adapter name (through
 
 ## AI Panel Input (`agent_workbench.terminal`)
 
-Buffer-local input rules for every native agent panel -- whichever agent
-runs in it -- applied through one `TermOpen` hook because both
-agents open through Snacks — the per-backend
-alternative would need a callback threaded through claudecode.nvim's own
-terminal provider. Ordinary `:terminal` buffers are untouched.
-
-#### API Reference
+Buffer-local input rules for native Codex terminals are installed through a
+TermOpen hook and provider-neutral metadata. Ordinary terminals are untouched.
 
 ```lua
 local panel = require("agent_workbench.terminal")
-
-panel.setup()      -- install the TermOpen hook and register is_agent_buf with
-                   -- editor_core.terminal; called when the ai module loads
-panel.attach(buf)  -- apply the rules to one agent terminal buffer
-
--- Which native agent buf runs ("claude" / "codex"), or nil for any other
--- buffer, read off the command Snacks records. Every agent a provider offers
--- counts: several can be running, and each panel keeps its own rules.
-panel.agent_of(buf)
+panel.setup()       -- installs the hook; called by plugin setup
+panel.attach(buf)   -- applies rules to an explicitly owned terminal
+panel.agent_of(buf) -- "codex" or nil, from plugin-owned metadata and buftype
 panel.is_agent_buf(buf)
 ```
+
+The host injects is_agent_buf into editor_core.terminal. That utility imports
+no AI module. Snacks command fields are irrelevant to native identity.
 
 Three rules, the first two undoing something Nvim or Snacks does that is right
 for a shell and wrong for an agent TUI:
@@ -1621,13 +1463,11 @@ bottom.
 
 ## AI Selection (`agent_workbench.selection`)
 
-Builds agent-ready text from the live visual selection. It sits outside the
-backends because the two agents attach selections through different channels:
-Codex pastes text, while Claude's `<leader>as` goes over the IDE WebSocket as a
-mention of the lines and produces no text at all. `<leader>ai` needs text for
-both agents to seed the input box, so the text form has exactly one producer.
-`capture()` takes the selection whole, once, for every route it may take
-after a question: Claude's lines, Codex's draft, a chat's fenced block.
+Captures a Visual selection once through plain Neovim API before any async
+question. The same capture yields a Codex draft/reference, prompt seed or chat
+fenced context. Native saved selections use file/range references; modified
+selection text is exact. Directory listings are recognized and refused by the
+current facade, not guessed from a stale selection after a picker.
 
 #### API Reference
 
@@ -1702,9 +1542,9 @@ interpolated into AppleScript source, which has no equivalent of `shellescape`.
 
 ## Native Agent Launch (`agent_workbench.backend.launch`)
 
-Native backends own process construction and lifecycle. Claude's backend
-provides `terminal_command()`, `cwd(ctx)` and `configure(opts)`; its plugin spec
-only wires those into claudecode. Both native backends share:
+Codex owns native command construction, tmux lifecycle and teardown. The
+terminal provider owns only its PTY/view; no dependency on claudecode.nvim exists.
+Shared launch helpers are inert until a launch or explicit watchdog request.
 
 ```lua
 local launch = require("agent_workbench.backend.launch")
@@ -1717,14 +1557,14 @@ launch.enabled(env, global)   -- boolean preference: environment > vim.g > on
 launch.ensure_watchdog(agent) -- once per native agent; called by its backend
 ```
 
-Requiring the module starts nothing. Claude's watchdog begins when its plugin
-first configures a wrapped terminal; Codex's begins on its first wrapped spawn.
-The watchdog and teardown scripts preserve each agent's own socket namespace.
+The watchdog starts at Codex's first wrapped spawn and only controls its own
+socket namespace/process descendants. The terminal provider may be native or
+Snacks independently of that renderer.
 
 ### Why `agent-run` exists
 
 An agent that fails on startup used to make the panel vanish with no trace.
-Both tmux wrappers end with `exit-empty on` and a `client-detached` teardown
+The Codex tmux wrapper end with `exit-empty on` and a `client-detached` teardown
 hook, and that teardown makes the tmux client exit 0 however the pane's command
 ended -- measured: `sh -c 'exit 1'` through the real wrapper reaches nvim as
 status 0. Nvim's `:terminal` job therefore reports success,
@@ -1822,18 +1662,11 @@ in order, but the TUI applies a paste asynchronously and acts on the key first �
 measured: the float came up empty with a selection staged. Handing the text to
 the buffer instead has no ordering to lose, and needs no paste sanitising.
 
-A seed has an addressee, so each provider has a slot of its own, taken
-unconditionally by the first `open` of that provider's prompt
-(`config.agent_of_prompt`): an unanswered request cannot leak its seed
-into a later `ctrl+g`, and review feedback staged for Claude never lands in a
-prompt Codex opens meanwhile, or the other way round. The stager hears what
-happened through exactly one callback, at most once: `on_consumed` once the
-text is in a prompt on screen; `on_expired` when it never will be -- replaced
-by a newer seed, cleared, not taken within `ttl_ms`, or handed to a prompt
-that failed to open. Without `ttl_ms` a seed waits for that provider's next
-prompt, as a `<leader>ai` selection always has. A plain `<leader>ai` stages
-into the same slot, so it replaces a pending feedback seed, which then
-expires and keeps its draft.
+A seed belongs to a configured native owner. Only that owner's next prompt
+may consume it; an unowned editor request never takes it. Exactly one callback
+fires at most once: on_consumed after the text is in the prompt, or on_expired
+when replaced, cleared, timed out or unable to open. A plain compose replaces
+pending feedback in that slot and leaves the durable review draft intact.
 
 ### Images
 
@@ -1842,10 +1675,10 @@ into the buffer — the prompt file is plain markdown, and only the CLI can put
 image bytes into its request. On return, the staged files are replayed through
 the TUI's own `ctrl+v` (`agent_workbench.attach_images`), and the CLI writes its own
 `[Image #N]` marker. They go to the agent that owns the prompt, read from the
-temp path its CLI chose (`config.agent_of_prompt`: `claude-prompt-*.md` for
-Claude, `$CODEX_HOME/editor/*.md` for Codex), so a Codex prompt hands its images
+temp path its CLI chose (`agent_workbench.state.agent_of_prompt`: current Codex
+uses `$CODEX_HOME/editor/*.md`), so a Codex prompt hands its images
 to Codex whatever is on the right. The float's title names the same owner. A
-prompt whose path names neither agent (a `git commit` run in an agent's pane)
+prompt whose path names no configured agent (a `git commit` run in an agent's pane)
 has no owner: it takes no seed, `<C-v>` refuses, and its title is " Prompt ".
 
 The replay is deferred until after the buffer closes. Measured: while the prompt
@@ -1880,69 +1713,45 @@ At startup only the review defaults, their `agent_workbench.review.settings` res
 
 ```lua
 local cfg = require("agent_workbench.review.settings")
-
-cfg.get()        -- the effective settings: vim.g.ai_review merged over the defaults
-cfg.defaults()   -- the defaults alone, a deep copy
-cfg.overrides()  -- { ["retention.rounds"] = true, ... }: what vim.g.ai_review set
+cfg.get()       -- fresh effective setup values plus live vim.g.ai_review
+cfg.defaults()  -- copied setup snapshot, without live overrides
+cfg.overrides() -- dotted keys accepted from the live override
 ```
 
-`config.review` only returns the editable default values. The settings
-resolver copies them at load; editing the file takes effect on the next Nvim
-start. Runtime `vim.g.ai_review` overrides apply through the resolver.
+config.review declares round/delivery preferences. config.git declares shared
+snapshot size, saved retention and history policy. The host passes them into
+owners; legacy live Git fields under vim.g.ai_review retain precedence through
+a small host resolver. Setup declarations are strict; live invalid leaves warn
+once and retain valid siblings. Whole-table assignment is required for vim.g.
 
-`get()` merges again on every call and returns a fresh table, so a change
-applies from the next use and a caller may keep or change what it got. Assign
-`vim.g.ai_review` as a whole table: `vim.g` hands out copies, so
-`vim.g.ai_review.retention.rounds = 30` is lost. A key that is not a setting,
-a value of the wrong type and one outside its domain each warn once (title
-"AI review") and fall back to the default; the rest of the table still
-applies, and a bad entry of `always_confirm` is dropped on its own. The
-warnings are scheduled, so `get()` also works in a `vim.system` callback. A
-rejected value is not in `overrides()`.
-
-| Key | Default | Read by |
-|---|---|---|
-| `retention.rounds`, `retention.saved` | `20`, `10` | `util.baseline.save`'s `keep`, passed by `agent_workbench.review.rounds` / `<leader>gK` |
-| `max_file_size` | `10485760` (10 MiB) | every `git_review.baseline` snapshot (passed by `agent_workbench.review`, the git spec and git_review.view's `max_file_size` hook), git_review.view's notices |
-| `sources.claude`, `sources.codex` | `true` | the hook injection, `agent_workbench.review.hook.event` |
-| `sources.codecompanion_acp`, `sources.codecompanion_http` | `true` | `rounds.attach_chat`, every chat submit |
-| `hook_wait_ms` | `2500` (`0`: never wait) | `local-plugin/agent-workbench.nvim/scripts/agent-hook` (argv), the chat callback |
-| `claude_cwd` | `"git_root"` (or `"cwd"`) | claudecode's `cwd_provider` |
-| `unknown_session` | `"confirm"` (or `"refuse"`) | `rounds.resolve_sink` |
-| `always_confirm` | `{}` (entries `"claude"`, `"codex"`) | `rounds.resolve_sink` |
-| `redirect` | `true` | `rounds.resolve_sink` |
-| `seed_ttl_ms` | `10000` | `agent_workbench.review.feedback`, native delivery |
-| `history_limit` | `100` (`false`: no limit) | the `<leader>gh`/`gH` desc, git_review.view's history patch |
+Supported review keys: retention.rounds (20), sources.codex,
+sources.codecompanion_acp/http (true), hook_wait_ms (2500), unknown_session
+("confirm"/"refuse"), always_confirm ({} or {"codex"}), redirect (true),
+seed_ttl_ms (10000). Git values are max_file_size (10485760), retention.saved
+(10), history_limit (100 or false). Removed: sources.claude and claude_cwd.
 
 ### Native hooks (`agent_workbench.review.hook`)
 
 ```lua
 local hook = require("agent_workbench.review.hook")
-
-hook.script()           -- absolute path of local-plugin/agent-workbench.nvim/scripts/agent-hook
-hook.claude_settings()  -- Claude's --settings JSON: UserPromptSubmit, async SessionStart
-hook.codex_override()   -- Codex's -c value: hooks={UserPromptSubmit=[...],state={...}}
-hook.codex_trust_hash(event_key, command, timeout)  --> "sha256:<hex>"
-hook.CODEX_TRUST_KEY    -- "/<session-flags>/config.toml:user_prompt_submit:0:0"
-
--- The RPC receiver local-plugin/agent-workbench.nvim/scripts/agent-hook calls.
-hook.event(agent, event, payload_path, done_path)  --> status
+hook.script() -- absolute bundled agent-hook path
+hook.codex_override() -- one -c hooks table, UserPromptSubmit plus trust state
+hook.codex_trust_hash(event_key, command, timeout) -- sha256:<hex>
+hook.CODEX_TRUST_KEY -- /<session-flags>/config.toml:user_prompt_submit:0:0
+hook.event(agent, event, payload_path, done_path) -- RPC receiver status
 ```
 
-`claude_settings` and `codex_override` read `hook_wait_ms` when called, put
-it into the script's argv, and give the hook a timeout of
-`max(10, ceil(wait / 1000) + 5)` seconds. `codex_trust_hash` is sha256 over
-the sorted, compact JSON of the normalized handler, as Codex computes it;
-`codex_override` embeds the hash of exactly the command it injects.
+The injected wait is hook_wait_ms, timeout max(10, ceil(wait/1000)+5). Sorted,
+compact JSON with serde_json escapes produces Codex's handler fingerprint from
+the exact injected command. Fixed vectors and offline installed-CLI trust
+checks pin that upstream boundary. No user config or notify hook is overwritten.
 
-`event` answers at once: `"ok"`; `"ignored"` for an event that carries
-`agent_id`; `"disabled"` when that agent's source is off; `"missed"` when the
-script had already given up (a submit then may notify that its prompt has no
-baseline); `"error:usage"` / `"error:payload"`. An accepted event goes to
-`rounds.native_event` on the next tick. A submit is held until that handler
-calls `done` (once the baseline's tree is written) or the script stops
-waiting, which deletes the payload -- `gave_up()` reads that; a session event
-is released at once.
+Only configured codex/submit events are accepted. The receiver answers at once,
+drops child agent_id events/disabled sources, schedules round work and releases
+on failure. Payload removal means the sender gave up; missed submits take no
+late baseline, while a snapshot that finishes after timeout is marked Late.
+Status is ok/ignored/disabled/missed/error:usage/error:payload. The shell helper
+always exits 0 silently and bounds both RPC delivery and baseline waiting.
 
 ### Rounds and delivery checks (`agent_workbench.review.rounds`)
 
@@ -1952,8 +1761,7 @@ local rounds = require("agent_workbench.review.rounds")
 -- Every source opens rounds here.
 rounds.submit(ev)        -- { source, conversation?, root, turn?, gave_up?, done?, force?, on_round? }
 rounds.native_event(ev)  -- from agent_workbench.review.hook: { agent, event, payload, done, gave_up };
-                         -- Claude waking itself (a task notification, an agent's
-                         -- hand-back) opens no round
+                         -- unsupported kinds and child threads are acknowledged and dropped
 rounds.start(opts)       -- <leader>aV; opts.buf (default: the current buffer)
 
 -- The registry (this Nvim only, in memory), fed from the ai module's autocmds.
@@ -1967,7 +1775,7 @@ rounds.select_round(root, cb, opts)  -- cb(entry, why) | cb(nil, err?)
 rounds.review_vars(entry)        --> vim.t.ai_review for a round entry, else nil
 rounds.conversation_of(buf)      --> conversation?, root?, bound
 rounds.live_conversations(root)  --> the sessions this Nvim could deliver to there
-rounds.label(conversation)       --> "Claude Code session 7f0c1a2b…", and the like
+rounds.label(conversation)       --> "Codex session 7f0c1a2b…", and historical owners
 rounds.toplevel(path)            --> realpath of the Git toplevel, no git run
 rounds.source_label(source)      --> "Claude" for a Source trailer's "claude", nil for none
 rounds.prompted_at(conversation) --> when a native session was last prompted here
@@ -2028,7 +1836,7 @@ labels.span(start, ended, open, now)  --> "11:16:38 - 11:43:18", "11-09 23:50 - 
 labels.shorten(name, width)           --> one line, cut to `width` columns (NAME_WIDTH, 40)
 ```
 
-`describe` labels `util.baseline.list` entries for the `<leader>g` pickers:
+`describe` labels `git_review.baseline.list` entries for the `<leader>g` pickers:
 `display` is the picker's line -- `"<session>: <Source> <start> - <end>"` for
 a round, `"<name>: Saved <time>"` for a saved baseline -- and `label` the
 view's, with the start alone, since a view shows everything since the start.
@@ -2036,7 +1844,7 @@ view's, with the start alone, since a view shows everything since the start.
 an unknown kind). A round's session is its `Conversation`; its name is the
 first title its records hold and its end the last turn end at or after its
 start and before the session's next round, both from `agent_workbench.transcript.marks`,
-compared to the millisecond (`util.baseline.time_of`). `…` marks a session's
+compared to the millisecond (`git_review.baseline.time_of`). `…` marks a session's
 newest round when the session was prompted after its last turn end -- by
 this round's own prompt (a non-Late round whose `Source` is the agent) or a
 later one `rounds.prompted_at` heard -- and is alive: `rounds.running`, or
@@ -2064,9 +1872,9 @@ feedback.hide(buf)     -- q: hide the float in this tabpage; the draft stays
 ```
 
 `open` is asynchronous: it picks a root and a round, snapshots, and opens the
-view through `util.codediff.open` with `vim.t.ai_review` and
+view through `git_review.view.open` with `vim.t.ai_review` and
 `vim.t.codediff_baseline` once git has answered, or says why not. `attach`
-only hands `,C` to `util.codediff.set_keys` under its own `"review"` scope,
+only hands `,C` to `git_review.view.set_keys` under its own `"review"` scope,
 so `git_review.actions`' keys on the same buffers stay alone; a directory
 or file diff without a repository gets none. `comment` and `deliver` never
 raise: every failure is a warning, and a refused or cancelled delivery keeps

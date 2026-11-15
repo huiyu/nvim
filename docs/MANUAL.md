@@ -419,7 +419,7 @@ and files are reached through the pickers above.
 `;F` and `;D` use the file's directory or the displayed Oil directory.
 From terminals and other panels, they use the current window/tab working directory.
 
-From a terminal (including Claude/Codex), leave terminal input with `Ctrl-\`
+From a terminal (including Codex), leave terminal input with `Ctrl-\`
 or `jk`, then press `-` or `;o`. Oil opens with focus in the current tab's editor
 area, creating an empty editor split if needed. `q` closes Oil and returns to
 the editor; the terminal stays open.
@@ -685,7 +685,7 @@ is open beside your code.
 | `<Space>d` | Debug | breakpoints, step, inspect |
 | `<Space>t` | Test | run / debug nearest (`tm` / `tM`) and file (`tf` / `tF`), summary, output, diagnostics |
 | `<Space>x` | Diagnostics | error list, this file's (`xb`), quickfix, location list |
-| `<Space>a` | AI | the chat on the right — Claude / Codex panels and CodeCompanion chats (`an` new, `al` switch, `ac` / `af`), prompts, transcript, review rounds (`av` / `aV`), API key (`ax`) |
+| `<Space>a` | AI | the chat on the right — Codex panels and CodeCompanion chats (`an` new, `al` switch, `ac` / `af`), prompts, transcript, review rounds (`av` / `aV`), API key (`ax`) |
 | `<Space>b` | Buffer | delete, pin, move (`b<` / `b>`), delete others, delete the hidden ones (`bh`) |
 | `<Space>m` | Manage | config, plugin source, help, man, keymaps, messages, Lazy, Mason, LSP status |
 | `<Space>s` | Session | save / restore a working layout |
@@ -945,552 +945,222 @@ were showing.
 
 ### Terminals and AI
 
-```
-Ctrl-/       toggle a terminal
-3<Ctrl-/>    select terminal 3 from a file (Normal mode)
-,1 … ,9      choose terminal 1-9 from a terminal buffer (jk first)
-<Space>an    start an AI chat: Claude Code, Codex, or a CodeCompanion chat
-<Space>al    switch to another open chat
-<Space>ac    hide the chat on the right, or bring it back
-<Space>ai    write a prompt in a real Neovim buffer
-<Space>av    review what changed since your last prompt
-Ctrl-l       (Insert) take the grey AI suggestion
-```
+Use `<C-/>` for numbered shell terminals and `<Space>an` for a new AI chat.
+`,1`–`,9` choose terminals in Normal mode; they never close one by repeating the
+number. `<Space>al` switches AI chats, `<Space>ac` hides/restores the last one,
+`<Space>af` focuses it, and `<Space>ai` opens its prompt editor.
 
-`Ctrl-]` leaves terminal input without disturbing the program running in it —
-useful because `Esc` belongs to the AI CLIs themselves.
+The native backend in this release is Codex. CodeCompanion adds Codex ACP and
+OpenAI HTTP chats. `<Space>an` shows transport and billing; a running native
+entry reuses the session. Showing one target hides the others in this tab only,
+keeping their buffers/processes. A target shown in another tab is gone to with
+a notice. A terminal copy shown here remains the delivery target here. The
+last normal window is never hidden; floats do not count as another window.
 
-The right side of a tabpage holds one AI window — the *chat on the right*:
-Claude Code's or Codex's terminal, or a CodeCompanion chat. `<Space>an` starts
-one on any backend you have (the list says how each is billed), `<Space>al`
-switches to another open one, and the `<Space>a` keys that send something —
-`as`, `ab`, `ai` — go to whichever is on the right. Showing one hides the
-others in that tabpage without stopping them: an agent keeps working while it
-is hidden, and `<Space>al` (or `<Space>ac`, for the last one shown here)
-brings it back. With nothing on the right a key asks where to go; it never
-sends to a hidden chat on its own. In a CodeDiff view the keys act on the page
-the view was opened from.
+`as` captures Visual context before any picker and sends it without Enter.
+A saved selection is a file/range reference; unsaved text is pasted exactly and
+announced. `ab` adds the file, warning that native/ACP agents read disk.
+A CodeCompanion HTTP chat receives buffer text. A directory listing is refused;
+no Claude-only Oil action exists. From CodeDiff, chat keys use its origin tab.
 
-No agent is the default, and nothing at startup picks one. The *providers* —
-Claude and Codex out of the box — are an ordered list in `lua/config/ai.lua`,
-which only returns editable settings. Set `key_profile` there for the startup
-HTTP profile and `panel.width` for the panel width; restart Nvim after editing.
-Use `:AI key <name>` to switch the live HTTP profile without editing the file.
-The provider order is the only preference for backends: `<Space>an` lists every
-terminal, then every agent chat, then every API chat, each group in that
-order; a key only a native agent answers (`ar`, `am`, `at` and the like) acts
-on the native agent on the right, else asks among the installed ones in the
-same order (with one installed, it uses that one). A provider left out of the
-list is not offered, nor is any part of one whose CLI or key is missing here.
-Inline prompts bill the key of the first provider whose `NVIM_*` key is set,
-unless `<Space>ax` pins another. `:AI info` shows the providers in order with
-what each offers, every open chat and where it is, and which API key the
-inline prompts would use. Details: [AI chats and
-providers](../README.md#ai-chats-and-providers).
+`ai` uses Codex's `ctrl+g` and `$EDITOR` to edit the actual input draft in this
+Nvim. `<C-d>` returns it; cancel preserves the original. `<C-v>` stages an image
+for Codex's own attachment path after the editor closes. An editor request
+from a different program has no agent owner and takes no agent seed or image.
+`ar` resumes, `aR` continues, `am` chooses a model. On a running session these
+focus it and type nothing, protecting drafts and approvals. `at`/`aT` read
+native JSONL transcripts independently of terminal scrollback.
 
-To point an agent at some code, `<Space>yl` copies `path:12` (in Visual mode
-`path:12-18` for the selected lines), relative to the repository root. Agent
-prompts read that form, and so do `gF` and terminal links.
+`lua/config/ai.lua` declares providers, HTTP profile, panel, native argv, local
+plugin paths and terminal provider. `terminal.provider` may be `native`,
+`snacks` or a custom embedded adapter. tmux frame composition is independent;
+`CODEX_WRAP_TMUX=0` disables it. Its runner/watchdog/teardown preserve startup
+errors, CJK and scrollback and clean owned descendants. No CLI config is written.
 
-While you type in a file, a grey suggestion for the rest of the line may
-appear after the cursor. It comes from a model running on this machine, not
-from the agent in the panel (setup: [Inline AI completion](../README.md#inline-ai-completion)).
-`Ctrl-l` takes it. Ignoring it costs nothing: keep typing and it either follows
-along, while your text still matches it, or gives way to a fresh one. Markdown,
-plain text, commit messages and buffers without a filetype are left alone;
-`:Minuet virtualtext toggle` switches the current buffer either way.
-
-The numbered `,` keys focus or create the selected terminal and never close
-it when pressed again. `<C-/>` opens/closes the current or last-used terminal.
-
-If text from a panel is left painted over the window beside it (typically
-after scrolling through Devanagari such as Hindi strings), press `q` to return
-the panel to live output, then `<Space>ur` to make Nvim clear and repaint the
-screen.
+`<Space>ae` uses HTTP API credits; `<Space>ax` / `:AI key` switches that profile
+for this process, without touching terminals or existing chats. Defaults use
+OpenAI's `NVIM_OPENAI_API_KEY`; a CLI's `OPENAI_API_KEY` can change its billing
+and produces a warning. ACP uses `chat-gpt` authentication. No key is silently
+borrowed from a CLI variable. More detail: [AI keys](../README.md#ai-keys).
 
 ### Local native plugins
 
-Export `NVIM_AI_PLUGIN_DIR` before starting Nvim; it replaces the former
-`CLAUDE_PLUGIN_DIR`. Separate directories with commas:
-
-```sh
-export NVIM_AI_PLUGIN_DIR="$HOME/plugins/my-plugin,$HOME/plugins/distribution"
-```
-
-An entry can be a plugin directory or a distribution root containing
-`claude/<plugin>` and `codex/<plugin>` packages. Each native terminal selects
-its own host package. For example, point at GPK's `dist/marketplace` rather
-than its `claude/gpk` child. Claude reads `.claude-plugin/plugin.json`;
-Codex reads portable `plugin.json`, `.codex-plugin/plugin.json`, or a
-Claude-compatible manifest, in that order. Duplicate directories are ignored;
-two different plugins with the same name are an error.
-
-Claude receives repeated `--plugin-dir` flags. Codex reuses an enclosing native
-marketplace when it lists the selected package (GPK keeps `gpk@gpk`), or
-generates one under Nvim's cache. Before each start it refreshes local files
-and overrides the source and enablement through that invocation's `-c` flags,
-so a stale global source does not load a second copy. Installation
-writes its configuration into a disposable home sharing only Codex's plugin
-cache. Your normal config, login and global plugin enablement are preserved.
-Codex must support `plugin add` and local marketplaces (tested with 0.167.1).
-
-Skills, MCP and hooks are loaded by the native CLI. Codex's usual hook trust
-review still applies: use `/hooks` to review newly loaded plugin hooks. This
-does not translate arbitrary Claude-specific behavior into Codex behavior.
-Both tmux and direct launch paths use the same plugins, including resume.
-CodeCompanion's ACP and HTTP chats do not consume this variable; that work is
-tracked in [GPK #3](https://github.com/knotmark-ai/gpk/issues/3).
+Set `plugin_dirs` in `config/ai.lua`, or override with `NVIM_AI_PLUGIN_DIR`.
+Entries can be plugin directories or distribution roots with `codex/<plugin>`
+packages. Resolution happens at native launch; nothing installs at startup or
+for CodeCompanion. Codex refreshes local snapshots through `plugin add` using
+a disposable `CODEX_HOME` sharing only the real plugin cache. Marketplace and
+enabled overrides are invocation-local; global enablement/config stay intact.
 
 ### Three ways to ask an AI
 
-`<Space>an` offers three different things. What they can do overlaps; where
-the request goes, and who pays for it, does not:
+| Workflow | Transport / billing | Use |
+| --- | --- | --- |
+| Native Codex | Native CLI / ChatGPT login | Full CLI TUI and prompt editor |
+| Codex ACP chat | CodeCompanion + `codex-acp` / ChatGPT login | Chat UI with CLI tools |
+| OpenAI API chat / inline | HTTP / API credits | Chat or `<Space>ae` inline edits |
 
-| | Native panel | Agent chat | API chat |
-|---|---|---|---|
-| `<Space>an` entry | `Claude Code · terminal · subscription` | `Claude Code · CodeCompanion ACP · subscription` | `Anthropic · CodeCompanion API · API credits` |
-| What it is | The agent's own terminal app | The same agent in a Neovim chat buffer (CodeCompanion over ACP) | A model's API in the same kind of buffer (CodeCompanion over HTTP) |
-| Paid by | Subscription | Subscription | API credits |
+The picker shows each distinction and availability. HTTP keys use `NVIM_*`.
+CodeCompanion chat adapters are fixed at creation. Local transcript history and
+resuming an agent's ACP session with `/resume` are separate things.
 
-Each has its Codex or OpenAI twin. Once started, all three are reached the same
-way: they take turns on the right, and `as`, `ab`, `ai`, `ac` and `af` act on
-whichever is there.
-
-Pick by what you are doing:
-
-- **Hand over a task: the native panel.** It is the whole agent — it edits
-  files and runs commands, and Claude's proposed edits come back as diffs, in
-  a tabpage of their own (`<Space>aa` accepts, `<Space>ad` rejects; the tab
-  closes once Claude has the answer). `<Space>ai` writes the prompt in a real
-  buffer.
-- **Work through something in a buffer: the agent chat.** The same agent on
-  the same subscription, but the conversation is a Markdown buffer you can
-  search, yank from and edit like any other. In Visual mode `<Space>as` adds
-  the selection to it.
-- **Ask a model directly: the API chat.** No agent in between, billed to the
-  API key (setup: [API keys](../README.md#api-keys)). It has CodeCompanion's
-  own `@` tools, `/save` to keep a chat as a session and `/compact` for long
-  ones. `<Space>ae` is its one-shot form: an instruction for the selection,
-  or for the cursor position, typed on the command line, billed to the key
-  profile `<Space>ax` picks.
-
-Inside either chat, write below the last `## Me` heading and press `Enter` in
-Normal mode (or `Ctrl-d` from Insert mode) to send; nothing goes out before
-that. `Ctrl-c` stops the reply. `q` hides the chat, exactly as `<Space>ac`
-does, which brings it back; `,q` ends it, and CodeCompanion shows another open
-chat in its window. `,X` clears the messages, `,z` folds the code blocks, `,s`
-saves the chat, `gf` opens the file under the cursor and `?` or `g?` lists
-every key. Insert-mode `Ctrl-c` only leaves Insert mode, `gx` opens a URL and
-`{` / `}` move by paragraph, as in any buffer; another chat is `<Space>al`.
-The reply's heading says which kind you are in — `CodeCompanion (Claude Code ·
-ACP)` or `CodeCompanion (Anthropic · API)` — and so do `<Space>al`'s labels.
-The keys that spend API credits sit under the menu heading *HTTP · API
-credits*.
-
-Two chats on the right hand the one window over in place. A chat keeps the
-backend it was started on; another backend is another chat, from `<Space>an`.
-`<Space>ao` (or `gh` inside a chat) browses the saved chats of either kind
-and reopens one. An API chat whose key is not set is not offered, and
-`<Space>ae` says so and sends nothing.
-
-Approving an edit and reviewing one are different things. `<Space>aa` /
-`<Space>ad` answer one edit Claude *proposes*, before it reaches the disk; only
-native Claude asks (Codex runs with `--yolo` and asks nothing, and the chats
-have CodeCompanion's own tool approvals). Reviewing looks afterwards at
-everything that changed on disk since you sent a prompt, whichever of the three
-made it: `<Space>av` shows it, and from there you send feedback, stage, or
-discard a hunk back to the baseline. The next chapter walks through it.
-
----
+Ghost text is a fourth, independent service: a local llama-server, enabled only
+with a UI and eligible file. `<C-l>` accepts the suggestion; ignoring it simply
+continues typing. `config/completion.lua` owns model/service preferences;
+`config/keymaps.lua` owns its accept key. Markdown/text/commit messages are
+excluded by default; `:Minuet virtualtext toggle` changes the current buffer.
 
 ## Reviewing a round of agent changes
 
-An agent edits files on its own, several of them per prompt. Reviewing means
-looking at everything that changed since you asked, and telling the agent what
-you think of it. Every prompt you submit starts a **round**: a snapshot of the
-working tree taken just before the agent starts work, kept as a hidden Git
-commit, the round's *baseline*. `<Space>av` shows what changed since it, `,C`
-writes feedback on what you see, and `<C-d>` hands the feedback back to the
-conversation the round belongs to.
-
-```
-(send a prompt)    round 11:22:33 starts: its baseline is the code as it was
-<Space>av          the changes since that baseline, in a review tab
-,C                 a comment on the hunk / selection / file under the cursor
-,C …               more comments, collected in one draft
-<C-d>              the draft goes into the agent's input, for you to send
-(send it)          round 11:40:02 starts
-<Space>av          the new round, in the same review tab
-```
+A round is an immutable worktree baseline attached to a conversation. It proves
+that a change came **after the baseline**, not who made the change: user edits
+and another agent's work in the same repository are included too. Review shows
+changes since the round; it does not approve a future agent write.
 
 ### Where rounds come from
 
-Every kind of conversation starts rounds the same way:
+Native Codex's `UserPromptSubmit` hook takes a snapshot before the prompt runs.
+CodeCompanion's `on_before_submit` callback does the same for ACP/HTTP chats.
+`<Space>aV` takes a round manually; `<Space>gK` saves a separate, unowned baseline.
+A steer with the same Codex turn id opens no extra round. Repeated submits are
+deduplicated, unchanged trees reuse the previous round, and spawned threads with
+`agent_id` belong to their parent. Each fresh changed turn opens a new round.
 
-| Conversation | A round starts when |
-|---|---|
-| Native Claude or Codex (`<Space>an`) | you submit a prompt in the panel |
-| Agent chat or API chat (`<Space>an`) | you send a message, or regenerate a reply |
-| None in particular | you press `<Space>aV` |
+A native session's root is fixed at launch, a chat's at creation: the Git
+toplevel of its initial cwd. An agent that later changes directory keeps that
+root and is told once. The hook waits up to `hook_wait_ms` (2500 ms); a snapshot
+that finishes later is marked **Late**, because the earliest writes may already
+be included. If Nvim cannot serve the event before its deadline, no baseline is
+taken after the fact. The prompt itself is never blocked by an integration error.
 
-The prompt waits for its snapshot, up to 2.5 s; on an ordinary repository the
-snapshot takes a fraction of that. A snapshot that takes longer lets the prompt
-go ahead, and its round is marked **Late**: its baseline may already contain the
-agent's first edits, and the review view says so. Nothing else ever holds a
-prompt up, and nothing is added to it — a failure here costs the round, never
-the prompt.
-
-A round covers one repository, the conversation's *root*: the Git root of the
-directory the agent works in, fixed when it starts. Native Claude and Codex
-start in the current file's repository, a chat in Nvim's working directory.
-Edits the agent makes outside that repository are not part of any round.
-
-- Each Claude prompt starts a round. A Codex message sent while a turn is still
-  running belongs to that turn's round, and a chat's tool loop is one round:
-  only what you send yourself counts.
-- A prompt that finds nothing changed since the conversation's last round in
-  this Nvim keeps that round instead of starting a twin.
-- Subagents (Claude's Task agents, Codex's spawned threads) start nothing:
-  their prompts are part of the parent's turn.
-- Neither does Claude waking itself to go on with your work: when a
-  background task it started (a long Bash command, a workflow) finishes, or
-  a background agent it started hands its result back. What it changes, and
-  where that work ends, belong to the conversation's newest round — your
-  prompt's, unless you sent another prompt in the meantime. A wake-up Claude
-  scheduled (`ScheduleWakeup`, `/loop`) is a prompt like any other.
-- Outside Git nothing starts.
-
-A snapshot holds the untracked files too, except those `.gitignore` excludes
-at that moment and untracked files over 10 MiB, which are never read. An agent
-that edits `.env` or `node_modules` therefore shows nothing.
-
-A round proves only that a change came *after* its baseline. Your own edits in
-the same worktree, or another agent's, show up as well — which is why every
-message says "changes since round 11:22:33", never "the agent's changes".
-
-Rounds survive restarts. Each worktree keeps its newest 20; a round whose draft
-still holds feedback is kept beyond that.
+Hooks are injected per native process with `-c hooks=...` and a matching trust
+record. User CLI configuration and other hooks are preserved. Codex reports the
+current session only at a prompt; after a CLI resume/new/fork, Nvim cannot prove
+the input box's owner until the next prompt. A delivery may therefore ask for
+confirmation. A CLI started in a plain shell has no injected review hook.
 
 ### `<Space>av`: the review view
 
-`<Space>av` opens the round's baseline against the working tree, in a CodeDiff
-tab of its own. Which repository: the conversation's root when you press it in
-an agent panel or a chat; otherwise the current file's repository (in a
-CodeDiff view, the one it compares), otherwise the working directory's. Which
-round, the first that exists:
+From a conversation buffer, prefer its newest round; otherwise prefer the chat
+on this tab's right (or the CodeDiff origin tab), then this process's latest
+round in the root, then the latest stored round. A file with no visible chat
+never silently assigns the first provider as owner. One review tab per root is
+kept; opening one root never rearranges another root's view.
 
-1. the newest round of the conversation in the current panel or chat;
-2. the newest round of the chat on the right (in a CodeDiff view, of the page
-   the view came from);
-3. the newest round this Nvim started in that repository;
-4. the newest round there at all.
-
-Each repository has one review tab. `<Space>av` on the round it already shows
-focuses its file panel; on another round, the old review tab closes and the new
-one opens in its place. No other tab changes. Once the view is up, a notice
-says what it compares:
-
-```
-Changes since round 11:22:33 (baseline → working tree)
-Root: ~/proj
-Conversation: Claude Code session 7f0c1a2b…
-```
-
-and the statusline reads `Review · Claude · round 11:22:33 → working tree`.
-
-- **Nothing changed yet.** If the conversation's previous round has changes —
-  you sent the next prompt and the agent has not written anything yet — that
-  round opens instead: "Round 11:40:02 has no changes yet; showing round
-  11:22:33". Otherwise "No changes since round 11:22:33 in ~/proj", and nothing
-  opens. Paths the view cannot compare do not count as changes; the notice
-  names them.
-- **No round at all.** The notice says so, offers `<Space>aV`, and points to
-  `:checkhealth config` for the case where you did send a prompt
-  ([troubleshooting](DIAGNOSTICS.md#review-rounds-and-agent-hooks)).
-
-The view itself is an ordinary [CodeDiff view](#git) of a baseline against the
-working tree: `,S` / `,U` stage and unstage, `,X` discards a hunk back to the
-baseline. `<Space>gq`, or `q` in its file panel, closes the tab; the agents
-keep running.
+The view uses CodeDiff against the immutable baseline SHA. Its title/header show
+the source, round time, conversation, root and Late status. The baseline remains
+the comparison even if retention later removes its ref. Global layout-sensitive
+prefixes stay blocked within the view; its comma actions and file/LSP actions
+remain scoped as documented in the Git workflow.
 
 ### `,C`: feedback
 
-`,C` works in Normal and Visual mode in every window of every CodeDiff view of a
-Git repository, not only the review view. Each press adds one entry to a
-draft:
+In a Git view, use `,C` to add a comment for the selected lines/hunk. Context and
+text go into a review draft rather than directly to a chat. Open/edit the draft,
+remove or revise entries and use `<C-d>` to deliver. Drafts are atomically stored
+under `state/ai-review/<root hash>/`; unsent drafts survive closing a view or
+restarting Nvim. Concurrent nonoverlapping edits merge; conflicting edits are
+kept in a separate conflict file, with a notice, rather than overwritten.
 
-| Pressed on | The entry quotes |
-|---|---|
-| a hunk in a diff pane | the hunk as a diff of both sides, with three lines of context: `## src/parser.lua:42-47 (working tree) · was 40-43 at the baseline` |
-| a diff pane, away from any hunk | the cursor line |
-| a selection in the right pane | the selected lines, marked `unsaved buffer` when the file has unsaved edits |
-| a selection in the left pane | the baseline's lines, marked `(baseline side, not on disk)` |
-| a file in the file panel | its path and status only: `## src/new.lua (R src/old.lua→src/new.lua)` |
-| a file under a commit in a history | the file, its status and the commit: `## src/new.lua (M in 1a2b3c4d)` |
-| a commit in a single file's history (`<Space>gh`) | that file and the commit: `## src/new.lua (changed in 1a2b3c4d "Fix the parser")` |
-
-A commit row of the repository's history (`<Space>gH`) stands for no one
-file, so `,C` there asks for a file in the list instead. Paths are real paths relative to
-the repository. The left side's line numbers
-exist in no file on disk, so an entry quotes the code rather than pointing at
-lines. A view of two revisions names both.
-
-The draft opens in a float, the cursor on the new entry's `> ` line in Insert
-mode, ready for your comment. Its title names the round, and its top line
-where `<C-d>` will deliver:
-
-| Key | In the draft |
-|---|---|
-| `<C-d>` | Deliver it (Normal or Insert mode) |
-| `q` | Hide the float; the draft is kept |
-
-The rest is an ordinary Markdown buffer: rewrite or delete entries freely, and
-`@` completes the repository's files. Leaving the float in any way saves it,
-and the next `,C` appends to the same draft and shows it again. The
-`<!-- nvim-review … -->` lines are the draft's own: they record each entry's
-file for the staleness check below and are never sent. Deleting one merges its
-entry into the one above, and that entry's file is no longer checked.
-
-A draft is a file, shared by every Nvim: one per round, and one per repository
-for views that belong to no round (`gv`, `gm`, a `gk` without a round), under
-`~/.local/state/nvim/ai-review/`. Comments added from two Nvims are merged,
-and so are edits to different lines of one entry. Where both changed the same
-lines of an entry, or one Nvim typed into an entry the other has since
-delivered or deleted, the draft keeps the version saved first, and what was
-typed in the other goes beside it as `<round>.conflict.md` (then
-`.conflict-2.md`, …), with a warning naming it.
+A draft has a root/owner header. Losing its header is a refusal to deliver.
+`<id>.last-sent.md` preserves the last acknowledged delivery; a pending draft is
+cleared only after text actually arrived. A round with nonempty pending feedback
+is exempt from retention.
 
 ### `<C-d>`: delivery
 
-`<C-d>` sends the draft, without its markers, to the conversation that owns the
-round. It first switches to the tab that shows that agent's panel or chat —
-otherwise, from a CodeDiff view, to the tab the view was opened from (the
-nearest one before it that is not a view itself).
-
-- **Native Claude or Codex.** The feedback opens in that agent's own prompt
-  editor — the float `<Space>ai` opens — after whatever was already typed in
-  its input box. Read it over, `<C-d>` there puts it in the input box, and
-  Enter sends it. If that agent's prompt editor is already open, the feedback
-  is added to it directly.
-- **A chat.** It is added to that exact chat's message, below anything you had
-  typed there, with the chat shown and the cursor at the end in Insert mode.
-  Send it as usual.
-
-The draft is emptied only once the text has arrived, and a copy is kept as
-`<round>.last-sent.md` (each delivery replaces it). If the agent does not open
-its prompt editor within 10 seconds — usually because it is in the middle of a
-turn — the delivery counts as failed: "Claude Code did not open its prompt
-editor (busy?)", and the draft stays as it was. `<Space>ai` pressed for the same
-agent while a delivery waits cancels it the same way. Feedback meant for Claude
-is never picked up by Codex's prompt editor, or the other way round.
-
-**Stale entries.** Each entry remembers its file as it was when you commented.
-`<C-d>` checks the files again; an entry whose file changed since (or is gone)
-gets `⚠ changed since this comment` in its heading, and you are asked: *Deliver
-anyway* or *Edit first*. The check is per file, so it can flag an entry whose
-hunk did not change; it never misses one that did.
+Native delivery stages the feedback for the exact Codex prompt editor. Its
+consumption acknowledges delivery; cancel, timeout, replacement or failure keeps
+the draft. The TUI's own editor handoff handles its actual input. HTTP/ACP delivery
+adds text to the exact open CodeCompanion chat and acknowledges only success.
+A busy chat, including a tool loop between requests, refuses without losing text.
 
 ### Who receives it
 
-A round belongs to the conversation that started it, and `<C-d>` checks that
-the feedback still reaches that conversation before anything is sent. Each
-refusal keeps the draft and says why.
+Checks happen in order:
 
-1. **The same repository.** The draft's repository, the view's and the target
-   session's must be the same directory — a linked worktree is a different
-   one. Nothing overrides this, and nothing asks.
-2. **The same conversation.** A native agent has to be running in this Nvim,
-   in the round's session. If you have typed into its terminal since it last
-   reported the session (it might have been `/new`, `/resume` or `/fork`), or
-   it has not reported a session yet, a notice explains and you are asked
-   "… Deliver anyway?". A chat has to be open in this Nvim; a chat from before
-   a restart is gone.
-3. **Not busy.** A chat that is still replying, or between the steps of a tool
-   loop, refuses: deliver once it is done. Whether a native agent is busy
-   cannot be seen from here; the 10-second wait covers it.
+1. View root, draft root and destination root must be the same realpath. There
+   is no override or confirmation that bypasses a root mismatch.
+2. The native terminal must run the owning session, or the chat must still be
+   open in this Nvim. A native session not reported yet or typed into since its
+   report asks first (`unknown_session = "refuse"` refuses instead).
+3. A chat mid-turn refuses delivery. Its tools may still be running when no
+   HTTP request is visible, so that interval is also busy.
+4. An owner that is gone is refused. Unless `redirect = false`, choose a current
+   same-root session/chat and confirm the owner change once. Cancel keeps the draft.
 
-| The notice starts | Because | Then |
-|---|---|---|
-| `Claude Code is not running in this Nvim.` | the owner's agent is not running | `<Space>ar` to resume the session, then `<C-d>` again |
-| `Codex is not running in this Nvim.` | the same | `<Space>ar` (`codex resume`); Codex reports its session only at your first prompt, so the next `<C-d>` asks first |
-| `Claude Code is in another session now.` | the panel runs another conversation | `/resume` the round's session in the TUI |
-| `Claude Code runs in another root now:` | the agent was restarted from another repository | quit it, and resume the session from a file in the round's repository |
-| `That chat is closed or belongs to an earlier Nvim.` | the chat is gone | send to a current session (below) |
-| `Refused: the target session is in another root.` | the round's own session runs from another repository | resume it from a file in the round's repository; nothing overrides this |
-| `The chat is replying.` | the chat is mid-turn | wait, then `<C-d>` |
-| `No session to deliver to.` | no agent or chat runs in this repository | start one there |
-
-When the owner is gone — the first five rows — the refusal also offers **Send to
-a current session…**: a list of the sessions running in the same repository,
-then one confirmation naming both ("This round belongs to Claude Code session
-7f0c1a2b…", *Send to Codex · session 3e9a5d10…*). It changes where this one delivery
-goes; the round keeps its owner. A draft with no owner at all — a `<Space>aV`
-round that bound none, or a `gv` or `gm` view — opens that list at once; picking
-is the confirmation.
+The destination is never guessed from provider order or a hidden chat. A
+conversation id includes the native session id or a process nonce plus chat id,
+so an identically numbered chat from another Nvim is not the same owner.
+Historical Claude owners remain readable; without their backend they can only
+be redirected through the same explicit same-root checks.
 
 ### Each agent's limits
 
-| | Native Claude | Native Codex | Agent chat (ACP) | API chat (HTTP) |
-|---|---|---|---|---|
-| The baseline | taken before the prompt runs; the prompt waits up to 2.5 s | the same | taken before the message leaves; it waits up to 2.5 s | the same |
-| When Nvim learns the session | at start, `/clear`, `/resume`, `/compact` and every prompt | only at a prompt: after `/new`, `/clear`, `/fork`, `/resume` or a `codex resume` start, not until the next one | when the chat opens | the same |
-| `<C-d>` asks first | after you typed in its terminal | before its first prompt, or after you typed | never | never |
-| After restarting Nvim | `<Space>ar` resumes the same session, and delivery works | `<Space>ar`, then confirm the delivery (or send a prompt first) | the old chat is gone: send to a current session | the same |
-| What stops its rounds | `--bare`, managed settings that turn hooks off, a folder whose trust prompt is still open | a Codex update that changes how it trusts hooks | — | — |
-| Approval before a write | `<Space>aa` / `<Space>ad` | none (`--yolo`) | the chat's own tool approvals | the same |
+| | Native Codex | ACP / HTTP chat |
+| --- | --- | --- |
+| Baseline | Before prompt, bounded wait | Before submit callback, bounded wait |
+| Session known | At UserPromptSubmit | At chat creation |
+| Confirmation | Before first prompt, after typed input, or always_confirm | No native-session question |
+| After restart | Resume, then confirm or send a prompt | Old process's chat owner is gone |
+| Before a write | Native CLI's configured policy | Chat's own tool approvals |
 
-The native agents learn about prompts through hooks this Nvim adds to the
-agents it starts, and only to those: `--settings` for Claude, `-c` for Codex.
-Nothing is written to `~/.claude` or `~/.codex`, a Claude or Codex started in a
-plain shell starts no rounds, and the hook never prints, so the model sees
-nothing of it. Chats need no hook; Nvim sees their messages leave.
-
-Codex runs its session-start hook only when a thread's first turn starts. A
-`/new`, `/fork` or `/resume`, or a Codex started with `codex resume`, therefore
-switches threads without a word to Nvim until you next submit a prompt, and in
-between nobody can tell which conversation its input box belongs to. That is
-why a delivery to Codex then asks instead of refusing: refusing would make every
-Codex restart wait for a prompt.
-
-Codex also asks you to review a hook before running it ("hooks need review
-before they can run"); this one never asks. Its trust record comes with it, in
-the same `-c` option, so Codex treats it as reviewed without writing anything
-to `~/.codex/config.toml`. `--dangerously-bypass-hook-trust` would have skipped
-the question too, but for every hook, including any project's own
-`.codex/hooks.json`. The `-c` has one visible cost: Codex notes at startup that
-it runs "without the shared background server", because any `-c` makes it run
-its own; `sources.codex = false` drops both the hook and the note.
-
-Native Claude starts in the current file's Git root, as Codex does, so both
-agents' rounds belong to the project you are in; `claude_cwd = "cwd"` brings
-back Nvim's working directory. A Claude that `cd`s into another repository
-keeps recording its rounds where it started, and says so once.
+The shipped native argv remains `--no-alt-screen --yolo`. This Git review is a
+post-change workflow, not an IDE proposal accept/reject mechanism. Claude IDE
+protocol/openDiff and its approval keys belong to a later extension.
 
 ### Manual rounds, saved baselines and any two ends
 
-- `<Space>aV` (*Start review round*) takes a round now, without a prompt — say,
-  before you edit by hand or before a task you start some other way. It
-  belongs to the conversation of the panel or chat you press it in; else to the
-  chat on the right, when it works in this repository and is a conversation
-  this Nvim knows (an agent that has reported its session, or a chat); else to
-  nobody, and `<C-d>` asks where its feedback goes. When
-  nothing changed since that owner's last round, it says that round is already
-  the current state.
-- `<Space>gK` (*Save baseline…*) saves a named snapshot that
-  belongs to no conversation — "before refactor". It offers the name of the
-  agent session at work in this repository (the chat on the right first);
-  edit it, or clear it for the time. Each worktree keeps its newest 10, and a
-  notice names any it removes.
-- `<Space>gk` (*Compare two*) compares any two ends. Pick an older round's
-  baseline against the working tree to see everything since an earlier
-  prompt, several rounds at once: that view counts as the round's review tab,
-  and `,C` files feedback for its owner. Any baseline against the working tree
-  gets `,X` too. `<Space>gM` lists the baselines as well.
+`aV` makes a manual round. In a conversation buffer it belongs to that owner;
+from a file it belongs to the visible same-root chat, else no conversation.
+`gK` saves a named baseline without an owner; `gk` lists saved baselines and
+`gM` compares two chosen ends. Session/title/time labels may read older native
+records, including historical Claude JSONL. Renaming or hiding a session does
+not change the immutable SHA used by an open comparison.
 
-Both pickers name a round by its session, source and time:
-
-```text
-Scanner error messages: Claude 11:16:38 - 11:43:18   a round today
-Parser cleanup: Claude 11-09 20:36 - 21:39            a round on another day
-Config differences: Codex 07:48:39 - …                its session is still at it
-Agent chat 09:03:20                                   no session records to read
-before refactor: Saved 11-09 23:08                    a saved baseline
-```
-
-- **The name** is the first one the session had — Claude Code's generated
-  title (what `/resume` lists) or a `/rename` made before it, a Codex thread's
-  name — read from the agent's own records, and a later rename leaves it
-  alone. Past 40 columns it is cut with `…`.
-- **The start** is when the round's baseline was taken, as the prompt left.
-- **The end** is when the session last finished a turn (or was interrupted)
-  before its next round began. A prompt that changed nothing since the last
-  round keeps that round, so the end can come from a later prompt, and a turn
-  that ran past the next prompt leaves its round with no end.
-- **`…`** means the session is at work on this round: it was prompted (or
-  woken by a background task) after its last turn ended, and it is alive — its
-  terminal runs in this Nvim, or its records were written in the last 30
-  minutes. A session killed mid-turn therefore drops the `…`, and so does one
-  working in another Nvim on a step that writes nothing for 30 minutes. A
-  manual round (`<Space>aV`) is no prompt, so it shows `…` only once its
-  session is prompted again.
-- A chat, a manual round with no owner, or a session whose records are not
-  on this machine shows its source and start alone. Codex compresses a
-  rollout it has not touched for about ten days (`.jsonl.zst`); its turns are
-  read through `zstd` when that is installed, else such a round shows its
-  name and start.
-
-The view a baseline opens is labelled with the start alone, `Scanner error
-messages: Claude 11:16:38 → working tree`: it shows everything since then, up
-to now, whatever the end says.
-
-To start over with a conversation, send the next prompt or press `<Space>aV`;
-`<Space>av` always picks the newest round.
+Snapshots use unique temporary indices and never modify HEAD, the real index,
+branches, stash or their reflogs. Objects and `refs/nvim-review/<wtid>/...` are
+lasting writes. Ignored files follow the current ignore rules; oversized
+untracked files are excluded before hashing. Retention removes refs, leaving
+objects to Git gc. See [diagnostics](DIAGNOSTICS.md#what-review-baselines-leave-in-a-repository)
+for excluding these refs from all-branches graphs/mirrors.
 
 ### What each action changes
 
-| Action | Keys | Changes | Leaves alone |
-|---|---|---|---|
-| Feedback | `,C`, then `<C-d>` | nothing in the repository: text appears in the agent's input or the chat, for you to send | everything |
-| Stage / unstage | `,S` / `,U` | the real index — what `git commit` takes next | the working tree, the baseline |
-| Discard | `,X` | one hunk of the working-tree file, written to disk | the index, the baseline, the rest of the file |
-| Claude's approval | `<Space>aa` / `<Space>ad` | an edit Claude proposes, *before* it is written | the review view: unrelated |
-
-None of them is called *accept* or *approve*, because none of them tells the
-agent anything: staging is between you and Git, and only feedback reaches the
-conversation, once you send it.
+| Action | Meaning |
+| --- | --- |
+| `aV` | Snapshot now and associate a round owner when known |
+| `av` | Compare working tree with a round baseline |
+| `gK` | Save a separate baseline |
+| `,C` | Capture feedback into a durable draft |
+| `<C-d>` in draft | Deliver after destination checks; clear only on acknowledgement |
+| `,X` in a supported baseline file | Discard a hunk to that baseline, with the view's safeguards |
 
 ### Settings: `vim.g.ai_review`
 
-Defaults live in `lua/config/review.lua`, a plain settings table. Edit it
-and restart Nvim to change the defaults; assigning `vim.g.ai_review` changes
-only the specified settings in the current process.
-
-
-Defaults suit most use. To change some, set only those keys in `init.lua`:
-
-```lua
-vim.g.ai_review = { retention = { rounds = 30 }, claude_cwd = "cwd" }
-```
-
-Assign the whole table: `vim.g` hands out copies, so
-`vim.g.ai_review.retention.rounds = 30` changes nothing. A key that is not a
-setting, or a value of the wrong type or range, warns once and keeps the
-default; the rest of the table still applies. Each setting is read when it is
-used, so a change made while Nvim runs counts from the next use, except where
-the table says otherwise. `:checkhealth config` lists the values in effect.
+Editable defaults are in `config/review.lua`; shared Git values are in
+`config/git.lua`. Runtime options are copied at setup. Assign a whole
+`vim.g.ai_review` table for live overrides; changing a nested copy does nothing.
+Unknown/wrong leaves warn once and retain valid siblings. `:checkhealth config`
+shows effective settings.
 
 | Key | Default | Meaning |
-|---|---|---|
-| `retention.rounds` | `20` | Rounds kept per worktree, newest first. A round whose draft still holds feedback is never removed |
-| `retention.saved` | `10` | Saved baselines (`<Space>gK`) kept per worktree |
-| `max_file_size` | `10485760` (10 MiB) | Untracked files larger than this many bytes are left out of every snapshot, never read |
-| `sources.claude` | `true` | `false`: native Claude gets no hook, and its prompts start no rounds |
-| `sources.codex` | `true` | The same for native Codex |
-| `sources.codecompanion_acp` | `true` | `false`: agent chats start no rounds |
-| `sources.codecompanion_http` | `true` | `false`: API chats start no rounds |
-| `hook_wait_ms` | `2500` | How long a prompt waits for its baseline before going ahead with a Late round; `0` never waits |
-| `claude_cwd` | `"git_root"` | Where native Claude starts: `"git_root"`, the current file's Git root, or `"cwd"`, Nvim's working directory |
-| `unknown_session` | `"confirm"` | A native session `<C-d>` cannot confirm: `"confirm"` asks, `"refuse"` refuses |
-| `always_confirm` | `{}` | Agents whose deliveries always ask, even with the session confirmed: `"claude"`, `"codex"` |
-| `redirect` | `true` | `false`: an owner that is gone is refused without *Send to a current session…* |
-| `seed_ttl_ms` | `10000` | How long a native agent has to open its prompt editor for a delivery |
-| `history_limit` | `100` | Commits `<Space>gh` and `<Space>gH` list; `false` lists all |
+| --- | --- | --- |
+| `retention.rounds` | 20 | Newest rounds retained per worktree; pending drafts exempt |
+| `sources.codex` | true | Inject/receive native submit hooks |
+| `sources.codecompanion_acp` / `codecompanion_http` | true | Capture chat submit rounds |
+| `hook_wait_ms` | 2500 | Bounded baseline wait; 0 lets submit proceed immediately |
+| `unknown_session` | `"confirm"` | `"refuse"` denies an unproven native owner |
+| `always_confirm` | `{}` | `{ "codex" }` confirms every native delivery |
+| `redirect` | true | Offer explicit same-root redirection when the owner is gone |
+| `seed_ttl_ms` | 10000 | Prompt editor consumption deadline |
 
-When a change counts:
-
-- Claude's hook is part of its command, fixed when claudecode.nvim loads, at
-  the first Claude key. Turning `sources.claude` on, or a new `hook_wait_ms`,
-  then needs a restart; turning it off works at once, since the events are
-  dropped.
-- Codex's command is built each time Codex starts, so its sources and waits
-  count from the next start, and off counts at once.
-- A chat opened while its source was off starts no rounds even after you turn
-  it on; turning a source off counts at once.
-- The `<Space>gh` / `<Space>gH` descriptions are written when the plugin specs
-  load, so set `history_limit` before `require("config")` in `init.lua`;
-  the lists themselves follow the setting.
-
----
+Git defaults: `max_file_size = 10485760`, `retention.saved = 10`,
+`history_limit = 100` (or false). Legacy live overrides for these fields under
+`vim.g.ai_review` remain supported. `sources.claude` and `claude_cwd` are removed.
+Native hook changes apply at the next launch; disabling a source drops events
+immediately. Chats created while a source is disabled are not retroactively
+hooked. Setup edits require restart; HTTP key switches are process-local.
 
 ## When you forget a key
 
