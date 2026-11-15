@@ -466,10 +466,27 @@ api.nvim_win_set_cursor(0, { 2, 0 })
 asked, typed = {}, {}
 api.nvim_feedkeys("Vj", "x", false)
 ai.send_selection()
-t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@src/app.lua lines 2-3 ") end, 20),
+t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@" .. file .. " lines 2-3 ") end, 20),
   "<leader>as types the selection into Codex on the right")
 t.eq(#asked, 0, "without asking")
 vim.cmd("stopinsert")
+-- Selection capture precedes asynchronous chat selection. Its file reference
+-- must remain correct even when the recipient runs in another project.
+editor()
+local other_repo = scratch .. "/another repo"
+vim.fn.mkdir(other_repo .. "/.git", "p")
+vim.fn.mkdir(other_repo .. "/src", "p")
+vim.fn.writefile({ "other project" }, other_repo .. "/src/app.lua")
+vim.cmd.edit(vim.fn.fnameescape(other_repo .. "/src/app.lua"))
+local other_file = api.nvim_buf_get_name(0)
+typed = {}
+api.nvim_feedkeys("ggV", "x", false)
+ai.send_selection()
+t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@" .. other_file .. " lines 1-1 ") end, 20),
+  "a saved selection identifies its actual file across project roots")
+vim.cmd.stopinsert()
+api.nvim_set_current_win(editor_win)
+vim.cmd.edit(vim.fn.fnameescape(file))
 editor()
 typed = {}
 ai.add_buffer()
@@ -578,7 +595,7 @@ ai.compose()
 codex.edit_prompt = real_edit
 t.eq(#prompts[other], 1,
   "<leader>ai opens the prompt of the agent on the right (" .. other .. "), without a question")
-t.eq(prompts[other][1] and prompts[other][1].seed, "@src/app.lua lines 1-1 ", "seeded with the selection")
+t.eq(prompts[other][1] and prompts[other][1].seed, "@" .. file .. " lines 1-1 ", "seeded with the selection")
 -- So do the transcript keys: the agent on the right, unasked, without a question.
 editor()
 asked = {}
@@ -983,7 +1000,7 @@ typed = {}
 api.nvim_win_set_cursor(0, { 2, 0 })
 api.nvim_feedkeys("V", "x", false)
 ai.send_selection()
-t.ok(vim.wait(1500, function() return typed_into(codex_buf, "@src/app.lua lines 2-2 ") end, 10),
+t.ok(vim.wait(1500, function() return typed_into(codex_buf, "@" .. file .. " lines 2-2 ") end, 10),
   "selection reaches the visible terminal copy")
 t.eq(api.nvim_get_current_tabpage(), copy_tab, "delivery stays in the copy's tab")
 api.nvim_set_current_win(copy_editor)
@@ -1030,7 +1047,7 @@ choose("Codex")
 api.nvim_feedkeys("V", "x", false)
 ai.switch_chat()
 vim.cmd("stopinsert")
-t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@src/app.lua lines 1-1 ") end, 20),
+t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@" .. file .. " lines 1-1 ") end, 20),
   "Visual <leader>al shows Codex and types the selection into it")
 t.ok(codex.visible(), "Codex is on the right here now")
 

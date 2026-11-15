@@ -958,7 +958,8 @@ a notice. A terminal copy shown here remains the delivery target here. The
 last normal window is never hidden; floats do not count as another window.
 
 `as` captures Visual context before any picker and sends it without Enter.
-A saved selection is a file/range reference; unsaved text is pasted exactly and
+A saved selection uses an absolute file/range reference, so another project's
+active session reads the intended file; unsaved text is pasted exactly and
 announced. `ab` adds the file, warning that native/ACP agents read disk.
 A CodeCompanion HTTP chat receives buffer text. A directory listing is refused;
 no Claude-only Oil action exists. From CodeDiff, chat keys use its origin tab.

@@ -40,7 +40,7 @@ local WARN = vim.log.levels.WARN
 -- back the way any hidden chat does. The native-session keys (native_key) and
 -- the slot's own keys make room their own way, so a cancelled model question
 -- hides nothing.
-local REVEALS = { edit_prompt = true, send_selection = true, tree_add = true }
+local REVEALS = { edit_prompt = true, send_selection = true }
 
 ---Make room for `agent`'s panel before `method` reveals it. Nothing yields
 ---while that panel is on screen in any tabpage: the method acts on it where it
@@ -70,7 +70,7 @@ local function call(name, method, ...)
 end
 
 ---Deliver to one agent by name: review feedback goes to the agent whose round
----it is (lua/ai/review). The room made is for that agent's panel, the one
+---it is (agent_workbench.review). The room made is for that agent's panel, the one
 ---about to be revealed: every other AI window of this tabpage gives way to
 ---it, a chat shown here included.
 ---@param agent string an agent (TUI kind)
@@ -189,7 +189,7 @@ function M.add_buffer()
       end
       local room = slot().make_room(item, { quiet = true })
       if not room then return end
-      -- Both agents read the file from disk, and say so for an unsaved edit.
+      -- Native file mentions read from disk; warn about unsaved edits.
       backend(item.agent).add_path(path, modified)
       slot().went(item, from)
     end), { prompt = "Add file to" })
@@ -399,7 +399,7 @@ end
 
 -- What the review loop needs to hear about from the start: agent terminals and
 -- CodeCompanion chats are where rounds come from (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/rounds.lua),
--- and every CodeDiff view gets the review keys (lua/ai/review). Registering
+-- and every CodeDiff view gets the review keys (agent_workbench.review). Registering
 -- these requires none of it; a module is loaded once an event concerns it --
 -- a TermOpen only once its terminal turns out to be an agent's. A failure is a
 -- warning: it must not break the terminal or the chat that fired it.
@@ -455,54 +455,51 @@ end
 function M.setup(opts)
   require("agent_workbench.options").setup(opts)
   config = require("agent_workbench.state")
--- Loading the facade installs it, once (require caches the module): init.lua
--- requires it before lazy.nvim, and every later require("agent_workbench") gets the same
--- table. Nothing below may require("agent_workbench") synchronously -- the module is still
--- loading, so that require fails with "loop or previous error" -- use M.
+  -- Register the inexpensive facade; native sessions and integrations load on use.
 
--- Input rules for every agent panel, whichever agent runs in it -- see
--- local-plugin/agent-workbench.nvim/lua/agent_workbench/terminal.lua.
-require("agent_workbench.terminal").setup()
+  -- Input rules for every agent panel, whichever agent runs in it -- see
+  -- local-plugin/agent-workbench.nvim/lua/agent_workbench/terminal.lua.
+  require("agent_workbench.terminal").setup()
 
-M.apply_keymaps()
+  M.apply_keymaps()
 
 
-if require("agent_workbench.options").get().integrations.review then review_events() end
+  if require("agent_workbench.options").get().integrations.review then review_events() end
 
--- One AI window per tabpage, whichever path opened it.
-require("agent_workbench.slot").setup()
+  -- One AI window per tabpage, whichever path opened it.
+  require("agent_workbench.slot").setup()
 
--- A key switch (:AI key, <leader>ax) relabels <leader>ae: ai.switch announces
--- it, and the keys are this module's.
-vim.api.nvim_create_autocmd("User", {
-  group = vim.api.nvim_create_augroup("ai_keymaps", { clear = true }),
-  pattern = "AIStateChanged",
-  callback = function() M.apply_keymaps() end,
-})
+  -- A key switch (:AI key, <leader>ax) relabels <leader>ae: agent_workbench.switch announces
+  -- it, and the keys are this module's.
+  vim.api.nvim_create_autocmd("User", {
+    group = vim.api.nvim_create_augroup("ai_keymaps", { clear = true }),
+    pattern = "AIStateChanged",
+    callback = function() M.apply_keymaps() end,
+  })
 
--- :AI and :AIInfo, the typed twins of <leader>al / an / ax. Defining them
--- loads no plugin; the key profile's subcommands are ai.switch's.
-vim.api.nvim_create_user_command("AI", function(o)
-  local sub, arg = o.fargs[1], o.fargs[2]
-  -- The chat pickers of <leader>al / <leader>an (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua).
-  if not sub then return M.switch_chat() end
-  if sub == "provider" then
-    return notify(":AI provider is gone: :AI new (<leader>an) picks each chat's backend;"
-      .. "\nthe picker lists the providers in the order of lua/config/ai.lua", vim.log.levels.ERROR)
-  end
-  if #o.fargs <= 2 then
-    if sub == "key" then return require("agent_workbench.switch").key(arg) end
-    if sub == "info" and not arg then return require("agent_workbench.switch").info() end
-    if sub == "new" and not arg then return M.new_chat() end
-  end
-  notify("Usage: :AI [new | key [name] | info]", vim.log.levels.ERROR)
-end, {
-  nargs = "*",
-  complete = function(...) return require("agent_workbench.switch").complete(...) end,
-  desc = "Switch AI chat, start one, or set API key profile",
-})
-vim.api.nvim_create_user_command("AIInfo", function() require("agent_workbench.switch").info() end,
-  { desc = "Show AI providers, key profile and open chats" })
+  -- :AI and :AIInfo, the typed twins of <leader>al / an / ax. Defining them
+  -- loads no plugin; the key profile's subcommands are ai.switch's.
+  vim.api.nvim_create_user_command("AI", function(o)
+    local sub, arg = o.fargs[1], o.fargs[2]
+    -- The chat pickers of <leader>al / <leader>an (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua).
+    if not sub then return M.switch_chat() end
+    if sub == "provider" then
+      return notify(":AI provider is gone: :AI new (<leader>an) picks each chat's backend;"
+        .. "\nthe picker lists the providers in the order of lua/config/ai.lua", vim.log.levels.ERROR)
+    end
+    if #o.fargs <= 2 then
+      if sub == "key" then return require("agent_workbench.switch").key(arg) end
+      if sub == "info" and not arg then return require("agent_workbench.switch").info() end
+      if sub == "new" and not arg then return M.new_chat() end
+    end
+    notify("Usage: :AI [new | key [name] | info]", vim.log.levels.ERROR)
+  end, {
+    nargs = "*",
+    complete = function(...) return require("agent_workbench.switch").complete(...) end,
+    desc = "Switch AI chat, start one, or set API key profile",
+  })
+  vim.api.nvim_create_user_command("AIInfo", function() require("agent_workbench.switch").info() end,
+    { desc = "Show AI providers, key profile and open chats" })
 
 end
 
@@ -548,15 +545,27 @@ function M.stop(id)
   if not config.agents[kind] then return false, { code = "unavailable", message = "Unknown native backend" } end
   return backend(kind).stop()
 end
+local function valid_context(capture)
+  if type(capture) ~= "table" then return false end
+  local text, path, modified = capture.text, capture.path, capture.modified
+  return (text ~= nil or path ~= nil)
+    and (text == nil or type(text) == "string")
+    and (path == nil or type(path) == "string" and path ~= "" and vim.fs.abspath(path) == path)
+    and (modified == nil or type(modified) == "boolean")
+end
+
 ---Deliver captured context without submitting the CLI's input box.
 ---@param id string native backend id
 ---@param capture {text?: string, path?: string, modified?: boolean}
 function M.send_context(id, capture)
+  if type(id) ~= "string" or not valid_context(capture) then
+    return false, {
+      code = "unsupported",
+      message = "Context needs text or an absolute file path, with an optional boolean modified flag",
+    }
+  end
   local kind = id:gsub("^native:", "")
   if not config.agents[kind] then return false, { code = "unavailable", message = "Unknown native backend" } end
-  if type(capture) ~= "table" or type(capture.text) ~= "string" and type(capture.path) ~= "string" then
-    return false, { code = "unsupported", message = "Context needs text or an absolute file path" }
-  end
   local shown, err = M.open(kind)
   if not shown then return false, err end
   if capture.text ~= nil then backend(kind).send_text(capture.text)

@@ -320,6 +320,45 @@ t.eq(editor.tui_ready(scratch({ "❯ 1. Yes, I trust this folder", "  2. No, exi
   "UC-9: a numbered choice list is not an input box")
 t.eq(editor.tui_ready(nil), false, "UC-9: a missing buffer is not ready")
 
+-- A prompt may blink during the final settle period. The wait must resume,
+-- then either deliver exactly once or reach its original timeout.
+do
+  local defer, now = vim.defer_fn, vim.uv.now
+  local clock, queue, actions, timeouts = 0, {}, 0, 0
+  vim.uv.now = function() return clock end
+  vim.defer_fn = function(fn, delay) queue[#queue + 1] = { fn = fn, at = clock + delay } end
+  local function step()
+    local task = table.remove(queue, 1)
+    if not task then return false end
+    clock = task.at
+    task.fn()
+    return true
+  end
+  local prompt = scratch({ "›" })
+  local function wait()
+    editor.when_ready(function() return prompt end,
+      function() actions = actions + 1 end, function() timeouts = timeouts + 1 end)
+  end
+  wait()
+  step()
+  step()
+  vim.api.nvim_buf_set_lines(prompt, 0, -1, false, { "Loading..." })
+  step()
+  t.eq(actions, 0, "a prompt lost during settling triggers no premature action")
+  t.ok(#queue > 0, "losing the prompt during settling keeps the wait alive")
+  vim.api.nvim_buf_set_lines(prompt, 0, -1, false, { "›" })
+  for _ = 1, 8 do if not step() then break end end
+  t.eq({ actions, timeouts, #queue }, { 1, 0, 0 }, "a returning prompt delivers once and stops polling")
+  wait()
+  step()
+  step()
+  vim.api.nvim_buf_set_lines(prompt, 0, -1, false, { "Loading..." })
+  for _ = 1, 240 do if not step() then break end end
+  t.eq({ actions, timeouts, #queue }, { 1, 1, 0 }, "a prompt that never returns still times out once")
+  vim.defer_fn, vim.uv.now = defer, now
+  vim.api.nvim_buf_delete(prompt, { force = true })
+end
+
 -- UC-6: the wrapper the terminals are launched with has to exist and be
 -- runnable, or ctrl+g silently falls back to a nested nvim.
 local wrapper = require("agent_workbench.backend.launch").wrapper()

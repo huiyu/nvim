@@ -29,9 +29,13 @@
   独立 Nvim 中完成 require/setup；检查声明隔离、false、空 argv 替换和不开会话。
 - `plugin_contract_spec`：native / Snacks / custom 三种 provider 在独立 host 运行离线 PTY，
   覆盖 argv/CJK/cwd/env、会话复用、无隐式 Enter、hide/show/stop、跨 tab 副本、唯一普通窗口、
-  浮窗与旧 generation 回调。
+  浮窗与旧 generation 回调；还覆盖无副作用地拒绝非法上下文、跨项目文件引用、隐藏失败
+  的可见提示和新窗口回退。
 - `shared_keys_spec`：禁用 which-key 后，单个 `<C-y>` 覆盖作用于真实 Oil、Snacks picker、
-  Aerial 及帮助；替换/禁用旧键，保留 Oil Visual 模式。子进程必须到达最终完成标记。
+  Aerial 及帮助；替换/禁用旧键，保留 Oil Visual 模式。另检查核心/全局动作默认值、重映射
+  和 false 禁用。子进程必须到达最终完成标记。
+- `editor_spec`：提示框在稳定等待期间消失后，恢复轮询，随后恰好触发一次操作或超时。
+  `ai_slot_spec`：已保存选区从另一个项目捕获时，仍保留原文件的绝对路径。
 - 原有基线、CodeDiff、draft/feedback、round/delivery、CodeCompanion billing、prompt editor、
   transcript、tmux 清理、语言/LSP/DAP 等回归测试保持有效。删除的测试对应未交付的原生 Claude
   控制/IDE 路径；通用窗口路由和反馈闭环迁移为 Codex fixture。
@@ -68,5 +72,6 @@ PTY 使用离线 Python 替身，没有启动真实 AI 对话、提交 CodeCompa
    独立 provider 契约测试。最后退出，检查没有所属 tmux/agent 后代进程遗留。
 
 `<Space>` 是默认 leader。正式全量 gate 的命令与结果记录在 PR 描述。
-原先未提交的责任归属改动作为独立前置 commit 保留；无关 spikes 删除和本地 research
-文件没有纳入 PR。未合并、未替换原工作区，也未清理共享 lazy 安装目录。
+原先未提交的责任归属改动作为独立前置 commit 保留，其余本地 research 已备份。
+旧 spikes 由独立清理 PR #47 合并至 main，本分支已同步该 main。当前配置工作区已按用户
+要求切到本 PR 分支；本 PR 尚未合并，也未清理共享 lazy 安装目录。

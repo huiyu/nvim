@@ -225,26 +225,45 @@ end
 ---@param item ai.SlotItem
 ---@param opts? { keep_window?: boolean } a chat: leave its window for the next chat
 function M.hide(item, opts)
-  local ok, err
+  local ok, hidden, err
+  local busy = item.kind == "chat" and companion().busy(item.chat)
   if item.kind == "native" then
-    ok, err = pcall(backend(item.agent).hide)
+    ok, hidden, err = pcall(backend(item.agent).hide)
   else
-    if companion().busy(item.chat) then
-      notify(("%s is still working (replying or waiting for an approval) — hidden; <leader>al brings it back")
-        :format(M.label(item)))
-    end
-    ok, err = companion().hide(item.chat, opts)
+    ok, hidden, err = companion().hide(item.chat, opts)
   end
-  if not ok then require("agent_workbench.context").notify_error(err) end
+  if not ok or hidden == false then
+    err = (not ok and hidden or err) or { code = "unavailable", message = "AI window refused to hide" }
+    require("agent_workbench.context").notify_error(type(err) == "table" and err.message or err)
+    return false, err
+  end
+  if busy then
+    notify(("%s is still working (replying or waiting for an approval) — hidden; <leader>al brings it back")
+      :format(M.label(item)))
+  end
+  return true
+end
+
+local function hide_all(victims)
+  local hidden = 0
+  for _, victim in ipairs(victims) do
+    local ok, err = M.hide(victim.item)
+    if not ok then return hidden, err end
+    hidden = hidden + 1
+  end
+  return hidden
 end
 
 ---Hide every AI window here an owner can hide, except `keep`'s.
 ---@param keep ai.SlotItem?
----@return integer hidden how many there were
+---@return integer hidden how many were successfully hidden
+---@return any? error
 function M.cover(keep)
-  local victims = M.victims(keep)
-  for _, v in ipairs(victims) do M.hide(v.item) end
-  return #victims
+  local hidden, err = hide_all(M.victims(keep))
+  -- A view opened first to avoid E444 must yield again if its predecessor
+  -- refuses to hide. Never force-close the predecessor or stop its session.
+  if err and keep then M.hide(keep) end
+  return hidden, err
 end
 
 ---Run `open`, which shows `keep` here, with the rest hidden: before it, or --
@@ -255,10 +274,15 @@ function M.around(keep, open)
   local victims = M.victims(keep)
   local later = would_empty(victims)
   if not later then
-    for _, v in ipairs(victims) do M.hide(v.item) end
+    local _, err = hide_all(victims)
+    if err then return false, err end
   end
   open()
-  if later then M.cover(keep) end
+  if later then
+    local _, err = M.cover(keep)
+    if err then return false, err end
+  end
+  return true
 end
 
 ---Remember `item` as this tabpage's last chat, for <leader>ac/af.
@@ -331,11 +355,14 @@ function M.show_chat(chat, opts)
   local from = api.nvim_get_current_win()
   local donor = M.chat_window_here(item)
   if donor then
-    M.hide(donor.item, { keep_window = true })
+    local hidden, err = M.hide(donor.item, { keep_window = true })
+    if not hidden then return false, err end
     cc.open(chat, { win = donor.win, toggled = opts.toggled })
-    M.cover(item)
+    local _, cover_err = M.cover(item)
+    if cover_err then return false, cover_err end
   else
-    M.around(item, function() cc.open(chat, { toggled = opts.toggled }) end)
+    local shown, err = M.around(item, function() cc.open(chat, { toggled = opts.toggled }) end)
+    if not shown then return false, err end
   end
   M.remember(item)
   if opts.focus ~= false then
@@ -352,8 +379,10 @@ end
 ---@param chat table a CodeCompanion.Chat
 ---@param insert boolean?
 function M.focus_chat_prompt(chat, insert)
-  M.show_chat(chat)
-  return companion().focus_prompt(chat, insert)
+  local shown, err = M.show_chat(chat)
+  if not shown then return false, err end
+  companion().focus_prompt(chat, insert)
+  return true
 end
 
 ---Make room for `item`, which a backend method is about to show or start:
@@ -386,7 +415,8 @@ function M.make_room(item, opts)
   if opts.hide == false then return "room" end
   local victims = M.victims(item)
   if not would_empty(victims) then
-    for _, v in ipairs(victims) do M.hide(v.item) end
+    local _, err = hide_all(victims)
+    if err then return nil, err end
   end
   return "room"
 end
@@ -412,13 +442,15 @@ function M.reveal(item)
   end
   if M.state(item) == "elsewhere" then return M.jump(item) end
   if item.kind == "chat" then
-    M.focus_chat_prompt(item.chat)
+    local shown, err = M.focus_chat_prompt(item.chat)
+    if not shown then return false, err end
     M.remember(item)
     return true
   end
   local b = backend(item.agent)
   if not ask(b.running) and not to_editor() then return false end
-  M.around(item, function() b.reveal() end)
+  local shown, err = M.around(item, function() b.reveal() end)
+  if not shown then return false, err end
   M.remember(item)
   return true
 end
@@ -694,7 +726,8 @@ function M.toggle()
     return notify(("%s is this tabpage's only window: <leader>ac would leave nothing in its place")
       :format(name(victims[1].item)))
   end
-  if M.cover() > 0 then return end
+  local hidden, err = M.cover()
+  if hidden > 0 or err then return end
   if close_copies(shown) > 0 then return end
   local item = shown[1]
   notify(("%s is shown here in a window it cannot hide"):format(name(item)))

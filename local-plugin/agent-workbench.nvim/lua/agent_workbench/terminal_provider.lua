@@ -5,9 +5,7 @@ local api = vim.api
 local function implementation()
   local selected = require("agent_workbench.options").get().terminal.provider
   if type(selected) == "string" then return require("agent_workbench.provider." .. selected) end
-  for _, method in ipairs({ "open", "show", "hide", "send", "alive", "stop" }) do
-    assert(type(selected[method]) == "function", "terminal provider missing " .. method)
-  end
+  -- Custom providers are validated once at setup, before any session opens.
   return selected
 end
 local function event()

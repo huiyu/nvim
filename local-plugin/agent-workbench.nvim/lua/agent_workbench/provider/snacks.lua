@@ -16,16 +16,19 @@ function M.open(request)
           buffer = win.buf, once = true, callback = function()
             local code = vim.v.event.status
             request.on_exit(code)
-            if code == 0 then vim.schedule(function() win:close() end)
-          elseif not handle.stopping then vim.notify("Terminal exited with code " .. code, vim.log.levels.WARN) end
-        end,
-      })
-    end,
-    on_win = function(win) request.on_view(win.win) end,
-  },
-})
-handle.buf, handle.channel, handle.win, handle.terminal = terminal.buf, vim.bo[terminal.buf].channel, terminal.win, terminal
-return handle
+            if code == 0 then
+              vim.schedule(function() win:close() end)
+            elseif not handle.stopping then
+              vim.notify("Terminal exited with code " .. code, vim.log.levels.WARN)
+            end
+          end,
+        })
+      end,
+      on_win = function(win) request.on_view(win.win) end,
+    },
+  })
+  handle.buf, handle.channel, handle.win, handle.terminal = terminal.buf, vim.bo[terminal.buf].channel, terminal.win, terminal
+  return handle
 end
 function M.show(handle, request)
   handle.terminal:show():focus()

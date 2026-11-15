@@ -1,12 +1,8 @@
 -- Turns the current visual selection into text an agent can consume.
 --
--- This lives outside the backends because the destinations take a selection
--- through different channels. Codex has no editor-selection API, so its
--- <leader>as pastes text. Claude's <leader>as is a mention of the captured
--- lines over the IDE WebSocket (claudecode's send_at_mention) and produces no
--- text at all; a CodeCompanion chat gets a fenced block (ai.companion
--- add_capture). <leader>ai needs text for either native agent to seed its
--- input box, so the text form has exactly one producer: this module.
+-- Codex receives a file/range reference or the exact unsaved text;
+-- CodeCompanion adds the captured lines as a fenced block. Capture happens
+-- before any asynchronous question, while the live Visual selection exists.
 --
 -- Nothing here notifies. The caller owns how a failure or a fallback is shown,
 -- because <leader>as and <leader>ai surface them differently.
@@ -51,10 +47,9 @@ function M.draft()
   local last_line = math.max(anchor[2], cursor[2])
 
   if path ~= "" and not vim.bo[buf].modified then
-    -- A saved file can be referenced instead of pasted. The trailing space is
-    -- load-bearing: it leaves the cursor ready for an instruction after the
-    -- mention rather than glued to it.
-    return ("@%s lines %d-%d "):format(rel, first_line, last_line)
+    -- The recipient is not known yet and may run in another project. Keep
+    -- the absolute path, with a trailing space ready for the next instruction.
+    return ("@%s lines %d-%d "):format(path, first_line, last_line)
   end
 
   -- An unsaved or modified buffer cannot be referenced by path -- the agent
@@ -71,11 +66,8 @@ function M.draft()
   return draft, nil, notice
 end
 
--- Directory listings: their selection names files, which claudecode reads off
--- the live Visual selection (its tree integrations). Text drawn from it is
--- the listing, not code. oil is the only listing here (netrw is disabled);
--- claudecode also reads nvim-tree, neo-tree, mini.files and netrw, should one
--- be installed.
+-- A directory listing contains names rather than selected source code.
+-- Oil is the only listing here; its selections are refused by the facade.
 local TREE_FILETYPES = { oil = true }
 
 ---A selection taken whole, before anything asks where it goes.
@@ -95,8 +87,8 @@ local TREE_FILETYPES = { oil = true }
 ---@field path string the buffer's name, "" for none
 ---@field modified boolean the buffer has unsaved changes: a file mention would miss them
 ---@field filetype string
----@field tree boolean a directory listing, whose selection only a live Visual can turn into files
----@field draft? string ai.selection.draft()'s text, for a terminal agent's input box
+---@field tree boolean a directory listing, refused as source context
+---@field draft? string captured file/range reference or text for a terminal agent
 ---@field err? string why there is no draft
 ---@field notice? string what the draft had to fall back to
 

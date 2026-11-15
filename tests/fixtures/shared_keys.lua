@@ -5,6 +5,10 @@ local ok, err = xpcall(function()
   local keys = dofile('lua/config/keymaps.lua')
   keys.open.vsplit.key = '<C-y>'
   keys.open.split, keys.open.preview = false, false
+  keys.core.run_file = nil -- Exercise the independent plugin's fallback key.
+  keys.actions.close_window = nil
+  keys.actions.toggle_word_wrap.key = '<leader>uW'
+  keys.actions.toggle_spelling = false
   package.loaded['config.keymaps'] = keys
   vim.opt.rtp:prepend(vim.fn.stdpath('data') .. '/lazy/lazy.nvim')
   local lazy = require('lazy')
@@ -22,6 +26,11 @@ local ok, err = xpcall(function()
   end
   check(package.loaded['which-key'] == nil, 'which-key is absent')
   check(vim.fn.maparg('ss', 'n') ~= '', 'editor actions exist without which-key')
+  check(vim.fn.maparg(',x', 'n') ~= '' and vim.fn.maparg('sd', 'n') ~= '',
+    'omitted core/action choices retain their plugin defaults')
+  check(vim.fn.maparg('<leader>uW', 'n') ~= '' and vim.fn.maparg('<leader>uw', 'n') == '',
+    'an action remap installs only its chosen key')
+  check(vim.fn.maparg('<leader>us', 'n') == '', 'false disables an action')
   local tmp = assert(vim.uv.fs_realpath(vim.env.KEY_TEST_TMP))
   local file = tmp .. '/entry.lua'
   vim.fn.writefile({ 'local function entry() end', 'entry()' }, file)

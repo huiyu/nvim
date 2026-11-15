@@ -62,6 +62,15 @@ vim.cmd.cd(vim.fn.fnameescape(tmp))
 local file = tmp .. "/file 日本語.txt"
 vim.fn.writefile({ "source" }, file)
 vim.cmd.edit(vim.fn.fnameescape(file))
+for _, capture in ipairs({
+  {}, { text = 123 }, { text = false, path = file }, { text = "draft", path = false },
+  { path = "relative.txt" }, { path = "" }, { path = file, modified = "yes" },
+}) do
+  local ok, reason = agent.send_context("codex", capture)
+  check(not ok and reason.code == "unsupported", "malformed context is refused")
+  check(#agent.sessions() == 0 and #api.nvim_list_wins() == before,
+    "invalid context starts no session and opens no view")
+end
 if selected == "custom" then
   failures.open = true
   local failed, reason = agent.open("codex")
@@ -94,6 +103,36 @@ vim.wait(60, function() return false end)
 check(not text():find("SEEN:", 1, true), "draft remains unsubmitted")
 vim.api.nvim_chan_send(channel, "\n")
 check(vim.wait(2000, function() return text():find("SEEN:draft 日本語", 1, true) end, 10), "exact text reaches PTY")
+-- A nested repository has a different project root from this running session.
+-- Both contain same.txt, so a basename-only mention would identify the wrong file.
+local other = tmp .. "/other project"
+vim.fn.mkdir(other .. "/.git", "p")
+vim.fn.writefile({ "session's file" }, tmp .. "/same.txt")
+vim.fn.writefile({ "other project's file" }, other .. "/same.txt")
+check(agent.send_context("codex", { path = assert(vim.uv.fs_realpath(other .. "/same.txt")) }),
+  "another project's file can be added to the existing session")
+vim.wait(60, function() return false end)
+api.nvim_chan_send(channel, "\n")
+check(vim.wait(2000, function() return text():find("SEEN:@other project/same.txt ", 1, true) end, 10),
+  "file references resolve from the session root, not the file's project root")
+if selected == "custom" then
+  local notify, notes = vim.notify, {}
+  vim.notify = function(message) notes[#notes + 1] = tostring(message) end
+  failures.hide = true
+  local slot = require("agent_workbench.slot")
+  local count, reason = slot.cover()
+  check(count == 0 and reason.code == "unavailable" and agent.session("codex").win ~= nil,
+    "a refused hide is not counted and keeps its view/session")
+  check(notes[1] and notes[1]:find("hide refused", 1, true), "hide refusal explains its cause")
+  local opened = false
+  local switched = slot.around({ id = "cc:unopened", kind = "chat", chat = {} }, function() opened = true end)
+  check(not switched and not opened, "a rejected hide prevents opening a competing view")
+  local last = vim.t.ai_slot_last
+  local revealed, refusal = slot.reveal({ id = "cc:unopened", kind = "chat", chat = {} })
+  check(not revealed and refusal.code == "unavailable" and vim.t.ai_slot_last == last,
+    "a refused chat reveal propagates failure and preserves the last shown chat")
+  failures.hide, vim.notify = nil, notify
+end
 check(agent.hide("codex") and agent.session("codex").alive, "hide preserves the process")
 agent.show("codex")
 check(agent.session("codex").buf == session.buf, "show preserves buffer")
@@ -121,6 +160,24 @@ local float = api.nvim_open_win(api.nvim_create_buf(false, true), false,
 hidden, reason = agent.hide("codex")
 check(not hidden and reason.code == "only_window", "float does not make the last normal window closeable")
 api.nvim_win_close(float, true)
+if selected == "custom" then
+  local notify = vim.notify
+  vim.notify = function() end
+  failures.hide = true
+  local chat = { id = "rollback", ui = {} }
+  local opened
+  chat.ui.hide = function()
+    api.nvim_win_close(opened, true)
+  end
+  local switched = require("agent_workbench.slot").around({ id = "cc:rollback", kind = "chat", chat = chat }, function()
+    chat.bufnr = api.nvim_create_buf(false, true)
+    opened = api.nvim_open_win(chat.bufnr, true, { split = "left" })
+  end)
+  check(not switched and not api.nvim_win_is_valid(opened) and api.nvim_win_is_valid(owned),
+    "if the sole old view refuses to hide, the newly opened view is hidden again")
+  api.nvim_buf_delete(chat.bufnr, { force = true })
+  failures.hide, vim.notify = nil, notify
+end
 api.nvim_open_win(api.nvim_create_buf(false, true), true, { split = "left" })
 if selected == "custom" then
   local notify, notes = vim.notify, {}

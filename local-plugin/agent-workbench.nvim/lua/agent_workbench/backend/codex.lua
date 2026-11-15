@@ -181,6 +181,8 @@ end
 local function send(text, opts)
   opts = opts or {}
   local term, created = ensure()
+  -- A file reference must be formatted after resolving the recipient's root.
+  if type(text) == "function" then text = text(term.root) end
   local delay = created and 350 or 0
 
   local function fail(reason)
@@ -250,7 +252,7 @@ function M.focus()
 end
 
 ---Show the session here and focus it, starting it when none runs; never
----hides it. The slot's reveal (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua), as Claude's is.
+---hides it. Used by the tab's AI slot.
 M.reveal = M.focus
 
 function M.resume()
@@ -355,7 +357,8 @@ function M.select_model()
   send("/model", { raw = true, submit = true })
 end
 
----Mention a file: `@<path relative to its project> `, typed into the input
+---Mention a file relative to the running session, or by its absolute path
+---outside that root. Typed into the input
 ---box, not submitted. Warns when `modified`: Codex reads the saved file.
 ---@param path string
 ---@param modified boolean?
@@ -363,8 +366,9 @@ function M.add_path(path, modified)
   if modified then
     vim.notify("Codex @-mentions read the saved file; this buffer has unsaved changes", vim.log.levels.WARN)
   end
-  local rel = vim.fs.relpath(project_root(path), path) or path
-  send("@" .. rel .. " ", { submit = false })
+  send(function(root)
+    return "@" .. (vim.fs.relpath(root, path) or path) .. " "
+  end, { submit = false })
 end
 
 ---Type `text` into the input box as one paste, not submitted, starting Codex

@@ -86,7 +86,11 @@ agent.stop("codex") -- explicit teardown, idempotent
 refusal. `open`, `show`, `hide`, `stop`, `send_context` target native backends;
 ACP/API chats use the host facade/pickers. A copy visible in the current tab is
 focused there; no second terminal is opened beside it. Other-tab and last-normal-
-window hides are refused. Floats do not count as another normal window.
+window hides are refused. Floats do not count as another normal window. A provider's
+hide refusal is reported and prevents switching; if a new view had to open first,
+it is hidden again. Invalid context fields are refused before opening a session.
+File mentions resolve from the running session's root; captured saved selections
+use absolute paths because the recipient may belong to another project.
 
 `session(id)`, `sessions()`, `session_of_buffer(buf)`, `backends()` and `options()`
 return copied observations. A session contains `id`, `kind`, `generation`,

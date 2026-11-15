@@ -110,6 +110,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   it is, cannot hide the owner's other-tab window, and remains the target
   for deliveries here. Floats do not count toward last-normal-window safety.
   Hide first/show second unless that would leave E444; then show first.
+  A provider hide refusal is an operation failure even when its call did not
+  raise. Report it, abort switching, and hide a newly opened successor again
+  when its predecessor could not yield; preserve both sessions.
 - The BufWinEnter guard covers upstream chat/history/close-successor paths,
   captures the event's tab and ignores floats; latest entered AI window wins
   a tick. Chat-to-chat hands the window over in place; terminal transitions
@@ -121,7 +124,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   source view. A delivery changing tab says so once. Never silently deliver
   to a hidden chat, another tab or the first provider.
 - Capture a Visual selection through Neovim API before an asynchronous picker.
-  Saved Codex context is a file/range reference; unsaved selection text is
+  Saved Codex selections use absolute file/range references, captured before
+  a picker can choose a session rooted in another project. File mentions are
+  relative to the running session root, or absolute outside it; unsaved selection text is
   pasted exactly and announced. ab warns a native/ACP reader uses disk; HTTP
   chat context contains buffer text. Refuse nonfile buffers/directory listings.
   Native session keys ar/aR/am reuse/focus a running session and type nothing

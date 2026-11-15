@@ -44,10 +44,10 @@ return {
     -- is also the CodeCompanion adapter it registers, so a chat that
     -- codecompanion-history restores finds its key again by that name.
     -- {
-      --   name = "anthropic_work",
-      --   label = "Anthropic (work)",
-      --   api = { name = "anthropic_work", adapter = "anthropic",
-      --           api_key = "NVIM_ANTHROPIC_API_KEY_WORK", model = "claude-sonnet-5" },
-      -- },
-    },
-  }
+    --   name = "anthropic_work",
+    --   label = "Anthropic (work)",
+    --   api = { name = "anthropic_work", adapter = "anthropic",
+    --           api_key = "NVIM_ANTHROPIC_API_KEY_WORK", model = "claude-sonnet-5" },
+    -- },
+  },
+}

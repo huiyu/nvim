@@ -196,7 +196,9 @@ function M.when_ready(get_buf, action, on_timeout)
       if stable >= READY_STABLE_POLLS then
         vim.defer_fn(function()
           local ready = get_buf()
-          if M.tui_ready(ready) then action(ready) end
+          if M.tui_ready(ready) then return action(ready) end
+          stable = 0
+          tick()
         end, READY_SETTLE_MS)
         return
       end
