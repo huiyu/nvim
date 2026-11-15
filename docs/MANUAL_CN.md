@@ -1636,7 +1636,7 @@ Chrome 扩展的 **chrome: debug extension (launch)** 和
 两个预设都自动向上查找 `.output/chrome-mv3-dev`（WXT 布局）；其他布局
 在项目配置中显式设置 `extensionPath`，指向构建输出目录。
 Launch 会创建自己的 profile 并通过 CDP 安装扩展。
-安装和排错见 [DIAGNOSTICS.md](DIAGNOSTICS.md) 与[扩展验证记录](../spikes/chrome-extension-dap/README.md)。
+安装和排错见 [DIAGNOSTICS.md](DIAGNOSTICS.md)。
 
 ### Dart CLI
 
@@ -1732,6 +1732,6 @@ flavor，例如项目已定义该 flavor 时使用 `["-d", "macos", "--flavor", 
 主进程使用 Node Inspector，渲染进程使用 Chromium CDP，端口不能互换。
 更多说明见 [Electron 主进程调试文档](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process)。
 
-React Native 仍处于[独立可行性验证](../spikes/react-native-dap/README.md)，
-尚未支持可用的 Hermes DAP 工作流。连接失败、断点未绑定、SDK 路径和系统权限
+本配置尚未支持 React Native/Hermes DAP 工作流，请使用 React Native DevTools。
+连接失败、断点未绑定、SDK 路径和系统权限
 问题见 [DIAGNOSTICS.md](DIAGNOSTICS.md)。
