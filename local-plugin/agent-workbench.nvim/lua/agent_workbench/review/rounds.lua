@@ -1,12 +1,11 @@
 -- Review rounds: one round model for every conversation that can change the
 -- worktree.
 --
--- A round is a baseline (util.baseline, kind "round") plus the conversation
+-- A round is a baseline (git_review.baseline, kind "round") plus the conversation
 -- that owns it and the root it was taken in. Every source opens rounds through
 -- submit(), so the rules below live in one place:
 --
 --   source        how it reaches submit()                        conversation
---   claude        UserPromptSubmit hook -> ai.review.hook         claude:<session_id>
 --   codex         UserPromptSubmit hook -> ai.review.hook         codex:<session_id>
 --   cc-acp/http   CodeCompanion's on_before_submit (this file)    cc:<nonce>:<chat.id>
 --   manual        <leader>aV (start)                              the bound session, or none
@@ -25,7 +24,7 @@
 -- the same first id.
 --
 -- Loaded on first use only -- an agent terminal's TermOpen, a CodeCompanion
--- chat, a hook event or a review key (local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua) -- and util.baseline
+-- chat, a hook event or a review key (local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua) -- and git_review.baseline
 -- only once a snapshot is really taken.
 local M = {}
 
@@ -35,12 +34,6 @@ local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 -- Same conversation submitting again this soon is the hook firing twice, not a
 -- new prompt. A field rather than a local so the spec can shorten it.
 M._DEDUPE_MS = 1000
-
--- Claude's SessionStart sources that change the terminal's foreground session.
--- `fork` is left out: /fork's background copy, /branch and a session moved to
--- the background all report it, and none of them is what the TUI now shows. A
--- fork that did become the foreground is corrected by its next prompt.
-local FOREGROUND = { startup = true, resume = true, clear = true, compact = true }
 
 -- The ai.review.config switch that gates each CodeCompanion source.
 local GATES = { ["cc-acp"] = "codecompanion_acp", ["cc-http"] = "codecompanion_http" }
@@ -143,7 +136,7 @@ function M.draft_path(root, id)
   return ("%s/ai-review/%s/%s.md"):format(vim.fn.stdpath("state"), vim.fn.sha256(real):sub(1, 12), id)
 end
 
----The retention exemption util.baseline consults before pruning: a round
+---The retention exemption git_review.baseline consults before pruning: a round
 ---whose draft is a non-empty file is kept.
 ---@param entry baseline.Entry
 ---@return boolean
@@ -155,7 +148,7 @@ end
 
 -- save() prunes on its own, so the predicate has to be in place before the
 -- first round is saved. Keyed on the module table, so a reloaded
--- util.baseline is given it again.
+-- git_review.baseline is given it again.
 local exempt_installed_on
 local function baseline()
   local mod = require("git_review.baseline")
@@ -188,7 +181,7 @@ end
 
 
 ---The tab variables of a review view (vim.t.ai_review) for a round entry from
----util.baseline.list, or nil for any other entry. The vcs layer gets a round's
+---git_review.baseline.list, or nil for any other entry. The vcs layer gets a round's
 ---metadata here instead of parsing trailers itself.
 ---@param entry? baseline.Entry
 ---@return { id: string, sha: string, conversation?: string, source?: string, root: string, late: boolean }|nil
@@ -635,30 +628,9 @@ function M.submit(ev)
   end
 end
 
----Whether a Claude prompt is Claude going on with the user's work rather than
----a request: it is woken when a background task it started (a Bash command,
----a workflow) finishes -- "<task-notification>" -- or when a background agent
----it started hands its result back, as "<agent-message ...>\n[Subagent
----hand-back]", alone when queued during a turn or framed by "Another Claude
----session sent a message...:" when Claude was idle. Another session's message,
----or an agent's that is not a hand-back, is a request of its own. Both fire
----UserPromptSubmit like a prompt typed by the user.
----@param prompt any
----@return boolean
-local function continues_turn(prompt)
-  if type(prompt) ~= "string" then return false end
-  if prompt:match("^%s*<task%-notification>") then return true end
-  local body = prompt:gsub("^%s*Another Claude session sent a message[^\n]*:[ \t]*\n", "", 1)
-  return body:match("^%s*<agent%-message[^>]*>%s*%[Subagent hand%-back%]") ~= nil
-end
-M._continues_turn = continues_turn
-
----A native hook event, handed over by ai.review.hook (which has already
----dropped subagent events, disabled sources and missed submits, and released
----session events). A submit reports the session and opens a round -- except
----Claude waking itself to go on with the work (continues_turn), which only
----marks the session prompted; Claude's SessionStart only reports the session,
----for the sources that change the foreground one.
+---A configured Codex submit, handed over by review.hook after its fast RPC
+---acknowledgement. It reports the session and opens the common round path.
+---Unsupported kinds/events and spawned threads are released without a round.
 ---@param ev ai.review.NativeEvent
 function M.native_event(ev)
   local release = once(ev.done)
@@ -666,25 +638,19 @@ function M.native_event(ev)
   -- ai.review.hook drops these already; a second guard costs nothing.
   if payload.agent_id ~= nil then return release() end
   local agent = ev.agent
+  if not require("agent_workbench.state").agents[agent] then return release() end
   local entry = native_entry(agent)
   local session = type(payload.session_id) == "string" and payload.session_id ~= "" and payload.session_id or nil
 
-  if ev.event == "session" then
-    if entry and session and FOREGROUND[payload.source] then report_session(entry, session) end
-    return release()
-  end
+  if ev.event ~= "submit" then return release() end
 
   if entry and session then report_session(entry, session) end
   if session then
     local sec, usec = uv.gettimeofday()
     prompted[agent .. ":" .. session] = sec + usec / 1e6
   end
-  -- Claude waking itself to go on with the work opens no round (continues_turn):
-  -- what it changes, and where that work ends, belong to the session's newest
-  -- round. But the session is at work again.
-  if agent == "claude" and continues_turn(payload.prompt) then return release() end
   local root = entry and entry.root or M.toplevel(payload.cwd)
-  -- Claude's Bash can `cd` into another repository; the session's root stays
+  -- An agent can `cd` into another repository; the session's root stays
   -- the one it started in, and saying so once is enough.
   if entry and type(payload.cwd) == "string" and payload.cwd ~= "" and not entry.drift_noticed then
     local here = M.toplevel(payload.cwd)

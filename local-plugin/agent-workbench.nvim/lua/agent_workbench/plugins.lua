@@ -39,7 +39,10 @@ function M.resolve(host)
     paths[real], names[plugin.name] = true, true
     plugins[#plugins + 1] = plugin
   end
-  for _, configured in ipairs(vim.split(vim.env.NVIM_AI_PLUGIN_DIR or "", ",", { trimempty = true })) do
+  local directories = vim.env.NVIM_AI_PLUGIN_DIR ~= nil
+    and vim.split(vim.env.NVIM_AI_PLUGIN_DIR, ",", { trimempty = true })
+    or require("agent_workbench.options").get().plugin_dirs
+  for _, configured in ipairs(directories) do
     local trimmed = vim.trim(configured)
     if trimmed ~= "" then
       local root = vim.fs.abspath(vim.fs.normalize(trimmed))
@@ -183,7 +186,7 @@ function M.codex_args()
     local linked, link_error = vim.uv.fs_symlink(codex_home .. "/plugins", installer .. "/plugins", { dir = true })
     if not linked then fail("cannot share Codex's plugin cache: " .. tostring(link_error)) end
     for _, selector in ipairs(selectors) do
-      local command = vim.list_extend({ "codex" }, args)
+      local command = vim.list_extend({ require("agent_workbench.options").get().native.codex.command }, args)
       vim.list_extend(command, { "plugin", "add", selector, "--json" })
       local result = vim.system(command, {
         cwd = installer, env = { CODEX_HOME = installer }, text = true, timeout = 15000,

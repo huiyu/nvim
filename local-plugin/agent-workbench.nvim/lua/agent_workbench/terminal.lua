@@ -183,7 +183,7 @@ end
 ---Install the TermOpen hook that calls `attach` on every agent panel,
 ---whichever agent it runs. Both backends open through Snacks, so one hook
 ---covers both; the per-backend alternative would need a callback threaded
----through claudecode.nvim's own terminal provider. Also tells util.terminal
+---through claudecode.nvim's own terminal provider. Also tells editor_core.terminal
 ---which terminals are agent panels.
 function M.setup()
   local group = vim.api.nvim_create_augroup("ai_terminal_input", { clear = true })

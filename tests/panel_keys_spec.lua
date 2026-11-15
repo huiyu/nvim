@@ -59,7 +59,7 @@ t.ok(local_map(oil_buf, "<C-x>", "n") == nil, "oil: <C-x> is no split key (decre
 t.ok(local_map(oil_buf, "<C-r>", "n") == nil, "oil: <C-r> is redo again")
 t.eq(desc(oil_buf, "gR", "n"), "Refresh current directory list", "oil: gR refreshes the listing")
 t.ok(local_map(oil_buf, "<C-p>", "n") == nil, "oil: <C-p> no longer previews")
-t.ok((desc(oil_buf, "<M-p>", "n") or ""):find("preview window", 1, true) ~= nil,
+t.eq(desc(oil_buf, "<M-p>", "n"), require("config.keymaps").open.preview.desc,
   "oil: <M-p> toggles the preview, as in the picker")
 t.ok(local_map(oil_buf, "<C-h>", "n") == nil and local_map(oil_buf, "<C-l>", "n") == nil,
   "oil: <C-h>/<C-l> stay window navigation")
@@ -121,8 +121,8 @@ if aerial_buf then
     "aerial: <C-j>/<C-k> stay window navigation")
   t.eq(vim.api.nvim_buf_call(aerial_buf, function() return vim.fn.maparg("<C-j>", "n", false, true).desc end),
     "Go to lower window", "aerial: <C-j> reaches the global window key")
-  t.ok((desc(aerial_buf, "<C-s>", "n") or ""):find("horizontal", 1, true) ~= nil
-    and (desc(aerial_buf, "<C-v>", "n") or ""):find("vertical", 1, true) ~= nil,
+  t.eq({ desc(aerial_buf, "<C-s>", "n"), desc(aerial_buf, "<C-v>", "n") },
+    { require("config.keymaps").open.split.desc, require("config.keymaps").open.vsplit.desc },
     "aerial: <C-s>/<C-v> open below/beside, as in oil")
   t.ok(local_map(aerial_buf, "g?", "n") ~= nil, "aerial: g? shows its help")
 end

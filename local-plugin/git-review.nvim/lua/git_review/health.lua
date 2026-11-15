@@ -13,7 +13,7 @@ local function split_lines(s)
   return vim.split(s or "", "\n", { plain = true, trimempty = true })
 end
 
--- git in `dir`, synchronously, with util.baseline's prefix: no optional locks
+-- git in `dir`, synchronously, with git_review.baseline's prefix: no optional locks
 -- (a plain status rewrites .git/index) and none of the user's hooks.
 -- GIT_NO_LAZY_FETCH keeps a missing object from becoming a fetch.
 ---@return string? stdout, string? err
@@ -115,7 +115,7 @@ local function check_codediff()
   end
   local dir = plugin.dir
 
-  -- The same comparison util.codediff.setup makes before it patches anything.
+  -- The same comparison git_review.view.setup makes before it patches anything.
   local version = first_line(dir .. "/VERSION")
   local pinned = require("git_review.view").VERSION
   if version == pinned then
@@ -203,7 +203,7 @@ local function check_codediff()
   end
 end
 
--- util.baseline hands `git add` its pathspecs on stdin (--pathspec-from-file),
+-- git_review.baseline hands `git add` its pathspecs on stdin (--pathspec-from-file),
 -- which git learned in 2.26; with an older git every snapshot fails. Nothing
 -- else in the review loop or the diff views needs a newer one.
 local GIT_MIN = "2.26"
@@ -246,7 +246,7 @@ local function check_orphans(loc, namespace)
     health.warn("could not look for baselines of removed worktrees: " .. tostring(err or refs_err))
     return
   end
-  -- Every worktree's gitdir, hashed the way util.baseline.locate names it:
+  -- Every worktree's gitdir, hashed the way git_review.baseline.locate names it:
   -- the common dir is the main worktree's, linked ones live under worktrees/.
   common = vim.trim(common)
   if common:sub(1, 1) ~= "/" then common = loc.toplevel .. "/" .. common end

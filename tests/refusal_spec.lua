@@ -136,21 +136,16 @@ vim.fn.delete(stand_ins, "rf")
 t.ok(ok, "<leader>at does not raise when the transcript view fails")
 t.eq(last() and last().level, vim.log.levels.ERROR, "it reports the failure")
 t.ok(said("boom"), "with its cause")
-t.eq(offered, ai_config.agent_names(), "it offers the agents in provider order")
-t.eq(asked_for, ai_config.agent_names()[2], "and reads the agent picked, not the first listed")
+t.eq(offered, nil, "one installed native backend needs no selection question")
+t.eq(asked_for, "codex", "the only configured native backend owns its transcript")
 transcript.open_current = real_open
 
--- <leader>aa answers Claude's diffs whatever is on the right, so a failure
--- there is reported against Claude.
-local claude_backend = require("agent_workbench.backend.claude")
-local real_accept = claude_backend.accept_diff
-claude_backend.accept_diff = function() error("no pending diff") end
-reset()
-ok = pcall(require("agent_workbench").accept_diff)
-t.ok(ok, "<leader>aa does not raise when the diff command fails")
-t.ok(said("Claude Code accept_diff failed") and said("no pending diff"),
-  "it names Claude, whose diff it was, whatever is on the right")
-claude_backend.accept_diff = real_accept
+-- An unavailable backend cannot silently start Codex in its place.
+local sessions = require("agent_workbench").sessions()
+local unsupported, why = require("agent_workbench").open("claude")
+t.eq(unsupported, nil, "unimplemented Claude is refused")
+t.eq(why.code, "unavailable", "the refusal is machine-readable")
+t.eq(require("agent_workbench").sessions(), sessions, "no fallback session is started")
 
 vim.notify = real_notify
 t.done()

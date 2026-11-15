@@ -69,7 +69,7 @@ local function run(path, what)
   local saved = vim.env.PATH
   if path then vim.env.PATH = path end
   messages = {}
-  local ok, err = pcall(require("editor_core.health").check)
+  local ok, err = pcall(require("config.health").check)
   vim.env.PATH = saved
   t.ok(ok, (what or "the health check") .. " runs to completion" .. (ok and "" or (": " .. tostring(err))))
   return messages
@@ -278,7 +278,7 @@ local hook_line = find(hooks, plain_hook .. " is not executable")
 t.eq(hook_line and hook_line.level, "warn", "a hook script that is not executable is a warning")
 t.ok(hook_line and hook_line.msg:find("open no review round", 1, true), "it says what stops working")
 t.ok(advice_with(hook_line, "chmod +x " .. vim.fn.shellescape(plain_hook)), "the hint is chmod +x on the script")
-t.eq(level_of(hooks, "Claude --settings is valid"), "ok", "the Claude settings still check out against the stand-in")
+t.eq(level_of(hooks, "Codex -c hooks= is valid"), "ok", "the Claude settings still check out against the stand-in")
 local absent = find(with_script(root .. "/no agent-hook"), "is missing")
 t.eq(absent and absent.level, "warn", "a missing hook script is a warning")
 
@@ -340,7 +340,7 @@ t.ok(counts and counts.msg:find("retention keeps the newest 30 and 10", 1, true)
 t.eq(level_of(baselines, "no baseline refs of removed worktrees"), "ok", "a live linked worktree is no orphan")
 local cc = find(baselines, "2 refs under refs/worktree/codecompanion/")
 t.eq(cc and cc.level, "warn", "CodeCompanion's leftover refs are a warning")
-local drafts = find(baselines, ("feedback drafts for this worktree live in %s/ai-review/"):format(vim.fn.stdpath("state")))
+local drafts = find(messages, ("feedback drafts for this worktree live in %s/ai-review/"):format(vim.fn.stdpath("state")))
 t.ok(drafts and drafts.msg:find(draft_dir, 1, true), "where the drafts live is named")
 t.ok(drafts and drafts.msg:find(": 1 draft with feedback, 1 last-sent copy, 2 conflict files", 1, true),
   "only a non-empty draft has feedback; last-sent copies and conflict files are counted apart")
@@ -359,7 +359,7 @@ t.eq(git_line and git_line.level, "ok", "git's version is checked against the ba
 
 local review_hooks = section(inside, "config: review hooks")
 t.eq(level_of(review_hooks, "agent-hook executable"), "ok", "the hook script is executable")
-t.eq(level_of(review_hooks, "Claude --settings is valid"), "ok", "the Claude --settings JSON checks out")
+t.eq(level_of(review_hooks, "Codex -c hooks= is valid"), "ok", "the Claude --settings JSON checks out")
 local codex = find(review_hooks, "Codex -c hooks= is valid")
 t.ok(codex and codex.level == "ok" and codex.msg:find("trusted_hash matches", 1, true),
   "the Codex trusted_hash matches")

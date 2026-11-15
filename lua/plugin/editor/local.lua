@@ -7,7 +7,6 @@ return {
       return {
         options = require("config.options"), theme = require("config.theme"), formatting = require("config.formatting"),
         keymaps = require("config.keymaps"), behaviors = require("config.behaviors"),
-        whichkey = require("config.whichkey_spec"),
         url = { buffer_dir = require("util.cwd").buffer_dir },
       }
     end,

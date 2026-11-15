@@ -38,8 +38,8 @@ return {
     }
     local open = require("config.keymaps").open
     opts.keymaps["<C-v>"], opts.keymaps["<C-s>"] = false, false
-    if open.vsplit then opts.keymaps[open.vsplit.key] = { "actions.jump_vsplit", desc = open.vsplit.desc } end
-    if open.split then opts.keymaps[open.split.key] = { "actions.jump_split", desc = open.split.desc } end
+    if open.vsplit then opts.keymaps[open.vsplit.key] = { callback = function() require("aerial").select({ split = "v" }) end, desc = open.vsplit.desc } end
+    if open.split then opts.keymaps[open.split.key] = { callback = function() require("aerial").select({ split = "h" }) end, desc = open.split.desc } end
     return opts
   end,
 }

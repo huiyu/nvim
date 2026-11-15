@@ -346,10 +346,10 @@ local PREFIX_BLOCKING_FILETYPES = { 'codediff-explorer', 'codediff-history' }
 
 --- Whether `tabpage` is such a view.
 ---
---- The view says so itself: util.codediff sets `vim.t.blocks_global_prefixes`
+--- The view says so itself: git_review.view sets `vim.t.blocks_global_prefixes`
 --- while CodeDiff has a session there, and a new prefix-blocking view has to
 --- set it too. The panel filetypes remain a second test, for a tabpage CodeDiff
---- has let go of while its panel is still on screen (util.codediff then closes
+--- has let go of while its panel is still on screen (git_review.view then closes
 --- it). A single-file `:CodeDiff file` has no panel at all, which is why the
 --- variable comes first.
 ---@param tabpage integer

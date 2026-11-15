@@ -1,7 +1,7 @@
 -- Panels are reached through their own focus keys. A listed terminal (often
 -- named `env` by the agent wrapper) would replace the editor buffer on cycling
 -- or picking, then edgy would move that editor window into the terminal edge.
--- Keep CodeDiff's revision buffers (codediff://) out too: util.codediff
+-- Keep CodeDiff's revision buffers (codediff://) out too: git_review.view
 -- unlists them once shown, and this covers the moment before.
 local function shown_in_bufferline(buf)
   return vim.bo[buf].buftype ~= "terminal"

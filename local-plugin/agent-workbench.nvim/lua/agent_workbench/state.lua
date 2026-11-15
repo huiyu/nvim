@@ -3,7 +3,7 @@
 -- Consumers share this table, so :AI key updates state in place.
 local settings = require("agent_workbench.options").get()
 
--- The native terminal agents this config implements: lua/ai/backend/<kind>.lua,
+-- The native terminal agents this config implements: local-plugin/agent-workbench.nvim/lua/agent_workbench/backend/<kind>.lua,
 -- the tmux wrappers, the prompt hooks and the transcript readers. A provider's
 -- `tui.kind` names one of these; a new kind needs that code, not just an entry.
 local TUI_KINDS = {
@@ -56,7 +56,7 @@ end
 
 ---A native terminal agent as the rest of the config reads it.
 ---@class ai.Agent
----@field name string the TUI kind: "claude" or "codex"
+---@field name string the TUI kind: "codex"
 ---@field provider string the provider that offers it
 ---@field label string
 ---@field command string
@@ -234,7 +234,7 @@ end
 
 ---A way to start a chat, as the new-chat picker (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua) offers it.
 ---@class ai.Backend
----@field id string "claude", "codex", "acp:<adapter>" or "api:<profile>"
+---@field id string "codex", "acp:<adapter>" or "api:<profile>"
 ---@field kind "native"|"acp"|"http"
 ---@field provider string the provider it belongs to
 ---@field agent? string native: the TUI kind
@@ -296,7 +296,8 @@ function M._set_providers(list)
 end
 
 M.use_key("auto")
-local key_default = vim.env.NVIM_AI_KEY_PROFILE or vim.g.ai_key_profile or settings.key_profile
+local key_env = vim.env.NVIM_AI_KEY_PROFILE
+local key_default = (key_env ~= "" and key_env or nil) or vim.g.ai_key_profile or settings.key_profile
 -- A typo in this optional knob falls back to auto instead of aborting startup.
 if key_default and key_default ~= "" and not pcall(M.use_key, key_default) then
   vim.schedule(function()

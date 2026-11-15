@@ -55,7 +55,7 @@ M.PANEL_FILETYPES = { "codediff-explorer", "codediff-history" }
 -- what an open carries must not outlive it.
 local PENDING_MS = 10000
 
----@class util.codediff.Pending an open() whose view has not arrived
+---@class git_review.view.Pending an open() whose view has not arrived
 ---@field label? string
 ---@field tab_vars? table<string, any>
 ---@field quiet? boolean
@@ -339,7 +339,7 @@ end
 
 --- Have CodeDiff recompute the view in `tab` (0 = current) the way its file
 --- watcher does: list, read and diff again. For a guard that refused because
---- the view is behind the files (util.codediff_actions), so that the view
+--- the view is behind the files (git_review.actions), so that the view
 --- catches up instead of waiting for the next file event.
 ---@param tab? integer
 ---@return boolean requested false when `tab` has no view or CodeDiff has no refresh
@@ -359,7 +359,7 @@ local TARGETS = {
   result = { "result" },
 }
 
----@class util.codediff.Key
+---@class git_review.view.Key
 ---@field [1] string|string[] mode(s)
 ---@field [2] string lhs
 ---@field [3] function rhs
@@ -380,7 +380,7 @@ local TARGETS = {
 --- `scope`, a claim the previous pass of that scope made and this one does
 --- not repeat is released, so a key that no longer applies goes away.
 ---@param tab? integer
----@param specs util.codediff.Key[]
+---@param specs git_review.view.Key[]
 ---@param scope? string
 ---@return boolean installed false when `tab` has no view
 function M.set_keys(tab, specs, scope)
@@ -464,7 +464,7 @@ local SUBCOMMANDS = { history = true, file = true, dir = true, merge = true, pr 
 --- say: the root it names; a status, staged or history view; the revisions
 --- given as full shas, which is what CodeDiff keeps once rev-parse has
 --- resolved them. A `-C` in `args` (no `root`) leaves the root open.
----@return util.codediff.Pending
+---@return git_review.view.Pending
 local function expectation(spec, args)
   local want = { root = real(spec.root) }
   local positional, staged, i = {}, false, 1
@@ -1089,7 +1089,7 @@ end
 -- untracked file a baseline captured, or one a branch tracks and this
 -- checkout leaves untracked -- was listed twice, as a D and a ??, and a plain
 -- `mv` as D + ?? instead of R. The replacement lists what the two trees
--- differ in: util.baseline snapshots the working tree into a tree of its own
+-- differ in: git_review.baseline snapshots the working tree into a tree of its own
 -- (a temporary index, never the real one; untracked files included, ignored
 -- ones not, whatever explorer.untracked says) and `diff-tree -M <rev> <tree>`
 -- compares them. The right pane is still the real, editable file.
@@ -1100,7 +1100,7 @@ end
 -- with line stats on, their numbers would still come from upstream's
 -- `git diff <rev>` (core/git.lua, get_diff_revision_with_line_stats).
 --
--- The snapshot is the cost: one per refresh, coalesced in util.baseline's
+-- The snapshot is the cost: one per refresh, coalesced in git_review.baseline's
 -- queue behind any prompt's baseline. Its temporary index lives in the
 -- gitdir, where CodeDiff's watcher does not look, so it never triggers the
 -- refresh that would take the next one.
@@ -1309,7 +1309,7 @@ end
 ---patch below, which every such view goes through, and a caller that has to
 ---know before it opens one whether CodeDiff will show anything -- it answers
 ---an empty listing with a bare "No changes to show" and no view (#582).
----`tree` and `info` are a util.baseline.snapshot() of the worktree at
+---`tree` and `info` are a git_review.baseline.snapshot() of the worktree at
 ---`root`; `diff-tree -M <revision> <tree>` compares them.
 ---
 ---`done({ listed, left_out })`: `listed` is CodeDiff's status entries
@@ -1323,7 +1323,7 @@ end
 ---out -- over max_file_size, ignored now (a .env a baseline captured before
 ---.gitignore named it), unreadable -- or something else is there. It is
 ---named instead, so it never reaches the one-sided "deleted since baseline"
----hint (util.codediff_actions), whose `git restore` overwrites whatever is
+---hint (git_review.actions), whose `git restore` overwrites whatever is
 ---at the path. Measured: it replaced a directory, untracked work in it
 ---included, with the old file, and on a case-insensitive file system (macOS
 ---by default) it wrote a file renamed in case only back over the new one.

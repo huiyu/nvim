@@ -53,7 +53,7 @@ local function make_room(method, agent)
 end
 
 ---Call `method` on one agent's backend, by name: a key that already knows
----which agent it acts on (the one on the right, Claude for its diffs), or
+---which agent it acts on (the visible native session), or
 ---review feedback for the agent whose round it is.
 ---@param name string agent
 ---@param method string
@@ -100,7 +100,7 @@ function M.focus(id) if id then return M.show(id) end; return guard("AI chat", "
 
 -- The keys only a native agent answers: the one on the right, else the one
 -- asked for. A running session is shown and left as it is -- each agent has
--- one session here -- and its backend says so (lua/ai/backend/*); a session
+-- one session here -- and its backend says so (local-plugin/agent-workbench.nvim/lua/agent_workbench/backend/*); a session
 -- one of them starts is announced, as one <leader>an starts is.
 ---@param why string what a session it starts is for, for that notice
 local function native_key(method, why)
@@ -110,8 +110,7 @@ local function native_key(method, why)
         guard(label_of(agent), method, function()
           local b, item = backend(agent), slot().native_item(agent)
           local was = b.running()
-          -- A cold start that asks something first (claudecode's model
-          -- question, backend.asks_first) can still be cancelled: nothing is
+          -- A cold start that asks something first (backend.asks_first) can still be cancelled: nothing is
           -- hidden for it, and the slot's guard hides the rest once its
           -- terminal does show.
           local asks = not was and (b.asks_first or {})[method]
@@ -128,7 +127,7 @@ M.continue = native_key("continue", "to continue its last session")
 M.select_model = native_key("select_model", "to pick a model")
 
 ---Deliver a captured selection (ai.selection.capture) to `item`: a chat gets
----it fenced in its prompt, Claude a file mention of its lines, Codex the
+---it fenced in its prompt; Codex receives the
 ---draft typed into its input box. Nothing is submitted.
 ---@param item ai.SlotItem
 ---@param cap ai.Capture
@@ -139,25 +138,6 @@ local function deliver_capture(item, cap, from)
     local ok, why = companion().add_capture(item.chat, cap)
     if not ok then return companion().refused(why) end
     slot().show_chat(item.chat, { quiet = true })
-  elseif item.agent == "claude" then
-    if cap.path == "" then
-      return notify("This buffer has no file, and Claude Code takes a selection as a file mention: save it, or <leader>ai",
-        vim.log.levels.WARN)
-    end
-    -- Shown somewhere already (here, a diff tabpage's copy included, or in the
-    -- tabpage make_room went to), the mention goes to it as it is: claudecode's
-    -- own open would put a second window beside a copy.
-    local room = slot().make_room(item, { quiet = true })
-    if not room then return end
-    if room == "room" then backend("claude").reveal() end
-    -- A mention is of the file on disk, so an unsaved edit is not in it. It
-    -- still goes -- the lines are the ones selected -- but the user is told,
-    -- as Codex's paste-instead notice tells them (<leader>ai sends the text).
-    if cap.modified then
-      notify("Claude Code reads the saved file; this buffer has unsaved changes, so the mention points at its saved lines"
-        .. " (<leader>ai takes the selected text itself)", WARN)
-    end
-    backend("claude").send_range(cap.path, cap.l1, cap.l2)
   else
     if not cap.draft then return notify(cap.err or "No selection", vim.log.levels.WARN) end
     if cap.notice then notify(cap.notice) end
@@ -167,34 +147,9 @@ local function deliver_capture(item, cap, from)
   slot().went(item, from)
 end
 
----The native agent on the right of this tabpage when it takes files from a
----directory listing (ai.state's tree_add capability: Claude Code). Asks
----nothing: a listing's cursor and selection are only read where they are now.
----@return string|nil agent, ai.SlotItem|nil item what is on the right
-local function tree_target()
-  local item = slot().target_now()
-  local agent = item and item.kind == "native" and item.agent
-  if agent and config.agents[agent].capabilities.tree_add then return agent, item end
-  return nil, item
-end
-
----Why a listing's file or selection went nowhere.
----@param item ai.SlotItem|nil what is on the right
-local function tree_refused(item)
-  if not item then
-    return notify("A directory listing cannot wait for a question: put Claude Code on the right first (<leader>al)",
-      WARN)
-  end
-  notify("Only Claude Code takes files from a directory listing: put it on the right (<leader>al)", WARN)
-end
-
----A directory listing's selection names files, and only a live Visual tells
----which: it goes to Claude Code on the right at once, or nowhere.
 local function tree_selection()
-  local agent, item = tree_target()
-  if agent then return call(agent, "send_selection") end
   vim.cmd("normal! \27")
-  tree_refused(item)
+  notify("Sending a directory listing is unsupported: select a file or code instead", WARN)
 end
 
 ---<leader>as: the selection, to the chat on the right.
@@ -234,24 +189,11 @@ function M.add_buffer()
       end
       local room = slot().make_room(item, { quiet = true })
       if not room then return end
-      if item.agent == "claude" and room == "room" then backend("claude").reveal() end
       -- Both agents read the file from disk, and say so for an unsaved edit.
       backend(item.agent).add_path(path, modified)
       slot().went(item, from)
     end), { prompt = "Add file to" })
   end)
-end
-
--- Diffs are Claude's alone, whatever is on the right.
-function M.accept_diff() return call("claude", "accept_diff") end
-function M.deny_diff() return call("claude", "deny_diff") end
-
----oil's <leader>aS: the file under the cursor, to Claude Code on the right
----(see tree_target); anything else on the right, or nothing, is refused.
-function M.tree_add()
-  local agent, item = tree_target()
-  if agent then return call(agent, "tree_add") end
-  tree_refused(item)
 end
 
 ---Replay the TUI's own image-paste keystroke for each staged file.
@@ -330,7 +272,7 @@ local function pick_with(what)
       if visual() then
         if require("agent_workbench.selection").is_tree() then
           vim.cmd("normal! \27")
-          return notify("A directory selection cannot wait for a question: use <leader>as with Claude Code on the right",
+          return notify("Sending a directory listing is unsupported: select a file or code instead",
             vim.log.levels.WARN)
         end
         local err
@@ -431,8 +373,7 @@ local KEYS = {
 }
 
 ---Define, relabel or remove the `<leader>a` keys for the current state.
----Idempotent: called when this module loads, after every :AI key, and once
----claudecode.nvim has loaded. which-key rereads the keymaps each time its popup
+---Idempotent: called at setup and after every :AI key. which-key reads its popup
 ---opens, so it needs no notice of the change.
 function M.apply_keymaps()
   local opts = require("agent_workbench.options").get()
@@ -475,8 +416,7 @@ local function review_events()
   vim.api.nvim_create_autocmd("TermOpen", {
     group = group,
     callback = function(ev)
-      -- The job's directory when Snacks records none: claudecode leaves `cwd`
-      -- unset under claude_cwd = "cwd". Read now, in the terminal's window.
+      -- Capture the terminal window's cwd now as a fallback for owner metadata.
       local cwd = vim.fn.getcwd()
       vim.schedule(guarded("terminal", function()
         if vim.api.nvim_buf_is_valid(ev.buf) and require("agent_workbench.terminal").agent_of(ev.buf) then
@@ -568,7 +508,7 @@ end
 
 ---Copied public session identity, independent of the chosen terminal provider.
 function M.session_of_buffer(buf)
-  if not vim.api.nvim_buf_is_valid(buf) then return nil end
+  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "terminal" then return nil end
   local info = vim.b[buf].agent_workbench
   local agent = type(info) == "table" and config and config.agents[info.kind]
   if not agent then return nil end

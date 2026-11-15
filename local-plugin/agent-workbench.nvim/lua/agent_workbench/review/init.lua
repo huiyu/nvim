@@ -17,7 +17,7 @@
 --      (their vim.t.ai_review), never changed.
 --   4. a clean tree (CodeDiff answers it with a bare "No changes to show",
 --      #582), decided as the view's listing will list it
---      (util.codediff.listing): a tree that differs only in paths the
+--      (git_review.view.listing): a tree that differs only in paths the
 --      listing leaves out is clean, and the notice names them. The
 --      conversation's previous round is shown instead when it has changes --
 --      the next prompt went out, the agent has not written yet -- otherwise
@@ -26,7 +26,7 @@
 --      its owner) and vim.t.codediff_baseline (for ,X), and says once what it
 --      compares, when it has arrived. Roots open independently: another
 --      root's view, or any other CodeDiff view, opening meanwhile takes
---      nothing of this one's (util.codediff.open); another press for a root
+--      nothing of this one's (git_review.view.open); another press for a root
 --      whose view is still on its way is refused.
 --
 -- A round only proves that a change came after its baseline. Whoever made it
@@ -42,7 +42,7 @@ local api, uv = vim.api, vim.uv
 local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 
 -- How long a view show() issued may take to arrive before another
--- <leader>av for that root is let through. util.codediff ends every open
+-- <leader>av for that root is let through. git_review.view ends every open
 -- within the same time (its done(nil) clears the slot); this only guards
 -- against a callback that never came.
 local PENDING_MS = 10000
@@ -151,8 +151,8 @@ local KEYS = {
 ---no repository to file feedback under and gets none.
 ---
 ---Runs on every `User CodeDiffKeys` (each file switch or refresh fires it
----again), so it only hands the same two keys to util.codediff.set_keys under
----its own "review" scope, which leaves util.codediff_actions' "actions" scope
+---again), so it only hands the same two keys to git_review.view.set_keys under
+---its own "review" scope, which leaves git_review.actions' "actions" scope
 ---alone on the same buffers.
 ---@param tab? integer
 function M.attach(tab)
@@ -179,7 +179,7 @@ local function root_of(rounds, buf)
     return rounds.toplevel(name)
   end
   -- A CodeDiff panel or revision pane: the repository that view compares.
-  -- Only once CodeDiff is loaded: asking util.codediff loads it.
+  -- Only once CodeDiff is loaded: asking git_review.view loads it.
   if package.loaded["codediff"] then
     local s = codediff().session(0)
     if s and type(s.git_root) == "string" then return s.git_root end
@@ -260,7 +260,7 @@ local function message(root, entry, vars, extra)
     lines[#lines + 1] = "Late: the baseline landed after the prompt went out,"
     lines[#lines + 1] = "so the agent's first edits may be missing from this diff"
   end
-  -- util.codediff's listing names the files left out for size as the view
+  -- git_review.view's listing names the files left out for size as the view
   -- lists; only without it (a CodeDiff it was not written for) is it said here.
   if codediff().degraded() then vim.list_extend(lines, left_out_lines({ size = extra.skipped })) end
   return table.concat(lines, "\n")
@@ -318,7 +318,7 @@ local function show(root, entry, extra, gen)
   local ok, issued = pcall(cd.open, {
     root = root,
     -- The sha, never the ref: retention may delete the ref while the view is
-    -- open. util.codediff.open adds `-C <root>`.
+    -- open. git_review.view.open adds `-C <root>`.
     args = { entry.sha },
     label = label(entry),
     tab_vars = { ai_review = vars, codediff_baseline = { sha = entry.sha, kind = "round" } },
@@ -331,7 +331,7 @@ local function show(root, entry, extra, gen)
 end
 
 --- Would a view of `sha` against the snapshot `tree` list anything? Asked
---- of the view's own listing rule (util.codediff.listing), so a tree whose
+--- of the view's own listing rule (git_review.view.listing), so a tree whose
 --- only differences are paths that listing leaves out counts as unchanged:
 --- `cb(changed, left_out)`, or `cb(nil, nil, reason)` when git refused.
 local function differs(root, sha, tree, info, cb)

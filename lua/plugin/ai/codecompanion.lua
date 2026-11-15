@@ -141,7 +141,7 @@ return {
         },
         -- CodeCompanion's own review keeps a second baseline under
         -- refs/worktree/codecompanion/*, taken on every chat submit in the
-        -- cwd's repository. Review rounds (lua/ai/review) already cover chats,
+        -- cwd's repository. Review rounds (agent_workbench.review) already cover chats,
         -- per conversation, so this one stays off: there must not be two
         -- baseline systems. `enabled = false` only skips its autocmds; the
         -- command is removed in `config` below, and #{code_review} is offered

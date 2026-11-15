@@ -3,8 +3,8 @@
 #
 #   agent-hook <agent> <event> [<wait-ms>]
 #
-# Claude Code and Codex run this on UserPromptSubmit (Claude also on
-# SessionStart) with the event's JSON payload on stdin. Both are injected per
+# Codex runs this on UserPromptSubmit with the event's JSON payload on stdin.
+# Hooks are injected per
 # process by local-plugin/agent-workbench.nvim/lua/agent_workbench/review/hook.lua, which also passes <wait-ms>: this script
 # cannot read the Lua settings, so hook_wait_ms travels in argv. The payload goes
 # to the Nvim that started the agent ($NVIM, as for local-plugin/agent-workbench.nvim/scripts/agent-editor), and a
@@ -27,7 +27,7 @@ exec >/dev/null 2>&1
 
 # Drain stdin on every early exit: the CLI is still writing the payload.
 case $agent:$event in
-claude:submit | claude:session | codex:submit) ;;
+codex:submit) ;;
 *) cat; exit 0 ;;
 esac
 # Digits only, and no leading zero: $((...)) reads 08 as bad octal and a failed

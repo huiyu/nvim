@@ -58,7 +58,7 @@ end
 				-- What a CodeDiff tabpage compares (`main → working tree`): the
 				-- panes' own names are a codediff:// URI on one side and the
 				-- file on the other, and neither says which revision it is.
-				-- util.codediff sets the variable while the view is open.
+				-- git_review.view sets the variable while the view is open.
 				{
 					function() return "󰓡 " .. vim.t.codediff_label end,
 					cond = function() return type(vim.t.codediff_label) == "string" end,

@@ -8,7 +8,7 @@ local Config = require("lazy.core.config")
 local llama = require("llama_service")
 
 local fake = vim.fn.fnamemodify("tests/fixtures/llama_fake.lua", ":p")
-local supervisor = vim.fn.stdpath("config") .. "/local-plugin/llama-service.nvim/scripts/llama-supervise"
+local supervisor = t.root .. "/local-plugin/llama-service.nvim/scripts/llama-supervise"
 vim.env.LLAMA_SUPERVISE_INTERVAL = "1"
 
 local function loaded(name)

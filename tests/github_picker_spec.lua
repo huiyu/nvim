@@ -249,7 +249,8 @@ do
       auto_insert = true,
       start_insert = true,
       auto_close = true,
-      win = { position = "right", width = 0.4, keys = { term_normal = false } },
+      win = { position = "right", width = 0.4, keys = { term_normal = false }, bo = { filetype = "agent_terminal" },
+        on_buf = function(win) t.agent_metadata(win.buf, "codex", root .. "/child") end },
     })
     settle()
     vim.api.nvim_set_current_win(term.win)

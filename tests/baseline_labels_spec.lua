@@ -609,14 +609,18 @@ t.ok(asked ~= nil and asked.default == nil, "<leader>gK with no agent session he
 vim.cmd.enew()
 local term = vim.api.nvim_get_current_buf()
 local job = vim.fn.jobstart({ "cat" }, { term = true, cwd = root })
-vim.b[term].snacks_terminal = { cmd = { "claude", "--settings", "{}" }, cwd = root }
+t.agent_metadata(term, "codex", root, { "codex" })
 vim.wait(1000, function()
-  local e = rounds._state().native.claude
+  local e = rounds._state().native.codex
   return e ~= nil and e.buf == term
 end, 10)
-rounds.native_event({ agent = "claude", event = "session", payload = { session_id = PID, source = "startup", cwd = root } })
-t.eq({ rounds.running(P), rounds.running(A), rounds.running(nil) }, { true, false, false },
-  "running: the session an agent terminal here runs")
+local live_id = "01a1c0c1-2222-7222-8222-222222222222"
+local live = "codex:" .. live_id
+append(index, { line({ id = live_id, thread_name = string.rep("长", 30), updated_at = iso(os.time()) }) })
+rounds._state().native.codex.session = live_id
+rounds._state().native.codex.dirty = false
+t.eq({ rounds.running(live), rounds.running(P), rounds.running(nil) }, { true, false, false },
+  "running: only the current Codex conversation owns the terminal")
 vim.cmd.enew()
 asked = press_gK(nil)
 t.eq(asked and asked.default, string.rep("长", 30), "<leader>gK offers the name of the Claude session working here, uncut")
@@ -631,17 +635,17 @@ t.eq(saved and saved[1] and saved[1].trailers.Label, "kept", "and saves under th
 -- A submit is remembered for "at work".
 local before = os.time()
 local released = false
-rounds.native_event({ agent = "claude", event = "submit", payload = { session_id = PID, cwd = root },
+rounds.native_event({ agent = "codex", event = "submit", payload = { session_id = live_id, cwd = root },
   done = function() released = true end })
 vim.wait(5000, function() return released end, 10)
-t.ok((rounds.prompted_at(P) or 0) >= before, "a native submit records when the session was prompted")
+t.ok((rounds.prompted_at(live) or 0) >= before, "a native submit records when the session was prompted")
 t.eq(rounds.prompted_at("claude:never"), nil, "a session never prompted has no time")
 t.eq(rounds.source_label("codex"), "Codex", "source_label: the word for a Source")
 t.eq(rounds.source_label(nil), nil, "source_label: nil for none")
 
 vim.fn.jobstop(job)
-vim.wait(2000, function() return not rounds.running(P) end, 10)
-t.eq(rounds.running(P), false, "running: not once its terminal stopped")
+vim.wait(2000, function() return not rounds.running(live) end, 10)
+t.eq(rounds.running(live), false, "running: not once its terminal stopped")
 vim.cmd.CodeDiff = CODEDIFF
 cd.open, vim.ui.select, vim.ui.input, vim.notify = real_open, real_select, real_input, real_notify
 vim.env.CLAUDE_CONFIG_DIR, vim.env.CODEX_HOME = saved_env.CLAUDE_CONFIG_DIR, saved_env.CODEX_HOME

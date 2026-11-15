@@ -13,9 +13,9 @@
 --
 -- Every repository is a scratch one under tempname(), with a space in its
 -- path, under an empty global git config. Drafts go to a scratch directory
--- (rounds.draft_path is redirected). No agent is started: the "Claude panel"
+-- (rounds.draft_path is redirected). No agent is started: the "Codex panel"
 -- is a terminal running `cat` with the Snacks record an agent panel carries,
--- claudecode.terminal is a stand-in, and the agent's prompt editor is opened
+-- The real Codex controller runs an offline executable; its prompt editor is opened
 -- the way local-plugin/agent-workbench.nvim/scripts/agent-editor opens it (editor.open on a temp file). The chat
 -- is a stub object; CodeCompanion is never loaded and nothing is sent.
 -- vim.ui.select and vim.ui.input are stubbed throughout: a prompt nobody
@@ -57,7 +57,7 @@ local spec_cwd = vim.fn.getcwd()
 local notes, every_note, every_prompt = {}, {}, {}
 local function from_feedback()
   local caller = debug.getinfo(3, "S")
-  return caller ~= nil and caller.source:find("ai/review/feedback.lua", 1, true) ~= nil
+  return caller ~= nil and caller.source:find("agent_workbench/review/feedback.lua", 1, true) ~= nil
 end
 local real_notify = vim.notify
 vim.notify = function(msg, level, opts)
@@ -98,7 +98,7 @@ local rounds = require("agent_workbench.review.rounds")
 local editor = require("agent_workbench.editor")
 local cd = require("git_review.view")
 local config = require("agent_workbench.state")
--- Feedback here is for Claude alone. Were any to reach Codex, its real
+-- Feedback here is for Codex alone. Were any to reach Codex, its real
 -- edit_prompt would start a Codex terminal in this Nvim: it only counts.
 local codex = require("agent_workbench.backend.codex")
 local real_codex_edit_prompt, codex_fed = codex.edit_prompt, 0
@@ -141,7 +141,7 @@ local function save_round(conversation, source)
   vim.wait(10000, function() return entry ~= nil end, 20)
   return entry
 end
-local entry = save_round("claude:s1", "claude")
+local entry = save_round("codex:s1", "codex")
 t.ok(entry, "a round baseline is taken")
 local vars = rounds.review_vars(entry)
 local sha = vars.sha
@@ -287,11 +287,11 @@ comment(s.modified_win)
 local lines = draft_lines()
 local head = lines and draft_header(lines[1]) or {}
 t.ok(type(head.n) == "string" and head.n:match("^" .. ("%x"):rep(12) .. "$") ~= nil, "a new draft has a nonce of its own")
-t.eq(lines and lines[1], ("<!-- nvim-review n=%s round=%s sha=%s conversation=claude:s1 root=%s -->")
+t.eq(lines and lines[1], ("<!-- nvim-review n=%s round=%s sha=%s conversation=codex:s1 root=%s -->")
   :format(head.n, vars.id, sha, vim.json.encode(root)), "the draft starts with its header: nonce, round, sha, conversation, root")
 t.eq(lines and lines[2], ("<!-- nvim-review-intro n=%s id=%s -->"):format(head.n, lines and lines[2]:match("id=([%d.]+)")),
   "then the intro's marker, with the nonce")
-t.ok(lines and lines[3]:match("^Review of changes since baseline %d%d%d%d%-%d%d%-%d%d %d%d:%d%d:%d%d %(Claude round%) in .+:$") ~= nil,
+t.ok(lines and lines[3]:match("^Review of changes since baseline %d%d%d%d%-%d%d%-%d%d %d%d:%d%d:%d%d %(Codex round%) in .+:$") ~= nil,
   "then the intro names the baseline's time and source: " .. tostring(lines and lines[3]))
 local at = index_of(lines, "## f.txt:5 (working tree) · was 5 at the baseline")
 t.ok(at ~= nil, "the hunk's heading gives both sides' lines, the left as the baseline's")
@@ -692,7 +692,7 @@ do
   notes, sunk = {}, {}
   feedback.deliver(b)
   t.eq(noted("lost its first line"), nil, "a note typed there afterwards has its header")
-  t.eq(sunk, { "claude:s1" }, "and goes to the round's conversation")
+  t.eq(sunk, { "codex:s1" }, "and goes to the round's conversation")
   lines = draft_lines(p)
   t.ok(header_of(lines) ~= nil and index_of(lines, "Please also rename foo to bar everywhere.") ~= nil,
     "the file holds the note under the header")
@@ -708,7 +708,7 @@ do
   notes, sunk = {}, {}
   feedback.deliver(b)
   t.eq(noted("lost its first line"), nil, "deleting the header line in the float loses nothing")
-  t.eq(sunk, { "claude:s1" }, "the draft still delivers to its conversation")
+  t.eq(sunk, { "codex:s1" }, "the draft still delivers to its conversation")
   t.ok(header_of(draft_lines(p)) ~= nil, "the file's first line is its header again")
   t.ok(header_of(api.nvim_buf_get_lines(b, 0, -1, false)) ~= nil, "and the float's")
   feedback.hide(b)
@@ -739,7 +739,7 @@ do
   notes, sunk = {}, {}
   feedback.deliver(a)
   t.eq(noted("lost its first line"), nil, "A can deliver it")
-  t.eq(sunk, { "claude:s1" }, "to the round's conversation")
+  t.eq(sunk, { "codex:s1" }, "to the round's conversation")
   feedback.hide(a)
 
   -- A comment B typed on an entry delivered meanwhile, saved after A's next
@@ -845,7 +845,7 @@ do
   feedback.deliver(b)
   vim.fn.writefile(new_txt, root .. "/new.txt", "b")
   t.ok(#pasted >= 2, "the other draft has a header and markers to paste")
-  t.eq({ kinds(), sunk }, { {}, { "claude:s1" } }, "another draft's markers are no entries of this one")
+  t.eq({ kinds(), sunk }, { {}, { "codex:s1" } }, "another draft's markers are no entries of this one")
   msg = draft_message(draft_lines(p))
   t.ok(msg:find(table.concat(pasted, "\n"), 1, true) ~= nil, "they are text, sent as typed")
   feedback.hide(b)
@@ -1051,20 +1051,19 @@ t.eq(count(draft_lines(), "⚠ changed since this comment"), count(lines, "⚠ c
 hide_float()
 
 ---------------------------------------------------------------------------
--- Native delivery: the round's Claude, through its prompt editor
+-- Native delivery: the round's Codex, through its prompt editor
 ---------------------------------------------------------------------------
 
--- The Claude panel, beside the file in the editor tab.
+-- The real controller uses an offline codex executable, never the installed CLI.
 api.nvim_set_current_tabpage(editor_tab)
-vim.cmd("vsplit")
-vim.cmd.enew()
-local claude_buf = api.nvim_get_current_buf()
-local claude_job = vim.fn.jobstart({ "cat" }, { term = true, cwd = root })
-vim.b[claude_buf].snacks_terminal = { cmd = { "claude", "--settings", "{}" }, cwd = root }
+codex.edit_prompt = real_codex_edit_prompt
+local native_session, cleanup_agent = t.start_codex(root)
+local codex_buf = native_session.buf
+local codex_job = vim.bo[codex_buf].channel
 local native = rounds._state().native
-t.ok(vim.wait(2000, function() return native.claude and native.claude.buf == claude_buf end, 10),
-  "the stand-in Claude panel is registered")
-native.claude.session, native.claude.dirty = "s1", false
+t.ok(vim.wait(2000, function() return native.codex and native.codex.buf == codex_buf end, 10),
+  "the stand-in Codex panel is registered")
+native.codex.session, native.codex.dirty = "s1", false
 vim.cmd("wincmd p")
 -- A third tabpage that nothing may touch, after the view's.
 vim.cmd("$tabnew")
@@ -1072,11 +1071,7 @@ local other_tab = api.nvim_get_current_tabpage()
 vim.cmd("vsplit")
 api.nvim_set_current_tabpage(tab)
 
-local saved_terminal = package.loaded["claudecode.terminal"]
-package.loaded["claudecode.terminal"] = {
-  get_active_terminal_bufnr = function() return claude_buf end,
-  ensure_visible = function() end,
-}
+
 
 local function layout(tp)
   local out = {}
@@ -1144,13 +1139,13 @@ settle(100)
 vim.cmd = real_cmd
 t.ok(delivered_ok, "delivery runs: " .. tostring(delivered_err))
 t.eq(kinds(), { "ai_review_stale" }, "delivery asks about the stale entries only")
-t.eq(resolved[1] and resolved[1].conversation, "claude:s1", "the header's conversation is checked")
+t.eq(resolved[1] and resolved[1].conversation, "codex:s1", "the header's conversation is checked")
 t.eq(resolved[1] and resolved[1].roots, { root, root }, "against the header's root and the view's")
-t.eq(api.nvim_get_current_tabpage(), editor_tab, "the tab switches to where Claude's panel is shown")
-t.eq(api.nvim_get_current_buf(), claude_buf, "the focus is in Claude's terminal")
+t.eq(api.nvim_get_current_tabpage(), editor_tab, "the tab switches to where Codex's panel is shown")
+t.eq(api.nvim_get_current_buf(), codex_buf, "the focus is in Codex's terminal")
 vim.cmd("stopinsert")
-t.ok(editor._seed_pending("claude"), "the feedback waits for Claude's prompt editor")
-t.eq(editor._seed_pending("codex"), false, "and for Claude's alone")
+t.ok(editor._seed_pending("codex"), "the feedback waits for Codex's prompt editor")
+t.eq(editor._seed_pending("claude"), false, "no unconfigured backend receives the seed")
 t.eq(#floats_here(), 0, "no draft float in the tab it went to")
 t.eq(#floats_here(tab), 0, "the draft's float is hidden in the view's tab")
 untouched("a native delivery")
@@ -1158,23 +1153,23 @@ t.eq(vim.fn.filereadable(last_sent), 0, "nothing is archived before the editor h
 f = assert(io.open(draft, "rb"))
 t.eq(f:read("*a"), before_text, "and the draft is as it was")
 f:close()
-t.eq(inserts, { claude_buf }, "Terminal mode is asked for once, in Claude's terminal")
+t.eq(inserts, { codex_buf }, "Terminal mode is asked for once, in Codex's terminal")
 
--- Codex opening its prompt meanwhile does not take Claude's feedback.
-local codex_prompt = dir .. "/editor/0193.md"
-vim.fn.writefile({ "codex's own box" }, codex_prompt)
-editor.open(codex_prompt, codex_prompt .. ".done")
+-- Codex opening its prompt meanwhile does not take Codex's feedback.
+local unowned_prompt = dir .. "/external-commit.md"
+vim.fn.writefile({ "external editor text" }, unowned_prompt)
+editor.open(unowned_prompt, unowned_prompt .. ".done")
 settle(200)
-t.eq(prompt_lines(), { "codex's own box" }, "a Codex prompt opened meanwhile gets none of it")
-t.ok(editor._seed_pending("claude"), "Claude's seed still waits")
+t.eq(prompt_lines(), { "external editor text" }, "a Codex prompt opened meanwhile gets none of it")
+t.ok(editor._seed_pending("codex"), "Codex's seed still waits")
 t.eq(vim.fn.filereadable(last_sent), 0, "and the draft is still not archived")
 t.ok(#draft_lines() > 0, "nor emptied")
 close_prompts()
 
--- Claude's editor opens (ctrl+g arrived): the seed follows what was typed.
-local claude_prompt = dir .. "/claude-prompt-7f0c.md"
-vim.fn.writefile({ "typed in the box" }, claude_prompt)
-editor.open(claude_prompt, claude_prompt .. ".done")
+-- Codex's editor opens (ctrl+g arrived): the seed follows what was typed.
+local addressed_prompt = dir .. "/editor/feedback.md"
+vim.fn.writefile({ "typed in the box" }, addressed_prompt)
+editor.open(addressed_prompt, addressed_prompt .. ".done")
 settle(200)
 local shown = prompt_lines() or {}
 t.eq(shown[1], "typed in the box", "the box keeps what was typed")
@@ -1193,7 +1188,7 @@ t.eq(table.concat(archived, "\n") .. "\n", before_text, "after keeping it as <id
 t.ok(not rounds._exempt({ kind = "round", root = root, id = vars.id }), "an empty draft no longer spares its round")
 close_prompts()
 
--- Claude does not open its editor in time: the draft stays.
+-- Codex does not open its editor in time: the draft stays.
 vim.g.ai_review = { seed_ttl_ms = 200 }
 api.nvim_set_current_tabpage(tab)
 comment(s.modified_win, { 7, 7 })
@@ -1204,21 +1199,21 @@ f:close()
 selects, answers, notes = {}, {}, {}
 feedback.deliver(fbuf)
 vim.cmd("stopinsert")
-t.ok(editor._seed_pending("claude"), "a second delivery is staged")
+t.ok(editor._seed_pending("codex"), "a second delivery is staged")
 t.ok(vim.wait(2000, function() return noted("did not open its prompt editor") ~= nil end, 20),
-  "after seed_ttl_ms it says Claude did not open its editor")
+  "after seed_ttl_ms it says Codex did not open its editor")
 local warned = noted("did not open its prompt editor")
-t.ok(warned and warned.level == WARN and warned.title == "AI review" and warned.msg:find("Claude Code", 1, true)
+t.ok(warned and warned.level == WARN and warned.title == "AI review" and warned.msg:find("Codex", 1, true)
   and warned.msg:find("Draft kept", 1, true), "a WARN naming the agent, the draft kept")
 f = assert(io.open(draft, "rb"))
 t.eq(f:read("*a"), before_text, "the draft is untouched")
 f:close()
-t.eq(editor._seed_pending("claude"), false, "and the seed is gone")
+t.eq(editor._seed_pending("codex"), false, "and the seed is gone")
 t.eq(table.concat(vim.fn.readfile(last_sent), "\n") .. "\n", table.concat(archived, "\n") .. "\n",
   "last-sent still holds the delivery that arrived")
 vim.g.ai_review = nil
 
--- A ,C while the delivery waits for Claude's editor: once the editor has the
+-- A ,C while the delivery waits for Codex's editor: once the editor has the
 -- feedback, the draft keeps only the entry added since, under its intro.
 api.nvim_set_current_tabpage(tab)
 comment(s.modified_win, { 6, 6 })
@@ -1231,11 +1226,11 @@ end
 selects, answers, notes = {}, {}, {}
 feedback.deliver(fbuf)
 vim.cmd("stopinsert")
-t.ok(editor._seed_pending("claude"), "a delivery is staged")
+t.ok(editor._seed_pending("codex"), "a delivery is staged")
 api.nvim_set_current_tabpage(tab)
 comment(s.modified_win, { 3, 3 })
 type_comment(feedback._buf(draft), "## f.txt:3 (working tree)", "> added while the seed waited")
-editor.open(claude_prompt, claude_prompt .. ".done")
+editor.open(addressed_prompt, addressed_prompt .. ".done")
 settle(200)
 shown_text = table.concat(prompt_lines() or {}, "\n")
 t.ok(shown_text:find("## f.txt:6 (working tree)", 1, true) ~= nil and shown_text:find("## f.txt:7", 1, true) ~= nil
@@ -1249,8 +1244,8 @@ t.ok(shown_text:find("Overall: keep the public API stable.", 1, true) ~= nil, "t
 t.eq(find(lines, "Overall: keep the public API stable."), nil, "and is not kept to be sent again")
 close_prompts()
 
--- Claude's prompt editor already open: the feedback goes straight in.
-editor.open(claude_prompt, claude_prompt .. ".done")
+-- Codex's prompt editor already open: the feedback goes straight in.
+editor.open(addressed_prompt, addressed_prompt .. ".done")
 settle(200)
 api.nvim_set_current_tabpage(tab)
 fbuf = (function()
@@ -1265,7 +1260,7 @@ feedback.deliver(fbuf)
 shown = prompt_lines() or {}
 t.ok(find(shown, "## f.txt:8 (working tree)") ~= nil, "an open prompt editor gets the text appended")
 t.eq(draft_lines(), {}, "and the draft is delivered at once")
-t.eq(editor._seed_pending("claude"), false, "without staging a seed")
+t.eq(editor._seed_pending("codex"), false, "without staging a seed")
 
 -- The other Nvim then saves a comment typed into an entry just delivered.
 api.nvim_set_current_tabpage(tab)
@@ -1315,21 +1310,21 @@ t.ok(note_aside ~= nil and noted(vim.fn.fnamemodify(note_aside, ":~")) ~= nil, "
 vim.fn.writefile({}, draft)
 close_prompts()
 
--- A Codex prompt open is no Claude prompt.
-editor.open(codex_prompt, codex_prompt .. ".done")
+-- A Codex prompt open is no Codex prompt.
+editor.open(unowned_prompt, unowned_prompt .. ".done")
 settle(200)
 api.nvim_set_current_tabpage(tab)
 comment(s.modified_win, { 9, 9 })
 fbuf = feedback._buf(draft)
 feedback.deliver(fbuf)
 vim.cmd("stopinsert")
-t.eq(prompt_lines(), { "codex's own box" }, "feedback for Claude never lands in Codex's open prompt")
-t.ok(editor._seed_pending("claude") and #draft_lines() > 0, "it waits for Claude's, the draft kept")
+t.eq(prompt_lines(), { "external editor text" }, "feedback for Codex never lands in Codex's open prompt")
+t.ok(editor._seed_pending("codex") and #draft_lines() > 0, "it waits for Codex's, the draft kept")
 close_prompts()
-editor.stage_seed(nil, { agent = "claude" })
+editor.stage_seed(nil, { agent = "codex" })
 t.ok(noted("did not open its prompt editor") ~= nil and #draft_lines() > 0, "a cleared seed counts as not delivered")
 
-package.loaded["claudecode.terminal"] = saved_terminal
+
 
 ---------------------------------------------------------------------------
 -- An unowned draft (a view that is no round's)
@@ -1604,13 +1599,13 @@ end
 -- Cleanup
 ---------------------------------------------------------------------------
 
-t.eq(codex_fed, 0, "nothing went to Codex")
+t.eq(codex_fed, 0, "no native prompt was sent before the offline terminal fixture")
 codex.edit_prompt = real_codex_edit_prompt
 package.loaded["codecompanion.interactions.chat"] = saved_chat_mod
 editor._release = real_release
 rounds.resolve_sink = real_resolve
 rounds.draft_path = real_draft_path
-pcall(vim.fn.jobstop, claude_job)
+cleanup_agent()
 api.nvim_set_current_tabpage(tab)
 cd.close(tab)
 vim.wait(3000, function() return not api.nvim_tabpage_is_valid(tab) end, 20)

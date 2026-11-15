@@ -256,7 +256,7 @@ stub({
   { id = "s1", path = "/tmp/fixture-a.jsonl", mtime = 2, title = "Newest" },
   { id = "s2", path = "/tmp/fixture-b.jsonl", mtime = 1 },
 }, entries)
-local picked_ok, picked_err = pcall(view.pick, "claude")
+local picked_ok, picked_err = pcall(view.pick, "codex")
 t.ok(picked_ok, "UC-12: pick() builds a picker" .. (picked_ok and "" or (": " .. tostring(picked_err))))
 local picker = Snacks.picker.get({ source = "ai_transcripts" })[1]
 t.ok(picker ~= nil, "UC-12: the picker instance exists")
@@ -268,11 +268,11 @@ end
 -- UC-17: no session must notify and open nothing.
 stub({}, {})
 local current = vim.api.nvim_get_current_buf()
-view.open_current("claude")
+view.open_current("codex")
 t.eq(vim.api.nvim_get_current_buf(), current, "UC-17: no sessions opens no buffer")
 
 -- pick() must also survive having nothing to offer.
-local ok = pcall(view.pick, "claude")
+local ok = pcall(view.pick, "codex")
 t.ok(ok, "UC-12: pick() does not raise when there are no sessions")
 
 -- q in the only layout window, with floats around (a notification, a noice
@@ -280,7 +280,7 @@ t.ok(ok, "UC-12: pick() does not raise when there are no sessions")
 -- real one and fail with E444. Headless shows none of them, so a hidden float
 -- stands in.
 stub({ { id = "s1", path = "/tmp/fixture-a.jsonl", mtime = 2, title = "Newest" } }, entries, true)
-view.open_current("claude")
+view.open_current("codex")
 local transcript = vim.api.nvim_get_current_buf()
 t.ok(table.concat(vim.api.nvim_buf_get_lines(transcript, 0, -1, false), "\n")
   :find("some older entries were dropped", 1, true) ~= nil,

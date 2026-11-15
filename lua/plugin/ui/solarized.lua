@@ -2,15 +2,14 @@ return {
 	"craftzdog/solarized-osaka.nvim",
 	lazy = false,
 	priority = 1000,
-	opts = {
-		transparent = true,
-	},
+	opts = function() return { transparent = require("config.theme").transparent } end,
 	config = function(_, opts)
 		require("solarized-osaka").setup(opts)
-		vim.cmd([[colorscheme solarized-osaka]])
+		local theme = require("config.theme")
+		vim.cmd.colorscheme(theme.colorscheme)
+		for group, value in pairs(theme.highlights) do vim.api.nvim_set_hl(0, group, value) end
 
 		-- Strengthen Visual selection: transparent bg makes the default too faint
-		vim.api.nvim_set_hl(0, "Visual", { bg = "#264F78", fg = "NONE" })
 
 		-- The tabline is the one area `transparent` misses: Normal loses its
 		-- background but TabLineFill keeps an opaque teal, and the tabline is

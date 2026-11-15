@@ -1,31 +1,12 @@
--- The native agents' prompt hooks: what gets injected into each CLI, and the
--- RPC receiver local-plugin/agent-workbench.nvim/scripts/agent-hook calls back into.
---
--- Both agents are given a hook per process, never through the user's own
--- settings: Claude through `--settings <json>` (lua/plugin/ai/claudecode.lua), Codex
--- through `-c hooks=...` (local-plugin/agent-workbench.nvim/lua/agent_workbench/backend/codex.lua). Both merge with whatever
--- hooks the user configured instead of replacing them. Each is gated by
--- sources.claude / sources.codex in ai.review.config.
---
---   agent  event                 hook script call
---   claude UserPromptSubmit      agent-hook claude submit <wait-ms>
---   claude SessionStart (async)  agent-hook claude session <wait-ms>
---   codex  UserPromptSubmit      agent-hook codex submit <wait-ms>
---
--- Codex gets no SessionStart: it only runs at the thread's first turn
--- (session.rs queue_pending_session_start_source), never earlier than the
--- first UserPromptSubmit, so it would tell us nothing new.
---
--- The script cannot read Lua settings, so hook_wait_ms travels in its argv.
--- Generating either string is pure string work: the plugin spec calls
--- claude_settings() at startup, so this module must not load a plugin or run
--- git. ai.review.rounds is only required when an event arrives.
+-- Codex prompt-hook construction and the bounded RPC receiver.
+-- Injection is per process; nothing writes the user's CLI configuration.
+-- The trust hash uses the same deterministic encoding as Codex.
 
 local M = {}
 
 -- Which events the script forwards, per agent. Mirrors the case in
 -- local-plugin/agent-workbench.nvim/scripts/agent-hook; anything else is refused on both sides.
-local ROUTES = { claude = { submit = true, session = true }, codex = { submit = true } }
+local ROUTES = { codex = { submit = true } }
 
 -- Codex keys a hook's trust state by layer, event, group and handler index. The
 -- session-flags layer has a synthetic path, and the one injected group holds a
@@ -105,24 +86,6 @@ function M.codex_trust_hash(event_key, command, timeout)
   return "sha256:" .. vim.fn.sha256(json_encode(identity))
 end
 
----The `--settings` value for native Claude: UserPromptSubmit waits for the
----baseline (bounded), SessionStart only reports the session and runs async.
----Exec form (`args`), so no shell ever re-parses the path.
----@return string json
-function M.claude_settings()
-  local wait = require("agent_workbench.review.settings").get().hook_wait_ms
-  local script = M.script()
-  local function handler(event, extra)
-    return vim.tbl_extend("error", { type = "command", command = script, args = { "claude", event, tostring(wait) } }, extra)
-  end
-  return json_encode({
-    hooks = {
-      UserPromptSubmit = { { hooks = { handler("submit", { timeout = hook_timeout(wait) }) } } },
-      SessionStart = { { hooks = { handler("session", { async = true }) } } },
-    },
-  })
-end
-
 ---The `-c` value for native Codex: one UserPromptSubmit hook plus its trust
 ---state in the same table, so Codex runs it without asking for review and
 ---never writes ~/.codex/config.toml. Codex runs the command through a shell.
@@ -185,7 +148,8 @@ end
 ---@param done_path string
 ---@return string status, for the script's (discarded) stdout
 function M.event(agent, event, payload_path, done_path)
-  if not (ROUTES[agent] and ROUTES[agent][event]) or type(payload_path) ~= "string" or type(done_path) ~= "string" then
+  if not (ROUTES[agent] and ROUTES[agent][event]) or not require("agent_workbench.state").agents[agent]
+    or type(payload_path) ~= "string" or type(done_path) ~= "string" then
     return "error:usage"
   end
 

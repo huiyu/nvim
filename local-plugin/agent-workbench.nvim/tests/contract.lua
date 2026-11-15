@@ -15,6 +15,7 @@ check(#api.nvim_list_wins() == before and package.loaded["agent_workbench.state"
 check(package.loaded.snacks == nil, "Snacks is absent")
 local selected = assert(vim.env.AGENT_TEST_PROVIDER)
 local custom_calls, requests = {}, {}
+local failures, partial = {}, nil
 local provider = selected
 if selected == "snacks" then
   vim.opt.rtp:append(assert(vim.env.AGENT_SNACKS_DIR))
@@ -26,6 +27,13 @@ elseif selected == "custom" then
     provider[method] = function(...)
       custom_calls[method] = (custom_calls[method] or 0) + 1
       if method == "open" then requests[#requests + 1] = ... end
+      if failures[method] then
+        if method == "open" then
+          partial = native.open(...)
+          error("fixture: partial open failed")
+        end
+        return false, { code = "unavailable", message = "fixture: " .. method .. " refused" }
+      end
       return native[method](...)
     end
   end
@@ -54,6 +62,15 @@ vim.cmd.cd(vim.fn.fnameescape(tmp))
 local file = tmp .. "/file 日本語.txt"
 vim.fn.writefile({ "source" }, file)
 vim.cmd.edit(vim.fn.fnameescape(file))
+if selected == "custom" then
+  failures.open = true
+  local failed, reason = agent.open("codex")
+  failures.open = nil
+  check(not failed and reason.code == "unavailable" and agent.session("codex") == nil,
+    "failed custom open leaves no registry entry")
+  check(not api.nvim_buf_is_valid(partial.buf) and vim.fn.jobwait({ partial.channel }, 0)[1] ~= -1,
+    "a partial open releases its reported PTY and buffer")
+end
 local session, err = agent.open("codex")
 assert(session, vim.inspect(err))
 local function text() return table.concat(api.nvim_buf_get_lines(session.buf, 0, -1, false), "") end
@@ -84,6 +101,14 @@ local owner_tab = api.nvim_get_current_tabpage()
 vim.cmd.tabnew()
 local other_tab = api.nvim_get_current_tabpage()
 api.nvim_win_set_buf(0, session.buf)
+local copy_win = api.nvim_get_current_win()
+agent.open("codex")
+check(api.nvim_get_current_tabpage() == other_tab and api.nvim_get_current_win() == copy_win,
+  "opening a visible copy focuses it without jumping to its owner")
+agent.send_context("codex", { text = "copy draft" })
+vim.wait(60, function() return false end)
+check(api.nvim_get_current_tabpage() == other_tab and api.nvim_get_current_win() == copy_win,
+  "delivery to a visible copy stays in its current tab")
 local hidden, reason = agent.hide("codex")
 check(not hidden and reason.code == "other_tab", "another tab cannot hide owned view")
 api.nvim_set_current_tabpage(owner_tab)
@@ -97,17 +122,31 @@ hidden, reason = agent.hide("codex")
 check(not hidden and reason.code == "only_window", "float does not make the last normal window closeable")
 api.nvim_win_close(float, true)
 api.nvim_open_win(api.nvim_create_buf(false, true), true, { split = "left" })
+if selected == "custom" then
+  local notify, notes = vim.notify, {}
+  vim.notify = function(msg) notes[#notes + 1] = msg end
+  failures.send = true
+  agent.send_context("codex", { text = "refused draft" })
+  check(vim.wait(1000, function() return #notes > 0 end, 10) and notes[1]:find("send refused", 1, true),
+    "deferred provider send refusal is visible to the caller")
+  failures.send, vim.notify = nil, notify
+  failures.stop = true
+  local stopped, reason = agent.stop("codex")
+  failures.stop = nil
+  check(not stopped and reason.code == "unavailable" and agent.session("codex").alive,
+    "provider stop refusal preserves the live registry for retry")
+end
 agent.stop("codex")
 check(agent.session("codex") == nil and vim.fn.jobwait({ channel }, 0)[1] ~= -1, "stop releases process/registry")
 check(agent.stop("codex"), "stop is idempotent")
 if selected == "custom" then
   vim.cmd.edit(vim.fn.fnameescape(file))
   agent.open("codex")
-  check(#requests == 2, "custom provider owns both actual launches")
+  check(#requests == 3, "custom provider owns the partial and both successful launches")
   registry_session.on_exit(0)
   check(agent.session("codex").generation ~= session.generation, "stale exit cannot remove newer generation")
   agent.stop("codex")
-  check(custom_calls.open == 2 and custom_calls.hide and custom_calls.show and custom_calls.stop,
+  check(custom_calls.open == 3 and custom_calls.hide and custom_calls.show and custom_calls.stop,
     "same public lifecycle uses custom implementation")
   check(custom_calls.send ~= nil, "public context delivery uses custom provider.send")
 end

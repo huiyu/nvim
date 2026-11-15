@@ -1,6 +1,6 @@
 -- Git comparison workflows behind <leader>g: status, revisions, history,
 -- two-ended comparisons and saved baselines. CodeDiff's view mechanics stay
--- in util.codediff; ai.review alone interprets round/session metadata.
+-- in git_review.view; ai.review alone interprets round/session metadata.
 local M = {}
 
 --- Run git in `cwd`. Returns the output lines, or nil and git's first stderr
@@ -130,7 +130,7 @@ local function review_labels(method, value, cb)
   vim.defer_fn(finish, LABEL_GUARD_MS)
 end
 
---- The baselines of the worktree at `root` (util.baseline; this worktree's
+--- The baselines of the worktree at `root` (git_review.baseline; this worktree's
 --- only), newest first, as picker items: `cb(items)`. The vcs layer reads a
 --- baseline's subject and sha, nothing else; what its trailers mean belongs
 --- to ai.review, which labels it. CodeDiff gets the sha, never the ref:
@@ -158,7 +158,7 @@ local function baseline_items(root, cb)
 end
 
 --- Tab variables for a view of `item` against the working tree. A baseline
---- marks the view as one (vim.t.codediff_baseline, which util.codediff_actions
+--- marks the view as one (vim.t.codediff_baseline, which git_review.actions
 --- reads for ,X). A round's baseline also names its round (vim.t.ai_review)
 --- through ai.review.rounds; without that module the view opens without it.
 local function baseline_vars(item)
@@ -299,10 +299,10 @@ end
 --- Do both ends of `p` hold the same content? `cb(true|false)`, or
 --- `cb(nil, reason)` when git refused a revision. CodeDiff answers an empty
 --- comparison with a bare "No changes to show" (#582); this says what was
---- compared instead. The working tree side is a util.baseline snapshot, so
+--- compared instead. The working tree side is a git_review.baseline snapshot, so
 --- untracked files count; a snapshot that fails answers false and the view
 --- opens to speak for itself. So does one that left untracked files out for
---- size: they can differ unseen, and the view names them (util.codediff's
+--- size: they can differ unseen, and the view names them (git_review.view's
 --- listing) or, in the status view, lists them.
 local function same_content(root, p, cb)
   local B = require("git_review.baseline")
@@ -403,7 +403,7 @@ end
 
 --- Save the working tree as a named baseline for <leader>gk/<leader>gM. It
 --- belongs to no session and opens no round; retention.saved prunes the
---- oldest (util.baseline names each one it removes). The name offered is the
+--- oldest (git_review.baseline names each one it removes). The name offered is the
 --- session an agent is working in here, if any.
 function M.save_baseline()
   local root, reason = repo_root()

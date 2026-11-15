@@ -26,9 +26,8 @@ end
 -- its mappings until a scheduled load that never runs headless, so the keymap
 -- itself is not observable here -- but the data that produces it is.
 local function quit_entry(lhs)
-  for _, entry in ipairs(require("config.whichkey_spec").spec) do
-    if entry[1] == lhs then return entry end
-  end
+  local mapping = vim.fn.maparg(lhs, "n", false, true)
+  if mapping.callback then return { lhs, mapping.callback } end
 end
 
 -- `<cmd>qall<cr>` is exactly the form Snacks' ExitPre swallows.
@@ -37,7 +36,7 @@ local real_all = quit.all
 quit.all = function(force) mapped_force[#mapped_force + 1] = force == true end
 for _, lhs in ipairs({ "<leader>qq", "<leader>qQ" }) do
   local entry = quit_entry(lhs)
-  t.ok(entry ~= nil, lhs .. " is still in the which-key spec")
+  t.ok(entry ~= nil, lhs .. " is installed without which-key")
   t.eq(type(entry and entry[2]), "function", lhs .. " goes through util.quit, not a bare :qall")
   if entry and type(entry[2]) == "function" then entry[2]() end
 end

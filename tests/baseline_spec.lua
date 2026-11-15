@@ -684,7 +684,7 @@ for i = 1, 2 do
     out = out,
     job = vim.system({
       "nvim", "--headless", "-u", "NONE", "-i", "NONE", "-n", "--noplugin",
-      "--cmd", "set rtp^=" .. vim.fn.fnameescape(CONFIG_DIR), "-c", "luafile " .. vim.fn.fnameescape(child_script),
+      "--cmd", "set rtp^=" .. vim.fn.fnameescape(CONFIG_DIR .. "/local-plugin/git-review.nvim"), "-c", "luafile " .. vim.fn.fnameescape(child_script),
     }, { env = { BASELINE_DIR = procs, CHILD = tostring(i), CHILD_OUT = out } }),
   }
 end

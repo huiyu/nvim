@@ -1,17 +1,17 @@
 -- The review loop end to end: a round opened through rounds.submit for a
--- native Claude terminal, <leader>av's view of it (ai.review.open), the real
+-- native Codex terminal, <leader>av's view of it (ai.review.open), the real
 -- ,C keys in Normal and Visual mode writing the draft and opening its float,
 -- typing into it, and the float's real <C-d> going through the real
--- rounds.resolve_sink and ai.feed to Claude's backend. The pieces have specs
+-- rounds.resolve_sink and ai.feed to Codex's backend. The pieces have specs
 -- of their own (review_round, review_view, review_feedback); this one pins
 -- that they are wired to each other.
 --
 -- A scratch repository under tempname(), with a space in its path, under an
 -- empty global git config; drafts go to a scratch directory (rounds.draft_path
--- is redirected). No agent runs: "Claude" is a terminal running `cat` with the
+-- is redirected). No agent runs: "Codex" is a terminal running `cat` with the
 -- Snacks record an agent panel carries, registered through the real TermOpen
 -- path, and its session is reported through rounds.native_event as the hook
--- would report it. Claude's backend edit_prompt is the one stub on the way: it
+-- would report it. Codex's backend edit_prompt is the one stub on the way: it
 -- records the seed and hands it over as the prompt editor would (on_consumed).
 -- vim.ui.select and vim.ui.input are stubbed to record and refuse: nothing on
 -- this path may ask, and a prompt nobody answers would hang the spec.
@@ -69,7 +69,7 @@ rounds.draft_path = function(root, id)
 end
 
 ---------------------------------------------------------------------------
--- A repository, Claude's terminal in it, and a round it owns
+-- A repository, Codex's terminal in it, and a round it owns
 ---------------------------------------------------------------------------
 
 local root = scratch .. "/proj loop"
@@ -92,31 +92,28 @@ vim.cmd.cd(vim.fn.fnameescape(root))
 vim.cmd.edit(vim.fn.fnameescape(root .. "/f.txt"))
 local editor_tab = api.nvim_get_current_tabpage()
 local file_win = api.nvim_get_current_win()
-vim.cmd("vsplit")
-vim.cmd.enew()
-local term_buf = api.nvim_get_current_buf()
-local term_job = vim.fn.jobstart({ "cat" }, { term = true, cwd = root })
-vim.b[term_buf].snacks_terminal = { cmd = { "claude", "--settings", "{}" }, cwd = root }
+local session, cleanup_agent = t.start_codex(root)
+local term_buf = session.buf
+local term_job = vim.bo[term_buf].channel
 local native = rounds._state().native
-t.ok(vim.wait(2000, function() return native.claude ~= nil and native.claude.buf == term_buf end, 10),
-  "TermOpen registers the stand-in Claude terminal")
-rounds.native_event({
-  agent = "claude", event = "session", payload = { session_id = "loop-1", source = "startup" }, done = function() end,
-})
-t.eq(native.claude and native.claude.session, "loop-1", "its session is reported as the hook reports it")
+t.ok(vim.wait(2000, function() return native.codex ~= nil and native.codex.buf == term_buf end, 10),
+  "TermOpen registers the stand-in Codex terminal")
+native.codex.session, native.codex.dirty = "loop-1", false
+t.eq(native.codex.session, "loop-1", "the offline fixture records the Codex conversation")
+
 api.nvim_set_current_win(file_win)
 
 local round
 rounds.submit({
   source = "manual",
-  conversation = "claude:loop-1",
+  conversation = "codex:loop-1",
   root = root,
   force = true,
   on_round = function(r) round = r end,
 })
 t.ok(vim.wait(10000, function() return round ~= nil end, 20), "rounds.submit opens a round")
 round = round or {}
-t.eq({ round.conversation, round.root }, { "claude:loop-1", root }, "owned by Claude's session, in the repository")
+t.eq({ round.conversation, round.root }, { "codex:loop-1", root }, "owned by Codex's session, in the repository")
 
 -- What the agent did since.
 rows[4] = "line 4 CHANGED"
@@ -180,7 +177,7 @@ api.nvim_feedkeys(vim.keycode(",Cmy comment<Esc>"), "xt", false)
 t.ok(package.loaded["agent_workbench.review.feedback"] ~= nil, ",C loads ai.review.feedback")
 local lines = draft_lines()
 local nonce = lines[1] and lines[1]:match("^<!%-%- nvim%-review n=(%x+) ")
-t.eq(lines[1], ("<!-- nvim-review n=%s round=%s sha=%s conversation=claude:loop-1 root=%s -->")
+t.eq(lines[1], ("<!-- nvim-review n=%s round=%s sha=%s conversation=codex:loop-1 root=%s -->")
   :format(nonce, round.id, round.sha, vim.json.encode(root)), "the draft starts with the round's header, and its nonce")
 t.ok(nonce and lines[2] and lines[2]:match(("^<!%%-%%- nvim%%-review%%-intro n=%s id="):format(nonce)) ~= nil,
   "then the intro's marker: " .. tostring(lines[2]))
@@ -210,7 +207,7 @@ t.eq(api.nvim_win_get_config(fwin).relative, "editor", "the float is back, focus
 local delivered_text = table.concat(lines, "\n") .. "\n"
 
 ---------------------------------------------------------------------------
--- The float's <C-d>: the real resolve_sink, ai.feed, Claude's backend
+-- The float's <C-d>: the real resolve_sink, ai.feed, Codex's backend
 ---------------------------------------------------------------------------
 
 local resolved = {}
@@ -222,21 +219,14 @@ rounds.resolve_sink = function(conversation, roots, cb)
     return cb(target, reason)
   end)
 end
-local claude = require("agent_workbench.backend.claude")
-local real_edit_prompt = claude.edit_prompt
+local codex = require("agent_workbench.backend.codex")
+local real_edit_prompt = codex.edit_prompt
 local fed = {}
-claude.edit_prompt = function(opts)
+codex.edit_prompt = function(opts)
   fed[#fed + 1] = { opts = opts, tab = api.nvim_get_current_tabpage() }
   -- The prompt editor opens and takes the seed.
   vim.schedule(function() opts.on_consumed() end)
 end
--- Feedback for Claude never reaches Codex. Were it to, Codex's real
--- edit_prompt would start a Codex terminal in this Nvim: it is stubbed to
--- record and do nothing.
-local codex = require("agent_workbench.backend.codex")
-local real_codex_edit_prompt = codex.edit_prompt
-local codex_fed = 0
-codex.edit_prompt = function() codex_fed = codex_fed + 1 end
 -- startinsert takes effect once the main loop runs a Normal-mode command,
 -- which a headless spec never does: what is asked for, and where, is what
 -- the spec can see.
@@ -255,31 +245,30 @@ local ok, err = pcall(function()
   settle(100)
 end)
 vim.cmd = real_cmd
-claude.edit_prompt = real_edit_prompt
-codex.edit_prompt = real_codex_edit_prompt
+codex.edit_prompt = real_edit_prompt
 rounds.resolve_sink = real_resolve
 t.ok(ok, "<C-d> runs: " .. tostring(err))
-t.eq(codex_fed, 0, "nothing goes to Codex")
+t.eq(package.loaded["agent_workbench.backend.claude"], nil, "the workflow needs no Claude integration")
 
 t.eq(#resolved, 1, "<C-d> asks rounds.resolve_sink once")
-t.eq(resolved[1] and { resolved[1].conversation, resolved[1].roots }, { "claude:loop-1", { root, root } },
+t.eq(resolved[1] and { resolved[1].conversation, resolved[1].roots }, { "codex:loop-1", { root, root } },
   "for the header's conversation, against the header's root and the view's")
 t.eq(resolved[1] and resolved[1].target and { resolved[1].target.kind, resolved[1].target.agent, resolved[1].target.buf },
-  { "native", "claude", term_buf }, "which finds Claude's terminal, running that session")
+  { "native", "codex", term_buf }, "which finds Codex's terminal, running that session")
 t.eq(asked, {}, "nothing asks along the way")
-t.eq(#fed, 1, "ai.feed reaches Claude's edit_prompt once " .. heard())
+t.eq(#fed, 1, "ai.feed reaches Codex's edit_prompt once " .. heard())
 local seed = fed[1] and fed[1].opts.seed or ""
 t.ok(seed:match("^Review of changes since baseline") ~= nil, "the seed starts with the intro")
 t.ok(not seed:find("nvim-review", 1, true), "without the header or the markers")
 t.ok(seed:find("> my comment", 1, true) ~= nil and seed:find("> second comment", 1, true) ~= nil, "with both comments")
 t.eq(fed[1] and fed[1].opts.ttl_ms, require("agent_workbench.review.settings").get().seed_ttl_ms, "given seed_ttl_ms to arrive in")
-t.eq(fed[1] and fed[1].tab, editor_tab, "fed from the tabpage that shows Claude's terminal")
+t.eq(fed[1] and fed[1].tab, editor_tab, "fed from the tabpage that shows Codex's terminal")
 t.eq(vim.fn.getfsize(draft), 0, "on_consumed empties the draft")
 local last_sent = (draft:gsub("%.md$", "")) .. ".last-sent.md"
 t.eq(vim.fn.filereadable(last_sent) == 1 and table.concat(vim.fn.readfile(last_sent), "\n") .. "\n", delivered_text,
   "after keeping what was delivered as <id>.last-sent.md")
 t.eq({ api.nvim_get_current_tabpage(), api.nvim_get_current_buf() }, { editor_tab, term_buf },
-  "the focus ends in Claude's terminal")
+  "the focus ends in Codex's terminal")
 t.eq(inserts, { term_buf }, "in Terminal mode")
 t.eq(#floats(), 0, "the draft's float is gone")
 t.ok(cd.session(tab) ~= nil, "and the review view is still there")
@@ -290,7 +279,7 @@ vim.cmd("stopinsert")
 ---------------------------------------------------------------------------
 
 rounds.draft_path = real_draft_path
-pcall(vim.fn.jobstop, term_job)
+cleanup_agent()
 for _, tp in ipairs(api.nvim_list_tabpages()) do
   if cd.session(tp) then cd.close(tp) end
 end

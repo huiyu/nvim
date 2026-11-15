@@ -10,7 +10,7 @@
 -- one the session had, so a later /rename or a renamed Codex thread leaves
 -- it alone. The start is the baseline's time, taken as the prompt left; the
 -- end is when the session's last turn ended before its next round began.
--- Both are compared to the millisecond (util.baseline.time_of): a prompt sent
+-- Both are compared to the millisecond (git_review.baseline.time_of): a prompt sent
 -- in the same second as a turn ended must not take that turn's end.
 --
 -- "…" says the session is at work on this round: it was prompted after its
@@ -187,7 +187,7 @@ local function build(e, entries, marks, mod, now)
   }
 end
 
----Labels for util.baseline.list entries: `cb(labels)`, labels[i] = { label,
+---Labels for git_review.baseline.list entries: `cb(labels)`, labels[i] = { label,
 ---display } for entries[i] -- the view's label and the picker's line -- or nil
 ---where the caller keeps its own (a round with no Source, an unknown kind).
 ---Waits for the sessions' records up to `opts.budget_ms` (BUDGET_MS); a

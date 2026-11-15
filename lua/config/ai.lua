@@ -2,6 +2,7 @@
 -- local-plugin/agent-workbench.nvim/lua/agent_workbench/state.lua validates it and owns the live state; plugin specs wire it
 -- into the native terminals and CodeCompanion. Requiring this file only returns data.
 return {
+  plugin_dirs = {}, -- Local native plugin paths; NVIM_AI_PLUGIN_DIR overrides this list.
   -- Native is built in. Snacks and custom providers use the same lifecycle.
   terminal = { provider = "snacks" },
   native = { codex = { args = { "--no-alt-screen", "--yolo" }, wrap_tmux = true } },
@@ -20,23 +21,12 @@ return {
   -- Entries appear as terminals, then ACP, then API, in provider order.
   -- CodeCompanion's own chats use the first ACP adapter, else the first API.
   --
-  -- tui.kind: "claude" or "codex"; another kind needs a backend implementation.
+  -- tui.kind: "codex"; another kind needs a backend implementation.
   -- acp.adapter: an existing CodeCompanion ACP adapter; command checks PATH.
   --   A new adapter must also be registered in lua/plugin/ai/codecompanion.lua.
   -- api.adapter: a CodeCompanion HTTP adapter; api_key names an NVIM_* variable.
   --   Optional: label, model, and name (a unique key profile/adapter name).
   providers = {
-    -- {
-    --   name = "claude",
-    --   label = "Claude Code",
-    --   -- The variable this vendor's CLIs (claude, claude-agent-acp) bill against
-    --   -- instead of the subscription login: the picker and :checkhealth config
-    --   -- warn while it is set.
-    --   cli_api_key = "ANTHROPIC_API_KEY",
-    --   tui = { kind = "claude" },
-    --   acp = { adapter = "claude_code", command = "claude-agent-acp" },
-    --   api = { adapter = "anthropic", label = "Anthropic", api_key = "NVIM_ANTHROPIC_API_KEY" },
-    -- },
     {
       name = "codex",
       label = "Codex",
@@ -54,10 +44,10 @@ return {
     -- is also the CodeCompanion adapter it registers, so a chat that
     -- codecompanion-history restores finds its key again by that name.
     -- {
-    --   name = "anthropic_work",
-    --   label = "Anthropic (work)",
-    --   api = { name = "anthropic_work", adapter = "anthropic",
-    --           api_key = "NVIM_ANTHROPIC_API_KEY_WORK", model = "claude-sonnet-5" },
-    -- },
-  },
-}
+      --   name = "anthropic_work",
+      --   label = "Anthropic (work)",
+      --   api = { name = "anthropic_work", adapter = "anthropic",
+      --           api_key = "NVIM_ANTHROPIC_API_KEY_WORK", model = "claude-sonnet-5" },
+      -- },
+    },
+  }

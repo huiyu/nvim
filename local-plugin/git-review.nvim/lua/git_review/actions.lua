@@ -1,6 +1,6 @@
 -- Hunk actions inside a CodeDiff view (,S ,U ,X), installed on every
--- `User CodeDiffKeys` pass through util.codediff.set_keys. CodeDiff is reached
--- only through util.codediff, gitsigns only through its public API. The
+-- `User CodeDiffKeys` pass through git_review.view.set_keys. CodeDiff is reached
+-- only through git_review.view, gitsigns only through its public API. The
 -- letters are the status explorer's file-level S/U/X (stage all, unstage all,
 -- discard) and <leader>gS's stage, for one hunk: u never stages here.
 --
@@ -21,7 +21,7 @@
 --            the wrong place in the index without a word; its keys stay off
 --            (lua/plugin/git/codediff.lua).
 --   ,U       In the status view's Staged group (left HEAD, right the index):
---            CodeDiff's own unstage, through util.codediff, which is right
+--            CodeDiff's own unstage, through git_review.view, which is right
 --            there and only there.
 --   ,X       One hunk of the working-tree file, back to the baseline on the
 --            left, in a baseline-vs-working-tree view only (vim.t.
@@ -99,7 +99,7 @@ end
 
 --- Run a read-only git command in `root`, synchronously: these run on a key
 --- press, and the answer decides whether anything happens. The prefix is
---- util.baseline's (no optional locks, no user hooks); paths are literal.
+--- git_review.baseline's (no optional locks, no user hooks); paths are literal.
 ---@return string? stdout, string? err, integer code
 local function git(root, args)
   local cmd = require("git_review.baseline").git_cmd(vim.list_extend({ "--literal-pathspecs" }, args))
@@ -347,7 +347,7 @@ local function check_paths(ctx)
 end
 
 --- The displayed hunks a selection [top, bot] of the right pane touches, each
---- checked against a fresh diff. util.codediff answers for a window's cursor,
+--- checked against a fresh diff. git_review.view answers for a window's cursor,
 --- so the cursor walks the range and goes back where it was. A deletion
 --- drawn just above `top` is outside the selection.
 local function hunks_in(tab, win, top, bot)
@@ -964,7 +964,7 @@ local function one_sided_hint(tab)
   if view.side == "original" then
     -- Only for a path that is gone: the restore writes the baseline's file
     -- over whatever is there, a directory and its untracked work included.
-    -- util.codediff's listing never calls a path on disk deleted, but a view
+    -- git_review.view's listing never calls a path on disk deleted, but a view
     -- drawn before the file came back can, and so can upstream's listing,
     -- which that one falls back to.
     if vim.uv.fs_lstat(s.git_root .. "/" .. s.original.relative) then
@@ -1001,7 +1001,7 @@ local function selection(fn)
   end
 end
 
----@return util.codediff.Key[]
+---@return git_review.view.Key[]
 local function specs(tab, s)
   local view = classify(tab, s)
   local keys = {}

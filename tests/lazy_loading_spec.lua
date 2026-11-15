@@ -18,16 +18,21 @@ for _, name in ipairs({ "mason-lspconfig.nvim", "nvim-lspconfig", "blink.cmp", "
   t.ok(not loaded(name), name .. " stays unloaded until it is first used")
 end
 t.ok(loaded("lualine.nvim"), "lualine is loaded for the first frame")
--- Both are declared always, whatever lua/config/ai.lua's providers list, and
--- wait for their first command or key: the facade's mappings (local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua)
--- and :AI define no plugin load.
-for _, name in ipairs({ "claudecode.nvim", "codecompanion.nvim" }) do
-  t.ok(require("lazy.core.config").plugins[name] ~= nil and not loaded(name), name .. " is declared and stays unloaded at startup")
+t.ok(Config.plugins["agent-workbench.nvim"] ~= nil and loaded("agent-workbench.nvim"),
+  "the local plugin installs only its cheap facade at startup")
+t.ok(Config.plugins["codecompanion.nvim"] ~= nil and not loaded("codecompanion.nvim"),
+  "CodeCompanion stays lazy until its first action")
+t.eq(Config.plugins["claudecode.nvim"], nil, "no native Claude plugin is declared")
+t.eq(vim.fn.exists(":ClaudeCode"), 0, "no Claude command is installed")
+-- A developer may still have the removed integration installed in the shared
+-- lazy directory; fresh installs have nothing to clean.
+for _, plugin in ipairs(Config.to_clean) do
+  t.eq(plugin.name, "claudecode.nvim", "only the intentionally removed integration may be left installed")
 end
--- A spec made conditional would be pruned from the lock and listed for
--- :Lazy clean; declared, claudecode's commands are its lazy triggers.
-t.eq(#Config.to_clean, 0, "nothing is left for :Lazy clean to delete")
-t.eq(vim.fn.exists(":ClaudeCode"), 2, ":ClaudeCode is a lazy trigger")
+for _, module in ipairs({ "agent_workbench.backend.codex", "agent_workbench.terminal_provider",
+  "agent_workbench.provider.snacks", "agent_workbench.provider.native" }) do
+  t.eq(package.loaded[module], nil, module .. " stays lazy")
+end
 -- CodeDiff's setup loads its native library (and would download it), so it
 -- waits for :CodeDiff or a <leader>g key. Nothing of the review loop loads
 -- or runs git before its first use either.

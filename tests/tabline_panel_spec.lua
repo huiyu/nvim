@@ -203,7 +203,7 @@ do
   vim.cmd("tabnew")
   local current_tab = vim.api.nvim_get_current_tabpage()
 
-  for _, provider in ipairs({ "claude", "codex" }) do
+  for _, provider in ipairs({ "codex" }) do
     local bin = stand_in(root, provider)
     vim.api.nvim_set_current_buf(files[1])
     local editor = vim.api.nvim_get_current_win()
@@ -317,7 +317,8 @@ do
   local bin = stand_in(dir, require("agent_workbench.state").agents[require("agent_workbench.state").agent_names()[1]].command)
   local panel = Snacks.terminal.open({ "env", bin }, {
     interactive = false,
-    win = { position = "right", width = require("agent_workbench.state").panel.width },
+    win = { position = "right", width = require("agent_workbench.state").panel.width,
+      bo = { filetype = "agent_terminal" }, on_buf = function(win) t.agent_metadata(win.buf, "codex", dir) end },
   })
   settle()
   t.ok(require("edgy.editor").get_win(panel.win) ~= nil, "edgy owns the agent panel")

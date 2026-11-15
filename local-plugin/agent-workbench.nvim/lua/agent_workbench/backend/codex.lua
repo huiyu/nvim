@@ -133,9 +133,9 @@ end
 -- For the specs, which record the argv a stand-in Codex receives.
 M._codex_command = codex_command
 
-local function enter_insert(term)
+local function enter_insert(term, visible_win)
   if not term or not valid(term) then return end
-  local win = terminals.window(term)
+  local win = visible_win or terminals.window(term)
   if
     not win
     or not vim.api.nvim_win_is_valid(win)
@@ -163,6 +163,13 @@ local function ensure()
 end
 
 local function show_and_focus(term)
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(win).relative == "" and vim.api.nvim_win_get_buf(win) == term.buf then
+      vim.api.nvim_set_current_win(win)
+      enter_insert(term, win)
+      return
+    end
+  end
   terminals.show(term)
   enter_insert(term)
 end
@@ -200,7 +207,8 @@ local function send(text, opts)
       payload = "\27[200~" .. text .. "\27[201~"
     end
     if opts.submit then payload = payload .. "\r" end
-    terminals.send(term, payload)
+    local delivered, err = terminals.send(term, payload)
+    if not delivered then fail(err and err.message or "Codex terminal refused the context") end
   end, delay)
 end
 
@@ -379,7 +387,8 @@ function M.stop()
       break
     end
   end
-  terminals.stop(current)
+  local stopped, err = terminals.stop(current)
+  if not stopped then return false, err end
   current = nil
   return true
 end

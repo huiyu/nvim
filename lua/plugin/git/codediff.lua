@@ -1,5 +1,5 @@
 -- CodeDiff declares the lazy entry points and view options. User comparison
--- workflows live in git.compare; only util.codediff reads plugin internals.
+-- workflows live in git.compare; only git_review.view reads plugin internals.
 
 -- Read at spec evaluation, matching the setting applied to CodeDiff history.
 local function history_desc(what)
@@ -9,7 +9,7 @@ end
 
 return {
   "esmuellert/codediff.nvim",
-  -- v4.0.6. util.codediff reads internals this version has and checks it at
+  -- v4.0.6. git_review.view reads internals this version has and checks it at
   -- setup; moving the pin means re-running tests/codediff_spec.lua first.
   commit = "09d9ebef2cc5a5c04db7a349cd6c61bdf84ecc8e",
   cmd = "CodeDiff",
@@ -37,7 +37,7 @@ return {
     keymaps = {
       view = {
         -- q only closes from the explorer and history panels
-        -- (util.codediff); in a diff pane it stays macro recording.
+        -- (git_review.view); in a diff pane it stays macro recording.
         quit = false,
         -- View actions join the comma menu: ,P focuses and ,B toggles the
         -- panel; ,I and ,z because `t` is flash and `gc` is the comment
@@ -51,16 +51,16 @@ return {
         stage_hunk = false,
         unstage_hunk = false,
         discard_hunk = false,
-        -- `-` is oil's parent directory outside a view; util.codediff gives it
+        -- `-` is oil's parent directory outside a view; git_review.view gives it
         -- to the status view's explorer as stage/unstage and blocks it in
         -- every other buffer of a view, where oil would swap a pane.
         toggle_stage = false,
         toggle_staged_view = false, -- gS is splitjoin
         align_move = false,         -- gm is a builtin
-        -- Kept: ]c [c ]f [f do dp gf g? ih. util.codediff adds ]h [h, the
+        -- Kept: ]c [c ]f [f do dp gf g? ih. git_review.view adds ]h [h, the
         -- same hunk moves under this config's hunk key.
       },
-      -- Re-installed by util.codediff on the status view's explorer only:
+      -- Re-installed by git_review.view on the status view's explorer only:
       -- in a revision view the explorer's X deletes files that are merely
       -- untracked in the index.
       explorer = { stage_all = false, unstage_all = false, restore = false },
@@ -83,7 +83,7 @@ return {
       history_limit = function() return require("util.settings").git().history_limit end,
       max_file_size = function() return require("util.settings").git().max_file_size end,
     })
-    -- util.codediff_actions installs the hunk keys (,S ,U ,X) on every pass.
+    -- git_review.actions installs the hunk keys (,S ,U ,X) on every pass.
     vim.api.nvim_create_autocmd("User", {
       group = vim.api.nvim_create_augroup("codediff_actions", { clear = true }),
       pattern = "CodeDiffKeys",

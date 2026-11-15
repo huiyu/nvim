@@ -1,4 +1,4 @@
--- As-you-type AI ghost text from the local model behind util.llama, accepted
+-- As-you-type AI ghost text from the local model behind llama_service, accepted
 -- with <C-l>. It is a service of its own: the AI providers (lua/config/ai.lua)
 -- and the chat on the right never change where these suggestions come from.
 --
@@ -13,7 +13,7 @@
 --   * stop at the newline. One line arrives in a fraction of a second; a
 --     multi-line block takes seconds and is out of date by then.
 
-local ignore_ft = { "markdown", "text", "gitcommit", "gitrebase" }
+local preferences = require("config.completion")
 
 local function cursor_state()
   return {
@@ -74,16 +74,16 @@ return {
       provider = "openai_fim_compatible",
       n_completions = 1,
       -- About 2k tokens around the cursor, the size the latency was measured at.
-      context_window = 8000,
+      context_window = preferences.context_window,
       -- Requests are local and the next one cancels the last. minuet's
       -- throttle would instead drop the request for where typing stopped.
       throttle = 0,
-      debounce = 150,
+      debounce = preferences.debounce,
       notify = "error",
       virtualtext = {
         auto_trigger_ft = { "*" },
-        auto_trigger_ignore_ft = ignore_ft,
-        keymap = { accept = "<C-l>" },
+        auto_trigger_ignore_ft = preferences.ignore_ft,
+        keymap = { accept = require("config.keymaps").completion.accept },
         -- blink's menu is open for most identifier keystrokes; hiding the
         -- suggestion under it would hide it most of the time.
         show_on_completion_menu = true,

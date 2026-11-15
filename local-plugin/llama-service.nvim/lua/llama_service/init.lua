@@ -34,6 +34,21 @@ M.config = {
   recheck = 5000,
 }
 
+---Configure the local service without registering a client or starting it.
+function M.setup(opts)
+  opts = vim.deepcopy(opts or {})
+  for key in pairs(opts) do assert(M.config[key] ~= nil, "Unknown llama_service option: " .. key) end
+  local value = vim.tbl_deep_extend("force", vim.deepcopy(M.config), opts)
+  if opts.args then value.args = vim.deepcopy(opts.args) end
+  assert(type(value.port) == "number" and value.port % 1 == 0 and value.port > 0 and value.port < 65536, "llama_service.port must be a valid port")
+  assert(type(value.server) == "string" and value.server ~= "", "llama_service.server must name an executable")
+  assert(type(value.dir) == "string" and value.dir ~= "", "llama_service.dir must be a path")
+  assert(vim.islist(value.args), "llama_service.args must be an argv list")
+  for _, arg in ipairs(value.args) do assert(type(arg) == "string", "llama_service.args must contain strings") end
+  assert(type(value.recheck) == "number" and value.recheck >= 0, "llama_service.recheck must be milliseconds")
+  M.config = value
+end
+
 -- The last /health check answered.
 local ready = false
 -- A check, or the wait for a starting server, is in flight.

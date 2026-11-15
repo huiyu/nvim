@@ -1,49 +1,11 @@
--- The AI slot: per tabpage, the right edgebar shows at most one AI window.
---
--- What can occupy it -- a "chat" in the keys' words -- is computed from live
--- state on every call, never registered here:
---
---   native:claude  claudecode's single Snacks terminal (one per Nvim)
---   native:codex   ai.backend.codex's single terminal (one per Nvim)
---   cc:<buf>:<id>  every live CodeCompanion chat, whatever opened it
---
--- Showing one hides the other AI windows in this tabpage through their own
--- owner's hide -- claudecode's cc_hide, Snacks' hide, CodeCompanion's
--- ui:hide -- which keeps every job, tmux client, ACP session and buffer. Never
--- edgy's hide or close (they drop a non-pinned window for good), never a
--- stop, close or wipe, never another tabpage. A window its owner cannot hide
--- is left alone: claudecode's copy of its terminal in a diff tabpage, a chat
--- buffer shown in a second window. Such a copy still counts as shown here:
--- a key delivers to it where it is and opens nothing beside it. Only
--- <leader>ac closes one, a chat's whose own window is in another tabpage
--- (the successor ,q leaves there), since the chat stays on screen. Hiding
--- comes first and showing second, so a terminal is not squeezed and redrawn
--- for nothing; when the windows to hide are all the tabpage has, the order
--- turns round (E444).
---
--- Between two chats the window is handed over in place (show_chat, through
--- companion.open). Between a terminal and anything else it cannot be: Snacks' fixbuf
--- sends any other buffer back out of a terminal window, and closes the window
--- when there is nowhere to send it -- so one window closes, another opens.
---
--- A BufWinEnter guard holds the rule for every path that never comes through
--- here: <leader>ao (history), a typed :CodeCompanionChat or :ClaudeCode, the
--- action palette, the chat CodeCompanion puts in the place of one closed with
--- ,q (its `close`), claudecode showing its terminal again after a diff. It
--- records the tabpage when the event fires, and gives up if that is no longer
--- the current one when its scheduled half runs.
---
--- "The chat on the right" (target) is read off the windows alone: the one
--- shown in this tabpage; from a CodeDiff view, the one shown in the tabpage
--- the view came from; otherwise the user is asked. Nothing is ever delivered
--- to a hidden chat, another tabpage's or a provider picked for the user.
--- vim.t.ai_slot_last only lets <leader>ac/af bring the last one back.
--- claudecode's passive selection tracking is not part of this: it stays on,
--- so a running Claude still sees the editor's selection while it is hidden.
---
--- Nothing here loads claudecode.nvim or CodeCompanion to answer: a native
--- agent is asked through its backend, chats only once CodeCompanion has loaded
--- and only through local-plugin/agent-workbench.nvim/lua/agent_workbench/companion.lua, which reads a chat's internals.
+-- One native Codex terminal or CodeCompanion chat per tab.
+-- Views are read from actual windows. Hiding uses each owner's lifecycle and
+-- never stops a process, touches another tab, or closes its last normal window.
+-- Terminal copies remain targets where visible; only owned views can hide.
+-- Chat transitions can hand over a window; terminal transitions create/close
+-- provider-owned views. The BufWinEnter guard covers upstream chat entrypoints.
+-- From CodeDiff, actions use its origin tab. Otherwise a missing target asks;
+-- only toggle/focus may restore this tab's last hidden chat.
 
 local config = require("agent_workbench.state")
 
@@ -402,26 +364,24 @@ end
 ---agent to start with no editor window to start it from.
 ---
 ---`hide = false` leaves the other AI windows where they are, for a method
----that may still not show anything -- claudecode's model question before a
----cold start, which can be cancelled: the guard hides them once a window
+---that may ask before showing anything: the guard hides them once a window
 ---does show `item`, and nothing is left with an empty right if none does.
 ---@param item ai.SlotItem
 ---@param opts? { jump?: boolean, editor?: boolean, hide?: boolean, quiet?: boolean } jump to another tabpage (default true; `quiet` as in M.jump); start from the editor window (default true); hide the rest now (default true)
 ---@return "here"|"elsewhere"|"room"|nil
 function M.make_room(item, opts)
   opts = opts or {}
-  -- On screen here in any window -- claudecode's copy of its terminal in a
-  -- diff tabpage too, while its own window is hidden or in another tabpage:
+  local cold = item.kind == "native" and not ask(backend(item.agent).running)
+  if cold and opts.editor ~= false and not to_editor() then return nil end
+  -- On screen here in any window, including a terminal copy while its owned
+  -- window is hidden or in another tab:
   -- what is delivered goes there, and nothing opens or moves.
-  if tab_showing(item) == api.nvim_get_current_tabpage() then return "here" end
-  local state = M.state(item)
+  if not cold and tab_showing(item) == api.nvim_get_current_tabpage() then return "here" end
+  local state = not cold and M.state(item) or "hidden"
   if state == "here" then return "here" end
   if state == "elsewhere" then
     if opts.jump ~= false then M.jump(item, { focus = false, quiet = opts.quiet }) end
     return "elsewhere"
-  end
-  if item.kind == "native" and opts.editor ~= false and not ask(backend(item.agent).running) then
-    if not to_editor() then return nil end
   end
   if opts.hide == false then return "room" end
   local victims = M.victims(item)
@@ -729,7 +689,7 @@ function M.toggle()
   if from ~= api.nvim_get_current_tabpage() then return into(shown, from) end
   local victims = M.victims()
   -- Each owner would answer differently -- CodeCompanion's :hide closes the
-  -- tabpage, Snacks leaves an empty window, claudecode none -- so none does.
+  -- tabpage and providers can leave an empty window -- so none does.
   if would_empty(victims) then
     return notify(("%s is this tabpage's only window: <leader>ac would leave nothing in its place")
       :format(name(victims[1].item)))
@@ -737,13 +697,6 @@ function M.toggle()
   if M.cover() > 0 then return end
   if close_copies(shown) > 0 then return end
   local item = shown[1]
-  -- claudecode's proposal tabpage: a copy of Claude's terminal beside the
-  -- diffthis'd panes. Any other window here that cannot be hidden (a manual
-  -- :sbuffer of the terminal) gets the plain message below.
-  local diffing = vim.iter(api.nvim_tabpage_list_wins(0)):any(function(w) return vim.wo[w].diff end)
-  if item.kind == "native" and item.agent == "claude" and diffing then
-    return notify("This is Claude Code's diff tabpage: answer it with <leader>aa / <leader>ad")
-  end
   notify(("%s is shown here in a window it cannot hide"):format(name(item)))
 end
 
@@ -773,7 +726,7 @@ function M.native_target(cb, opts)
   end
   if #agents == 0 then
     back_to(from)
-    return notify("No native agent is installed (claude, codex)", WARN)
+    return notify("No configured native agent is installed", WARN)
   end
   if #agents == 1 then return cb(agents[1]) end
   select(agents, {

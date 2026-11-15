@@ -10,6 +10,38 @@
 -- resolves.
 
 local M = {}
+M.root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
+
+-- Stand-in terminals declare the same provider-neutral identity as real opens.
+function M.agent_metadata(buf, kind, cwd, command)
+  vim.b[buf].agent_workbench = { id = "native:" .. kind, kind = kind, cwd = cwd, cmd = command or { kind } }
+  require("agent_workbench.terminal").attach(buf)
+end
+
+-- Exercise the real Codex controller against a local cat process. Nothing can
+-- reach the installed CLI, plugin installer, model, credentials or network.
+function M.start_codex(root)
+  local bin = vim.fn.tempname() .. " offline agent"
+  vim.fn.mkdir(bin, "p")
+  vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin .. "/codex")
+  vim.fn.setfperm(bin .. "/codex", "rwx------")
+  local saved = { PATH = vim.env.PATH, CODEX_WRAP_TMUX = vim.env.CODEX_WRAP_TMUX, NVIM_AI_PLUGIN_DIR = vim.env.NVIM_AI_PLUGIN_DIR }
+  vim.env.PATH, vim.env.CODEX_WRAP_TMUX, vim.env.NVIM_AI_PLUGIN_DIR = bin .. ":" .. saved.PATH, "0", ""
+  local cwd = vim.fn.getcwd()
+  vim.cmd.lcd(vim.fn.fnameescape(root))
+  local agent = require("agent_workbench")
+  local session, err = agent.open("codex")
+  assert(session, vim.inspect(err))
+  assert(vim.wait(2000, function() return agent.session("codex").alive end, 10), "offline Codex PTY did not start")
+  return session, function()
+    agent.stop("codex")
+    for key, value in pairs(saved) do vim.env[key] = value end
+    if saved.CODEX_WRAP_TMUX == nil then vim.env.CODEX_WRAP_TMUX = nil end
+    if saved.NVIM_AI_PLUGIN_DIR == nil then vim.env.NVIM_AI_PLUGIN_DIR = nil end
+    vim.cmd.lcd(vim.fn.fnameescape(cwd))
+    vim.fn.delete(bin, "rf")
+  end
+end
 
 local failures = 0
 local total = 0

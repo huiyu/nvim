@@ -7,6 +7,7 @@ function M.show(handle, request)
     return handle.win
   end
   handle.win = api.nvim_open_win(handle.buf, true, { split = "right", width = request.width })
+  request.on_view(handle.win)
   vim.wo[handle.win].winfixwidth = true
   vim.wo[handle.win].winbar = ""
   return handle.win

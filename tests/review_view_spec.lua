@@ -361,7 +361,7 @@ local function agent_terminal(agent, session)
   vim.cmd.enew()
   local buf = vim.api.nvim_get_current_buf()
   local job = vim.fn.jobstart({ "cat" }, { term = true, cwd = R })
-  vim.b[buf].snacks_terminal = { cmd = agent == "claude" and { "claude", "--settings", "{}" } or { "codex", "--yolo" }, cwd = R }
+  t.agent_metadata(buf, agent, R, { agent })
   terminals[#terminals + 1] = { buf = buf, job = job }
   vim.wait(2000, function()
     local e = rounds._state().native[agent]
@@ -373,7 +373,8 @@ end
 -- The second agent listed, so the label below is not the first provider's.
 -- Which round wins between the buffer, the chat on the right and this
 -- process is review_round_spec's (select_round); this checks the wiring.
-local other = config.agent_names()[2]
+local names = config.agent_names()
+local other = names[#names]
 local other_term = agent_terminal(other, "s-other")
 t.ok(rounds.conversation_of(other_term) == other .. ":s-other", "the stand-in terminal is registered")
 

@@ -13,7 +13,7 @@ local t = dofile("tests/helper.lua")
 -- scheduled loader has run (as in tests/input_method_spec.lua).
 vim.cmd("Lazy! load which-key.nvim")
 vim.api.nvim_exec_autocmds("VimEnter", { modeline = false })
-vim.wait(100, function() return vim.fn.maparg("sd", "n") ~= "" end)
+vim.wait(1000, function() return require("which-key.config").triggers.modes ~= nil end)
 
 local function desc(lhs, mode)
   return vim.fn.maparg(lhs, mode or "n", false, true).desc

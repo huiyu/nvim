@@ -1,5 +1,5 @@
 -- Editor-core parsers wanted everywhere, independent of which language modules
--- load. Language-specific parsers are OWNED by the matching `lua/plugins/lang/*.lua`
+-- load. Language-specific parsers are OWNED by the matching `lua/plugin/lang/*.lua`
 -- (contributed via `opts.ensure_installed` and merged in below), so this list is
 -- deliberately limited to parsers that no language module declares — single
 -- source of truth, mirroring how mason-lspconfig derives servers from lang/.

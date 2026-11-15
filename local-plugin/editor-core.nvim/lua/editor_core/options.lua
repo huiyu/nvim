@@ -66,53 +66,54 @@ local M = {}
 function M.setup(user, theme, formatting)
   local options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), user or {}, theme or {})
   options.fillchars, options.diagnostics = nil, nil
+  options.colorscheme, options.transparent, options.highlights = nil, nil, nil
 
-vim.opt.shortmess:append("c")
-vim.opt.smoothscroll = true
-vim.opt.spelllang = { "en_us", "cjk" }  -- Skip CJK characters in spell check
--- Filler for the lines one side of a diff lacks (:diffthis, <leader>gd):
--- a diagonal hatch reads as "nothing here", where the default row of dashes
--- looks like content. CodeDiff draws its own filler, with the same glyph.
-vim.opt.fillchars:append(theme.fillchars or { diff = "╱" })
+  vim.opt.shortmess:append("c")
+  vim.opt.smoothscroll = true
+  vim.opt.spelllang = { "en_us", "cjk" }  -- Skip CJK characters in spell check
+  -- Filler for the lines one side of a diff lacks (:diffthis, <leader>gd):
+  -- a diagonal hatch reads as "nothing here", where the default row of dashes
+  -- looks like content. CodeDiff draws its own filler, with the same glyph.
+  vim.opt.fillchars:append(theme.fillchars or { diff = "╱" })
 
--- Under Ghostty, disable nvim's title updates; ghostty.zsh shell hook manages them
-if vim.env.TERM_PROGRAM == "ghostty" then
-  options.title = false
-end
+  -- Under Ghostty, disable nvim's title updates; ghostty.zsh shell hook manages them
+  if vim.env.TERM_PROGRAM == "ghostty" then
+    options.title = false
+  end
 
-for k, v in pairs(options) do
-  vim.opt[k] = v
-end
+  for k, v in pairs(options) do
+    vim.opt[k] = v
+  end
 
--- Diagnostics: one global config, set before anything can publish -- LSP,
--- nvim-lint and neotest all report through vim.diagnostic, and a namespace
--- without its own config reads this one. Only the differences from Nvim's
--- defaults are listed, so virtual text and virtual lines stay off.
---
--- statuscol gives diagnostics a single sign cell per line
--- (lua/plugin/ui/statuscol.lua) and keeps the highest-priority sign there.
--- Without severity_sort every diagnostic sign has the same priority, and a
--- line holding an ERROR and a HINT could show the HINT. The glyphs are the
--- ones the statusline counts with; lualine reads them from this config.
-local severity = vim.diagnostic.severity
-vim.diagnostic.config({
-  severity_sort = true,
-  signs = {
-    text = {
-      [severity.ERROR] = (theme.diagnostics or { "", "", "", "" })[1],
-      [severity.WARN] = (theme.diagnostics or { "", "", "", "" })[2],
-      [severity.INFO] = (theme.diagnostics or { "", "", "", "" })[3],
-      [severity.HINT] = (theme.diagnostics or { "", "", "", "" })[4],
+  -- Diagnostics: one global config, set before anything can publish -- LSP,
+  -- nvim-lint and neotest all report through vim.diagnostic, and a namespace
+  -- without its own config reads this one. Only the differences from Nvim's
+  -- defaults are listed, so virtual text and virtual lines stay off.
+  --
+  -- statuscol gives diagnostics a single sign cell per line
+  -- (lua/plugin/ui/statuscol.lua) and keeps the highest-priority sign there.
+  -- Without severity_sort every diagnostic sign has the same priority, and a
+  -- line holding an ERROR and a HINT could show the HINT. The glyphs are the
+  -- ones the statusline counts with; lualine reads them from this config.
+  local severity = vim.diagnostic.severity
+  vim.diagnostic.config({
+    severity_sort = true,
+    signs = {
+      text = {
+        [severity.ERROR] = (theme.diagnostics or { "", "", "", "" })[1],
+        [severity.WARN] = (theme.diagnostics or { "", "", "", "" })[2],
+        [severity.INFO] = (theme.diagnostics or { "", "", "", "" })[3],
+        [severity.HINT] = (theme.diagnostics or { "", "", "", "" })[4],
+      },
     },
-  },
-})
+  })
 
--- Disable netrw
-vim.g.loaded_netrw = 1
-vim.g.loaded_netrwPlugin = 1
+  -- Disable netrw
+  vim.g.loaded_netrw = 1
+  vim.g.loaded_netrwPlugin = 1
 
--- Autoformat on save (toggle with <leader>uF; <leader>uf is the current file)
-vim.g.autoformat = formatting.autoformat ~= false
+  -- Autoformat on save (toggle with <leader>uF; <leader>uf is the current file)
+  vim.g.autoformat = formatting.autoformat ~= false
 
 end
 return M

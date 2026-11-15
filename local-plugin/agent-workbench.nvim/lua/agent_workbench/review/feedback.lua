@@ -1,7 +1,7 @@
 -- Review feedback UI and delivery: ,C captures a CodeDiff entry and opens
 -- its draft in a float; <C-d> sends it through rounds.resolve_sink. Draft
 -- parsing, atomic persistence and concurrent edits belong to review.draft.
--- Reaches plugin internals only through util.codediff and ai.companion.
+-- Reaches plugin internals only through git_review.view and ai.companion.
 local M = {}
 
 local api, uv = vim.api, vim.uv
@@ -66,7 +66,7 @@ end
 
 ---@class ai.review.View
 ---@field tab integer
----@field s table util.codediff.session()
+---@field s table git_review.view.session()
 ---@field root string the view's repository, realpath'd
 ---@field round? table vim.t.ai_review of a round view
 ---@field left { name: string, was: string, new: string } how entries name the left end
@@ -659,7 +659,7 @@ end
 
 --- Go to the tabpage that shows the target's terminal or chat; else, from a
 --- CodeDiff view, to the page it was opened from -- the rule the AI slot's
---- keys use too (util.window.origin_tab). Only which tabpage is current
+--- keys use too (editor_core.window.origin_tab). Only which tabpage is current
 --- changes.
 local function switch_tab(target)
   local current = api.nvim_get_current_tabpage()

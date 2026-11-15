@@ -26,6 +26,13 @@
 local t = dofile("tests/helper.lua")
 
 local config = require("agent_workbench.state")
+-- Explicit transport fixture, independent of the user's enabled native backends.
+local fixture = vim.deepcopy(config.providers)
+fixture[#fixture + 1] = { name = "anthropic_fixture", label = "Anthropic", api = {
+  adapter = "anthropic", api_key = "NVIM_ANTHROPIC_API_KEY",
+} }
+config._set_providers(fixture)
+
 local companion = require("agent_workbench.companion")
 local Config = require("lazy.core.config")
 local INFO, WARN, ERROR = vim.log.levels.INFO, vim.log.levels.WARN, vim.log.levels.ERROR

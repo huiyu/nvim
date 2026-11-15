@@ -3,7 +3,7 @@
 -- vim.g.ai_review is read afresh on every call. Invalid values warn once per
 -- distinct problem and leave their default in place; valid siblings still apply.
 local M = {}
-local DEFAULTS = vim.deepcopy(require("agent_workbench.options").get().review)
+local DEFAULTS = vim.deepcopy(require("agent_workbench.review.defaults"))
 local warned = {}
 
 local function warn(msg)
@@ -38,21 +38,20 @@ local function one_of(values)
     quoted[#quoted + 1] = ("%q"):format(value)
   end
   return {
-    expect = table.concat(quoted, ", ", 1, #quoted - 1) .. " or " .. quoted[#quoted],
+    expect = #quoted == 1 and quoted[1] or (table.concat(quoted, ", ", 1, #quoted - 1) .. " or " .. quoted[#quoted]),
     test = function(v) return type(v) == "string" and set[v] == true end,
   }
 end
 
-local AGENT = one_of({ "claude", "codex" })
+local AGENT = one_of({ "codex" })
 
 -- Only domains live here; all default values come from config.lua. A leaf has
 -- a test and the phrase used in its warning. A list also validates each item.
 local SCHEMA = {
   retention = { rounds = POSITIVE, saved = POSITIVE },
   max_file_size = integer(1, "a positive integer (bytes)"),
-  sources = { claude = BOOLEAN, codex = BOOLEAN, codecompanion_acp = BOOLEAN, codecompanion_http = BOOLEAN },
+  sources = { codex = BOOLEAN, codecompanion_acp = BOOLEAN, codecompanion_http = BOOLEAN },
   hook_wait_ms = integer(0, "a non-negative integer (milliseconds)"),
-  claude_cwd = one_of({ "git_root", "cwd" }),
   unknown_session = one_of({ "confirm", "refuse" }),
   always_confirm = {
     expect = "a list of " .. AGENT.expect,
@@ -124,7 +123,7 @@ end
 
 ---@return table effective, table<string, true> overridden
 local function resolve()
-  local effective, overridden = vim.deepcopy(DEFAULTS), {}
+  local effective, overridden = M.defaults(), {}
   local user = vim.g.ai_review
   if user == nil then return effective, overridden end
   if type(user) ~= "table" then
@@ -145,7 +144,26 @@ end
 ---The defaults alone, as a fresh deep copy.
 ---@return table
 function M.defaults()
-  return vim.deepcopy(DEFAULTS)
+  return vim.deepcopy(require("agent_workbench.options").get().review or DEFAULTS)
+end
+
+---Startup declarations are strict; live vim.g overrides remain leaf-tolerant.
+function M.validate(user)
+  local function visit(schema, value, prefix)
+    assert(type(value) == "table", prefix .. " must be a table")
+    for key, item in pairs(value) do
+      local path = prefix .. "." .. tostring(key)
+      local node = schema[key]
+      assert(node, path .. " is not a supported setting")
+      if node.test then
+        assert(node.test(item), path .. " must be " .. node.expect)
+        if node.item then
+          for i, entry in ipairs(item) do assert(node.item.test(entry), path .. "[" .. i .. "] must be " .. node.item.expect) end
+        end
+      else visit(node, item, path) end
+    end
+  end
+  visit(SCHEMA, user, "agent_workbench.review")
 end
 
 ---Which settings currently come from vim.g.ai_review, keyed by dotted path

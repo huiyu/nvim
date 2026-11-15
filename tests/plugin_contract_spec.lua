@@ -9,10 +9,12 @@ for _, provider in ipairs({ "native", "snacks", "custom" }) do
   local tmp = vim.fn.tempname() .. " provider " .. provider
   vim.fn.mkdir(tmp, "p")
   local output = tmp .. "/result.json"
+  local env = vim.fn.environ()
+  env.AGENT_PLUGIN_DIR, env.AGENT_TEST_PROVIDER, env.AGENT_TEST_TMP = plugin, provider, tmp
+  env.AGENT_TEST_PYTHON, env.AGENT_SNACKS_DIR, env.AGENT_TEST_OUTPUT = python, snacks, output
+  env.CODEX_WRAP_TMUX, env.NVIM_AI_PLUGIN_DIR, env.NVIM = "0", "", nil
   local process = vim.system({ vim.v.progpath, "--headless", "-u", "NONE", "-i", "NONE", "-l", plugin .. "/tests/contract.lua" }, {
-    text = true, env = { AGENT_PLUGIN_DIR = plugin, AGENT_TEST_PROVIDER = provider, AGENT_TEST_TMP = tmp,
-      AGENT_TEST_PYTHON = python, AGENT_SNACKS_DIR = snacks, AGENT_TEST_OUTPUT = output,
-      CODEX_WRAP_TMUX = "0", NVIM_AI_PLUGIN_DIR = "", NVIM = false },
+    text = true, env = env, clear_env = true,
   }):wait(15000)
   t.eq(process.code, 0, provider .. ": isolated contract host passes\n" .. (process.stderr or ""))
   if vim.fn.filereadable(output) == 1 then

@@ -8,7 +8,7 @@
 -- buffer opened there replaces it. A chat simply takes the buffer; Snacks'
 -- terminal fixbuf sends it back out, and closes the panel when no plain file
 -- window is left to send it to. Which windows make up the editor area is
--- util.window's model (`editor_win`, `ensure_editor_win`); this module applies
+-- editor_core.window's model (`editor_win`, `ensure_editor_win`); this module applies
 -- it. Typed commands (:e, :b) and upstream plugins' own jumps stay theirs.
 local M = {}
 
@@ -18,7 +18,7 @@ local M = {}
 
 --- The window a buffer opened from the current window goes into: the current
 --- one when it is a non-floating window showing a file, else the editor
---- area's (util.window.ensure_editor_win: the window the cursor last left
+--- area's (editor_core.window.ensure_editor_win: the window the cursor last left
 --- there, an unmodified Oil listing or GitHub view included, split off when
 --- there is none). Not the current Oil listing, GitHub view or dashboard
 --- itself: none of them is in the buffer list, so [b/]b would have nothing

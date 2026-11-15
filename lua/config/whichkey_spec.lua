@@ -1,15 +1,16 @@
--- Which-key spec data: group labels plus spec-registered keymaps, the
+-- Which-key display data: group labels, visibility metadata, the
 -- same-level section layout for the popup, and descs for keys filetype
--- plugins map without one. Consumed by plugins/editor/whichkey.lua via
+-- plugins map without one. Consumed by lua/plugin/editor/whichkey.lua via
 -- require("config.whichkey_spec").{spec,sections,filetype_descs}.
 --
 -- Pure data. The imperative vim.keymap.set() bindings (and mapleader) live in
--- local-plugin/editor-core.nvim/lua/editor_core/keymaps.lua, a startup step of lua/config/init.lua.
+-- local-plugin/editor-core.nvim/lua/editor_core/keymaps.lua, initialized by the editor-core lazy spec.
 
 -- Hide noisy individual keymaps from the which-key popup. They still work,
 -- just not listed (Harpoon numeric jumps are reviewed through the ;h menu;
 -- <leader>? is the standalone keybinding-guide popup).
 local hidden = {
+  { "<leader><tab><tab>", hidden = true },
   { "<leader>?", hidden = true },
   -- Not an alias of <leader>Gf: on a commit hash (blame or log output) it
   -- opens that commit's page; elsewhere it opens the file like <leader>Gf.
@@ -271,7 +272,7 @@ end
 --- them their own way ("Jump to next section", "Show an Outline of the
 --- current buffer").
 ---
---- plugins/editor/whichkey.lua writes these onto the buffer's own mapping, per
+--- lua/plugin/editor/whichkey.lua writes these onto the buffer's own mapping, per
 --- mode, and only where that buffer maps the key itself. VimTeX skips a key a
 --- global map already holds (Nvim's Visual ]n), so a label on the key would
 --- misname the global one there; its Normal ]r/[r, which the references hold,
@@ -317,7 +318,7 @@ local FILETYPE_DESCS = {
 --- which-key's own `group` is a *sub-prefix*: `<leader>g` plus `l` is the
 --- three-key `<leader>gl`, one more keystroke deep. A section slices a single
 --- level instead -- the two-key mappings under `;` -- which which-key has no
---- concept of, so plugins/editor/whichkey.lua renders them by inserting heading
+--- concept of, so lua/plugin/editor/whichkey.lua renders them by inserting heading
 --- rows into the popup.
 ---
 --- Keyed by prefix; a section's position in the list is its position in the
