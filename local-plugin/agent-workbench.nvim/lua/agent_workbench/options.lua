@@ -48,6 +48,7 @@ function M.setup(opts)
     assert(type(enabled) == "boolean", "agent_workbench.integrations." .. key .. " must be boolean")
   end
   assert(value.keymaps == false or type(value.keymaps) == "table", "agent_workbench.keymaps must be false or a table")
+  assert(type(value.key_profile) == "string" and value.key_profile ~= "", "agent_workbench.key_profile must be a profile name")
   assert(type(value.native.codex.command) == "string" and value.native.codex.command ~= "", "agent_workbench.native.codex.command must name an executable")
   assert(vim.islist(value.native.codex.args), "agent_workbench.native.codex.args must be an argv list")
   for i, arg in ipairs(value.native.codex.args) do assert(type(arg) == "string", "agent_workbench.native.codex.args[" .. i .. "] must be a string") end

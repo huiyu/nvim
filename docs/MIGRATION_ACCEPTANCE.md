@@ -23,7 +23,7 @@
 
 ## 自动化证据
 
-- `make verify`：70 个 spec、5683 项顶层断言全部通过，另含独立 host 的内部契约断言；
+- `make verify`：70 个 spec、超过 5600 项顶层断言全部通过，另含独立 host 的内部契约断言；
   同时覆盖工作区/暂存区空白检查和 headless startup。
 - `package_layout_spec`：四个 package 在无 host config/util、无插件管理器、禁止进程启动的
   独立 Nvim 中完成 require/setup；检查声明隔离、false、空 argv 替换和不开会话。

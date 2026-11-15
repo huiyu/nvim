@@ -80,12 +80,21 @@ end
 ---@return { providers: table[], agents: table<string, ai.Agent>, agent_names: string[], key_profiles: table<string, ai.KeyProfile>, key_names: string[], acp: table[] }
 function M.build(list)
   local function fail(fmt, ...) error(("AI providers: " .. fmt):format(...), 0) end
+  local function fields(value, allowed, path)
+    for key in pairs(value) do
+      if not allowed[key] then fail("%s.%s is not a supported setting", path, tostring(key)) end
+    end
+  end
+  local function optional_string(value, path)
+    if value ~= nil and (type(value) ~= "string" or value == "") then fail("%s must be a non-empty string", path) end
+  end
   if type(list) ~= "table" or not vim.islist(list) or #list == 0 then fail("expected a non-empty list") end
   local out = { providers = list, agents = {}, agent_names = {}, key_profiles = {}, key_names = {}, acp = {} }
   local names, adapters = {}, {}
   for i, p in ipairs(list) do
     if type(p) ~= "table" or type(p.name) ~= "string" or p.name == "" then fail("entry %d has no name", i) end
     local who = ("%q"):format(p.name)
+    fields(p, { name = true, label = true, cli_api_key = true, tui = true, acp = true, api = true }, who)
     if names[p.name] then fail("%s is listed twice", who) end
     names[p.name] = true
     if type(p.label) ~= "string" then fail("%s has no label", who) end
@@ -98,6 +107,7 @@ function M.build(list)
       if not impl then
         fail("%s: tui.kind must be one of %s, not %s", who, table.concat(vim.tbl_keys(TUI_KINDS), ", "), vim.inspect(kind))
       end
+      fields(p.tui, { kind = true }, who .. ".tui")
       -- One session per agent per Nvim (#7): two providers on one kind would
       -- be two entries for the same terminal.
       if out.agents[kind] then fail("%s: tui kind %q is already offered by %q", who, kind, out.agents[kind].provider) end
@@ -113,6 +123,10 @@ function M.build(list)
       if type(a) ~= "table" or type(a.adapter) ~= "string" or type(a.command) ~= "string" then
         fail("%s: acp needs an adapter and a command", who)
       end
+      fields(a, { adapter = true, command = true, auth_method = true }, who .. ".acp")
+      optional_string(a.adapter, who .. ".acp.adapter")
+      optional_string(a.command, who .. ".acp.command")
+      optional_string(a.auth_method, who .. ".acp.auth_method")
       if adapters[a.adapter] then fail("%s: adapter %q is used twice", who, a.adapter) end
       adapters[a.adapter] = true
       out.acp[#out.acp + 1] = {
@@ -124,6 +138,8 @@ function M.build(list)
     if p.api then
       local a = p.api
       if type(a) ~= "table" or type(a.adapter) ~= "string" then fail("%s: api needs an adapter", who) end
+      fields(a, { adapter = true, api_key = true, name = true, label = true, model = true }, who .. ".api")
+      for _, key in ipairs({ "adapter", "name", "label", "model" }) do optional_string(a[key], who .. ".api." .. key) end
       local id = a.name or a.adapter
       if adapters[id] then fail("%s: api name %q is used twice; give api.name", who, id) end
       adapters[id] = true

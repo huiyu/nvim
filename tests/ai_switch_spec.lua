@@ -99,6 +99,14 @@ refused({ { name = "bad", label = "Bad", tui = { kind = "claude" } } }, "tui.kin
 refused({ { name = "bad", label = "Bad", acp = { adapter = "codex" } } }, "acp needs", "ACP needs an executable")
 refused({ { name = "bad", label = "Bad", api = { adapter = "openai", api_key = "OPENAI_API_KEY" } } }, "NVIM_", "API profile cannot consume CLI billing variable")
 refused({ fixture[1], { name = "dup", label = "Duplicate", api = { adapter = "openai", api_key = "NVIM_OTHER" } } }, "used twice", "duplicate API adapter needs a distinct profile name")
+local unknown = vim.deepcopy(fixture[1]); unknown.typo = true
+refused({ unknown }, '"codex".typo', "unknown provider fields identify the provider")
+unknown = vim.deepcopy(fixture[1]); unknown.api.key = "NVIM_UNUSED"
+refused({ unknown }, '"codex".api.key', "unknown nested API settings do not silently disappear")
+unknown = vim.deepcopy(fixture[1]); unknown.acp.auth_method = false
+refused({ unknown }, '"codex".acp.auth_method', "optional ACP fields are typed")
+unknown = vim.deepcopy(fixture[1]); unknown.api.model = 123
+refused({ unknown }, '"codex".api.model', "optional API model fields are typed")
 local model = vim.deepcopy(fixture[2]); model.api.model = "offline-fixture-model"
 t.eq(state.build({ model }).key_profiles.work.model, "offline-fixture-model", "profile can pin its own model")
 -- Setup CodeCompanion, without constructing a chat or sending any request.
