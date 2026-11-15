@@ -24,7 +24,7 @@ end
 --- An `exec cat` stand-in in `dir`, named after the first listed agent's CLI,
 --- so a terminal running it has that agent's identity without a real session.
 local function stand_in(dir)
-  local bin = dir .. "/" .. require("ai.config").agents[require("ai.config").agent_names()[1]].command
+  local bin = dir .. "/" .. require("ai.state").agents[require("ai.state").agent_names()[1]].command
   vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin)
   vim.fn.setfperm(bin, "rwx------")
   return bin
@@ -59,7 +59,7 @@ vim.cmd.lcd(root)
 local reading_win = vim.api.nvim_get_current_win()
 local agent = Snacks.terminal.open({ bin }, {
   interactive = false,
-  win = { position = "right", width = require("ai.config").panel.width },
+  win = { position = "right", width = require("ai.state").panel.width },
 })
 settle()
 local original_layout = vim.fn.winlayout()

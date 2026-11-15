@@ -69,6 +69,7 @@ nvim
 │   │   ├── options.lua       # Vim 选项
 │   │   ├── keymaps.lua       # 命令式核心键位
 │   │   ├── autocmds.lua      # 自动命令
+│   │   ├── dashboard.lua     # 仪表盘内容和视口行为
 │   │   ├── lazy.lua          # lazy.nvim：安装，导入 lua/plugins/
 │   │   ├── whichkey_spec.lua # which-key 分组、弹窗分区、spec 键位（数据）
 │   │   └── health.lua        # `:checkhealth config` 提供者
@@ -92,6 +93,7 @@ nvim
 │   │       ├── typescript.lua # JS / TS 语言（LSP、格式化、DAP）
 │   │       └── yaml.lua
 │   ├── ai/                   # AI 状态、Chat 槽位、Native Claude/Codex 后端、CodeCompanion Chat、审阅轮次（ai/review/）
+│   ├── git/                  # 比较、历史和已保存基线的工作流
 │   └── util/                 # 工具模块（require 时无副作用）
 ├── .github/workflows/       # CI：spec 套件 + 一次 headless 启动检查
 ├── scripts/                 # Agent TUI 辅助脚本、共享 llama-server 的守护脚本
@@ -554,6 +556,12 @@ adapter 类似。每个 provider 写明一家厂商以及它提供的部分；�
 | `acp = { adapter, command, auth_method? }` | 走 ACP 的 CodeCompanion Agent Chat：`adapter` 是 CodeCompanion 的 ACP adapter，`command` 是它需要在 PATH 里找到的 bridge | 订阅 |
 | `api = { adapter, api_key, label?, model?, name? }` | 用内置 adapter `adapter` 走 HTTP 的 CodeCompanion API Chat，同时也是名为 `name`（默认为 `adapter`）的 key profile，名字不能重复 | API 额度，用 `api_key` 这个 `NVIM_*` 变量 |
 
+这个文件只返回配置表：`providers`、Inline/命令 Prompt 使用的 `key_profile`（默认
+`"auto"`），以及 `panel.width`。修改后重启 Nvim 生效。`lua/ai/state.lua` 负责校验和
+应用，插件 spec 再把结果接到 agent 和 CodeCompanion。`:AI key` 只切换当前进程的
+HTTP profile，不修改文件。启动时的优先级是 `NVIM_AI_KEY_PROFILE` >
+`vim.g.ai_key_profile` > 文件中的 `key_profile`。
+
 默认是 Claude（`claude` 终端、经 `claude-agent-acp` 的 `claude_code`、用
 `NVIM_ANTHROPIC_API_KEY` 的 `anthropic`），然后是 Codex（`codex` 终端、经
 `codex-acp` 并使用 ChatGPT 登录的 `codex`、用 `NVIM_OPENAI_API_KEY` 的 `openai`）。
@@ -799,6 +807,10 @@ CLI 的变量。
 排查问题（启动慢、LSP 不挂载、格式化不生效等）见 [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md)。运行 `:checkhealth config` 检查外部依赖、关键 Mason 包、Neovim 版本。
 
 ### 自定义
+
+每个模块集中负责一个功能。AI 的可编辑默认值放在 `ai/config.lua` 和
+`ai/review/config.lua`，运行状态与解析分别由 `ai/state.lua` 和
+`ai/review/settings.lua` 管理；插件 spec 负责装配，各语言模块负责对应语言的完整集成。
 
 **添加插件** — 在对应 `lua/plugins/*/` 目录下创建文件。
 

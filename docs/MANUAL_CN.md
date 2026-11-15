@@ -842,7 +842,10 @@ tabpage 上次显示的那个）就能把它找回来。右侧什么都没有时
 自作主张发给隐藏的 Chat。在 CodeDiff 视图里，这些键作用于打开该视图的那个页面。
 
 没有哪个 agent 是默认的，启动时也不选。*provider*——开箱即有 Claude 和 Codex——是
-`lua/ai/config.lua` 里的一个有序列表，这个顺序就是唯一的偏好：`<Space>an` 先列出所有
+`lua/ai/config.lua` 里的一个有序列表。这个文件只返回可编辑的配置表，`key_profile`
+设置启动时的 HTTP profile，`panel.width` 设置面板宽度；修改后重启 Nvim。运行中可用
+`:AI key <name>` 切换 HTTP profile，不用修改文件。
+provider 顺序是后端的唯一偏好：`<Space>an` 先列出所有
 终端，再列所有 Agent Chat，最后列所有 API Chat，每组内都按这个顺序；只有 native agent
 响应的键（`ar`、`am`、`at` 等）作用于右侧的 native agent，没有时按同样的顺序在已安装的
 agent 里询问（只装了一个就直接用它）。列表里去掉的 provider 不会出现，某个部分在本机
@@ -1225,6 +1228,10 @@ tree`：它显示的是从那时到现在的全部改动，和结束时间无关
 事，只有反馈会送进对话，而且要你亲自发送。
 
 ### 设置：`vim.g.ai_review`
+
+默认值集中在 `lua/ai/review/config.lua` 的纯配置表中，修改后重启 Nvim 生效；
+整体赋值 `vim.g.ai_review` 可在当前进程中覆盖指定设置。
+
 
 默认值适合大多数情况。要改其中几项，在 `init.lua` 里只写这几个键：
 
@@ -1636,7 +1643,7 @@ Chrome 扩展的 **chrome: debug extension (launch)** 和
 两个预设都自动向上查找 `.output/chrome-mv3-dev`（WXT 布局）；其他布局
 在项目配置中显式设置 `extensionPath`，指向构建输出目录。
 Launch 会创建自己的 profile 并通过 CDP 安装扩展。
-安装和排错见 [DIAGNOSTICS.md](DIAGNOSTICS.md) 与[扩展验证记录](../spikes/chrome-extension-dap/README.md)。
+安装和排错见 [DIAGNOSTICS.md](DIAGNOSTICS.md)。
 
 ### Dart CLI
 
@@ -1732,6 +1739,6 @@ flavor，例如项目已定义该 flavor 时使用 `["-d", "macos", "--flavor", 
 主进程使用 Node Inspector，渲染进程使用 Chromium CDP，端口不能互换。
 更多说明见 [Electron 主进程调试文档](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process)。
 
-React Native 仍处于[独立可行性验证](../spikes/react-native-dap/README.md)，
-尚未支持可用的 Hermes DAP 工作流。连接失败、断点未绑定、SDK 路径和系统权限
+本配置尚未支持 React Native/Hermes DAP 工作流，请使用 React Native DevTools。
+连接失败、断点未绑定、SDK 路径和系统权限
 问题见 [DIAGNOSTICS.md](DIAGNOSTICS.md)。

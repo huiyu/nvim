@@ -24,7 +24,7 @@ local function notify(msg, level)
   vim.notify(msg, level or INFO, { title = "AI" })
 end
 
-local function config() return require("ai.config") end
+local function config() return require("ai.state") end
 
 local function is_set(var) return (vim.env[var] or "") ~= "" end
 
@@ -119,7 +119,7 @@ local function gather()
   end
 
   -- Each provider in order, with the parts it offers and whether each can
-  -- start here (ai.config.backends: PATH and the environment only).
+  -- start here (ai.state.backends: PATH and the environment only).
   local parts = {}
   for _, b in ipairs(config.backends()) do
     parts[b.provider] = parts[b.provider] or {}

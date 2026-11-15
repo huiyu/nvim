@@ -19,7 +19,7 @@ local t = dofile("tests/helper.lua")
 -- provider added: a second key on the anthropic adapter.
 local function resolve(env, order)
   local probe = [[
-    local ai = require("ai.config")
+    local ai = require("ai.state")
     local by_name = {}
     for _, p in ipairs(ai.providers) do by_name[p.name] = p end
     local list = {}

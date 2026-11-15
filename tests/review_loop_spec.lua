@@ -272,7 +272,7 @@ local seed = fed[1] and fed[1].opts.seed or ""
 t.ok(seed:match("^Review of changes since baseline") ~= nil, "the seed starts with the intro")
 t.ok(not seed:find("nvim-review", 1, true), "without the header or the markers")
 t.ok(seed:find("> my comment", 1, true) ~= nil and seed:find("> second comment", 1, true) ~= nil, "with both comments")
-t.eq(fed[1] and fed[1].opts.ttl_ms, require("ai.review.config").get().seed_ttl_ms, "given seed_ttl_ms to arrive in")
+t.eq(fed[1] and fed[1].opts.ttl_ms, require("ai.review.settings").get().seed_ttl_ms, "given seed_ttl_ms to arrive in")
 t.eq(fed[1] and fed[1].tab, editor_tab, "fed from the tabpage that shows Claude's terminal")
 t.eq(vim.fn.getfsize(draft), 0, "on_consumed empties the draft")
 local last_sent = (draft:gsub("%.md$", "")) .. ".last-sent.md"

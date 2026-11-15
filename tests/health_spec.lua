@@ -384,7 +384,7 @@ local function setting_paths(node, prefix, out)
   end
   return out
 end
-local paths = setting_paths(require("ai.review.config").defaults(), "", {})
+local paths = setting_paths(require("ai.review.settings").defaults(), "", {})
 local unlisted = vim.tbl_filter(function(path) return find(settings, path .. " = ") == nil end, paths)
 t.eq(unlisted, {}, "every setting is listed")
 t.eq(#vim.tbl_filter(function(m) return m.level == "info" end, settings), #paths, "each one once")
@@ -435,7 +435,7 @@ t.ok(not_repo and not_repo.msg:find(outside, 1, true), "naming the directory")
 -- warning -- unavailable, not broken, and left out of the new-chat picker --
 -- whichever provider offers it. Only nothing at all to start a chat with is an
 -- error.
-local ai = require("ai.config")
+local ai = require("ai.state")
 local stand_ins = root .. "/no agents"
 vim.fn.mkdir(stand_ins, "p")
 local cut = stand_ins .. ":/usr/bin:/bin"

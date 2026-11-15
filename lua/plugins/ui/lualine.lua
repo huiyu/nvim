@@ -1,4 +1,4 @@
-local ai = require("ai.config")
+local ai = require("ai.state")
 
 -- The gutter's diagnostic glyphs (vim.diagnostic.config in lua/config/options.lua),
 -- so a count in the statusline and the sign beside the line look alike.

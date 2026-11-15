@@ -6,6 +6,28 @@ This is a personal Neovim configuration for Neovim 0.12.5+ written in Lua and
 managed by lazy.nvim. Keep changes small, reversible, lazy-loaded where
 practical, and consistent with the existing LazyVim-style key namespaces.
 
+## Module Responsibilities
+
+- Give each file one clear purpose and group code that changes for the same
+  reason. File length and function count are not reasons to split it.
+- Editable configuration declares values and overrides; runtime modules
+  validate and resolve them and own live state. Startup modules and plugin
+  specs wire features together instead of implementing unrelated workflows.
+- Put behavior with its feature owner: native launch and teardown with the
+  backends, review drafts with review, directory and terminal-text operations
+  with their reusable utilities. Do not collect unrelated features under a
+  plugin bundle's name or a generic `workflow` test.
+- Preserve intentional aggregation: one language module owns its LSP,
+  formatting, DAP and runners; health owns diagnostics; integration tests
+  may exercise several modules to verify one shared contract or workflow.
+- Keep each safety rule and upstream-internals boundary in one place. Small
+  extractions should remove duplication and obsolete paths, not add forwarding
+  layers, compatibility aliases or a new framework without a concrete need.
+- Preserve observable behavior and lazy loading during responsibility changes.
+  Review removed code against its callers, commands, hooks and tests; a
+  documented or externally called API is not dead merely because Lua has no
+  direct caller. Keep the documentation and tests aligned with the new owner.
+
 ## Architecture
 
 - The layout follows lazy.nvim's and LazyVim's: `init.lua` turns on
@@ -17,7 +39,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   too: `lua/ai/init.lua` installs itself at the end of the file -- so there
   is no `require(...).setup()` in the sequence. `lua/config/` also holds the
   data and checks of this configuration itself: `whichkey_spec.lua` (which-key
-  sections and descs) and `health.lua` (`:checkhealth config`).
+  sections and descs) and `health.lua` (`:checkhealth config`). `dashboard.lua`
+  owns the dashboard's content and viewport wiring and is required by its UI
+  spec when Snacks resolves its options.
 - `lua/plugins/` holds every lazy.nvim spec, imported by
   `config.lazy` in this order (it is merge order): `editor/` (editing,
   navigation, pickers, panels), `coding/` (LSP, completion, formatting,
@@ -27,6 +51,9 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   tools, formatters, linters, Treesitter parsers, DAP adapters, tests, and
   runners. Add language-specific behavior there instead of expanding a core
   plugin spec.
+- `lua/git/compare.lua` owns Git comparison, history and saved-baseline user
+  workflows. Its plugin spec declares their lazy entry points and options;
+  it reaches CodeDiff only through `util.codediff`.
 - `lua/util/` contains small reusable helpers, and requiring one changes
   nothing: startup wiring that uses a helper lives in `lua/config/` (as
   `config.cwd` uses `util.cwd`). A helper requires no `ai.*`: what the AI
@@ -34,18 +61,23 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   caller, util.codediff's through `setup`'s hooks, which terminals are agent
   panels through `util.terminal.set_agent_test`. Avoid introducing frameworks
   for behavior already covered by Neovim or a maintained plugin.
-- `lua/ai/config.lua` holds the AI state -- the ordered `providers` list,
-  validated at load (`M.build`), and the HTTP key profile, which
-  `lua/ai/switch.lua` (`:AI key`) switches in-process -- and the list of
+- `lua/ai/config.lua` only returns editable AI settings: the ordered
+  `providers` list, the startup HTTP `key_profile` (default `"auto"`) and
+  `panel.width`. `lua/ai/state.lua` validates a copy at load (`M.build`),
+  holds the HTTP key profile which `lua/ai/switch.lua` (`:AI key`) switches
+  in-process, and derives the list of
   backends a chat can be started on (`backends()`: the terminals, then the
   ACP chats, then the API chats, each in provider order).
   `lua/ai/init.lua` exposes agent-neutral mappings;
   `lua/ai/slot.lua` keeps one AI window per tabpage and resolves "the chat on
   the right"; `lua/ai/backend/` owns native-agent details.
-- `lua/ai/review/` is the review loop: `config.lua` (every setting's default,
-  `vim.g.ai_review` merged over them), `hook.lua` (the native agents' prompt
+- `lua/ai/review/` is the review loop: `config.lua` (editable defaults only),
+  `settings.lua` (validation and live `vim.g.ai_review` overrides),
+  `hook.lua` (the native agents' prompt
   hooks), `rounds.lua` (rounds and delivery checks), `init.lua` (`<leader>av`
-  and `,C`), `feedback.lua` (drafts and delivery) and `labels.lua` (baseline
+  and `,C`), `draft.lua` (draft format, atomic storage, merging and delivery
+  acknowledgments), `feedback.lua` (capture, draft floats and delivery
+  coordination) and `labels.lua` (baseline
   labels for the `<leader>gM`/`<leader>gk` pickers and `<leader>gK`'s offered
   name). Its storage and its
   views are utilities: `lua/util/baseline.lua` (snapshots under
@@ -79,7 +111,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   `claude-agent-acp`; `anthropic` on `NVIM_ANTHROPIC_API_KEY`) then `codex`
   (terminal; `codex` through `codex-acp`, `auth_method = "chat-gpt"`;
   `openai` on `NVIM_OPENAI_API_KEY`). A second key on one API is one more
-  provider with only an `api` part (the file has an example). `M.build`
+  provider with only an `api` part (the file has an example). `ai.state.build`
   validates the list at load, and a bad entry stops startup, naming the
   provider.
 - The order is the only preference. `<leader>an`/`:AI new` lists every
@@ -99,9 +131,10 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   open chats. `:checkhealth config` ("config: AI backends") warns of a
   missing CLI or ACP bridge, which the picker leaves out, and errors only
   when nothing at all is available.
-  `NVIM_AI_KEY_PROFILE` (optional) is the startup HTTP key profile, which
-  `:AI key` (`<leader>ax`, `lua/ai/switch.lua`) switches; nothing is
-  persisted. A key switch changes state, `<leader>ae`'s description and
+  The file's `key_profile` is the startup HTTP key profile (default `"auto"`),
+  overridden by `NVIM_AI_KEY_PROFILE` > `vim.g.ai_key_profile`. `:AI key`
+  (`<leader>ax`, `lua/ai/switch.lua`) switches it; nothing is persisted.
+  A key switch changes state, `<leader>ae`'s description and
   CodeCompanion's inline/cmd adapters only -- it never starts, stops, shows or
   hides a native terminal, ACP connection or chat.
 - One AI window per tabpage (`lua/ai/slot.lua`): the right shows at most one
@@ -173,7 +206,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   any tabpage makes nothing yield there. Per-buffer behaviour (terminal input
   rules, edgy slot, statusline label, image hand-back, the feedback a review
   round delivers) follows the buffer's own agent. A prompt float whose path
-  names no agent (`ai.config.agent_of_prompt` answers nil: a `git commit`
+  names no agent (`ai.state.agent_of_prompt` answers nil: a `git commit`
   run in an agent's pane) has no owner: it takes no seed, `<C-v>` refuses,
   and its title is " Prompt "; nothing falls back to the first provider's
   agent or any other.
@@ -210,7 +243,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   window a proposal could land in.
 - Two chat kinds, one picker: an ACP chat is an agent CLI over ACP, on the
   subscription; an API chat is a key profile over HTTP, on API credits. Both
-  start from `<leader>an`, beside the native terminals: `ai.config.backends()`
+  start from `<leader>an`, beside the native terminals: `ai.state.backends()`
   lists every backend the providers offer (the native terminals, the ACP
   chats, one API chat per key profile, never another upstream adapter), each
   entry naming its transport and billing and whether it can start here, the
@@ -240,7 +273,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   are the CLIs' own and can take precedence over the subscription login, so a
   config that asks for them moves the native agent and agent chat onto API
   billing. Every key profile in `lua/ai/config.lua` names an `NVIM_*`
-  variable, and config.lua refuses a profile naming a CLI variable.
+  variable, and state.lua refuses a profile naming a CLI variable.
   CodeCompanion's built-in `anthropic` and `openai` adapters are always
   extended (through `adapters.http.extend`) with `NVIM_ANTHROPIC_API_KEY` and
   `NVIM_OPENAI_API_KEY`, whatever the providers list holds -- a provider
@@ -274,7 +307,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   non-zero exit so the agent's own diagnostics stay readable. Treat it as part
   of the pane command, not decoration.
 - Both wrappers end their server through `scripts/agent-teardown` -- from the
-  `client-detached` hook (`editor.teardown_hook`) and from the watchdog -- with
+  `client-detached` hook (`ai.backend.launch.teardown_hook`) and from the watchdog -- with
   `destroy-unattached off`. tmux only signals the pane's own process, so a bare
   `kill-server` left everything the agent had spawned into a process group of
   its own running with ppid 1 (a Codex `exec_command` dev server lived three
@@ -371,7 +404,7 @@ practical, and consistent with the existing LazyVim-style key namespaces.
   offline discovery without a thread.
 - The native agents' prompt hooks are injected per process, never through
   the user's configuration. Claude gets `--settings <json>`
-  (`build_terminal_cmd` in `lua/plugins/ai/claudecode.lua`): UserPromptSubmit, plus
+  (`terminal_command` in `lua/ai/backend/claude.lua`): UserPromptSubmit, plus
   SessionStart run async. Codex gets one `-c hooks={...}` (`codex_command` in
   `lua/ai/backend/codex.lua`): UserPromptSubmit only, with its
   `trusted_hash` under `state` in the same `-c`, so it runs without a review

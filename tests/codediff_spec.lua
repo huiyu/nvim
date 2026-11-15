@@ -1,5 +1,5 @@
--- CodeDiff as this config wires it (lua/plugins/git/codediff.lua and
--- lua/util/codediff.lua), driven through real views on temporary repositories.
+-- CodeDiff as this config wires it (the plugin spec, git.compare and
+-- util.codediff), driven through real views on temporary repositories.
 --
 -- Needs CodeDiff's native library in the plugin directory; tests/run.sh sets
 -- VSCODE_DIFF_NO_AUTO_INSTALL so a missing one fails here instead of being
@@ -14,6 +14,7 @@ t.ok(vim.wait(1000, function() return require("which-key.config").loaded end), "
 
 local plugin = Config.plugins["codediff.nvim"]
 t.ok(plugin ~= nil and plugin._.loaded == nil, "codediff.nvim is declared and waits for its first use")
+t.eq(package.loaded["git.compare"], nil, "Git comparison workflows wait for their first use")
 t.eq(package.loaded["util.codediff"], nil, "util.codediff is not loaded at startup")
 local libs = vim.fn.glob(plugin.dir .. "/libvscode_diff*", false, true)
 if #libs == 0 then
@@ -99,6 +100,7 @@ press("<leader>gv")
 t.ok(said("working tree is clean") ~= nil, "<leader>gv on a clean tree says so")
 t.eq(#vim.api.nvim_list_tabpages(), 1, "and opens no view")
 t.ok(plugin._.loaded == nil, "refusing a clean tree does not load CodeDiff")
+t.eq(package.loaded["util.codediff"], nil, "refusing a clean tree does not load its view adapter")
 
 -- Not a file: <leader>gh refuses before git or CodeDiff.
 press("<leader>gh")

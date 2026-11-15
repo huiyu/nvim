@@ -6,7 +6,7 @@ return {
     vim.opt.splitkeep = "screen"
   end,
   opts = function()
-    local ai = require("ai.config")
+    local ai = require("ai.state")
 
     -- snacks.terminal sets vim.b[buf].snacks_terminal = { cmd, id, win, ... }.
     -- A native agent -- whichever one -- always has an

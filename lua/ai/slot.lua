@@ -45,7 +45,7 @@
 -- agent is asked through its backend, chats only once CodeCompanion has loaded
 -- and only through lua/ai/companion.lua, which reads a chat's internals.
 
-local config = require("ai.config")
+local config = require("ai.state")
 
 local M = {}
 

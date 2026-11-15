@@ -1,5 +1,6 @@
--- Manual comparison (lua/plugins/git/codediff.lua): <leader>gk compares any
--- two ends, <leader>gK saves a named baseline, <leader>gM offers baselines.
+-- Manual comparison (git.compare, wired by the CodeDiff plugin spec):
+-- <leader>gk compares any two ends, <leader>gK saves a named baseline,
+-- <leader>gM offers baselines.
 --
 -- :CodeDiff is stubbed to record its arguments, and util.codediff.open to
 -- record the tab variables a view would get, so no view opens and the native

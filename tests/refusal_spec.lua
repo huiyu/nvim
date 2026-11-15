@@ -110,7 +110,7 @@ vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 -- PATH here -- in provider order; the second is answered, so the agent read
 -- is the one picked, not the first listed.
 local transcript = require("ai.transcript")
-local ai_config = require("ai.config")
+local ai_config = require("ai.state")
 local real_open, real_select, real_path = transcript.open_current, vim.ui.select, vim.env.PATH
 local stand_ins = vim.fn.tempname()
 vim.fn.mkdir(stand_ins, "p")

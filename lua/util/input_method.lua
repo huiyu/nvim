@@ -247,7 +247,6 @@ function M._new(opts)
   function state.normal(initial)
     generation = generation + 1
     mode = "normal"
-    settled = -1
     capture_requested = (initial == true or input_ready) and "transition" or false
     input_ready = false
     reconcile()
@@ -260,7 +259,6 @@ function M._new(opts)
     if mode == "normal" and settled ~= generation then return end
     generation = generation + 1
     mode = "normal"
-    settled = -1
     capture_requested = "explicit"
     input_ready = false
     reconcile()
@@ -270,7 +268,6 @@ function M._new(opts)
   function state.input()
     generation = generation + 1
     mode = "input"
-    settled = -1
     capture_requested = false
     input_ready = false
     reconcile()

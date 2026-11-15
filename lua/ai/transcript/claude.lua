@@ -52,8 +52,7 @@ function M.sessions(root)
   end
   table.sort(sessions, function(a, b) return a.mtime > b.mtime end)
 
-  -- The title is cheap only for the session the caller is likely to open, so
-  -- resolve it lazily rather than scanning every file up front.
+  -- Session picker labels include the agent-generated titles.
   for _, session in ipairs(sessions) do
     session.title = M.title(session.path)
   end

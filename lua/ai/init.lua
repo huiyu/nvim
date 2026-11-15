@@ -1,8 +1,8 @@
 local M = {}
 
-local config = require("ai.config")
+local config = require("ai.state")
 
----@param name string an agent (TUI kind, a key of ai.config.agents)
+---@param name string an agent (TUI kind, a key of ai.state.agents)
 local function backend(name)
   return require("ai.backend." .. name)
 end
@@ -168,7 +168,7 @@ local function deliver_capture(item, cap, from)
 end
 
 ---The native agent on the right of this tabpage when it takes files from a
----directory listing (ai.config's tree_add capability: Claude Code). Asks
+---directory listing (ai.state's tree_add capability: Claude Code). Asks
 ---nothing: a listing's cursor and selection are only read where they are now.
 ---@return string|nil agent, ai.SlotItem|nil item what is on the right
 local function tree_target()

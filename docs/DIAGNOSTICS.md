@@ -346,7 +346,8 @@ labels and the listing; its header lists what it depends on.
   startup. A value left over from when it chose a default backend; it changes
   nothing and Nvim starts. Remove the export or the `let`.
 - **Nvim refuses to start: `AI providers: …`.** The `providers` list in
-  `lua/ai/config.lua` is invalid, and the message names the entry: an empty
+  `lua/ai/config.lua` is invalid. `lua/ai/state.lua` validates that settings
+  table during startup, and the message names the entry: an empty
   list, no name or label, a name listed twice, none of `tui`, `acp`,
   `api`, a `cli_api_key` that is not a string, a `tui.kind` that is not
   `claude` or `codex` or that another provider already offers, an `acp`
@@ -1134,9 +1135,14 @@ Electron 44.4.2 and the installed js-debug build, `--inspect-brk` stalled attach
 initialization without exposing a paused frame; the guide therefore uses
 `--inspect`. Use the combined launch configuration for startup breakpoints.
 
-React Native findings and the runnable inspector transport probe are in
-[`spikes/react-native-dap`](../spikes/react-native-dap/README.md). The probe does
-not claim Hermes breakpoint/source-map support.
+### React Native
+
+No React Native/Hermes DAP adapter is enabled in this configuration. Earlier
+checks against `@react-native/dev-middleware@0.87.1` verified inspector target
+discovery, the required WebSocket Origin header and message routing with a
+synthetic device. They did not verify a real Hermes application's TSX source
+breakpoints, source maps, stepping, reload/reconnect or DevTools coexistence.
+Use React Native DevTools until that complete workflow has been verified.
 
 ### JavaScript / TypeScript
 
@@ -1223,9 +1229,9 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   already uses for hot reload, just applied to the initial load. That fix is
   offered back as [noorez/vscode-js-debug#1](https://github.com/noorez/vscode-js-debug/pull/1);
   until it lands, launch mode works here and nowhere else.
-- Nothing about Chrome or CDP prevents extension debugging — raw CDP pauses an
-  MV3 service worker fine. The walls were js-debug's. See
-  `spikes/chrome-extension-dap/` for the measurements and the upstream history.
+- Earlier checks paused an MV3 service worker through raw CDP. The extension
+  configurations here use the `js-debug-webext` build described above to
+  provide the DAP integration, source mapping and worker handling.
 - mason-nvim-dap ships no adapter definition for js-debug, so `pwa-node` and
   `pwa-chrome` are registered in `lua/plugins/lang/typescript.lua`. Its `["js"]` handler
   only makes mason install the package.
@@ -1268,7 +1274,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 
   `gx` and every multi-row yank from a terminal buffer now treat a full row
   followed by text in column 0 as one wrapped line
-  (`util.terminal.soft_wraps`). That covers `yi(`, `V…y`, `v…$y`, any
+  (`util.terminal_text.soft_wraps`). That covers `yi(`, `V…y`, `v…$y`, any
   register, the system clipboard and yanky's ring.
 
   These keep their newlines, because they fill a row on purpose:

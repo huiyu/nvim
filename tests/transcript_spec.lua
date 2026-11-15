@@ -178,14 +178,14 @@ local adapter_for = {}
 
 -- Substitute the adapter so the test does not depend on which sessions happen
 -- to exist on this machine. The indirection exists in the module for this.
-local function stub(sessions, entries)
+local function stub(sessions, entries, truncated)
   view._adapter = function(agent)
     adapter_for[#adapter_for + 1] = agent
     return {
       sessions = function() return sessions end,
       parse = function()
         parse_calls = parse_calls + 1
-        return entries, false
+        return entries, truncated or false
       end,
     }
   end
@@ -279,9 +279,12 @@ t.ok(ok, "UC-12: pick() does not raise when there are no sessions")
 -- popup, incline's label). Counting every window made q try to close the last
 -- real one and fail with E444. Headless shows none of them, so a hidden float
 -- stands in.
-stub({ { id = "s1", path = "/tmp/fixture-a.jsonl", mtime = 2, title = "Newest" } }, entries)
+stub({ { id = "s1", path = "/tmp/fixture-a.jsonl", mtime = 2, title = "Newest" } }, entries, true)
 view.open_current("claude")
 local transcript = vim.api.nvim_get_current_buf()
+t.ok(table.concat(vim.api.nvim_buf_get_lines(transcript, 0, -1, false), "\n")
+  :find("some older entries were dropped", 1, true) ~= nil,
+  "a truncated transcript reports an unknown dropped count without inventing one")
 vim.cmd("silent! tabonly")
 local float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
   relative = "editor", row = 0, col = 0, width = 1, height = 1, hide = true, focusable = false,

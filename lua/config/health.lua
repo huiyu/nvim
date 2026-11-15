@@ -360,7 +360,7 @@ local SOURCES = {
 -- so whether a CLI then accepts them is left to the hints at the end.
 local function check_hooks()
   local hook = require("ai.review.hook")
-  local review = require("ai.review.config").get()
+  local review = require("ai.review.settings").get()
   local wait = review.hook_wait_ms
   local script = hook.script()
   local no_round = "the native agents' prompt hooks cannot run, so their prompts open no review round"
@@ -526,7 +526,7 @@ local function check_baselines()
     return
   end
 
-  local retention = require("ai.review.config").get().retention
+  local retention = require("ai.review.settings").get().retention
   local done, entries, list_err = false, nil, nil
   B.list(loc.toplevel, function(found, e) entries, list_err, done = found, e, true end)
   vim.wait(10000, function() return done end, 20)
@@ -582,7 +582,7 @@ end
 -- Every setting with the value in effect, and where it comes from
 -- (lua/ai/review/config.lua holds the defaults and their domains).
 local function check_review_settings()
-  local config = require("ai.review.config")
+  local config = require("ai.review.settings")
   local effective, from_user = config.get(), config.overrides()
 
   -- A non-empty table that is not a list is a group of settings.
@@ -680,7 +680,7 @@ function M.check()
     end
   end
 
-  local ai = require("ai.config")
+  local ai = require("ai.state")
   health.start("config: AI backends")
   health.info("Providers, in the order of lua/ai/config.lua; <leader>an lists every available one")
   health.ok(("HTTP key profile %s (%s), :AI key switches it"):format(ai.key.label, ai.key_setting()))
@@ -712,7 +712,7 @@ function M.check()
   -- wrapper. A non-executable one is not fatal -- ctrl+g falls back to starting
   -- a nested nvim inside the :terminal -- but that failure is silent, so it is
   -- worth surfacing here rather than leaving it to be discovered mid-prompt.
-  local wrapper = require("ai.editor").wrapper()
+  local wrapper = require("ai.backend.launch").wrapper()
   if vim.fn.executable(wrapper) == 1 then
     health.ok("agent-editor wrapper executable — ctrl+g edits the TUI prompt in this Nvim")
   else

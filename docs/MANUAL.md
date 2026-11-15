@@ -973,7 +973,10 @@ the view was opened from.
 
 No agent is the default, and nothing at startup picks one. The *providers* —
 Claude and Codex out of the box — are an ordered list in `lua/ai/config.lua`,
-and that order is the only preference there is: `<Space>an` lists every
+which only returns editable settings. Set `key_profile` there for the startup
+HTTP profile and `panel.width` for the panel width; restart Nvim after editing.
+Use `:AI key <name>` to switch the live HTTP profile without editing the file.
+The provider order is the only preference for backends: `<Space>an` lists every
 terminal, then every agent chat, then every API chat, each group in that
 order; a key only a native agent answers (`ar`, `am`, `at` and the like) acts
 on the native agent on the right, else asks among the installed ones in the
@@ -1438,6 +1441,11 @@ conversation, once you send it.
 
 ### Settings: `vim.g.ai_review`
 
+Defaults live in `lua/ai/review/config.lua`, a plain settings table. Edit it
+and restart Nvim to change the defaults; assigning `vim.g.ai_review` changes
+only the specified settings in the current process.
+
+
 Defaults suit most use. To change some, set only those keys in `init.lua`:
 
 ```lua
@@ -1896,8 +1904,8 @@ load the unpacked extension first, then select the attach preset from a source
 buffer inside its package. Both presets find `.output/chrome-mv3-dev` above that
 buffer automatically (WXT layout). For another layout, use a project config with
 an explicit `extensionPath` pointing to the build output. Launch creates its own
-profile and installs the extension via CDP. See [extension setup and diagnosis](DIAGNOSTICS.md) and
-[the extension spike](../spikes/chrome-extension-dap/README.md).
+profile and installs the extension via CDP. See
+[extension setup and diagnosis](DIAGNOSTICS.md).
 
 ### Dart CLI
 
@@ -1998,6 +2006,6 @@ app. The main endpoint is Node Inspector and the renderer endpoint is Chromium
 CDP, so their ports cannot be interchanged. See
 [Electron main-process debugging](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process).
 
-React Native is still a separate [feasibility spike](../spikes/react-native-dap/README.md),
-not a supported Hermes DAP workflow. For connection failures, unbound breakpoints,
+React Native/Hermes DAP is not supported by this configuration; use React Native
+DevTools. For connection failures, unbound breakpoints,
 SDK paths and platform permissions, see [DIAGNOSTICS.md](DIAGNOSTICS.md).

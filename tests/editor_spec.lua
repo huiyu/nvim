@@ -322,7 +322,7 @@ t.eq(editor.tui_ready(nil), false, "UC-9: a missing buffer is not ready")
 
 -- UC-6: the wrapper the terminals are launched with has to exist and be
 -- runnable, or ctrl+g silently falls back to a nested nvim.
-local wrapper = editor.wrapper()
+local wrapper = require("ai.backend.launch").wrapper()
 t.eq(vim.fn.executable(wrapper), 1, "UC-6: the $EDITOR wrapper is executable")
 
 -- UC-10: the float is modal. The global <C-h/j/k/l> window keys work from a
@@ -384,7 +384,7 @@ vim.cmd("only")
 -- It runs on what the cases above left: editor._release still only records
 -- (no sentinel is written), the clipboard is still UC-8's stub, and
 -- ai.attach_images is the real one again.
-local config = require("ai.config")
+local config = require("ai.state")
 local backend = require("ai.backend." .. config.agent_names()[1])
 
 local function close_floats()

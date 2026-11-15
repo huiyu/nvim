@@ -6,7 +6,7 @@
 -- then API chats, each in provider order), the `auto` key (the first API key
 -- that is set) and CodeCompanion's chat adapter for its own paths (the first
 -- acp) -- never what a key is called or where it acts; a bad list stops
--- startup naming the provider (ai.config.build); NVIM_AI_PROVIDER and
+-- startup naming the provider (ai.state.build); NVIM_AI_PROVIDER and
 -- vim.g.ai_provider only earn a warning; `:AI provider` is gone, and says
 -- where its job went; a key switch changes state, <leader>ae's description
 -- and CodeCompanion's inline/cmd adapters and nothing else, an invalid name
@@ -14,10 +14,19 @@
 -- no request is sent.
 local t = dofile("tests/helper.lua")
 
-local config = require("ai.config")
+local config = require("ai.state")
 local switch = require("ai.switch")
 local Config = require("lazy.core.config")
 local ERROR, WARN = vim.log.levels.ERROR, vim.log.levels.WARN
+
+-- The editable file is plain data: it can be read without Neovim or loading
+-- any runtime module. Applying it is ai.state's job.
+local settings_chunk = assert(loadfile("lua/ai/config.lua"))
+setfenv(settings_chunk, {})
+local settings = settings_chunk()
+t.eq(require("ai.config"), settings, "the editable settings are plain Lua data")
+t.eq(config.providers, settings.providers, "the runtime applies the configured providers")
+t.eq(config.panel, settings.panel, "the runtime applies the configured panel geometry")
 
 local notes = {}
 local real_notify = vim.notify
@@ -228,7 +237,7 @@ t.ok(pcall(config.build, DEFAULT_LIST), "the shipped list is accepted")
 -- NVIM_AI_PROVIDER or vim.g.ai_provider only earns a warning.
 local probe = [[
   vim.wait(200, function() return #_G.spec_notes > 0 end)
-  local c = require("ai.config")
+  local c = require("ai.state")
   local keys = {}
   for _, k in ipairs(vim.json.decode(vim.env.SPEC_LHS)) do keys[k] = vim.fn.maparg(k, "n", false, true).desc or vim.NIL end
   io.stdout:write(vim.json.encode({
@@ -325,20 +334,44 @@ t.ok(pcall(config.check_key_profile, "x", { adapter = "openai", label = "x", api
 
 -- NVIM_AI_KEY_PROFILE sets the startup key; a typo falls back to auto.
 local pinned_start = child({ NVIM_AI_KEY_PROFILE = pinned }, [[
-  local c = require("ai.config")
+  local c = require("ai.state")
   io.stdout:write(vim.json.encode({ name = c.key.name, auto = c.key.auto }))
   vim.cmd("qa!")
 ]])
 t.eq(pinned_start, { name = pinned, auto = false }, "NVIM_AI_KEY_PROFILE pins the startup key")
 local typo = child({ NVIM_AI_KEY_PROFILE = "anthropik" }, [[
   vim.wait(100, function() return #_G.spec_notes > 0 end)
-  local c = require("ai.config")
+  local c = require("ai.state")
   io.stdout:write(vim.json.encode({ name = c.key.name, auto = c.key.auto, notes = _G.spec_notes }))
   vim.cmd("qa!")
 ]])
 t.ok(typo.name == follows and typo.auto == true, "a mistyped NVIM_AI_KEY_PROFILE starts on auto")
 t.ok(typo.notes and typo.notes[1] and typo.notes[1].level == WARN
   and typo.notes[1].msg:find("anthropik", 1, true) ~= nil, "and says so instead of aborting startup")
+
+-- The editable default is applied at startup; globals and the environment
+-- retain their precedence. No real key or agent is needed to select a profile.
+local settings_pre = ([[lua
+  local s = dofile("lua/ai/config.lua")
+  s.key_profile = "openai"
+  package.loaded["ai.config"] = s
+  vim.env.NVIM_AI_KEY_PROFILE = nil
+  vim.g.ai_key_profile = nil
+]]):gsub("\n", " ")
+local key_probe = [[
+  local c = require("ai.state")
+  io.stdout:write(vim.json.encode({ name = c.key.name, auto = c.key.auto }))
+  vim.cmd("qa!")
+]]
+for _, case in ipairs({
+  { pre = "", name = "openai", what = "config.key_profile sets the startup HTTP profile" },
+  { pre = '; vim.g.ai_key_profile = "anthropic"', name = "anthropic", what = "vim.g overrides the file's profile" },
+  { pre = '; vim.g.ai_key_profile = "anthropic"; vim.env.NVIM_AI_KEY_PROFILE = "openai"',
+    name = "openai", what = "the environment overrides vim.g and the file's profile" },
+}) do
+  t.eq(child({}, key_probe, settings_pre .. case.pre), { name = case.name, auto = false }, case.what)
+end
+t.eq(require("ai.config"), settings, "runtime switches and provider overrides leave the editable settings alone")
 
 ---------------------------------------------------------------------------
 -- The key picker
@@ -398,7 +431,7 @@ t.eq(vim.g.codecompanion_adapter, nil, "vim.g.codecompanion_adapter is never set
 -- And with Codex first in the list, its ACP agent: what a typed
 -- :CodeCompanionChat opens there. Loading the plugin creates no chat.
 local reordered_cc = child({ NVIM_OPENAI_API_KEY = "spec" }, [[
-  local c = require("ai.config")
+  local c = require("ai.state")
   local list = vim.deepcopy(c.providers)
   list[1], list[2] = list[2], list[1]
   c._set_providers(list)

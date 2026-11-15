@@ -155,7 +155,7 @@ up to 16 consecutive rows in the same table column. Alignment uses display
 width, including CJK text; padding and vertical rules separate columns. The
 full target must reach its closing delimiter before continuation is accepted.
 Quoted local paths can also span rows. Any target, bare or enclosed, that runs
-into the right edge of a row the terminal wrapped (`util.terminal.soft_wraps`)
+into the right edge of a row the terminal wrapped (`util.terminal_text.soft_wraps`)
 continues from column 0 of the next row, whatever column it started in; that
 join needs no closing delimiter, and a file path whose joined form does not
 exist falls back to its first row.
@@ -372,6 +372,21 @@ the refusal is known before the call -- `:GoplsRebuildIndex` with no client,
 repository, `<leader>at` when the view fails -- the entry point checks first
 and notifies, so none of them ends in a traceback.
 
+## Copying File Locations (`util.yank_path`)
+
+```lua
+local path = require("util.yank_path")
+path.absolute()  -- <leader>ya
+path.relative()  -- <leader>yr, relative to the repository/cwd
+path.line()      -- <leader>yl, path:line or path:first-last
+path.permalink() -- <leader>yg, Git permalink pinned to the file's commit
+```
+
+Actions capture Visual endpoints before leaving the selection and write both
+the clipboard and unnamed register. A buffer with no file is refused. The
+module changes nothing when required; `plugins/editor/yank-path.lua` declares
+the mappings.
+
 ## Working Directory (`util.cwd`)
 
 `lua/config/init.lua` requires `config.cwd` first, before options and
@@ -413,6 +428,11 @@ cwd.recover()
 -- after resolving symlinks and falling back past missing parents. Pure: it
 -- reads the filesystem and changes nothing.
 cwd.startup_dir(path)
+
+-- Git root of a file's parent, or of the cwd when path is nil/empty.
+-- Falls back to the cwd outside Git. This does not change cwd, resolve startup
+-- arguments or choose an AI agent; agents, selections and transcripts share it.
+cwd.project_root(path)
 ```
 
 ## Window Management (`util.window`)
@@ -511,39 +531,24 @@ window.blocks_global_prefixes(tabpage)
 -- `tab split` inserts after the current one.
 window.protect_first_tab()
 
--- Quit Nvim, including from inside a Snacks terminal window. Backs <leader>qq
--- and, with force, <leader>qQ.
-window.quit_all(force)
 ```
 
-`quit_all` exists because `:qall` does not work from inside a Snacks terminal.
-Snacks closes each of its terminal windows from its own `ExitPre`, and Nvim
-refuses to finish a quit whose autocommands made a window disappear -- so
-`:qall` typed in the agent panel or a `<C-/>` terminal closed that terminal and
-then silently dropped the quit, which reads as "the agent exited but Nvim
-stayed". Closing those windows up front, while it is still an ordinary window
-operation, leaves `ExitPre` with nothing to close.
+## Quitting (`util.quit`)
 
-Only the windows are closed; the buffers are left to `ExitPre` as usual. A
-Snacks terminal that is merely hidden never blocked the quit, and not deleting
-buffers keeps this clear of the textlock `nvim_buf_delete` can hit in a nested
-command context.
+```lua
+local quit = require("util.quit")
+quit.all(force)  -- <leader>qq; force=true for <leader>qQ
+```
 
-The unsaved check runs first, because closing the panel is not free. Nvim fires
-`ExitPre` before it looks at modified buffers, so a refused `:qall` tears the
-agent panel down *and* fails to quit -- and issued from inside the panel it then
-drops the quit without a word, since the autocommand closed the current window.
-So when a modified buffer would make Nvim refuse, `quit_all` issues no `:qall`
-at all: it refuses on its own, with a `vim.notify` warning that names the
-unsaved buffers and points at `<leader>qQ`. Going through `vim.cmd` would also
-have turned Nvim's refusal into an `E5108` Lua traceback rather than the
-one-line `E37` that `:qa` shows. Which buffers count is Nvim's own rule, read
-through the `'modified'` option: `nofile`, `nowrite`, `terminal` and `prompt`
-buffers never count, while an `acwrite` buffer (oil) blocks the quit like a
-file. `<leader>qQ` passes `force`, which is the user saying they mean it.
+The quit policy checks unsaved buffers first, then closes every visible Snacks
+terminal window across tabpages before issuing `qall`. Closing those windows
+leaves Snacks' `ExitPre` with nothing to close, which otherwise cancels Nvim's
+quit when called from inside a terminal. Buffers stay alive for normal teardown.
 
-Typing `:qa` by hand still takes the upstream path; only these entry points are
-covered.
+A refused quit names the unsaved buffers and leaves the layout untouched.
+Modified files and `acwrite` buffers block it; `nofile`, `nowrite`, terminal and
+prompt buffers do not. `force=true` issues `qall!`. Typed `:qa` still takes
+Neovim's own path; this policy belongs to the two mapped entry points.
 
 ## Terminal (`util.terminal`)
 
@@ -581,11 +586,26 @@ terminal.focus(count)
 -- (vim.g.terminal_position = "bottom"). edgy asks it, so its bottom slot
 -- claims no terminal that is meant to float.
 terminal.floats()
+```
+
+Native coding-agent terminals do not run `fix_drift()` on `TermEnter`, avoiding
+a one-row flash whenever focus moves into the terminal. Opening a numbered
+bottom terminal still repairs the visible agent after the resulting layout
+change. Use `<leader>md` for a manual repair.
+
+## Terminal Text (`util.terminal_text`)
+
+Text interpretation is independent of terminal-window placement and focus.
+URL opening and terminal copying share these rules; requiring the module
+installs no handler. `config.autocmds` wires `unwrap_yank` to `TextYankPost`.
+
+```lua
+local text = require("util.terminal_text")
 
 -- Width in cells of the grid behind terminal buf: Nvim sizes the pty to the
 -- widest window showing it, less that window's textoff. nil when no window
 -- shows the buffer.
-terminal.grid_width(buf)
+text.grid_width(buf)
 
 -- Whether terminal row `line` runs on into `next_line` because the terminal
 -- wrapped it at `width` cells. A terminal buffer has one line per row and Nvim
@@ -605,7 +625,7 @@ terminal.grid_width(buf)
 -- Rows wider than `width` (from before a resize) never wrap either. A newline
 -- written at exactly the full width is indistinguishable and counts as a wrap,
 -- and so does a program's own unindented word wrap at exactly the width.
-terminal.soft_wraps(line, next_line, width)
+text.soft_wraps(line, next_line, width)
 
 -- TextYankPost handler (lua/config/autocmds.lua, terminal buffers only): rewrite the
 -- yanked register with the rows soft_wraps joins, before yanky's handler reads
@@ -614,13 +634,8 @@ terminal.soft_wraps(line, next_line, width)
 -- are left alone. An unnamed yank also rewrites "+ / "* per 'clipboard':
 -- setreg("") never reaches the clipboard provider, which already received the
 -- split text before the event.
-terminal.unwrap_yank(buf)
+text.unwrap_yank(buf)
 ```
-
-Native coding-agent terminals do not run `fix_drift()` on `TermEnter`, avoiding
-a one-row flash whenever focus moves into the terminal. Opening a numbered
-bottom terminal still repairs the visible agent after the resulting layout
-change. Use `<leader>md` for a manual repair.
 
 ## Buffers (`util.buffer`)
 
@@ -834,6 +849,22 @@ Every callback runs on the main loop, scheduled, and a call from a fast event
 reschedules itself. More than 5000 untracked files warn once per gitdir: every
 snapshot hashes them again. `tests/baseline_spec.lua` covers the user's state,
 ignored and large files, racy git, gc, linked worktrees, signing and hooks.
+
+## Git Comparison (`git.compare`)
+
+`git.compare` owns the mapped Git workflows: `status`, `main`,
+`baseline_or_ref`, `two`, `save_baseline`, `file_history`, `repo_history` and
+`close`. Requiring it neither loads CodeDiff nor runs Git. The CodeDiff spec
+only declares lazy entry points/options and wires its setup hooks.
+Comparison planning, selection and saved-baseline retention stay here;
+CodeDiff internals remain behind `util.codediff`.
+
+## Lazygit (`util.lazygit`)
+
+`require("util.lazygit").open()` opens repository status; `open(file)` opens
+that file's history. The floating terminal preserves immediate `j` and `jk`
+input. `plugins/git/lazygit.lua` declares `<leader>gg` and `<leader>gf`;
+requiring the helper starts nothing.
 
 ## CodeDiff Views (`util.codediff`, `util.codediff_actions`)
 
@@ -1107,7 +1138,14 @@ llama.url("/infill")   -- "http://127.0.0.1:8012/infill"
 llama.log()            -- <dir>/server.log, rewritten at each server start
 ```
 
-## AI State (`ai.config`, `ai.switch`)
+## AI Settings and State (`ai.config`, `ai.state`, `ai.switch`)
+
+`ai.config` only returns the editable settings table: `providers`,
+`key_profile` (default `"auto"`) and `panel.width`. Requiring it performs no
+validation, environment reads or setup. Edit it and restart Nvim to apply
+changes. `ai.state` reads a copy, validates the providers and derives the
+backends and live HTTP key state when required; consumers use `ai.state`.
+The plugin specs wire that state into the native agents and CodeCompanion.
 
 The ways to chat are an ordered `providers` list in `lua/ai/config.lua`,
 written like CodeCompanion's adapters; the HTTP **key profile** is the one
@@ -1146,8 +1184,8 @@ that order (with one installed, that one). CodeCompanion's own paths that
 name no adapter (a typed `:CodeCompanionChat`, the action palette) use the
 first `acp` in provider order, else the first `api`. The key profile is
 `auto` -- the first profile whose `NVIM_*` key is set, else the first --
-until `:AI key` pins one (`NVIM_AI_KEY_PROFILE` > `vim.g.ai_key_profile` at
-startup).
+until `:AI key` pins one. Startup precedence is `NVIM_AI_KEY_PROFILE` >
+`vim.g.ai_key_profile` > `ai.config.key_profile` (default `"auto"`).
 
 Some of CodeCompanion's built-in adapters are set up whatever the list holds,
 since a chat restored from history or an upstream path can name one that no
@@ -1159,31 +1197,32 @@ its own `NVIM_*` key there, and an `acp.auth_method` overrides the login.
 
 `NVIM_AI_PROVIDER` and `vim.g.ai_provider` are no longer read: a leftover
 value earns one warning, not a failed start. Every consumer holds the one
-`ai.config` table and reads it per call, so a key switch mutates it in place.
+`ai.state` table and reads it per call, so a key switch mutates it in place.
+The editable settings table is left alone.
 
 #### API Reference
 
 ```lua
-local config = require("ai.config")
+local state = require("ai.state")
 
-config.providers       -- the list, in order, as written
-config.agents          -- the native terminals offered, by kind: { name (the
+state.providers       -- the list, in order, as written
+state.agents          -- the native terminals offered, by kind: { name (the
                        -- kind), provider, label, command, prompt_pattern,
                        -- capabilities, cli_api_key? }
-config.agent_names()   -- their kinds, in provider order
-config.acp             -- the ACP chats offered, in order: { provider, label,
+state.agent_names()   -- their kinds, in provider order
+state.acp             -- the ACP chats offered, in order: { provider, label,
                        -- adapter, command, auth_method?, cli_api_key? }
-config.key_profiles    -- the key profiles, by name: { name, provider, adapter
+state.key_profiles    -- the key profiles, by name: { name, provider, adapter
                        -- (the built-in it extends), label, api_key, model? }
-config.key_names()     -- their names, in provider order
-config.auto_key()      -- what `auto` stands for now: the first profile whose
+state.key_names()     -- their names, in provider order
+state.auto_key()      -- what `auto` stands for now: the first profile whose
                        -- key is set, else the first; nil when no provider offers `api`
-config.builtin_http_keys -- { anthropic = "NVIM_ANTHROPIC_API_KEY", openai = "NVIM_OPENAI_API_KEY" }
-config.builtin_acp_auth  -- { codex = "chat-gpt" }
-config.codecompanion   -- { acp_adapter, chat_adapter, http_adapter, api_key, model }
-config.key             -- { name, label, auto }; name nil (label "none") when
+state.builtin_http_keys -- { anthropic = "NVIM_ANTHROPIC_API_KEY", openai = "NVIM_OPENAI_API_KEY" }
+state.builtin_acp_auth  -- { codex = "chat-gpt" }
+state.codecompanion   -- { acp_adapter, chat_adapter, http_adapter, api_key, model }
+state.key             -- { name, label, auto }; name nil (label "none") when
                        -- no provider offers `api`
-config.panel.width     -- 90 columns, shared by both agent panels and the chat window
+state.panel.width     -- 90 columns, shared by both agent panels and the chat window
 
 -- codecompanion.acp_adapter is the adapter of the first `acp` in provider
 -- order (nil when no provider offers one); chat_adapter, what CodeCompanion's
@@ -1199,12 +1238,12 @@ config.panel.width     -- 90 columns, shared by both agent panels and the chat w
 -- without adapter and command, an api without adapter, or an adapter or api
 -- name used twice; and through check_key_profile on an api_key that is not
 -- NVIM_*.
-config.build(list)  --> { providers, agents, agent_names, key_profiles, key_names, acp }
+state.build(list)  --> { providers, agents, agent_names, key_profiles, key_names, acp }
 
 -- Specs only: run with another list in-process, as if lua/ai/config.lua held
 -- it. `auto` resolves again, and a pinned key the new list lacks falls back
 -- to it; what a plugin read at its load (CodeCompanion's adapters) stays.
-config._set_providers(list)
+state._set_providers(list)
 
 -- Every way to start a chat, available or not, for the new-chat picker:
 -- the terminals, then the ACP chats, then the API chats, each in provider
@@ -1216,26 +1255,20 @@ config._set_providers(list)
 -- billing ("Codex · terminal · subscription", "OpenAI · CodeCompanion API ·
 -- API credits"); `why` says what is missing; `warn` names a CLI billing
 -- variable that is set.
-config.backends()
+state.backends()
 
--- The directory an agent session belongs to: the Git root of `path`'s
--- directory ("" or nil: of the cwd), else the cwd. Codex starts there, and
--- Claude does too under claude_cwd = "git_root". ai.selection makes paths
--- relative to it, and the transcripts find their project by it.
-config.project_root(path)
-
-config.use_key(name)       -- "auto" resolves now (auto_key), a profile name pins it
-config.key_setting()       -- "auto" or the pinned profile name
-config.http_adapter_spec() -- inline/cmd adapter: name, or { name, model }
-config.check_key_profile(name, profile) -- error unless api_key is NVIM_*, never a CLI's own
+state.use_key(name)       -- "auto" resolves now (auto_key), a profile name pins it
+state.key_setting()       -- "auto" or the pinned profile name
+state.http_adapter_spec() -- inline/cmd adapter: name, or { name, model }
+state.check_key_profile(name, profile) -- error unless api_key is NVIM_*, never a CLI's own
 
 -- Which native agent a terminal command runs (any CLI a provider's `tui`
 -- offers), and which agent handed over a prompt file, from the temp path its
 -- CLI chose: nil for a path none uses (an agent's pane running `git commit`).
 -- Nothing falls back to a provider picked for the user.
-config.agent_of_command(cmd)     -- the TUI kind ("claude" / "codex") or nil
-config.agent_of_prompt(path)     -- the TUI kind ("claude" / "codex") or nil
-config.is_native_command(cmd)
+state.agent_of_command(cmd)     -- the TUI kind ("claude" / "codex") or nil
+state.agent_of_prompt(path)     -- the TUI kind ("claude" / "codex") or nil
+state.is_native_command(cmd)
 
 local switch = require("ai.switch")
 switch.key(name)            -- :AI key [name]; nil opens the picker
@@ -1347,7 +1380,7 @@ slot.native_target(cb, opts?) -- the native agent on the right, else asks which
 
 -- Asking.
 slot.pick_new(cb, opts?)  -- the new-chat picker: available backends in
-                          -- ai.config.backends() order; a native entry is that
+                          -- ai.state.backends() order; a native entry is that
                           -- agent's one session ("running", "● here"), never a
                           -- second
 slot.switch(cb, opts?)    -- the switcher: open chats (here first, then by use)
@@ -1418,11 +1451,11 @@ local companion = require("ai.companion")
 
 companion.preflight(what)      -- false (and an ERROR) when an "http" backend's
                                -- NVIM_* key is unset or an "acp" bridge is missing;
-                               -- `what` is one ai.config.backends() entry, or
+                               -- `what` is one ai.state.backends() entry, or
                                -- "http" for the key profile's HTTP adapter
                                -- (<leader>ae), refused when no provider offers an
                                -- API key
-companion.create(spec, extra?) -- a chat on one ai.config.backends() entry, created
+companion.create(spec, extra?) -- a chat on one ai.state.backends() entry, created
                                -- hidden from the editor window and announced
                                -- ("New chat: <label>"); nil when refused
 companion.open(chat, opts?)    -- open its window here: in opts.win (a chat window
@@ -1667,6 +1700,70 @@ Every entry point returns `false, reason` off macOS rather than raising, and any
 path containing a quote, backslash or newline is refused — paths are
 interpolated into AppleScript source, which has no equivalent of `shellescape`.
 
+## Native Agent Launch (`ai.backend.launch`)
+
+Native backends own process construction and lifecycle. Claude's backend
+provides `terminal_command()`, `cwd(ctx)` and `configure(opts)`; its plugin spec
+only wires those into claudecode. Both native backends share:
+
+```lua
+local launch = require("ai.backend.launch")
+launch.wrapper()              -- scripts/agent-editor, the agents' $EDITOR
+launch.runner()               -- scripts/agent-run, preserves startup errors
+launch.teardown()             -- scripts/agent-teardown, cleans the process tree
+launch.teardown_hook(socket)  -- tmux client-detached command
+launch.editor_env()           -- EDITOR and VISUAL for the prompt handoff
+launch.enabled(env, global)   -- boolean preference: environment > vim.g > on
+launch.ensure_watchdog(agent) -- once per native agent; called by its backend
+```
+
+Requiring the module starts nothing. Claude's watchdog begins when its plugin
+first configures a wrapped terminal; Codex's begins on its first wrapped spawn.
+The watchdog and teardown scripts preserve each agent's own socket namespace.
+
+### Why `agent-run` exists
+
+An agent that fails on startup used to make the panel vanish with no trace.
+Both tmux wrappers end with `exit-empty on` and a `client-detached` teardown
+hook, and that teardown makes the tmux client exit 0 however the pane's command
+ended -- measured: `sh -c 'exit 1'` through the real wrapper reaches nvim as
+status 0. Nvim's `:terminal` job therefore reports success,
+Snacks' `auto_close` closes the window, and the agent's error text dies with the
+tmux server, leaving nothing in `:messages` either.
+
+The status cannot be recovered on nvim's side, so `scripts/agent-run` keeps the
+message where it was printed: on a non-zero exit it holds the pane, with the
+agent's own diagnostics still on screen, until the panel is dismissed. A clean
+exit passes straight through, so quitting an agent normally still closes the
+panel with no extra keystroke.
+
+### Why `agent-teardown` exists
+
+Quitting Nvim used to leave the agent's background work running. tmux signals
+only each pane's own process when a server dies, and the kernel's hangup reaches
+only the pane's session leader, so anything the agent had spawned into a process
+group of its own -- a Codex `exec_command` background session, a Bash-tool job
+-- kept running with ppid 1 and no terminal (measured: a `pnpm dev:server` tree
+outlived its Nvim by three days). Both wrappers now end their server through
+`scripts/agent-teardown`: from the `client-detached` hook (`launch.teardown_hook`)
+and from the watchdog. It records the process tree under every pane, kills the
+server, then SIGTERMs and after two seconds SIGKILLs whatever of that tree is
+still alive. Shared daemons -- emulator, Gradle daemon, container runtime -- are
+spared together with their children, but only from the agent's children down:
+the launcher and the agent itself are never exempt, or a plugin path with the
+wrong word in it would silently spare the whole tree.
+`NVIM_AGENT_TEARDOWN_IGNORE` replaces the pattern (an awk ERE). Each run is
+logged to `~/.local/state/nvim/agent-teardown.log`.
+
+`destroy-unattached` is off in both wrappers on purpose. With it on, the session
+-- and the process tree the hook has to record -- was gone before the hook ran
+(measured), which is how a `kill-server` hook that never executed hid the leak.
+`exit-empty` still ends the server when the agent itself exits; the hook then
+finds no panes and does nothing. The hook's `run-shell` job would die with the
+server it kills, so the script hands the work to a detached copy of itself; the
+watchdog uses the synchronous `--wait` form and only removes the socket file
+afterwards.
+
 ## AI Editor (`ai.editor`)
 
 Host side of the agent TUI's `ctrl+g` handoff. Both native agents bind that key
@@ -1698,11 +1795,7 @@ editor.focus_open(text, agent)     --> boolean
 editor.open_here()                 --> open, owner?: a prompt float in this tabpage
 editor.is_prompt_win(win)          -- is `win` one of the open prompt floats?
 
--- Absolute paths to the shell helpers the agent terminals need.
-editor.wrapper()  -- scripts/agent-editor, the agents' $EDITOR for ctrl+g
-editor.runner()   -- scripts/agent-run, the pane command inside both wrappers
-editor.teardown() -- scripts/agent-teardown, run by the hook and the watchdog
-editor.teardown_hook(socket)  -- the client-detached hook command for a wrapper server
+
 ```
 
 `open` is called over RPC by the wrapper, which is blocked in a poll loop while
@@ -1773,49 +1866,6 @@ same reason content extraction is not: a wrong answer costs one keystroke the
 user can repeat. A numbered line (`❯ 1. Yes, I trust this folder`) is one of the
 CLI's own choice lists, not an input box, and does not count as ready.
 
-### Why `agent-run` exists
-
-An agent that fails on startup used to make the panel vanish with no trace.
-Both tmux wrappers end with `exit-empty on` and a `client-detached` teardown
-hook, and that teardown makes the tmux client exit 0 however the pane's command
-ended -- measured: `sh -c 'exit 1'` through the real wrapper reaches nvim as
-status 0. Nvim's `:terminal` job therefore reports success,
-Snacks' `auto_close` closes the window, and the agent's error text dies with the
-tmux server, leaving nothing in `:messages` either.
-
-The status cannot be recovered on nvim's side, so `scripts/agent-run` keeps the
-message where it was printed: on a non-zero exit it holds the pane, with the
-agent's own diagnostics still on screen, until the panel is dismissed. A clean
-exit passes straight through, so quitting an agent normally still closes the
-panel with no extra keystroke.
-
-### Why `agent-teardown` exists
-
-Quitting Nvim used to leave the agent's background work running. tmux signals
-only each pane's own process when a server dies, and the kernel's hangup reaches
-only the pane's session leader, so anything the agent had spawned into a process
-group of its own -- a Codex `exec_command` background session, a Bash-tool job
--- kept running with ppid 1 and no terminal (measured: a `pnpm dev:server` tree
-outlived its Nvim by three days). Both wrappers now end their server through
-`scripts/agent-teardown`: from the `client-detached` hook (`editor.teardown_hook`)
-and from the watchdog. It records the process tree under every pane, kills the
-server, then SIGTERMs and after two seconds SIGKILLs whatever of that tree is
-still alive. Shared daemons -- emulator, Gradle daemon, container runtime -- are
-spared together with their children, but only from the agent's children down:
-the launcher and the agent itself are never exempt, or a plugin path with the
-wrong word in it would silently spare the whole tree.
-`NVIM_AGENT_TEARDOWN_IGNORE` replaces the pattern (an awk ERE). Each run is
-logged to `~/.local/state/nvim/agent-teardown.log`.
-
-`destroy-unattached` is off in both wrappers on purpose. With it on, the session
--- and the process tree the hook has to record -- was gone before the hook ran
-(measured), which is how a `kill-server` hook that never executed hid the leak.
-`exit-empty` still ends the server when the agent itself exits; the hook then
-finds no panes and does nothing. The hook's `run-shell` job would die with the
-server it kills, so the script hands the work to a detached copy of itself; the
-watchdog uses the synchronous `--wait` form and only removes the socket file
-afterwards.
-
 ## AI Review (`ai.review.*`)
 
 The review loop's modules, as other modules call them: a round is a baseline
@@ -1823,18 +1873,22 @@ The review loop's modules, as other modules call them: a round is a baseline
 root it was taken in; `<leader>av` shows what changed since, and `,C` /
 `<C-d>` send feedback back to that conversation. AGENTS.md ("Agent Hooks",
 "One Round Model") has the invariants and docs/MANUAL.md the workflow.
-Nothing here is loaded at startup but `ai.review.config` and
-`ai.review.hook`, which load no plugin and run no git.
+At startup only the review defaults, their `ai.review.settings` resolver and
+`ai.review.hook` are needed; they load no plugin and run no git.
 
-### Settings (`ai.review.config`)
+### Settings (`ai.review.config`, `ai.review.settings`)
 
 ```lua
-local cfg = require("ai.review.config")
+local cfg = require("ai.review.settings")
 
 cfg.get()        -- the effective settings: vim.g.ai_review merged over the defaults
 cfg.defaults()   -- the defaults alone, a deep copy
 cfg.overrides()  -- { ["retention.rounds"] = true, ... }: what vim.g.ai_review set
 ```
+
+`ai.review.config` only returns the editable default values. The settings
+resolver copies them at load; editing the file takes effect on the next Nvim
+start. Runtime `vim.g.ai_review` overrides apply through the resolver.
 
 `get()` merges again on every call and returns a fresh table, so a change
 applies from the next use and a caller may keep or change what it got. Assign
@@ -2017,6 +2071,31 @@ so `util.codediff_actions`' keys on the same buffers stay alone; a directory
 or file diff without a repository gets none. `comment` and `deliver` never
 raise: every failure is a warning, and a refused or cancelled delivery keeps
 the draft.
+
+`ai.review.draft` owns the document format, atomic persistence, merging and
+acknowledgment. It knows no window, buffer, notifier or delivery target.
+`feedback` captures code, owns its floats, presents storage outcomes and
+coordinates delivery through `rounds.resolve_sink`.
+
+```lua
+local draft = require("ai.review.draft")
+local state = draft.open(path)
+local lines = draft.reload(state, previous_lines)
+lines, outcome = draft.save(state, edited_lines) -- nil lines when storage fails
+local doc, snapshot = draft.read(path, known_header)
+draft.decode(lines, known_header) -- document codec, no I/O
+draft.message(doc)                -- outgoing text without structural markers
+draft.digest(root, relative_path)
+draft.append(path, header, intro, entry, known_header)
+draft.mark_stale(doc, root)
+draft.store(path, doc)
+draft.acknowledge(path, snapshot, known_header)
+```
+
+Acknowledge only after the recipient has taken the text. It archives the sent
+snapshot and removes unchanged sent blocks while retaining newly added or
+edited feedback. Storage reports conflicts and failures as data; the feedback
+UI owns notifications and recovery choices.
 
 Drafts are markdown files at `rounds.draft_path(root, id)` -- `<round-id>.md`,
 or `unowned.md` for a view that is no round's, with `<id>.last-sent.md`, the

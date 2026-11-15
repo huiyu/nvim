@@ -27,7 +27,8 @@
 ---@field sessions fun(root: string): ai.transcript.Session[]
 ---@field parse fun(path: string, cap: integer): ai.transcript.Entry[], boolean
 
-local config = require("ai.config")
+local config = require("ai.state")
+local cwd = require("util.cwd")
 local render = require("ai.transcript.render")
 
 local M = {}
@@ -67,9 +68,8 @@ local function apply(buf, agent, session, entries, truncated)
     label = config.agents[agent].label,
     id = session.id,
     title = session.title,
-    root = config.project_root(""),
+    root = cwd.project_root(""),
     truncated = truncated,
-    dropped = truncated and ENTRY_CAP or nil,
   })
 
   vim.bo[buf].modifiable = true
@@ -95,7 +95,6 @@ local function configure(buf, agent, session)
   vim.bo[buf].filetype = "ai-transcript"
   pcall(vim.treesitter.start, buf, "markdown")
 
-  vim.b[buf].ai_transcript_path = session.path
   vim.b[buf].ai_transcript_session = session
   vim.b[buf].ai_transcript_agent = agent
 
@@ -157,7 +156,7 @@ end
 ---@param agent string a native agent (TUI kind)
 function M.open_current(agent)
   check(agent)
-  local root = config.project_root("")
+  local root = cwd.project_root("")
   local sessions = M._adapter(agent).sessions(root)
   if #sessions == 0 then
     vim.notify(
@@ -173,7 +172,7 @@ end
 ---@param agent string a native agent (TUI kind)
 function M.pick(agent)
   check(agent)
-  local root = config.project_root("")
+  local root = cwd.project_root("")
   local sessions = M._adapter(agent).sessions(root)
   if #sessions == 0 then
     vim.notify(

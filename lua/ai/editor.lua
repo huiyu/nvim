@@ -20,7 +20,7 @@
 -- the CLI is listening again; an image attached in the TUI directly survives the
 -- round trip on its own, as a `[Image #N]` placeholder the CLI owns.
 
-local config = require("ai.config")
+local config = require("ai.state")
 
 local M = {}
 
@@ -586,43 +586,6 @@ function M.open(path, sentinel)
   end)
 
   return "opened"
-end
-
----Path to the $EDITOR wrapper the agent terminals are launched with.
----@return string
-function M.wrapper()
-  return vim.fn.stdpath("config") .. "/scripts/agent-editor"
-end
-
----Launcher that keeps a failed agent's error on screen instead of letting the
----panel vanish. Used as the pane command inside both tmux wrappers -- see
----scripts/agent-run for why the exit status cannot be recovered on this side.
----@return string
-function M.runner()
-  return vim.fn.stdpath("config") .. "/scripts/agent-run"
-end
-
----Absolute path to scripts/agent-teardown. Both wrappers run it from their
----`client-detached` hook and their watchdog: it records the pane's process tree
----before the tmux server goes and sweeps whatever of it survives, so quitting
----Nvim no longer leaves the agent's background jobs running with ppid 1.
----@return string
-function M.teardown()
-  return vim.fn.stdpath("config") .. "/scripts/agent-teardown"
-end
-
----The tmux command both wrappers install as their `client-detached` hook: run
----agent-teardown for `socket` detached, or -- should the script be missing --
----fall back to a bare kill-server, so the server never outlives its client
----either way. Kept in one place because the Codex wrapper passes it as a
----single argv entry while the Claude one re-quotes it for `sh -c`; the inner
----quotes are single so the tmux double quotes around them stay untouched.
----@param socket string the wrapper server's `-L` name
----@return string
-function M.teardown_hook(socket)
-  local sh = vim.fn.shellescape(M.teardown()) .. " " .. socket
-    .. " || tmux -L " .. socket .. " kill-server"
-  return 'run-shell -b "' .. sh .. '"'
 end
 
 return M

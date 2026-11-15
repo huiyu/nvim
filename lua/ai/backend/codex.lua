@@ -1,64 +1,24 @@
-local ai_config = require("ai.config")
+local ai_config = require("ai.state")
+local launch = require("ai.backend.launch")
 
 local M = {}
 
 local current
-local tmux_watchdog_started = false
 
 -- Codex uses synchronized terminal updates for each TUI frame. Neovim's
 -- libvterm does not implement that protocol, so let a dedicated tmux server
 -- compose the frame before it reaches :terminal. Precedence: env > vim.g > on.
 local function should_wrap_tmux()
-  local env = vim.env.CODEX_WRAP_TMUX
-  if env == "1" or env == "true" then return true end
-  if env == "0" or env == "false" then return false end
-  return vim.g.codex_wrap_tmux ~= false
-end
-
--- A detached watchdog covers the exits where the wrapper's client-detached
--- hook cannot run -- nvim killed outright, the host terminal torn down -- and
--- removes stale wrapper servers from earlier crashes. It tears down through
--- scripts/agent-teardown, synchronously, so the socket file is only removed
--- once the server and the agent's leftover processes are gone. Start it on
--- first use because this backend loads lazily, after VimEnter has fired.
-local function ensure_tmux_watchdog()
-  if tmux_watchdog_started then return end
-  tmux_watchdog_started = true
-
-  local pid = vim.fn.getpid()
-  local teardown = vim.fn.shellescape(require("ai.editor").teardown())
-  local script = string.format([[
-    for s in /private/tmp/tmux-*/codex-nvim-* /tmp/tmux-*/codex-nvim-*; do
-      [ -e "$s" ] || continue
-      case $s in *.lock) continue ;; esac   # tmux's lock file beside the socket
-      owner=${s##*codex-nvim-}
-      if ! kill -0 "$owner" 2>/dev/null; then
-        %s --wait "$s" || tmux -S "$s" kill-server 2>/dev/null
-        rm -f "$s"
-      fi
-    done
-    while kill -0 %d 2>/dev/null; do sleep 2; done
-    %s --wait codex-nvim-%d || tmux -L codex-nvim-%d kill-server 2>/dev/null
-    rm -f /private/tmp/tmux-*/codex-nvim-%d /tmp/tmux-*/codex-nvim-%d
-  ]], teardown, pid, teardown, pid, pid, pid, pid)
-  vim.fn.jobstart({ "sh", "-c", script }, { detach = true })
-end
-
--- ctrl+g in the TUI edits the input box in $EDITOR. Pointing it at the wrapper
--- routes that back into this nvim instead of nesting a second one -- see
--- lua/ai/editor.lua.
-local function editor_env()
-  local wrapper = require("ai.editor").wrapper()
-  return { EDITOR = wrapper, VISUAL = wrapper }
+  return launch.enabled("CODEX_WRAP_TMUX", "codex_wrap_tmux")
 end
 
 local function terminal_command(args)
   if vim.fn.executable("tmux") ~= 1 or not should_wrap_tmux() then return args end
 
-  ensure_tmux_watchdog()
+  launch.ensure_watchdog("codex")
   local term = vim.env.TERM or "xterm-256color"
   local socket = "codex-nvim-" .. vim.fn.getpid()
-  local wrapper = require("ai.editor").wrapper()
+  local env = launch.editor_env()
   local command = {
     "env", "TERM=" .. term,
     "tmux", "-f", "/dev/null", "-L", socket,
@@ -102,15 +62,15 @@ local function terminal_command(args)
     -- v:servername because this list is handed to jobstart without a shell, so
     -- there is nothing to expand `$NVIM` -- and the host nvim does not set
     -- NVIM for itself anyway, only for its :terminal children.
-    "-e", "EDITOR=" .. wrapper,
-    "-e", "VISUAL=" .. wrapper,
+    "-e", "EDITOR=" .. env.EDITOR,
+    "-e", "VISUAL=" .. env.VISUAL,
     "-e", "NVIM=" .. vim.v.servername,
   }
   -- The pane runs Codex through the launcher, not directly: the wrapper's own
   -- teardown reports success to nvim whatever the pane's command did, so a
   -- Codex that fails on startup would close the panel and take its error with
   -- it. See scripts/agent-run.
-  command[#command + 1] = require("ai.editor").runner()
+  command[#command + 1] = launch.runner()
   vim.list_extend(command, args)
   vim.list_extend(command, {
     -- Off, deliberately: the client-detached hook below is what ends this
@@ -123,8 +83,8 @@ local function terminal_command(args)
     -- When the nvim client goes away -- panel closed, nvim quit, host terminal
     -- gone -- scripts/agent-teardown kills the server and then the processes
     -- Codex left behind in their own groups (exec_command sessions), which a
-    -- bare kill-server never reached. See lua/ai/editor.lua teardown_hook.
-    ";", "set-hook", "-g", "client-detached", require("ai.editor").teardown_hook(socket),
+    -- bare kill-server never reached. See ai.backend.launch.teardown_hook.
+    ";", "set-hook", "-g", "client-detached", launch.teardown_hook(socket),
   })
   return command
 end
@@ -144,14 +104,14 @@ end
 
 -- Shared with ai.selection and the transcript adapters: all three must agree on
 -- which directory a session belongs to.
-local project_root = ai_config.project_root
+local project_root = require("util.cwd").project_root
 
 local function terminal_opts(root)
   return {
     cwd = root,
     -- Covers the non-tmux path; the wrapper build injects the same pair through
     -- `new-session -e` because a tmux pane does not inherit this environment.
-    env = editor_env(),
+    env = launch.editor_env(),
     auto_insert = true,
     start_insert = true,
     auto_close = true,
@@ -182,7 +142,7 @@ M._terminal_opts = terminal_opts
 -- here, a multi-argument command under tmux -- so the TOML arrives byte-exact.
 local function codex_command(args)
   local command = { "codex", "--no-alt-screen", "--yolo" }
-  if require("ai.review.config").get().sources.codex then
+  if require("ai.review.settings").get().sources.codex then
     vim.list_extend(command, { "-c", require("ai.review.hook").codex_override() })
   end
   vim.list_extend(command, require("ai.plugins").codex_args())

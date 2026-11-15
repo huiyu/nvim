@@ -11,7 +11,7 @@
 -- Nothing here notifies. The caller owns how a failure or a fallback is shown,
 -- because <leader>as and <leader>ai surface them differently.
 
-local config = require("ai.config")
+local cwd = require("util.cwd")
 
 local M = {}
 
@@ -42,7 +42,7 @@ function M.draft()
   end
 
   local path = vim.api.nvim_buf_get_name(buf)
-  local root = config.project_root(path)
+  local root = cwd.project_root(path)
   local rel = path ~= "" and (vim.fs.relpath(root, path) or path) or "[unsaved buffer]"
 
   -- The selection can be made in either direction, so the anchor is not

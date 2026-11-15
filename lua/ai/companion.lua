@@ -4,7 +4,7 @@
 --   acp   agent chat  an agent CLI over ACP, on the subscription
 --   http  API chat    a key profile over HTTP, on API credits
 --
--- A chat is created by backend (create: one of ai.config.backends(), from
+-- A chat is created by backend (create: one of ai.state.backends(), from
 -- <leader>an, hidden at first) and then put on screen as exactly that chat
 -- (the slot's show_chat, which opens it through open() here). Upstream's
 -- Toggle and Add cannot be aimed at one chat: they only know `last_chat`.
@@ -39,7 +39,7 @@
 -- needs it does, and lazy's module autoload loads the plugin then -- so the
 -- keys can be defined at startup without loading anything.
 
-local config = require("ai.config")
+local config = require("ai.state")
 
 local M = {}
 
@@ -56,7 +56,7 @@ local function valid_buf(buf)
   return type(buf) == "number" and vim.api.nvim_buf_is_valid(buf)
 end
 
----The API chat backend (ai.config.backends) of the key profile's HTTP
+---The API chat backend (ai.state.backends) of the key profile's HTTP
 ---adapter; nil when no provider offers `api`.
 ---@return ai.Backend|nil
 local function http_spec()
@@ -235,7 +235,7 @@ function M.open(chat, opts)
 end
 
 ---Start a chat on one backend (an "acp" or "http" entry of
----ai.config.backends()), hidden: ai.slot.show_chat puts it on screen.
+---ai.state.backends()), hidden: ai.slot.show_chat puts it on screen.
 ---Refused before anything starts when its key or bridge is missing. The chat
 ---is created from the editor window, so its context and its review root are
 ---the edited file's.

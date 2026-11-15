@@ -25,7 +25,7 @@
 -- vim.ui.select.
 local t = dofile("tests/helper.lua")
 
-local config = require("ai.config")
+local config = require("ai.state")
 local companion = require("ai.companion")
 local Config = require("lazy.core.config")
 local INFO, WARN, ERROR = vim.log.levels.INFO, vim.log.levels.WARN, vim.log.levels.ERROR

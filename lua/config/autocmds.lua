@@ -97,7 +97,7 @@ autocmd("TextYankPost", {
 autocmd("TextYankPost", {
   group = augroup("terminal_unwrap_yank", { clear = true }),
   callback = function(event)
-    if vim.bo[event.buf].buftype == "terminal" then require("util.terminal").unwrap_yank(event.buf) end
+    if vim.bo[event.buf].buftype == "terminal" then require("util.terminal_text").unwrap_yank(event.buf) end
   end,
 })
 

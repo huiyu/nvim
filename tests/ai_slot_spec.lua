@@ -16,11 +16,11 @@
 -- stubbed; none is submitted, and no ACP chat is ever created (that spawns the
 -- bridge). Questions are answered by a stand-in vim.ui.select. There is no
 -- default backend: where the provider order shows, the list is reordered
--- in-process (ai.config._set_providers) and put back.
+-- in-process (ai.state._set_providers) and put back.
 local t = dofile("tests/helper.lua")
 
 local api = vim.api
-local config = require("ai.config")
+local config = require("ai.state")
 local Config = require("lazy.core.config")
 local INFO, WARN, ERROR = vim.log.levels.INFO, vim.log.levels.WARN, vim.log.levels.ERROR
 

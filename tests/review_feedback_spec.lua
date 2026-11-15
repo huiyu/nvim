@@ -26,6 +26,7 @@ local api, uv = vim.api, vim.uv
 local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 
 t.eq(package.loaded["ai.review.feedback"], nil, "ai.review.feedback is not loaded at startup")
+t.eq(package.loaded["ai.review.draft"], nil, "the draft data model is not loaded at startup")
 local plugin = Config.plugins["codediff.nvim"]
 local libs = vim.fn.glob(plugin.dir .. "/libvscode_diff*", false, true)
 if #libs == 0 then
@@ -96,7 +97,7 @@ end
 local rounds = require("ai.review.rounds")
 local editor = require("ai.editor")
 local cd = require("util.codediff")
-local config = require("ai.config")
+local config = require("ai.state")
 -- Feedback here is for Claude alone. Were any to reach Codex, its real
 -- edit_prompt would start a Codex terminal in this Nvim: it only counts.
 local codex = require("ai.backend.codex")
@@ -198,6 +199,9 @@ local s = cd.session(tab)
 t.eq(vim.t[tab].ai_review and vim.t[tab].ai_review.id, vars.id, "the view carries its round")
 
 local feedback = require("ai.review.feedback")
+local draft_model = require("ai.review.draft")
+local function draft_header(line) return draft_model.decode({ line }).head end
+local function draft_message(lines) return draft_model.message(draft_model.decode(lines)) end
 local draft = rounds.draft_path(root, vars.id)
 
 local function draft_lines(path) return vim.fn.filereadable(path or draft) == 1 and vim.fn.readfile(path or draft) or nil end
@@ -231,7 +235,7 @@ end
 --- What the entry marker on line `i` of a draft says, when it carries the
 --- nonce of the draft's header (line 1); nil when it is no such marker.
 local function item_at(lines, i)
-  local head = lines and lines[1] and feedback._parse_header(lines[1])
+  local head = lines and lines[1] and draft_header(lines[1])
   local body = head and lines[i] and lines[i]:match("^<!%-%- nvim%-review%-item (.-) %-%->$")
   if not body then return nil end
   local a = {}
@@ -281,7 +285,7 @@ end
 api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
 comment(s.modified_win)
 local lines = draft_lines()
-local head = lines and feedback._parse_header(lines[1]) or {}
+local head = lines and draft_header(lines[1]) or {}
 t.ok(type(head.n) == "string" and head.n:match("^" .. ("%x"):rep(12) .. "$") ~= nil, "a new draft has a nonce of its own")
 t.eq(lines and lines[1], ("<!-- nvim-review n=%s round=%s sha=%s conversation=claude:s1 root=%s -->")
   :format(head.n, vars.id, sha, vim.json.encode(root)), "the draft starts with its header: nonce, round, sha, conversation, root")
@@ -634,13 +638,13 @@ do
   t.ok(noted("The draft is empty") ~= nil and #selects == 0, "delivering it says there is nothing to deliver")
   t.eq(uv.fs_stat(emptied).size, 0, "and empties the file")
   local kept = api.nvim_buf_get_lines(b, 0, -1, false)
-  t.ok(feedback._parse_header(kept[1]) ~= nil and index_of(kept, intro_line) ~= nil and find(kept, "## ") == nil,
+  t.ok(draft_header(kept[1]) ~= nil and index_of(kept, intro_line) ~= nil and find(kept, "## ") == nil,
     "while the float keeps its header and intro to type under: " .. vim.inspect(kept))
 
   -- The next ,C starts the draft again.
   comment(s.modified_win, { 5, 5 })
   lines = draft_lines(emptied)
-  t.ok(lines and feedback._parse_header(lines[1]) ~= nil and lines[3] == intro_line,
+  t.ok(lines and draft_header(lines[1]) ~= nil and lines[3] == intro_line,
     "the next ,C writes the header and intro again")
   local w = api.nvim_get_current_win()
   t.eq(api.nvim_win_get_buf(w), feedback._buf(emptied), "and shows the draft")
@@ -659,7 +663,7 @@ do
   local real_resolve_sink = rounds.resolve_sink
   local sunk = {}
   rounds.resolve_sink = function(conversation) sunk[#sunk + 1] = conversation end
-  local function header_of(ls) return ls and ls[1] and feedback._parse_header(ls[1]) end
+  local function header_of(ls) return ls and ls[1] and draft_header(ls[1]) end
   local function intro_index(ls)
     for i, l in ipairs(ls or {}) do
       if l:match("^Review of changes since baseline") then return i end
@@ -774,14 +778,14 @@ do
   b = other._buf(p)
   comment(s.modified_win, { 3, 3 })
   a = feedback._buf(p)
-  local nonce = (feedback._parse_header(draft_lines(p)[1]) or {}).n
+  local nonce = (draft_header(draft_lines(p)[1]) or {}).n
   api.nvim_set_current_win(s.modified_win)
   type_comment(b, E1, "> B: this hunk at line 5 is wrong")
   vim.fn.writefile({}, p)
   api.nvim_win_set_cursor(s.modified_win, { 10, 0 })
   comment(s.modified_win)
   t.eq(a, feedback._buf(p), "A's float stayed open")
-  t.eq((feedback._parse_header(draft_lines(p)[1]) or {}).n, nonce, "and A's ,C keeps the nonce it knows")
+  t.eq((draft_header(draft_lines(p)[1]) or {}).n, nonce, "and A's ,C keeps the nonce it knows")
   notes = {}
   other.hide(b)
   lines = draft_lines(p)
@@ -816,7 +820,7 @@ do
   lines = draft_lines(p)
   t.ok(index_of(lines, "## ⚠ changed since this comment · new.txt (R old.txt→new.txt)") ~= nil,
     "and its heading is marked")
-  local msg = feedback._message(lines)
+  local msg = draft_message(lines)
   t.ok(not msg:find("review-item", 1, true) and not msg:find("nvim-review", 1, true),
     "what would be sent holds none of the draft's own lines")
   t.ok(msg:find("echo better", 1, true) ~= nil and msg:find("## f.txt:4 (working tree)", 1, true) ~= nil,
@@ -842,7 +846,7 @@ do
   vim.fn.writefile(new_txt, root .. "/new.txt", "b")
   t.ok(#pasted >= 2, "the other draft has a header and markers to paste")
   t.eq({ kinds(), sunk }, { {}, { "claude:s1" } }, "another draft's markers are no entries of this one")
-  msg = feedback._message(draft_lines(p))
+  msg = draft_message(draft_lines(p))
   t.ok(msg:find(table.concat(pasted, "\n"), 1, true) ~= nil, "they are text, sent as typed")
   feedback.hide(b)
 
@@ -853,7 +857,7 @@ do
   feedback.hide(feedback._buf(p))
   local alone = draft_lines(p)
   local intro_text = alone[find(alone, "Review of changes ")]
-  t.eq(feedback._message({ alone[1], intro_text, "" }), "", "an intro line without its marker is not feedback")
+  t.eq(draft_message({ alone[1], intro_text, "" }), "", "an intro line without its marker is not feedback")
 
   -- An entry's marker joined onto the comment above it (J), and text typed
   -- after another's (A): both are still this draft's markers, so their
@@ -893,7 +897,7 @@ do
   c = find(lines, "> rename it back")
   t.ok(c and lines[c]:match("^> rename it back%s*$") and item_at(lines, c + 1) ~= nil
     and item_at(lines, c + 1).path == "new.txt", "the save puts the marker back on a line of its own")
-  msg = feedback._message(lines)
+  msg = draft_message(lines)
   t.ok(not msg:find("nvim-review", 1, true) and msg:find("> rename it back", 1, true) ~= nil
     and msg:find("\nsee below:\n", 1, true) ~= nil and msg:find("> second", 1, true) ~= nil,
     "what would be sent holds no marker, and all the text: " .. msg)
@@ -909,7 +913,7 @@ do
     settle(50)
     comment(s.modified_win, { 3, 3 }, other)
     b = other._buf(p)
-    local before_nonce = (feedback._parse_header(draft_lines(p)[1]) or {}).n
+    local before_nonce = (draft_header(draft_lines(p)[1]) or {}).n
     vim.fn.writefile({}, p)
     notes = {}
     other.deliver(b)
@@ -918,11 +922,11 @@ do
     api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
     comment(s.modified_win)
     a = feedback._buf(p)
-    t.ok((feedback._parse_header(draft_lines(p)[1]) or {}).n ~= before_nonce, name .. ": A starts it with a new nonce")
+    t.ok((draft_header(draft_lines(p)[1]) or {}).n ~= before_nonce, name .. ": A starts it with a new nonce")
     notes = {}
   end
   local function intro_sent(ls)
-    local _, n = feedback._message(ls):gsub(vim.pesc(intro_line), "")
+    local _, n = draft_message(ls):gsub(vim.pesc(intro_line), "")
     return n
   end
   restarted("structure-template")
@@ -1237,7 +1241,7 @@ shown_text = table.concat(prompt_lines() or {}, "\n")
 t.ok(shown_text:find("## f.txt:6 (working tree)", 1, true) ~= nil and shown_text:find("## f.txt:7", 1, true) ~= nil
   and not shown_text:find("added while the seed waited", 1, true), "the editor gets what was delivered")
 lines = draft_lines()
-t.ok(feedback._parse_header(lines[1]) ~= nil and exactly(intro_line) == 1, "the draft keeps its header and intro")
+t.ok(draft_header(lines[1]) ~= nil and exactly(intro_line) == 1, "the draft keeps its header and intro")
 t.ok(index_of(lines, "## f.txt:3 (working tree)") ~= nil and index_of(lines, "> added while the seed waited") ~= nil,
   "and the entry added meanwhile, with its comment")
 t.eq({ find(lines, "## f.txt:6"), find(lines, "## f.txt:7") }, {}, "but none of what was delivered " .. vim.inspect(lines))
@@ -1286,7 +1290,7 @@ other.deliver(b_buf)
 t.ok(noted("The draft is empty") ~= nil, "B's <C-d> on a draft delivered elsewhere finds it empty")
 t.eq(prompt_lines(), prompt_before, "and sends nothing twice")
 local caught_up = api.nvim_buf_get_lines(b_buf, 0, -1, false)
-t.ok(feedback._parse_header(caught_up[1]) ~= nil and index_of(caught_up, intro_line) ~= nil and find(caught_up, "## ") == nil,
+t.ok(draft_header(caught_up[1]) ~= nil and index_of(caught_up, intro_line) ~= nil and find(caught_up, "## ") == nil,
   "B's float catches up with the file: its header and intro, no entry " .. vim.inspect(caught_up))
 other.hide(b_buf)
 
@@ -1338,7 +1342,7 @@ api.nvim_win_set_cursor(s.modified_win, { 5, 0 })
 comment(s.modified_win)
 lines = draft_lines(unowned)
 t.eq(lines and lines[1], ("<!-- nvim-review n=%s round=unowned root=%s -->")
-  :format((feedback._parse_header(lines[1]) or {}).n, vim.json.encode(root)),
+  :format((draft_header(lines[1]) or {}).n, vim.json.encode(root)),
   "a view that is no round's writes the root's unowned draft, with no owner in its header")
 t.eq(lines and lines[3], ("Review of changes (spec view) in %s:"):format(vim.fn.fnamemodify(root, ":~")),
   "its intro names what the view compares")

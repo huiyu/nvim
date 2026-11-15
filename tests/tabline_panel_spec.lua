@@ -209,7 +209,7 @@ do
     local editor = vim.api.nvim_get_current_win()
     local term = Snacks.terminal.open({ bin }, {
       interactive = false,
-      win = { position = "right", width = require("ai.config").panel.width },
+      win = { position = "right", width = require("ai.state").panel.width },
     })
     settle()
     local channel = vim.bo[term.buf].channel
@@ -314,10 +314,10 @@ do
 
   -- Use the same /usr/bin/env terminal name as the wrapper, without running a
   -- real agent or touching a session. Identity follows the first listed agent.
-  local bin = stand_in(dir, require("ai.config").agents[require("ai.config").agent_names()[1]].command)
+  local bin = stand_in(dir, require("ai.state").agents[require("ai.state").agent_names()[1]].command)
   local panel = Snacks.terminal.open({ "env", bin }, {
     interactive = false,
-    win = { position = "right", width = require("ai.config").panel.width },
+    win = { position = "right", width = require("ai.state").panel.width },
   })
   settle()
   t.ok(require("edgy.editor").get_win(panel.win) ~= nil, "edgy owns the agent panel")

@@ -74,6 +74,7 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 │   │   ├── options.lua       # Vim options
 │   │   ├── keymaps.lua       # Imperative core keymaps
 │   │   ├── autocmds.lua      # Autocommands
+│   │   ├── dashboard.lua     # Dashboard content and viewport wiring
 │   │   ├── lazy.lua          # lazy.nvim: install, import lua/plugins/
 │   │   ├── whichkey_spec.lua # which-key groups, popup sections, spec keymaps (data)
 │   │   └── health.lua        # `:checkhealth config` provider
@@ -97,6 +98,7 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 │   │       ├── typescript.lua # JS / TS language (LSP, format, DAP)
 │   │       └── yaml.lua
 │   ├── ai/                   # AI state, the chat slot, native Claude/Codex backends, CodeCompanion chats, review rounds (ai/review/)
+│   ├── git/                  # Comparison, history and saved-baseline workflows
 │   └── util/                 # Utility modules (no side effects on require)
 ├── .github/workflows/       # CI: spec suite + a headless startup check
 ├── scripts/                 # Agent TUI helpers, shared llama-server supervisor
@@ -622,6 +624,13 @@ part left out is not offered:
 | `acp = { adapter, command, auth_method? }` | A CodeCompanion agent chat over ACP: `adapter` is CodeCompanion's ACP adapter, `command` the bridge it needs on PATH | The subscription |
 | `api = { adapter, api_key, label?, model?, name? }` | A CodeCompanion API chat over HTTP on its built-in adapter `adapter`, and a key profile named `name` (default: `adapter`), which must be unique | API credits, on `api_key`, an `NVIM_*` variable |
 
+That file only returns settings: `providers`, `key_profile` (default `"auto"`)
+for inline/command prompts, and `panel.width`. Edit it, then restart Nvim.
+`lua/ai/state.lua` validates and applies it; the plugin specs connect the
+result to the agents and CodeCompanion. `:AI key` switches the live HTTP
+profile without editing the file. At startup, `NVIM_AI_KEY_PROFILE` overrides
+`vim.g.ai_key_profile`, which overrides the file's `key_profile`.
+
 The defaults are Claude (the `claude` terminal, `claude_code` through
 `claude-agent-acp`, `anthropic` on `NVIM_ANTHROPIC_API_KEY`), then Codex (the
 `codex` terminal, `codex` through `codex-acp` on the ChatGPT login, `openai` on
@@ -912,6 +921,11 @@ Set these in `init.lua` before plugins load.
 For troubleshooting (slow startup, LSP not attaching, missing formatter, etc.) see [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md). Run `:checkhealth config` to verify external dependencies, key Mason packages, and the Neovim version.
 
 ### Customization
+
+Each module owns one focused feature. Editable AI defaults live in
+`ai/config.lua` and `ai/review/config.lua`; their runtime state/resolution lives
+in `ai/state.lua` and `ai/review/settings.lua`. Plugin specs wire feature
+modules together. Language modules own their complete language integration.
 
 **Add a plugin** — create a file in the appropriate `lua/plugins/*/` directory.
 

@@ -68,7 +68,7 @@ local function wraps_at(ctx, i)
   local wraps = ctx.wraps[i]
   if wraps == nil then
     wraps = ctx.lines[i] ~= nil
-      and require("util.terminal").soft_wraps(ctx.lines[i], ctx.lines[i + 1], ctx.width)
+      and require("util.terminal_text").soft_wraps(ctx.lines[i], ctx.lines[i + 1], ctx.width)
     ctx.wraps[i] = wraps
   end
   return wraps
@@ -191,7 +191,7 @@ function M.open()
     lines = {},
     wraps = {},
     terminal = terminal,
-    width = terminal and require("util.terminal").grid_width(vim.api.nvim_get_current_buf()) or nil,
+    width = terminal and require("util.terminal_text").grid_width(vim.api.nvim_get_current_buf()) or nil,
   }
   if terminal then
     -- A link the terminal wrapped is one line to the program however many
@@ -200,7 +200,7 @@ function M.open()
     -- window grows over that run alone: to its first row, less max_lines for
     -- a column that led into it, and to its last. Growing over any run in
     -- reach cost seconds next to a long minified or base64 line.
-    local soft_wraps = require("util.terminal").soft_wraps
+    local soft_wraps = require("util.terminal_text").soft_wraps
     local function line(i) return vim.api.nvim_buf_get_lines(0, i - 1, i, false)[1] end
     local top, bottom = row, row
     while top > 1 and row - top < max_wrapped and soft_wraps(line(top - 1), line(top), ctx.width) do

@@ -9,7 +9,7 @@
 local t = dofile("tests/helper.lua")
 
 local hook = require("ai.review.hook")
-local ai_config = require("ai.config")
+local ai_config = require("ai.state")
 local codex = require("ai.backend.codex")
 local saved_plugin_dirs = vim.env.NVIM_AI_PLUGIN_DIR
 vim.env.NVIM_AI_PLUGIN_DIR = nil
@@ -200,7 +200,7 @@ local function launch(agent, cmd, socket)
   return read_nul(out .. ".argv"), env
 end
 
-local wrapper = require("ai.editor").wrapper()
+local wrapper = require("ai.backend.launch").wrapper()
 local tmux = vim.fn.executable("tmux") == 1
 
 -- Claude: claudecode appends its own arguments (--resume <id>) to terminal_cmd

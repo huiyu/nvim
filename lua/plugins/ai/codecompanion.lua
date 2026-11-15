@@ -22,7 +22,7 @@ return {
   -- when it first loads; after that, :AI key writes the live inline/cmd
   -- adapters (lua/ai/companion.lua, sync).
   opts = function()
-    local ai = require("ai.config")
+    local ai = require("ai.state")
 
     -- Every key profile reads its own NVIM_* variable, never the one the agent
     -- CLIs bill against (lua/ai/config.lua). The two built-in adapters are

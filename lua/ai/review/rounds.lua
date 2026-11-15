@@ -75,7 +75,7 @@ local newest_here = {}
 local prompted = {}
 
 local function settings()
-  return require("ai.review.config").get()
+  return require("ai.review.settings").get()
 end
 
 -- The snacks notifier cuts a line off at its width.max (0.4 x 'columns', 62
@@ -106,7 +106,7 @@ local function tilde(path)
 end
 
 local function agent_label(agent)
-  local p = require("ai.config").agents[agent]
+  local p = require("ai.state").agents[agent]
   return p and p.label or agent
 end
 

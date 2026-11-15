@@ -120,7 +120,7 @@ end
 local B = require("util.baseline")
 local rounds = require("ai.review.rounds")
 local cd = require("util.codediff")
-local config = require("ai.config")
+local config = require("ai.state")
 
 ---A round as a source would save it: `trailers` are Source, Conversation,
 ---Late; Root is the repository.

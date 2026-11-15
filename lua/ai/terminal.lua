@@ -19,7 +19,7 @@ function M.agent_of(buf)
   buf = buf or vim.api.nvim_get_current_buf()
   if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "terminal" then return nil end
   local info = vim.b[buf].snacks_terminal
-  return info ~= nil and require("ai.config").agent_of_command(info.cmd) or nil
+  return info ~= nil and require("ai.state").agent_of_command(info.cmd) or nil
 end
 
 ---@param buf integer?

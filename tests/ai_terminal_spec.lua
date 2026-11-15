@@ -7,12 +7,12 @@
 -- global <Esc><Esc> before either agent could see it.
 local t = dofile("tests/helper.lua")
 
-local config = require("ai.config")
+local config = require("ai.state")
 local ai_term = require("ai.terminal")
 
 -- A stand-in for the real CLI: identity is decided by the command's basename,
 -- so a script named after the provider is indistinguishable from the agent as
--- far as ai.config.is_native_command is concerned -- and it will not try to
+-- far as ai.state.is_native_command is concerned -- and it will not try to
 -- reach the network or a real session.
 local bin = vim.fn.tempname() .. "/" .. config.agents[config.agent_names()[1]].command
 vim.fn.mkdir(vim.fn.fnamemodify(bin, ":h"), "p")
@@ -163,7 +163,7 @@ end
 -- wrapper's teardown reports success to nvim whatever the pane's command did,
 -- so without the launcher a startup failure is indistinguishable from a clean
 -- exit and Snacks just closes the panel.
-local runner = require("ai.editor").runner()
+local runner = require("ai.backend.launch").runner()
 t.eq(vim.fn.executable(runner), 1, "scripts/agent-run is present and executable")
 
 -- The script itself: a clean exit passes straight through, a failure reports
@@ -211,10 +211,10 @@ do
     vim.fn.mkdir(repo .. "/.git", "p")
     vim.fn.mkdir(repo .. "/src", "p")
     local file = repo .. "/src/main.lua"
-    t.eq(provider({ file = file, cwd = "/" }), config.project_root(file),
+    t.eq(provider({ file = file, cwd = "/" }), require("util.cwd").project_root(file),
       "git_root (the default): the current file's Git root, by the same rule as Codex")
     t.eq(provider({ file = file, cwd = "/" }), repo, "which is the repository, not Nvim's directory")
-    t.eq(provider({ cwd = "/" }), config.project_root(nil), "with no file, the working directory's root")
+    t.eq(provider({ cwd = "/" }), require("util.cwd").project_root(nil), "with no file, the working directory's root")
     local saved_review = vim.g.ai_review
     vim.g.ai_review = { claude_cwd = "cwd" }
     t.eq(provider({ file = file, cwd = "/" }), nil, "claude_cwd = \"cwd\": no answer, so Nvim's directory")
@@ -231,8 +231,7 @@ end
 -- pane's process tree before the server goes and sweeps the survivors after.
 -- destroy-unattached has to be off for that hook to run at all: with it on, the
 -- server was gone before the hook fired (measured).
-local editor = require("ai.editor")
-local teardown = editor.teardown and editor.teardown() or ""
+local teardown = require("ai.backend.launch").teardown()
 t.eq(vim.fn.executable(teardown), 1, "scripts/agent-teardown is present and executable")
 
 if vim.fn.executable("tmux") == 1 then

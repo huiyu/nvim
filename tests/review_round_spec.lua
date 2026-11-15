@@ -2,7 +2,7 @@
 -- and CodeCompanion chats, the round rules every source goes through
 -- (submit), the CodeCompanion source, the delivery checks (resolve_sink), the
 -- <leader>av/aV facade keys and ai.feed's make_room; first of all, the review
--- loop's settings (lua/ai/review/config.lua).
+-- loop's settings (lua/ai/review/settings.lua).
 --
 -- Every repository is a scratch one under tempname(), with a space in its
 -- path. No agent is started: the "agent terminals" run `cat` and carry the
@@ -16,7 +16,7 @@ local t = dofile("tests/helper.lua")
 t.eq(package.loaded["ai.review.rounds"], nil, "the round registry is not loaded at startup")
 
 ---------------------------------------------------------------------------
--- The review loop's settings (lua/ai/review/config.lua)
+-- The review loop's settings (lua/ai/review/settings.lua)
 ---------------------------------------------------------------------------
 
 -- vim.g.ai_review merged over the defaults on every get().
@@ -62,10 +62,31 @@ do
   local saved_g = vim.g.ai_review
   vim.g.ai_review = nil
   package.loaded["ai.review.config"] = nil
-  local config = require("ai.review.config")
-  config.get()
-  config.defaults()
-  config.overrides()
+  local defaults = require("ai.review.config")
+  -- The editable file is only data: it needs no vim, require, or other globals.
+  local plain_defaults = setfenv(assert(loadfile("lua/ai/review/config.lua")), {})()
+  t.eq(plain_defaults, defaults, "the editable defaults load without any globals")
+
+  -- Exercise a changed editable default without changing the file on disk.
+  -- Runtime overrides take precedence, and removing one reveals that default.
+  local edited_defaults = vim.deepcopy(defaults)
+  edited_defaults.retention.rounds = 27
+  package.loaded["ai.review.config"] = edited_defaults
+  package.loaded["ai.review.settings"] = nil
+  local edited = require("ai.review.settings")
+  edited_defaults.retention.rounds = 1
+  vim.g.ai_review = { retention = { rounds = 31, saved = 4 } }
+  t.eq(edited.get().retention, { rounds = 31, saved = 4 }, "runtime overrides win over editable defaults")
+  vim.g.ai_review = { retention = { saved = 4 } }
+  t.eq(edited.get().retention, { rounds = 27, saved = 4 }, "replacing the override reveals the copied editable default")
+  t.eq(edited.defaults().retention, { rounds = 27, saved = 10 }, "defaults() reads the editable config, not the overrides")
+  package.loaded["ai.review.config"] = defaults
+  package.loaded["ai.review.settings"] = nil
+  vim.g.ai_review = nil
+  local settings = require("ai.review.settings")
+  settings.get()
+  settings.defaults()
+  settings.overrides()
 
   vim.system, vim.fn.system, vim.fn.systemlist = real.system, real.fn_system, real.systemlist
   vim.fn.jobstart, io.popen, os.execute, vim.uv.spawn = real.jobstart, real.popen, real.execute, real.spawn
@@ -103,46 +124,47 @@ do
   -- Defaults ---------------------------------------------------------------
 
   vim.g.ai_review = nil
-  t.eq(config.get(), DEFAULTS, "without vim.g.ai_review, get() is the §10.7 defaults")
-  t.eq(config.defaults(), DEFAULTS, "defaults() is the same table")
-  t.eq(config.overrides(), {}, "nothing is overridden")
+  t.eq(defaults, DEFAULTS, "config.lua contains only the editable defaults")
+  t.eq(settings.get(), DEFAULTS, "without vim.g.ai_review, get() is the §10.7 defaults")
+  t.eq(settings.defaults(), DEFAULTS, "defaults() is the same table")
+  t.eq(settings.overrides(), {}, "nothing is overridden")
   vim.g.ai_review = {}
-  t.eq(config.get(), DEFAULTS, "an empty vim.g.ai_review is the defaults")
+  t.eq(settings.get(), DEFAULTS, "an empty vim.g.ai_review is the defaults")
 
-  local copy = config.defaults()
+  local copy = settings.defaults()
   copy.retention.rounds, copy.always_confirm[1] = 1, "codex"
-  local got = config.get()
+  local got = settings.get()
   got.sources.claude = false
-  t.eq(config.defaults(), DEFAULTS, "defaults() is a deep copy: changing it leaves the next one alone")
-  t.eq(config.get(), DEFAULTS, "get() is a fresh table: changing it leaves the next one alone")
+  t.eq(settings.defaults(), DEFAULTS, "defaults() is a deep copy: changing it leaves the next one alone")
+  t.eq(settings.get(), DEFAULTS, "get() is a fresh table: changing it leaves the next one alone")
   t.eq(warnings(), {}, "the defaults raise no warning")
 
   -- Overrides --------------------------------------------------------------
 
   vim.g.ai_review = { claude_cwd = "cwd", sources = { codex = false }, always_confirm = { "codex" } }
-  t.eq(config.get(), with({ claude_cwd = "cwd", sources = { codex = false }, always_confirm = { "codex" } }),
+  t.eq(settings.get(), with({ claude_cwd = "cwd", sources = { codex = false }, always_confirm = { "codex" } }),
     "a partial override changes only the keys it names; sibling sources stay true")
-  t.eq(config.overrides(), { claude_cwd = true, ["sources.codex"] = true, always_confirm = true },
+  t.eq(settings.overrides(), { claude_cwd = true, ["sources.codex"] = true, always_confirm = true },
     "overrides() names each key that came from vim.g.ai_review")
 
   vim.g.ai_review = { retention = { rounds = 30 } }
-  local nested = config.get()
+  local nested = settings.get()
   t.eq(nested.retention, { rounds = 30, saved = 10 }, "retention.rounds alone keeps retention.saved at its default")
   t.eq(nested, with({ retention = { rounds = 30 } }), "a nested override touches nothing else")
-  t.eq(config.overrides(), { ["retention.rounds"] = true }, "overrides() names the nested key by its dotted path")
+  t.eq(settings.overrides(), { ["retention.rounds"] = true }, "overrides() names the nested key by its dotted path")
 
   vim.g.ai_review = { history_limit = false, redirect = false, hook_wait_ms = 0 }
-  local falsy = config.get()
+  local falsy = settings.get()
   t.eq({ falsy.history_limit, falsy.redirect, falsy.hook_wait_ms }, { false, false, 0 },
     "false and 0 are values, not a missing key")
 
   -- A list replaces the default; it is not merged entry by entry.
   vim.g.ai_review = { always_confirm = { "claude", "codex" } }
-  t.eq(config.get().always_confirm, { "claude", "codex" }, "always_confirm takes the user's list")
+  t.eq(settings.get().always_confirm, { "claude", "codex" }, "always_confirm takes the user's list")
 
   -- Vimscript spelling reaches the same table.
   vim.cmd([[let g:ai_review = {'retention': {'saved': 3}, 'unknown_session': 'refuse', 'redirect': v:false}]])
-  t.eq(config.get(), with({ retention = { saved = 3 }, unknown_session = "refuse", redirect = false }),
+  t.eq(settings.get(), with({ retention = { saved = 3 }, unknown_session = "refuse", redirect = false }),
     "a Vimscript dict with v:false works the same")
   t.eq(warnings(), {}, "valid overrides raise no warning")
 
@@ -150,7 +172,7 @@ do
 
   local function bad(case)
     vim.g.ai_review = case.input
-    local effective = config.get()
+    local effective = settings.get()
     t.eq(effective, case.want, case.what .. ": the bad value falls back to its default, the rest applies")
     local first = warnings()
     t.eq(#first, 1, case.what .. ": warns once")
@@ -160,10 +182,10 @@ do
     local msg = tostring(note.msg)
     t.eq(msg:find(case.mentions, 1, true) and case.mentions or msg, case.mentions,
       case.what .. ": the warning names the problem")
-    config.get()
-    config.overrides()
+    settings.get()
+    settings.overrides()
     t.eq(warnings(), {}, case.what .. ": the same problem does not warn again")
-    t.eq(config.overrides(), case.overrides or {}, case.what .. ": overrides() lists only what took effect")
+    t.eq(settings.overrides(), case.overrides or {}, case.what .. ": overrides() lists only what took effect")
   end
 
   bad({
@@ -270,13 +292,13 @@ do
 
   -- Distinct problems are counted apart, and a fixed value stops warning.
   vim.g.ai_review = { claude_cwd = "home", unknown_session = "allow", retention = { rounds = "30" } }
-  config.get()
+  settings.get()
   t.eq(warnings(), {}, "problems already reported stay quiet when they come back together")
   vim.g.ai_review = { claude_cwd = "nowhere" }
-  config.get()
+  settings.get()
   t.eq(#warnings(), 1, "another bad value for the same key is a new problem and warns")
   vim.g.ai_review = { claude_cwd = "cwd" }
-  t.eq(config.get().claude_cwd, "cwd", "once fixed, the value applies")
+  t.eq(settings.get().claude_cwd, "cwd", "once fixed, the value applies")
   t.eq(warnings(), {}, "and nothing warns")
 
   -- util.baseline chains vim.system callbacks, fast events where vim.notify is
@@ -284,7 +306,7 @@ do
   vim.g.ai_review = { retention = { rounds = 7 }, hook_wait_ms = "soon" }
   local result
   real.system({ "true" }, {}, function()
-    local ok, value = pcall(config.get)
+    local ok, value = pcall(settings.get)
     result = { fast = vim.in_fast_event(), ok = ok }
     if ok then result.rounds, result.wait = value.retention.rounds, value.hook_wait_ms end
   end)
@@ -301,7 +323,7 @@ end
 local rounds = require("ai.review.rounds")
 local hook = require("ai.review.hook")
 local baseline = require("util.baseline")
-local config = require("ai.config")
+local config = require("ai.state")
 local uv = vim.uv
 local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 

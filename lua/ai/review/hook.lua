@@ -110,7 +110,7 @@ end
 ---Exec form (`args`), so no shell ever re-parses the path.
 ---@return string json
 function M.claude_settings()
-  local wait = require("ai.review.config").get().hook_wait_ms
+  local wait = require("ai.review.settings").get().hook_wait_ms
   local script = M.script()
   local function handler(event, extra)
     return vim.tbl_extend("error", { type = "command", command = script, args = { "claude", event, tostring(wait) } }, extra)
@@ -128,7 +128,7 @@ end
 ---never writes ~/.codex/config.toml. Codex runs the command through a shell.
 ---@return string toml `hooks={...}`
 function M.codex_override()
-  local wait = require("ai.review.config").get().hook_wait_ms
+  local wait = require("ai.review.settings").get().hook_wait_ms
   local command = vim.fn.shellescape(M.script()) .. " codex submit " .. wait
   local timeout = hook_timeout(wait)
   return ("hooks={UserPromptSubmit=[{hooks=[{type=%s,command=%s,timeout=%d}]}],state={%s={trusted_hash=%s}}}"):format(
@@ -204,7 +204,7 @@ function M.event(agent, event, payload_path, done_path)
 
   -- Read per event, so switching a source off at runtime takes effect at once,
   -- even for an agent started with the hook injected.
-  if not require("ai.review.config").get().sources[agent] then
+  if not require("ai.review.settings").get().sources[agent] then
     done()
     return "disabled"
   end
@@ -214,7 +214,7 @@ function M.event(agent, event, payload_path, done_path)
     -- The script gave up before this request was served: Nvim was busy for the
     -- whole wait. The prompt has gone ahead with no baseline in front of it.
     if event == "submit" then
-      local label = require("ai.config").agents[agent].label
+      local label = require("ai.state").agents[agent].label
       vim.schedule(function()
         vim.notify(("Missed a %s prompt submit (Nvim was busy): if it was a prompt of yours, it has no review baseline")
           :format(label),
