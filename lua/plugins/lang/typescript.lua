@@ -119,7 +119,7 @@ end
 ---
 ---It is a superset -- ordinary page and Node debugging are unaffected -- so a
 ---machine that has not installed it simply loses extension support rather than
----breaking. See docs/DIAGNOSTICS.md and spikes/chrome-extension-dap.
+---breaking. See docs/DIAGNOSTICS.md for setup and the archived investigation.
 ---@return string[] command and its leading arguments
 local function js_debug_command()
   local webext = vim.fn.stdpath("data") .. "/js-debug-webext/src/dapDebugServer.js"
@@ -377,7 +377,7 @@ local function js_debug_configurations()
       --
       -- Ordinary pages. Extension code pauses only under the webext build
       -- that js_debug_command prefers (vscode-js-debug#2361, see its doc
-      -- comment above and spikes/chrome-extension-dap); mason's upstream
+      -- comment above and docs/DIAGNOSTICS.md); mason's upstream
       -- build never pauses there.
       name = "chrome: attach (port 9222)",
       type = "pwa-chrome",

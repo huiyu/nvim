@@ -1897,7 +1897,7 @@ buffer inside its package. Both presets find `.output/chrome-mv3-dev` above that
 buffer automatically (WXT layout). For another layout, use a project config with
 an explicit `extensionPath` pointing to the build output. Launch creates its own
 profile and installs the extension via CDP. See [extension setup and diagnosis](DIAGNOSTICS.md) and
-[the extension spike](../spikes/chrome-extension-dap/README.md).
+[the archived extension investigation](https://github.com/huiyu/nvim/blob/8fd9821ffd9e8ef9a9473456ebca0c6fd2f84e9a/spikes/chrome-extension-dap/README.md).
 
 ### Dart CLI
 
@@ -1998,6 +1998,7 @@ app. The main endpoint is Node Inspector and the renderer endpoint is Chromium
 CDP, so their ports cannot be interchanged. See
 [Electron main-process debugging](https://www.electronjs.org/docs/latest/tutorial/debugging-main-process).
 
-React Native is still a separate [feasibility spike](../spikes/react-native-dap/README.md),
-not a supported Hermes DAP workflow. For connection failures, unbound breakpoints,
+React Native findings are preserved in the
+[archived feasibility investigation](https://github.com/huiyu/nvim/blob/8fd9821ffd9e8ef9a9473456ebca0c6fd2f84e9a/spikes/react-native-dap/README.md).
+This configuration does not support a Hermes DAP workflow. For connection failures, unbound breakpoints,
 SDK paths and platform permissions, see [DIAGNOSTICS.md](DIAGNOSTICS.md).
