@@ -1,4 +1,4 @@
--- Host side of the agent TUI's ctrl+g handoff (lua/ai/editor.lua).
+-- Host side of the agent TUI's ctrl+g handoff (local-plugin/agent-workbench.nvim/lua/agent_workbench/editor.lua).
 --
 -- The wrapper's own half -- $EDITOR is invoked, the file comes back edited --
 -- is a shell/RPC concern and is not exercised here. What matters in-process is
@@ -9,8 +9,8 @@
 -- Before it, ai.selection's draft; after it, <leader>ai through the facade
 -- and the per-agent seeds.
 local t = dofile("tests/helper.lua")
-local editor = require("ai.editor")
-local sel = require("ai.selection")
+local editor = require("agent_workbench.editor")
+local sel = require("agent_workbench.selection")
 
 ---------------------------------------------------------------------------
 -- ai.selection.draft(): UC-3 (<leader>ai seeding), UC-R1 (<leader>as)
@@ -28,7 +28,7 @@ end
 
 -- draft() reads the *live* visual selection, so it has to be called from inside
 -- Visual mode. Driving it through an x-mode mapping is also the production path:
--- <leader>as is an x-mode mapping (M.send_selection in lua/ai/init.lua's KEYS,
+-- <leader>as is an x-mode mapping (M.send_selection in local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua's KEYS,
 -- applied by apply_keymaps), which captures through ai.selection.capture.
 -- An unsaved buffer has no path to @-mention, so the literal text must travel.
 do
@@ -66,14 +66,14 @@ local function tmpfile(lines)
   return path
 end
 
--- A prompt file named the way Claude Code names it, which is how a prompt
+-- A prompt file named the way Codex names it, which is how a prompt
 -- float knows whose it is; tmpfile's names belong to no agent.
 local owned_dir = vim.fn.tempname()
-vim.fn.mkdir(owned_dir, "p")
+vim.fn.mkdir(owned_dir .. "/editor", "p")
 local owned_n = 0
 local function owned(lines)
   owned_n = owned_n + 1
-  local path = ("%s/claude-prompt-%d.md"):format(owned_dir, owned_n)
+  local path = ("%s/editor/%d.md"):format(owned_dir, owned_n)
   vim.fn.writefile(lines, path)
   return path
 end
@@ -103,7 +103,7 @@ t.eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false), exact, "UC-1: content arrive
 -- would run on the :w that hands it back and reflow the prompt first.
 t.eq(vim.b[buf].autoformat, false, "UC-1: opts out of format-on-save")
 t.eq(vim.bo[buf].bufhidden, "wipe", "UC-1: buffer goes when the window does")
--- The mark is what turns on @file completion (lua/ai/mention.lua); without it
+-- The mark is what turns on @file completion (local-plugin/agent-workbench.nvim/lua/agent_workbench/mention.lua); without it
 -- the blink provider stays disabled and the prompt loses the TUI's @ habit.
 t.eq(vim.b[buf].ai_prompt, true, "UC-1: the buffer is marked as an agent prompt")
 
@@ -177,7 +177,7 @@ t.eq(released, { path4 .. ".a" }, "UC-7: closing still releases the original wra
 -- UC-8: images. The clipboard is stubbed because the real one is shared with
 -- whatever the machine is doing, and ai.attach_images because it drives a live
 -- agent pty.
-local clipboard = require("ai.clipboard")
+local clipboard = require("agent_workbench.clipboard")
 local has_image = true
 -- Every file <C-v> wrote, so the assertions below look at this spec's images
 -- only and never glob the directory.
@@ -198,7 +198,7 @@ vim.fn.writefile({ "left by a dead Nvim" }, staging .. "/19-1.png")
 t.eq(clipboard.staging_dir(), staging, "UC-8: images are staged in this pid's directory")
 t.eq(vim.fn.readdir(staging), {}, "UC-8: a reused pid's directory starts out empty")
 
-local ai = require("ai")
+local ai = require("agent_workbench")
 local attached
 local real_attach_images = ai.attach_images
 ai.attach_images = function(paths) attached = paths end
@@ -278,7 +278,7 @@ local owned_title = (function()
   if type(title) == "table" then title = (title[1] or {})[1] end
   return title
 end)()
-t.eq(owned_title, " Prompt · Claude Code ", "UC-8: Claude's prompt is titled for Claude Code")
+t.eq(owned_title, " Prompt · Codex ", "UC-8: Claude's prompt is titled for Codex")
 
 -- Returning the prompt hands the staged images over.
 local path7 = owned({ "prompt" })
@@ -320,9 +320,48 @@ t.eq(editor.tui_ready(scratch({ "❯ 1. Yes, I trust this folder", "  2. No, exi
   "UC-9: a numbered choice list is not an input box")
 t.eq(editor.tui_ready(nil), false, "UC-9: a missing buffer is not ready")
 
+-- A prompt may blink during the final settle period. The wait must resume,
+-- then either deliver exactly once or reach its original timeout.
+do
+  local defer, now = vim.defer_fn, vim.uv.now
+  local clock, queue, actions, timeouts = 0, {}, 0, 0
+  vim.uv.now = function() return clock end
+  vim.defer_fn = function(fn, delay) queue[#queue + 1] = { fn = fn, at = clock + delay } end
+  local function step()
+    local task = table.remove(queue, 1)
+    if not task then return false end
+    clock = task.at
+    task.fn()
+    return true
+  end
+  local prompt = scratch({ "›" })
+  local function wait()
+    editor.when_ready(function() return prompt end,
+      function() actions = actions + 1 end, function() timeouts = timeouts + 1 end)
+  end
+  wait()
+  step()
+  step()
+  vim.api.nvim_buf_set_lines(prompt, 0, -1, false, { "Loading..." })
+  step()
+  t.eq(actions, 0, "a prompt lost during settling triggers no premature action")
+  t.ok(#queue > 0, "losing the prompt during settling keeps the wait alive")
+  vim.api.nvim_buf_set_lines(prompt, 0, -1, false, { "›" })
+  for _ = 1, 8 do if not step() then break end end
+  t.eq({ actions, timeouts, #queue }, { 1, 0, 0 }, "a returning prompt delivers once and stops polling")
+  wait()
+  step()
+  step()
+  vim.api.nvim_buf_set_lines(prompt, 0, -1, false, { "Loading..." })
+  for _ = 1, 240 do if not step() then break end end
+  t.eq({ actions, timeouts, #queue }, { 1, 1, 0 }, "a prompt that never returns still times out once")
+  vim.defer_fn, vim.uv.now = defer, now
+  vim.api.nvim_buf_delete(prompt, { force = true })
+end
+
 -- UC-6: the wrapper the terminals are launched with has to exist and be
 -- runnable, or ctrl+g silently falls back to a nested nvim.
-local wrapper = editor.wrapper()
+local wrapper = require("agent_workbench.backend.launch").wrapper()
 t.eq(vim.fn.executable(wrapper), 1, "UC-6: the $EDITOR wrapper is executable")
 
 -- UC-10: the float is modal. The global <C-h/j/k/l> window keys work from a
@@ -377,15 +416,15 @@ vim.cmd("only")
 ---------------------------------------------------------------------------
 
 -- It opens no buffer of our own. It asks the agent's TUI to open the
--- prompt editor both CLIs already have on ctrl+g, which scripts/agent-editor
--- routes back into this Nvim (lua/ai/editor.lua). So what is under test here is
+-- prompt editor both CLIs already have on ctrl+g, which local-plugin/agent-workbench.nvim/scripts/agent-editor
+-- routes back into this Nvim (local-plugin/agent-workbench.nvim/lua/agent_workbench/editor.lua). So what is under test here is
 -- the keystroke payload and the facade wiring, not a buffer.
 --
 -- It runs on what the cases above left: editor._release still only records
 -- (no sentinel is written), the clipboard is still UC-8's stub, and
 -- ai.attach_images is the real one again.
-local config = require("ai.config")
-local backend = require("ai.backend." .. config.agent_names()[1])
+local config = require("agent_workbench.state")
+local backend = require("agent_workbench.backend." .. config.agent_names()[1])
 
 local function close_floats()
   for _, w in ipairs(vim.api.nvim_list_wins()) do
@@ -426,9 +465,9 @@ t.ok(not pcall(editor.stage_seed, "for nobody", { agent = "nope" }), "and so is 
 
 -- UC-3: the selection reaches the prompt through the buffer, not through a
 -- paste racing the key. A staged seed lands in the file the agent hands over.
-local seeded = dir .. "/claude-prompt-seeded.md"
+local seeded = dir .. "/editor/seeded.md"
 vim.fn.writefile({ "" }, seeded)
-editor.stage_seed("picked lines", { agent = "claude" })
+editor.stage_seed("picked lines", { agent = "codex" })
 editor.open(seeded, seeded .. ".done")
 settle()
 t.eq(prompt_lines(seeded), { "picked lines" }, "UC-3: a staged seed fills an empty prompt")
@@ -438,19 +477,19 @@ close_floats()
 
 -- A prompt whose path names no agent (a `git commit` run in an agent's pane)
 -- has no owner: a seed waiting for an agent stays out of it.
-editor.stage_seed("for claude", { agent = "claude" })
+editor.stage_seed("for claude", { agent = "codex" })
 local nobody = vim.fn.tempname() .. ".md"
 vim.fn.writefile({ "commit message" }, nobody)
 editor.open(nobody, nobody .. ".done")
 settle()
 local nobody_win = float_win()
 t.eq(prompt_lines(nobody), { "commit message" }, "a prompt that names no agent takes no seed")
-t.ok(editor._seed_pending("claude"), "which still waits for Claude's next prompt")
+t.ok(editor._seed_pending("codex"), "which still waits for Claude's next prompt")
 local title = nobody_win and vim.api.nvim_win_get_config(nobody_win).title
 if type(title) == "table" then title = (title[1] or {})[1] end
 t.eq(title, " Prompt ", "and is titled for no agent")
 t.eq({ editor.open_here() }, { true, nil }, "open_here: a prompt is open here, owned by nobody")
-editor.stage_seed(nil, { agent = "claude" })
+editor.stage_seed(nil, { agent = "codex" })
 
 -- Close this one too: with a prompt open, compose() returns to it (UC-4 below)
 -- instead of reaching the backend that UC-1 stubs next.
@@ -458,14 +497,14 @@ close_floats()
 
 -- UC-1/UC-3: the facade hands the backend a seed only when there is a selection.
 --
--- Nothing is on the right, so <leader>ai asks which chat (lua/ai/slot.lua):
+-- Nothing is on the right, so <leader>ai asks which chat (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua):
 -- with none open, the new-chat picker, whose first entry is the first listed
--- provider's terminal (lua/ai/config.lua). The answer is given here, and the
+-- provider's terminal (lua/config/ai.lua). The answer is given here, and the
 -- agents on PATH are stand-ins -- the stubbed edit_prompt below would start
 -- nothing anyway.
 local stand_ins = vim.fn.tempname()
 vim.fn.mkdir(stand_ins, "p")
-for _, name in ipairs({ "claude", "codex" }) do
+for _, name in ipairs({ "codex", "codex" }) do
   vim.fn.writefile({ "#!/bin/sh", "exec cat" }, stand_ins .. "/" .. name)
   vim.fn.setfperm(stand_ins .. "/" .. name, "rwx------")
 end
@@ -529,232 +568,115 @@ t.eq(vim.api.nvim_get_current_win(), prompt_win, "UC-4: compose refocuses the op
 local lines = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(prompt_win), 0, -1, false)
 t.ok(#lines > 1 and lines[1] == "half written", "UC-4: the selection is appended to the open prompt")
 
--- Both agents can have a prompt open in one Nvim. Ownership comes from the
--- temp path each CLI chooses (claude-prompt-*.md, $CODEX_HOME/editor/*.md).
+-- Codex owns its prompts and images; an unrelated $EDITOR request has no owner.
 close_floats()
-
-local codex_prompt = dir .. "/editor/0193.md"
-local claude_prompt = dir .. "/claude-prompt-1a2b.md"
+local codex_prompt = dir .. "/editor/image.md"
 vim.fn.writefile({ "for codex" }, codex_prompt)
-vim.fn.writefile({ "for claude" }, claude_prompt)
-
 editor.open(codex_prompt, codex_prompt .. ".done")
 settle()
 local codex_win = float_titled("Codex")
-t.ok(codex_win ~= nil, "a Codex prompt is titled for Codex, whichever agent is listed first")
-
--- <C-v> stages an image; :w returns the prompt; the image goes back to Codex.
+t.ok(codex_win ~= nil, "Codex's prompt has its own title")
+local codex = require("agent_workbench.backend.codex")
+local attach = codex.attach_images
 local routed = {}
-local backends = { claude = require("ai.backend.claude"), codex = require("ai.backend.codex") }
-local real_attach = { claude = backends.claude.attach_images, codex = backends.codex.attach_images }
-for name, b in pairs(backends) do
-  b.attach_images = function(paths) routed[#routed + 1] = { name, paths } end
-end
--- UC-8's clipboard stub, holding an image; `saved` lists what it wrote.
+codex.attach_images = function(paths) routed[#routed + 1] = paths end
 has_image = true
-
 vim.api.nvim_set_current_win(codex_win)
-vim.cmd("stopinsert")
+vim.cmd.stopinsert()
 vim.fn.maparg("<C-v>", "n", false, true).callback()
 vim.cmd("silent write")
-vim.cmd("close")
-vim.wait(2000, function() return #routed > 0 end)
-t.eq(#routed, 1, "the staged image is attached once")
-t.eq(routed[1] and routed[1][1], "codex", "to the agent that owns the prompt")
-
--- A prompt that names no agent stages no image: it would go to a guess.
-local real_notify = vim.notify
-local warned
-vim.notify = function(msg, level) if level == vim.log.levels.WARN then warned = tostring(msg) end end
-local unowned = vim.fn.tempname() .. ".md"
-vim.fn.writefile({ "nobody's" }, unowned)
+vim.cmd.close()
+vim.wait(2000, function() return #routed == 1 end, 10)
+t.eq(#routed, 1, "returning the Codex prompt attaches its images once")
+codex.attach_images = attach
+local unowned = dir .. "/commit-message.md"
+vim.fn.writefile({ "external editor" }, unowned)
 editor.open(unowned, unowned .. ".done")
 settle()
-local unowned_win = float_titled(" Prompt ")
-t.ok(unowned_win ~= nil and not float_titled("·"), "an unowned prompt is titled \" Prompt \"")
-saved = {}
-if unowned_win then
-  vim.api.nvim_set_current_win(unowned_win)
-  vim.cmd("stopinsert")
-  vim.fn.maparg("<C-v>", "n", false, true).callback()
-end
-vim.notify = real_notify
-t.eq(saved, {}, "<C-v> in it stages nothing")
-t.ok(warned ~= nil and warned:find("nowhere to go", 1, true) ~= nil, "and says why")
+local previous_images = #saved
+vim.fn.maparg("<C-v>", "n", false, true).callback()
+t.eq(#saved, previous_images, "an unowned prompt cannot stage images for a guessed agent")
 close_floats()
-routed = {}
-local stray = dir .. "/stray.png"
-vim.fn.writefile({ "not really a png" }, stray)
-require("ai").attach_images({ stray }, nil)
-t.eq(routed, {}, "ai.attach_images with no agent attaches nothing")
-t.eq(vim.fn.filereadable(stray), 0, "and deletes the staged file rather than leave it behind")
 
-for name, b in pairs(backends) do b.attach_images = real_attach[name] end
-for _, entry in ipairs(routed) do
-  for _, png in ipairs(entry[2]) do vim.fn.delete(png) end
+-- One seed address (Codex), with replacement, cancellation and expiry.
+local calls = {}
+local function stage(text, tag, ttl)
+  editor.stage_seed(text, { agent = "codex", ttl_ms = ttl,
+    on_consumed = function() calls[#calls + 1] = tag .. ":consumed" end,
+    on_expired = function() calls[#calls + 1] = tag .. ":expired" end })
 end
-
--- Several prompts open: <leader>ai returns to the one in this tabpage, else
--- the one opened last. No agent outranks the other.
-local first_tab = vim.api.nvim_get_current_tabpage()
-editor.open(codex_prompt, codex_prompt .. ".done")
+stage("feedback", "first")
+editor.open(unowned, unowned .. ".done")
 settle()
-local codex_again = float_titled("Codex")
+t.ok(editor._seed_pending("codex"), "an unrelated prompt cannot consume Codex feedback")
+t.eq(prompt_lines(unowned), { "external editor" }, "unowned contents remain intact")
+close_floats()
+local addressed = dir .. "/editor/addressed.md"
+vim.fn.writefile({ "typed first" }, addressed)
+editor.open(addressed, addressed .. ".done")
+settle()
+t.eq(prompt_lines(addressed), { "typed first", "feedback" }, "feedback appends to the user's existing draft")
+t.eq(calls, { "first:consumed" }, "consumption is acknowledged exactly once")
+t.ok(not editor._seed_pending("codex"), "consumption empties the seed slot")
+close_floats()
+calls = {}
+stage("old", "old")
+stage("new", "new")
+t.eq(calls, { "old:expired" }, "replacement expires the old seed")
+editor.stage_seed(nil, { agent = "codex" })
+t.eq(calls, { "old:expired", "new:expired" }, "cancellation expires the pending seed")
+calls = {}
+stage("expired", "ttl", 100)
+vim.wait(1000, function() return #calls > 0 end, 10)
+t.eq(calls, { "ttl:expired" }, "TTL expiry is acknowledged")
+t.ok(not editor._seed_pending("codex"), "expired feedback cannot land in a later prompt")
+t.ok(not pcall(editor.stage_seed, "later", { agent = "claude" }), "an unimplemented native agent has no seed slot")
+
+-- Multiple editor requests route by tab/window, without sending another ctrl+g.
+editor.open(addressed, addressed .. ".done")
+settle()
+local first_win = float_titled("Codex")
+local first_tab = vim.api.nvim_get_current_tabpage()
 vim.cmd("noautocmd tabnew")
 local second_tab = vim.api.nvim_get_current_tabpage()
-editor.open(claude_prompt, claude_prompt .. ".done")
+local second = dir .. "/editor/second.md"
+vim.fn.writefile({ "second" }, second)
+editor.open(second, second .. ".done")
 settle()
-local claude_win = float_titled("Claude Code")
-t.ok(codex_again and claude_win and vim.api.nvim_win_get_tabpage(claude_win) == second_tab,
-  "both agents' prompts are open at once, in two tabpages")
--- Without autocommands: leaving a prompt float is undone by its modal guard.
-vim.cmd(("noautocmd tabnext %d"):format(vim.api.nvim_tabpage_get_number(first_tab)))
-vim.cmd("noautocmd wincmd t")
-t.ok(editor.focus_open(), "a prompt is open to return to")
-t.eq(vim.api.nvim_get_current_win(), codex_again, "the one in this tabpage wins over the newer one elsewhere")
-vim.cmd("noautocmd tabnew")
-local third_tab = vim.api.nvim_get_current_tabpage()
-editor.focus_open()
-t.eq(vim.api.nvim_get_current_win(), claude_win, "with none here, the one opened last")
+vim.cmd("noautocmd tabnext " .. vim.api.nvim_tabpage_get_number(first_tab))
+t.ok(editor.focus_open(), "an open prompt is refocused")
+t.eq(vim.api.nvim_get_current_win(), first_win, "the current tab's prompt wins")
 close_floats()
-for _, tab in ipairs({ third_tab, second_tab }) do
-  if vim.api.nvim_tabpage_is_valid(tab) then
-    vim.cmd(("noautocmd tabclose %d"):format(vim.api.nvim_tabpage_get_number(tab)))
-  end
-end
-vim.cmd(("noautocmd tabnext %d"):format(vim.api.nvim_tabpage_get_number(first_tab)))
-
----------------------------------------------------------------------------
--- Seeds have an addressee: one slot per agent (review feedback)
----------------------------------------------------------------------------
-
-local function prompt_file(name, lines)
-  local path = name == "codex" and (dir .. "/editor/" .. vim.fn.rand() .. ".md")
-    or (dir .. "/claude-prompt-" .. vim.fn.rand() .. ".md")
-  vim.fn.writefile(lines, path)
-  return path
-end
-
-local calls = {}
-local function stager(tag)
-  return {
-    on_consumed = function() calls[#calls + 1] = tag .. ":consumed" end,
-    on_expired = function() calls[#calls + 1] = tag .. ":expired" end,
-  }
-end
-local function staged(text, agent, tag, ttl)
-  local opts = stager(tag)
-  opts.agent, opts.ttl_ms = agent, ttl
-  editor.stage_seed(text, opts)
-end
-
--- Staged for Claude: a Codex prompt opening first does not take it, and
--- Claude's next one does.
-calls = {}
-local claude_file = prompt_file("claude", { "typed first" })
--- on_consumed runs once the text is in the buffer.
-local seen_in_buffer
-editor.stage_seed("for claude only", {
-  agent = "claude",
-  on_consumed = function()
-    seen_in_buffer = prompt_lines(claude_file)
-    calls[#calls + 1] = "a:consumed"
-  end,
-  on_expired = function() calls[#calls + 1] = "a:expired" end,
-})
-local codex_file = prompt_file("codex", { "codex box" })
-editor.open(codex_file, codex_file .. ".done")
-settle()
-t.eq(prompt_lines(codex_file), { "codex box" }, "a seed staged for Claude stays out of a prompt Codex opens")
-t.eq(calls, {}, "and nobody is told anything")
-t.ok(editor._seed_pending("claude"), "the Claude seed is still waiting")
+vim.api.nvim_set_current_tabpage(second_tab)
 close_floats()
-editor.open(claude_file, claude_file .. ".done")
-settle()
-t.eq(prompt_lines(claude_file), { "typed first", "for claude only" }, "Claude's prompt gets it, after what was typed")
-t.eq(calls, { "a:consumed" }, "on_consumed fires once, on_expired never")
-t.eq(seen_in_buffer, { "typed first", "for claude only" }, "on_consumed runs with the text already in the buffer")
-t.eq(editor._seed_pending("claude"), false, "the slot is empty afterwards")
-close_floats()
+vim.cmd.tabclose()
 
--- A newer seed replaces an older one: the older one hears on_expired only.
-calls = {}
-staged("first", "claude", "old")
-staged("second", "claude", "new")
-t.eq(calls, { "old:expired" }, "a replaced seed fires its on_expired, never on_consumed")
--- Clearing one slot leaves the other.
-staged("codex text", "codex", "cx")
-editor.stage_seed(nil, { agent = "claude" })
-t.eq(calls, { "old:expired", "new:expired" }, "stage_seed(nil) clears that slot, with its on_expired")
-t.ok(editor._seed_pending("codex") and not editor._seed_pending("claude"), "and only that slot")
-editor.stage_seed(nil, { agent = "codex" })
-
--- A TTL drops a seed nobody took in time.
-calls = {}
-staged("in time?", "claude", "ttl", 100)
-vim.wait(1000, function() return #calls > 0 end, 10)
-t.eq(calls, { "ttl:expired" }, "a seed not taken within ttl_ms expires")
-t.eq(editor._seed_pending("claude"), false, "and is no longer staged")
-local late = prompt_file("claude", { "" })
-editor.open(late, late .. ".done")
-settle()
-t.eq(prompt_lines(late), { "" }, "a prompt opened after the TTL gets nothing")
-close_floats()
--- Without a TTL a seed waits, as a <leader>ai selection always has.
-calls = {}
-staged("no rush", "claude", "wait")
-settle(300)
-t.ok(editor._seed_pending("claude") and #calls == 0, "a seed without ttl_ms keeps waiting")
-editor.stage_seed(nil, { agent = "claude" })
-
--- focus_open with an agent takes only that agent's prompt.
-local codex_open = prompt_file("codex", { "codex prompt" })
-editor.open(codex_open, codex_open .. ".done")
-settle()
-vim.cmd("noautocmd wincmd t")
-t.eq(editor.focus_open("feedback", "claude"), false, "focus_open(text, \"claude\") ignores Codex's open prompt")
-t.eq(prompt_lines(codex_open), { "codex prompt" }, "and leaves it untouched")
-t.eq(editor.focus_open("feedback", "codex"), true, "focus_open(text, \"codex\") uses it")
-t.eq(prompt_lines(codex_open), { "codex prompt", "feedback" }, "appending the text")
-close_floats()
-
--- The backends stage into their own slot, passing the callbacks along. The
--- Claude backend runs for real against a stand-in terminal module: a `cat`
--- job takes the edit key.
+-- Real backend staging and ctrl+g, backed only by the offline PTY fixture.
 backend.edit_prompt = real_edit_prompt
-local term_buf = vim.api.nvim_create_buf(false, true)
-local cat
-vim.api.nvim_buf_call(term_buf, function() cat = vim.fn.jobstart({ "cat" }, { term = true }) end)
-local saved_terminal = package.loaded["claudecode.terminal"]
-package.loaded["claudecode.terminal"] = {
-  get_active_terminal_bufnr = function() return term_buf end,
-  ensure_visible = function() end,
-}
-calls = {}
-local opts = stager("backend")
-opts.seed, opts.ttl_ms = "from the backend", 5000
-require("ai.backend.claude").edit_prompt(opts)
-package.loaded["claudecode.terminal"] = saved_terminal
-t.ok(editor._seed_pending("claude") and not editor._seed_pending("codex"), "Claude's edit_prompt stages into Claude's slot")
-local via_backend = prompt_file("claude", { "" })
-editor.open(via_backend, via_backend .. ".done")
-settle()
-t.eq({ prompt_lines(via_backend), calls }, { { "from the backend" }, { "backend:consumed" } },
-  "with the stager's callbacks attached")
-close_floats()
-pcall(vim.fn.jobstop, cat)
--- Codex's backend starts a real terminal, so its line is checked as written.
-for _, name in ipairs({ "claude", "codex" }) do
-  local source = table.concat(vim.fn.readfile("lua/ai/backend/" .. name .. ".lua"), "\n")
-  local body = source:match("function M%.edit_prompt%(opts%)(.-)\nend\n") or ""
-  local call = body:match("editor%.stage_seed%((.-)%)\n") or ""
-  t.ok(call:find(('agent = "%s"'):format(name), 1, true) ~= nil and call:find("on_consumed = opts.on_consumed", 1, true) ~= nil
-    and call:find("on_expired = opts.on_expired", 1, true) ~= nil and call:find("ttl_ms = opts.ttl_ms", 1, true) ~= nil,
-    name .. "'s edit_prompt stages its seed for itself, with the callbacks and the TTL")
+vim.cmd.enew()
+local session, cleanup_agent = t.start_codex(dir)
+local sent = {}
+local chan_send = vim.api.nvim_chan_send
+vim.api.nvim_chan_send = function(channel, bytes)
+  if channel == vim.bo[session.buf].channel then sent[#sent + 1] = bytes end
+  return chan_send(channel, bytes)
 end
-
+calls = {}
+codex.edit_prompt({ seed = "from the backend", ttl_ms = 5000,
+  on_consumed = function() calls[#calls + 1] = "consumed" end,
+  on_expired = function() calls[#calls + 1] = "expired" end })
+vim.api.nvim_chan_send = chan_send
+t.eq(sent, { editor.EDIT_KEY }, "the backend sends ctrl+g without Enter")
+t.ok(editor._seed_pending("codex"), "real backend stages feedback for Codex")
+local from_backend = dir .. "/editor/backend.md"
+vim.fn.writefile({ "" }, from_backend)
+editor.open(from_backend, from_backend .. ".done")
+settle()
+t.eq({ prompt_lines(from_backend), calls }, { { "from the backend" }, { "consumed" } },
+  "the editor consumes the real backend's seed and callback")
+close_floats()
+cleanup_agent()
 vim.fn.delete(dir, "rf")
 vim.ui.select, vim.env.PATH = real_select, real_path
 vim.fn.delete(stand_ins, "rf")
-
 t.done()

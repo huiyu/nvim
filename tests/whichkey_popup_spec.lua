@@ -3,7 +3,7 @@ local t = dofile("tests/helper.lua")
 -- Two things are under test here.
 --
 -- The section layout is declared in lua/config/whichkey_spec.lua and read by
--- lua/plugins/editor/whichkey.lua. A suffix listed there that maps to nothing is
+-- lua/plugin/editor/whichkey.lua. A suffix listed there that maps to nothing is
 -- dead weight nobody would notice, so the global file-search declarations are
 -- resolved against real mappings. context_actions_spec.lua covers filetype menus.
 --

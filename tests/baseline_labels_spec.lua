@@ -1,7 +1,7 @@
--- Baseline labels (lua/ai/review/labels.lua) and what they read: session names
--- and turn ends from the agents' own records (lua/ai/transcript/marks.lua,
+-- Baseline labels (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/labels.lua) and what they read: session names
+-- and turn ends from the agents' own records (local-plugin/agent-workbench.nvim/lua/agent_workbench/transcript/marks.lua,
 -- through the claude and codex adapters), shown by the <leader>g pickers
--- (lua/plugins/git/codediff.lua).
+-- (lua/plugin/git/codediff.lua).
 --
 -- Pinned here:
 --   * ISO 8601 becomes epoch seconds by arithmetic, not through the local UTC
@@ -34,12 +34,12 @@ vim.fn.mkdir(CLAUDE .. "/projects/-tmp-project", "p")
 vim.fn.mkdir(CODEX .. "/sessions/2026/11/10", "p")
 vim.env.CLAUDE_CONFIG_DIR, vim.env.CODEX_HOME = CLAUDE, CODEX
 
-local time = require("ai.transcript.time")
-local claude = require("ai.transcript.claude")
-local codex = require("ai.transcript.codex")
-local marks = require("ai.transcript.marks")
-local labels = require("ai.review.labels")
-local rounds = require("ai.review.rounds")
+local time = require("agent_workbench.transcript.time")
+local claude = require("agent_workbench.transcript.claude")
+local codex = require("agent_workbench.transcript.codex")
+local marks = require("agent_workbench.transcript.marks")
+local labels = require("agent_workbench.review.labels")
+local rounds = require("agent_workbench.review.rounds")
 -- Files appear and vanish here faster than a remembered miss expires.
 claude.MISS_TTL, codex.MISS_TTL = 0, 0
 local function touch(path, when) assert(uv.fs_utime(path, when, when)) end
@@ -78,7 +78,7 @@ for _, bad in ipairs({ "yesterday", "2026-13", "2026-11-10 03:43:18Z", "2026-11-
   t.eq(time.epoch(bad), nil, "epoch: nil for " .. tostring(bad))
 end
 t.eq(time.hhmm("2026-11-10T03:43:18Z"), os.date("%H:%M", 1794282198), "hhmm: local time of the moment")
-local B = require("util.baseline")
+local B = require("git_review.baseline")
 t.eq(B.time_of({ time = 1794282198, id = "20261110T034318-c805" }), 1794282198.8,
   "time_of: a baseline's millisecond comes from its id (ms * 64 + pid bits)")
 t.eq(B.time_of({ time = 1794282198, id = "20261110T034318-0000" }), 1794282198, "time_of: millisecond 0")
@@ -493,10 +493,10 @@ t.eq({ shown(2), shown(1) }, { "Queued: Claude 09:00:00", "Queued: Claude 09:00:
   "taken at .200, before that end, the round owns it")
 
 -- The budget: records not read by then are left out, and the answer comes once.
-local real_marks = package.loaded["ai.transcript.marks"]
+local real_marks = package.loaded["agent_workbench.transcript.marks"]
 local late = {}
 -- Names come at once, turns never.
-package.loaded["ai.transcript.marks"] = {
+package.loaded["agent_workbench.transcript.marks"] = {
   read = function(_, _, cb, opts)
     if opts and opts.titles then return vim.schedule(function() cb({ title = "Named", ends = {}, turns = false }) end) end
     late[#late + 1] = cb
@@ -510,7 +510,7 @@ t.eq(shown(7), "Named: Claude 09:00:00", "turns not read in time: the name, read
 for _, cb in ipairs(late) do cb({ title = "Too late", ends = {}, turns = true }) end
 vim.wait(50, function() return false end, 5)
 t.eq(calls, 1, "records arriving after the budget do not call back again")
-package.loaded["ai.transcript.marks"] = real_marks
+package.loaded["agent_workbench.transcript.marks"] = real_marks
 
 ---------------------------------------------------------------------------
 -- The pickers and <leader>gK
@@ -555,7 +555,7 @@ append(p_path, { line({ type = "system", subtype = "turn_duration", timestamp = 
 vim.fn.writefile({ "two" }, root .. "/a.txt")
 
 local CODEDIFF = rawget(vim.cmd, "CodeDiff")
-local cd = require("util.codediff")
+local cd = require("git_review.view")
 local real_open, real_select, real_input, real_notify = cd.open, vim.ui.select, vim.ui.input, vim.notify
 local specs, offered, inputs, script = {}, {}, {}, {}
 vim.cmd.CodeDiff = function() end
@@ -609,14 +609,18 @@ t.ok(asked ~= nil and asked.default == nil, "<leader>gK with no agent session he
 vim.cmd.enew()
 local term = vim.api.nvim_get_current_buf()
 local job = vim.fn.jobstart({ "cat" }, { term = true, cwd = root })
-vim.b[term].snacks_terminal = { cmd = { "claude", "--settings", "{}" }, cwd = root }
+t.agent_metadata(term, "codex", root, { "codex" })
 vim.wait(1000, function()
-  local e = rounds._state().native.claude
+  local e = rounds._state().native.codex
   return e ~= nil and e.buf == term
 end, 10)
-rounds.native_event({ agent = "claude", event = "session", payload = { session_id = PID, source = "startup", cwd = root } })
-t.eq({ rounds.running(P), rounds.running(A), rounds.running(nil) }, { true, false, false },
-  "running: the session an agent terminal here runs")
+local live_id = "01a1c0c1-2222-7222-8222-222222222222"
+local live = "codex:" .. live_id
+append(index, { line({ id = live_id, thread_name = string.rep("长", 30), updated_at = iso(os.time()) }) })
+rounds._state().native.codex.session = live_id
+rounds._state().native.codex.dirty = false
+t.eq({ rounds.running(live), rounds.running(P), rounds.running(nil) }, { true, false, false },
+  "running: only the current Codex conversation owns the terminal")
 vim.cmd.enew()
 asked = press_gK(nil)
 t.eq(asked and asked.default, string.rep("长", 30), "<leader>gK offers the name of the Claude session working here, uncut")
@@ -631,17 +635,17 @@ t.eq(saved and saved[1] and saved[1].trailers.Label, "kept", "and saves under th
 -- A submit is remembered for "at work".
 local before = os.time()
 local released = false
-rounds.native_event({ agent = "claude", event = "submit", payload = { session_id = PID, cwd = root },
+rounds.native_event({ agent = "codex", event = "submit", payload = { session_id = live_id, cwd = root },
   done = function() released = true end })
 vim.wait(5000, function() return released end, 10)
-t.ok((rounds.prompted_at(P) or 0) >= before, "a native submit records when the session was prompted")
+t.ok((rounds.prompted_at(live) or 0) >= before, "a native submit records when the session was prompted")
 t.eq(rounds.prompted_at("claude:never"), nil, "a session never prompted has no time")
 t.eq(rounds.source_label("codex"), "Codex", "source_label: the word for a Source")
 t.eq(rounds.source_label(nil), nil, "source_label: nil for none")
 
 vim.fn.jobstop(job)
-vim.wait(2000, function() return not rounds.running(P) end, 10)
-t.eq(rounds.running(P), false, "running: not once its terminal stopped")
+vim.wait(2000, function() return not rounds.running(live) end, 10)
+t.eq(rounds.running(live), false, "running: not once its terminal stopped")
 vim.cmd.CodeDiff = CODEDIFF
 cd.open, vim.ui.select, vim.ui.input, vim.notify = real_open, real_select, real_input, real_notify
 vim.env.CLAUDE_CONFIG_DIR, vim.env.CODEX_HOME = saved_env.CLAUDE_CONFIG_DIR, saved_env.CODEX_HOME

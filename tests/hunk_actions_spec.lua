@@ -1,4 +1,4 @@
--- ,S ,U ,X inside CodeDiff views (lua/util/codediff_actions.lua), driven
+-- ,S ,U ,X inside CodeDiff views (local-plugin/git-review.nvim/lua/git_review/actions.lua), driven
 -- through real views of temporary repositories opened with util.codediff.open
 -- and the tab variables a baseline view carries.
 --
@@ -10,7 +10,7 @@
 local t = dofile("tests/helper.lua")
 local Config = require("lazy.core.config")
 
-t.eq(package.loaded["util.codediff_actions"], nil, "util.codediff_actions is not loaded at startup")
+t.eq(package.loaded["git_review.actions"], nil, "util.codediff_actions is not loaded at startup")
 local plugin = Config.plugins["codediff.nvim"]
 local libs = vim.fn.glob(plugin.dir .. "/libvscode_diff*", false, true)
 if #libs == 0 then
@@ -67,7 +67,7 @@ local function concat(...)
 end
 local function lines_of(text) return vim.split(text or "", "\n", { plain = true, trimempty = true }) end
 
-local cd = require("util.codediff")
+local cd = require("git_review.view")
 local editor_tab = vim.api.nvim_get_current_tabpage()
 vim.o.lines, vim.o.columns = 50, 200
 local cwd = vim.fn.getcwd()
@@ -166,7 +166,7 @@ assert(git("commit", "-qam", "two"))
 local user = rows(1, 3, "USER %d")
 vim.fn.writefile(concat(user, base), root .. "/f.txt")
 local entry
-require("util.baseline").save(root, "round", { subject = "spec round" }, function(e, info)
+require("git_review.baseline").save(root, "round", { subject = "spec round" }, function(e, info)
   entry = e or false
   if not e then print("baseline: " .. tostring(info)) end
 end)
@@ -612,7 +612,7 @@ end
 -- Keys follow the view: a tab that stops being a baseline view loses ,X
 ---------------------------------------------------------------------------
 
-local actions = require("util.codediff_actions")
+local actions = require("git_review.actions")
 vim.t[tab].codediff_baseline = nil
 actions.attach(tab)
 t.eq(keyset({ buf, lbuf }), { "n,S", "n,U", "x,S", "x,U" }, "without codediff_baseline the next pass releases ,X")
@@ -692,7 +692,7 @@ do
   d_user[5] = "d 5 USER"
   vim.fn.writefile(d_user, iroot .. "/d.txt")
   local round
-  require("util.baseline").save(iroot, "round", { subject = "index round" }, function(e) round = e or false end)
+  require("git_review.baseline").save(iroot, "round", { subject = "index round" }, function(e) round = e or false end)
   t.ok(vim.wait(10000, function() return round ~= nil end, 20) and round, "a round baseline is taken")
   local ivars = { codediff_baseline = { sha = round.sha, kind = "round" } }
   -- The agent's round: B changed; d 6, just below the edited d 5, and d 9

@@ -7,7 +7,7 @@
 -- Position: chosen once by vim.g.terminal_position, never toggled at runtime.
 -- edgy has to agree with that choice or it docks what should float.
 local t = dofile("tests/helper.lua")
-local term = require("util.terminal")
+local term = require("editor_core.terminal")
 
 -- edgy claims every non-agent snacks_terminal for its bottom edge, so it must
 -- be loaded before any float is judged. It normally arrives on VeryLazy, which

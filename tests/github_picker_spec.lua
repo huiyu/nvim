@@ -24,7 +24,7 @@ end
 --- An `exec cat` stand-in in `dir`, named after the first listed agent's CLI,
 --- so a terminal running it has that agent's identity without a real session.
 local function stand_in(dir)
-  local bin = dir .. "/" .. require("ai.config").agents[require("ai.config").agent_names()[1]].command
+  local bin = dir .. "/" .. require("agent_workbench.state").agents[require("agent_workbench.state").agent_names()[1]].command
   vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin)
   vim.fn.setfperm(bin, "rwx------")
   return bin
@@ -59,7 +59,7 @@ vim.cmd.lcd(root)
 local reading_win = vim.api.nvim_get_current_win()
 local agent = Snacks.terminal.open({ bin }, {
   interactive = false,
-  win = { position = "right", width = require("ai.config").panel.width },
+  win = { position = "right", width = require("agent_workbench.state").panel.width },
 })
 settle()
 local original_layout = vim.fn.winlayout()
@@ -249,12 +249,13 @@ do
       auto_insert = true,
       start_insert = true,
       auto_close = true,
-      win = { position = "right", width = 0.4, keys = { term_normal = false } },
+      win = { position = "right", width = 0.4, keys = { term_normal = false }, bo = { filetype = "agent_terminal" },
+        on_buf = function(win) t.agent_metadata(win.buf, "codex", root .. "/child") end },
     })
     settle()
     vim.api.nvim_set_current_win(term.win)
     vim.cmd("stopinsert")
-    t.ok(require("ai.terminal").is_agent_buf(term.buf), "the panel has the first listed agent's identity")
+    t.ok(require("agent_workbench.terminal").is_agent_buf(term.buf), "the panel has the first listed agent's identity")
     t.eq(vim.fn.maparg("-", "t"), "", "typing - in terminal input still belongs to the agent")
     return term
   end

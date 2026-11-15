@@ -1,7 +1,7 @@
 -- Exercises the real system clipboard, so it saves whatever is on it first and
 -- puts it back afterwards. A test run must not cost the user their clipboard.
 local t = dofile("tests/helper.lua")
-local clipboard = require("ai.clipboard")
+local clipboard = require("agent_workbench.clipboard")
 
 local is_macos = vim.uv.os_uname().sysname == "Darwin"
 if not is_macos then

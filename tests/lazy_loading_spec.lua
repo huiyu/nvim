@@ -18,22 +18,27 @@ for _, name in ipairs({ "mason-lspconfig.nvim", "nvim-lspconfig", "blink.cmp", "
   t.ok(not loaded(name), name .. " stays unloaded until it is first used")
 end
 t.ok(loaded("lualine.nvim"), "lualine is loaded for the first frame")
--- Both are declared always, whatever lua/ai/config.lua's providers list, and
--- wait for their first command or key: the facade's mappings (lua/ai/init.lua)
--- and :AI define no plugin load.
-for _, name in ipairs({ "claudecode.nvim", "codecompanion.nvim" }) do
-  t.ok(require("lazy.core.config").plugins[name] ~= nil and not loaded(name), name .. " is declared and stays unloaded at startup")
+t.ok(Config.plugins["agent-workbench.nvim"] ~= nil and loaded("agent-workbench.nvim"),
+  "the local plugin installs only its cheap facade at startup")
+t.ok(Config.plugins["codecompanion.nvim"] ~= nil and not loaded("codecompanion.nvim"),
+  "CodeCompanion stays lazy until its first action")
+t.eq(Config.plugins["claudecode.nvim"], nil, "no native Claude plugin is declared")
+t.eq(vim.fn.exists(":ClaudeCode"), 0, "no Claude command is installed")
+-- A developer may still have the removed integration installed in the shared
+-- lazy directory; fresh installs have nothing to clean.
+for _, plugin in ipairs(Config.to_clean) do
+  t.eq(plugin.name, "claudecode.nvim", "only the intentionally removed integration may be left installed")
 end
--- A spec made conditional would be pruned from the lock and listed for
--- :Lazy clean; declared, claudecode's commands are its lazy triggers.
-t.eq(#Config.to_clean, 0, "nothing is left for :Lazy clean to delete")
-t.eq(vim.fn.exists(":ClaudeCode"), 2, ":ClaudeCode is a lazy trigger")
+for _, module in ipairs({ "agent_workbench.backend.codex", "agent_workbench.terminal_provider",
+  "agent_workbench.provider.snacks", "agent_workbench.provider.native" }) do
+  t.eq(package.loaded[module], nil, module .. " stays lazy")
+end
 -- CodeDiff's setup loads its native library (and would download it), so it
 -- waits for :CodeDiff or a <leader>g key. Nothing of the review loop loads
 -- or runs git before its first use either.
 t.ok(Config.plugins["codediff.nvim"] ~= nil and not loaded("codediff.nvim"), "codediff.nvim is declared and stays unloaded at startup")
-for _, module in ipairs({ "codediff", "util.codediff", "util.codediff_actions", "util.baseline",
-  "ai.review", "ai.review.rounds", "ai.review.feedback" }) do
+for _, module in ipairs({ "codediff", "git_review.view", "git_review.actions", "git_review.baseline",
+  "agent_workbench.review", "agent_workbench.review.rounds", "agent_workbench.review.feedback" }) do
   t.eq(package.loaded[module], nil, module .. " is not loaded at startup")
 end
 t.ok(loaded("mason.nvim"), "mason is loaded at startup")
@@ -44,7 +49,7 @@ t.ok(vim.fn.exists(":Mason") == 2, ":Mason works from the dashboard")
 vim.api.nvim_feedkeys(vim.keycode(":<Esc>"), "x", false)
 t.ok(loaded("blink.cmp"), "entering the command line loads completion")
 
-vim.cmd.edit("lua/plugins/coding/lsp.lua")
+vim.cmd.edit("lua/plugin/coding/lsp.lua")
 for _, name in ipairs({ "mason-lspconfig.nvim", "nvim-lspconfig", "vim-illuminate" }) do
   t.ok(loaded(name), name .. " loads on the first file read")
 end

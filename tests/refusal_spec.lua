@@ -15,7 +15,7 @@ local function reset() notified = {} end
 local function said(text) return last() ~= nil and last().msg:find(text, 1, true) ~= nil end
 
 -- util.vim_error: Nvim's own line, without what Lua wraps around it.
-local vim_error = require("util.vim_error")
+local vim_error = require("editor_core.vim_error")
 t.eq(vim_error.message("vim/_core/editor.lua:0: nvim_exec2(), line 1: Vim(write):E45: 'readonly' option is set (add ! to override)"),
   "E45: 'readonly' option is set (add ! to override)", "a vim.cmd error keeps only Nvim's line")
 t.eq(vim_error.message("Vim:E444: Cannot close last window"),
@@ -25,7 +25,7 @@ t.eq(vim_error.message("Vim(lsp):No clients attached to current buffer"),
 t.eq(vim_error.message("something else"), "something else", "anything else passes through")
 
 -- sd on the last window.
-local window = require("util.window")
+local window = require("editor_core.window")
 reset()
 local ok = pcall(window.close_current)
 t.ok(ok, "sd on the last window does not raise")
@@ -45,7 +45,7 @@ t.ok(said("E444"), "and the refusal is reported")
 vim.api.nvim_win_close(float, true)
 
 -- ,x on a read-only file with unsaved edits.
-local run = require("util.run")
+local run = require("editor_core.run")
 run.register("refusal_spec", function(path) return "true " .. vim.fn.shellescape(path) end)
 local file = vim.fn.tempname() .. ".txt"
 vim.fn.writefile({ "x" }, file)
@@ -109,8 +109,8 @@ vim.cmd("lcd " .. vim.fn.fnameescape(cwd))
 -- right it asks whose transcript, among the agents installed -- stand-ins on
 -- PATH here -- in provider order; the second is answered, so the agent read
 -- is the one picked, not the first listed.
-local transcript = require("ai.transcript")
-local ai_config = require("ai.config")
+local transcript = require("agent_workbench.transcript")
+local ai_config = require("agent_workbench.state")
 local real_open, real_select, real_path = transcript.open_current, vim.ui.select, vim.env.PATH
 local stand_ins = vim.fn.tempname()
 vim.fn.mkdir(stand_ins, "p")
@@ -130,27 +130,22 @@ vim.ui.select = function(items, _, on_choice)
   on_choice(items[2])
 end
 reset()
-ok = pcall(require("ai").transcript)
+ok = pcall(require("agent_workbench").transcript)
 vim.ui.select, vim.env.PATH = real_select, real_path
 vim.fn.delete(stand_ins, "rf")
 t.ok(ok, "<leader>at does not raise when the transcript view fails")
 t.eq(last() and last().level, vim.log.levels.ERROR, "it reports the failure")
 t.ok(said("boom"), "with its cause")
-t.eq(offered, ai_config.agent_names(), "it offers the agents in provider order")
-t.eq(asked_for, ai_config.agent_names()[2], "and reads the agent picked, not the first listed")
+t.eq(offered, nil, "one installed native backend needs no selection question")
+t.eq(asked_for, "codex", "the only configured native backend owns its transcript")
 transcript.open_current = real_open
 
--- <leader>aa answers Claude's diffs whatever is on the right, so a failure
--- there is reported against Claude.
-local claude_backend = require("ai.backend.claude")
-local real_accept = claude_backend.accept_diff
-claude_backend.accept_diff = function() error("no pending diff") end
-reset()
-ok = pcall(require("ai").accept_diff)
-t.ok(ok, "<leader>aa does not raise when the diff command fails")
-t.ok(said("Claude Code accept_diff failed") and said("no pending diff"),
-  "it names Claude, whose diff it was, whatever is on the right")
-claude_backend.accept_diff = real_accept
+-- An unavailable backend cannot silently start Codex in its place.
+local sessions = require("agent_workbench").sessions()
+local unsupported, why = require("agent_workbench").open("claude")
+t.eq(unsupported, nil, "unimplemented Claude is refused")
+t.eq(why.code, "unavailable", "the refusal is machine-readable")
+t.eq(require("agent_workbench").sessions(), sessions, "no fallback session is started")
 
 vim.notify = real_notify
 t.done()

@@ -45,7 +45,7 @@ jobs:
 
       # nvim-treesitter's main branch compiles every parser with
       # `tree-sitter build` (gcc is already on the image). apt's tree-sitter-cli
-      # is far below the 0.26.1 floor in lua/config/health.lua, so take the
+      # is far below the 0.26.1 floor in local-plugin/editor-core.nvim/lua/editor_core/health.lua, so take the
       # upstream release at that floor, the way the matrix pins Nvim's.
       - name: Install the tree-sitter CLI
         env: { TREE_SITTER_VERSION: v0.26.1 }

@@ -68,7 +68,7 @@ the update checker runs silently once a day (`lua/config/lazy.lua`).
 
 ## Health: `:checkhealth config`
 
-`lua/config/health.lua` checks the things specific to this configuration:
+`local-plugin/editor-core.nvim/lua/editor_core/health.lua` checks the things specific to this configuration:
 
 - Neovim version floor (>= 0.12.5, refactoring.nvim's minimum)
 - External CLI tools on `PATH` (git, gh, rg, fd, node, tmux, go, java, cargo, dart, flutter, python3, cc, lazygit, curl, and macism on macOS) and
@@ -79,7 +79,7 @@ the update checker runs silently once a day (`lua/config/lazy.lua`).
 - The macOS Normal-mode input source and whether it came from
   `NVIM_ENGLISH_INPUT_SOURCE` or the system keyboard-layout fallback
 - *config: AI backends*: the HTTP key profile; every native CLI, then every
-  ACP bridge, that the providers of `lua/ai/config.lua` offer, in their order
+  ACP bridge, that the providers of `lua/config/ai.lua` offer, in their order
   (a missing one is a warning: the new-chat picker leaves it out and the rest
   still work); every key profile's variable
   (`NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` by default; unset is a
@@ -90,23 +90,22 @@ the update checker runs silently once a day (`lua/config/lazy.lua`).
 - Inline completion: `llama-server`, whether its model is in the Hugging Face
   cache (the server starts `--offline`, so a missing model is a failed start),
   and whether the shared server is answering
-- Whether `scripts/agent-editor` is executable. Both agent TUIs bind `ctrl+g` to
+- Whether `local-plugin/agent-workbench.nvim/scripts/agent-editor` is executable. Both agent TUIs bind `ctrl+g` to
   "edit this prompt in `$EDITOR`", and that wrapper is what makes the prompt open
   in this Nvim rather than in a second one nested inside the `:terminal`. It
   degrades to the nested editor silently, so the check is a warning, not an
   error — `chmod +x` is the fix.
 - *CodeDiff*: whether codediff.nvim is installed and is the release
-  `lua/util/codediff.lua` was written against (4.0.6; another one turns its
+  `local-plugin/git-review.nvim/lua/git_review/view.lua` was written against (4.0.6; another one turns its
   patches off); whether its native library is there and loads, and reports the
   plugin's version; the two `NO_AUTO_INSTALL` variables when set; and which
   file watcher the views would use — `CODEDIFF_WATCHER_PATH`, the downloaded
   one, or one on `PATH` — or that they poll instead. This check loads the
   plugin and its library to ask, and never downloads.
 - *git*: its version. Review baselines need 2.26 or later.
-- *Review hooks*: whether `scripts/agent-hook` is executable and `nvim` is on
-  `PATH` (the hook calls back with `nvim --server`); whether the `--settings`
-  JSON native Claude gets and the `-c hooks=` value native Codex gets carry the
-  hook they should, with Codex's trust hash checked against the command it
+- *Review hooks*: whether `local-plugin/agent-workbench.nvim/scripts/agent-hook` is executable and `nvim` is on
+  `PATH` (the hook calls back with `nvim --server`); whether the
+  `-c hooks=` value native Codex receives carries the hook, with Codex's trust hash checked against the command it
   covers; which `sources` are off. Static only: no agent is started, so
   whether the installed CLIs run the hooks is checked as the hook steps below
   describe.
@@ -148,7 +147,7 @@ plugin's own checks).
 - `:lsp restart` (mapped to `<leader>mr`) — restart the servers attached to the
   current buffer
 - `:lua vim.lsp.log.get_filename()` — path to the server stderr / protocol log
-- Servers are declared per language in `lua/plugins/lang/*.lua` (`opts.servers`) and
+- Servers are declared per language in `lua/plugin/lang/*.lua` (`opts.servers`) and
   installed by mason-lspconfig (derived from that list). Verbose logging:
   `:lua vim.lsp.log.set_level("debug")`.
 
@@ -193,13 +192,13 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 - `:InspectTree` — the syntax tree for the current buffer
 - `:Inspect` — highlight groups under the cursor
 - Parsers: editor-core list in `plugins/ui/treesitter.lua`, language parsers in
-  each `lua/plugins/lang/*.lua`. Missing ones auto-install on first open.
+  each `lua/plugin/lang/*.lua`. Missing ones auto-install on first open.
 - Every parser is compiled here, by the tree-sitter CLI (>= 0.26.1) and a C
   compiler; `:checkhealth config` reports the CLI's version. Without it, a new
   machine fails every install and `:TSUpdate` after a plugin update cannot
   rebuild. Install it from a package manager (`brew install tree-sitter-cli`),
   not npm. When nvim-treesitter raises that floor, raise `TREE_SITTER_MIN` in
-  `lua/config/health.lua` and the version CI installs.
+  `local-plugin/editor-core.nvim/lua/editor_core/health.lua` and the version CI installs.
 
 ## Formatting & linting
 
@@ -214,10 +213,10 @@ Neovim and truncate that file rather than leaving debug logging enabled.
 ## Diff views (CodeDiff)
 
 The `<leader>g` diff views and the review view are CodeDiff's
-(`lua/plugins/git/codediff.lua`). `lua/util/codediff.lua` is the one module that
+(`lua/plugin/git/codediff.lua`). `local-plugin/git-review.nvim/lua/git_review/view.lua` is the one module that
 reaches into its internals, for the `,` keys, the `;`/`s` blocks, the tab
 labels and the listing; its header lists what it depends on. Besides it, only
-`:checkhealth config` (`lua/config/health.lua`) reads two values: the
+`:checkhealth config` (`local-plugin/editor-core.nvim/lua/editor_core/health.lua`) reads two values: the
 library's version and the watcher release CodeDiff wants. for the `,` keys, the `;`/`s` blocks, the tab
 labels and the listing; its header lists what it depends on.
 
@@ -253,7 +252,7 @@ labels and the listing; its header lists what it depends on.
   (the upstream keys that could harm a review are off in the spec), but the
   revision listing, the non-ASCII path fix and the history limit are off.
   `:Lazy restore codediff.nvim` goes back to the pin; moving the pin (`commit` in
-  `lua/plugins/git/codediff.lua`, then `VERSION` in `lua/util/codediff.lua`)
+  `lua/plugin/git/codediff.lua`, then `VERSION` in `local-plugin/git-review.nvim/lua/git_review/view.lua`)
   means running `tests/codediff_spec.lua`, `tests/codediff_listing_spec.lua`
   and `tests/hunk_actions_spec.lua` against the new version first.
 - **`CodeDiff's revision listing fell back to upstream's`** — the listing (below)
@@ -309,292 +308,83 @@ labels and the listing; its header lists what it depends on.
 - **Only one diff pane follows the mouse wheel** — native Nvim ignores
   `scrollbind` when scrolling an unfocused window (see
   [scrollbind-quickadj](https://neovim.io/doc/user/scroll/#scrollbind-quickadj)).
-  `lua/util/codediff.lua` maps the wheel in both panes to scroll in the hovered
+  `local-plugin/git-review.nvim/lua/git_review/view.lua` maps the wheel in both panes to scroll in the hovered
   pane's context and restore focus, so filler and folds stay aligned; the file
   and history panels scroll on their own. Restart Nvim after updating.
-- **A Claude diff opened in a new tab** — intended
-  (`diff_opts.open_in_new_tab`). claudecode picks the window for a proposal by
-  skipping `'diff'` windows, and CodeDiff's panes never set `'diff'`, so in the
-  current tab a proposal could land inside a diff view. `<leader>aa` /
-  `<leader>ad` answer it as before.
-- **A repository whose path holds `$NAME`.** CodeDiff views work there.
-  gitsigns does not when `NAME` is a set variable (`$HOME`): it normalises the
-  repository path with `vim.fs.normalize`, which expands the variable, and
-  reports `ENOENT (cwd)`. Nvim's own `:cd`, `chdir()` and
-  `nvim_set_current_dir()` expand a set variable too, even escaped.
-
 ## AI and CodeCompanion
 
-- **A local native plugin is missing or `AI plugins: ...` appears.** Check
-  `NVIM_AI_PLUGIN_DIR` in the shell that starts Nvim. Entries must be plugin
-  directories or distribution roots with `claude/<plugin>` and `codex/<plugin>`
-  packages; use GPK's `dist/marketplace` for both hosts. Invalid/missing
-  manifests and duplicate names are reported explicitly. Codex requires
-  `plugin add` and local marketplace support (tested with 0.167.1); its
-  normal `/hooks` trust review still applies. Installation updates only its
-  local plugin cache, not the user's config or global enablement. See
-  [local native plugins](MANUAL.md#local-native-plugins). This variable does
-  not configure CodeCompanion's ACP or HTTP chats.
-- **`vi --claude` / `vi --codex` reports an unknown option.** The launcher
-  flags are gone: `vi` in `~/.config/zsh/functions.zsh` is plain `nvim`
-  (open a new shell after updating that file), and nothing chooses an agent
-  at launch. Start Nvim and pick the agent or chat in `<leader>an`
-  (`:AI new`): every terminal, then every ACP chat, then every API chat, each
-  group in the order of the `providers` list in `lua/ai/config.lua`; reorder
-  that list to change which comes first.
-- **`NVIM_AI_PROVIDER is no longer read`** (or `vim.g.ai_provider`) at
-  startup. A value left over from when it chose a default backend; it changes
-  nothing and Nvim starts. Remove the export or the `let`.
-- **Nvim refuses to start: `AI providers: …`.** The `providers` list in
-  `lua/ai/config.lua` is invalid, and the message names the entry: an empty
-  list, no name or label, a name listed twice, none of `tui`, `acp`,
-  `api`, a `cli_api_key` that is not a string, a `tui.kind` that is not
-  `claude` or `codex` or that another provider already offers, an `acp`
-  without `adapter` and `command`, an `api` without `adapter`, or an adapter
-  or `api` name used twice (a second key on one API needs its own
-  `api.name`). A new terminal kind needs code, not just an entry.
-- `:AI info` (or `:AIInfo`) prints, loading no plugin:
+This release enables native Codex only. Claude's CLI plugin, IDE proposal/diff
+commands and Oil-specific actions are removed. Historical Claude transcripts and
+baseline labels remain readable. Do not reinstall claudecode.nvim to satisfy an
+old fixture or document; Claude protocol support is a later extension.
 
-  ```text
-  Providers Claude Code · terminal · ACP · API
-            Codex · terminal · ACP ✗ · API ✗
-            CodeCompanion's own chats on claude_code (ACP)
-  Key       Anthropic · auto (first API key set)
-            inline and command prompts on anthropic (HTTP)
-  Profiles  anthropic  NVIM_ANTHROPIC_API_KEY set
-            openai     NVIM_OPENAI_API_KEY not set
-  CLI keys  ANTHROPIC_API_KEY not set · OPENAI_API_KEY not set
-  Chats     Claude Code · terminal · subscription · hidden
-            Codex · terminal · subscription · ● here
-            Anthropic · API · API credits · #12 · tab 2
-  ```
+- **Inspect configuration.** User declarations are `config/ai.lua`,
+  `config/review.lua`, `config/git.lua`, `config/keymaps.lua`; effective copied
+  plugin options are `require("agent_workbench").options()`. `:AI info` /
+  `:AIInfo` show provider order, transport/billing, availability, open chats,
+  HTTP profile and CLI billing keys. `:checkhealth config` aggregates owner checks.
+- **No backend is offered.** Native Codex needs its executable. ACP needs
+  `codex-acp`; HTTP needs `NVIM_OPENAI_API_KEY`. Omitted provider parts are not
+  offered. The ordered picker groups native/ACP/HTTP and hides unavailable
+  entries. With no configured HTTP API, inline/cmd prompts refuse with a notice.
+- **Selected terminal cannot open.** `terminal.provider` is native, Snacks, or a
+  custom embedded provider. Snacks is required only when explicitly selected;
+  missing adapters fail clearly with no fallback. The independent native path
+  needs no Snacks. tmux wrapping is a separate preference. Check an unavailable
+  executable, malformed provider contract or invalid cwd before changing UI code.
+- **Which chat receives context?** The one visibly on the right of this tab;
+  from CodeDiff, the origin tab. Otherwise a picker asks. ac/af may restore this
+  tab's last hidden chat; delivery never silently selects one. Another tab's
+  visible target is gone to with a notice; an unowned terminal copy here stays
+  the target here. The owner elsewhere is not hidden. A last-normal-window
+  refusal is deliberate; notification/preview floats do not make it closeable.
+- **Agent not recognized / Edgy ignores it.** Identity is plugin-owned
+  `vim.b[buf].agent_workbench`, not the Snacks command or object. The provider
+  reports `on_buffer` before TermOpen and sets filetype `agent_terminal`. Raw
+  test terminals must explicitly declare this metadata; a shell executable
+  called codex is not automatically an agent panel. Statusline and Edgy use
+  `session_of_buffer`, not terminal-provider internals.
+- **Context/unsaved changes.** Saved Codex selections become file/range
+  references. Unsaved selections send the exact selected text, with a notice.
+  ab/native and ACP contexts read disk and warn about unsaved buffers; HTTP
+  contexts carry buffer text. No context path presses Enter. Directory listings
+  are unsupported in this release; use a file or actual code selection.
+- **Resume/model changes seem ignored.** There is one native session. ar/aR/am
+  focus/reuse a running one and explain the operation; they type no command
+  into an existing draft/approval. Exit it before resuming another. am can submit
+  /model only into a fresh session. Cold launches always use the editor file's
+  root, even if an old exited terminal remains on screen.
+- **HTTP billing/profile.** `NVIM_*` variables are HTTP keys. `OPENAI_API_KEY`
+  belongs to the CLI and may override subscription billing; health/pickers warn.
+  Codex ACP uses chat-gpt auth. A nonempty NVIM_AI_KEY_PROFILE wins over vim.g
+  then config; auto resolves the first configured key that is set. AI key auto
+  re-resolves. No key or provider choice persists or writes environment values.
+  A profile switch changes inline/cmd adapters only; existing chats stay fixed.
+- **Chat busy / draft not delivered.** Tool-loop intervals are still busy even
+  when current_request is nil. Refusals retain drafts. Native delivery waits
+  for the exact prompt editor consumption, with seed_ttl_ms expiry. A cancel or
+  replaced seed keeps the draft. Use the review notices, not a successful keypress,
+  as evidence of delivery.
+- **History/resume.** codecompanion-history stores local conversation text;
+  resuming a stateful ACP session with /resume is separate. CodeCompanion's own
+  code review is disabled so it cannot create a second baseline system.
+- **Rendering/scrolling/cleanup.** The Codex wrapper composes TUI synchronized
+  updates in tmux; CODEX_WRAP_TMUX=0 gives a direct comparison. Renderer and
+  terminal provider are independent. Keep EDITOR/VISUAL/NVIM forwarding,
+  agent-run, agent-teardown, exit-empty and destroy-unattached off. A nonzero
+  startup stays visible; stop/quitting cleans the owned server and descendants.
+  A hide preserves the PTY. Follow exact buffer/session generation when debugging
+  stale exit callbacks. Never kill shared daemons to clean a fixture.
 
-  The providers come in the order of `lua/ai/config.lua`, each with the
-  parts it offers; `✗` marks one that cannot start here (its CLI or bridge is
-  not on `PATH`, or its `NVIM_*` key is unset), which `<leader>an` leaves
-  out. Every open chat is listed with where it is: *● here* (on the right of
-  this tabpage), *tab N*, or *hidden* (running, shown nowhere). Variables are
-  reported as set or not, never their values.
-- `:AI provider` is gone and says so, pointing at `:AI new` and the order of
-  `lua/ai/config.lua`. There is no active or default provider: each key
-  acts on the chat on the right of the tabpage, `<leader>an` (`:AI new`)
-  starts a chat on any backend, and `<leader>al` (`:AI`) shows another open
-  one. `:AI key` (`<leader>ax`) is the one in-process switch, and it moves
-  only inline edits and command prompts.
-- **An agent or chat vanished from the right.** It was hidden, not stopped:
-  the right of a tabpage shows one AI window, and showing another hides the
-  rest there. `:AI info` lists it as *hidden*; `<leader>al` brings it back,
-  and `<leader>ac` brings back the last one this tabpage showed.
-- **A chat disappeared from another tabpage.** Upstream's own paths — a
-  typed `:CodeCompanionChat` or `:CodeCompanionChat Toggle`, the action
-  palette (`:CodeCompanionActions`), `<leader>ao` — open a chat
-  without naming a window, and CodeCompanion then closes its last chat
-  wherever it is shown, another tabpage included. Nothing is lost (`:AI info`
-  lists it as *hidden*); `<leader>al` shows it again. The chat keys (`an`,
-  `al`, `ac`, `af`, `ab`, `as`, `ai`) never take that path; `<leader>ao` is
-  upstream's own, and does.
-- **Two AI windows on the right of one tabpage.** Showing a chat hides the
-  others through their owners, and a `BufWinEnter` guard does the same for
-  paths that never come through the facade. Neither touches a window its owner
-  cannot hide, and the guard gives up when another tabpage is current by the
-  time it runs. What `<leader>ac` says tells which case it is:
-  - *This is Claude Code's diff tabpage* — a window on Claude Code's
-    terminal that is not the terminal's own. Usually claudecode's copy beside
-    a proposed diff, in a tabpage of its own: answer the diff (`<leader>aa` /
-    `<leader>ad`) and the tabpage closes. A `:split` of the terminal says the
-    same; close that window (`sd`).
-  - *… is shown here in a window it cannot hide* — the same for Codex or a
-    chat: a second window on its buffer, typically a `:split` of it. Close
-    that window (`sd`).
-  - *… is this tabpage's only window* — `<leader>ac` refuses to leave the
-    tabpage with nothing in it. Open a file beside it first.
-  - Otherwise `<leader>ac` hides every AI window here, and pressed again
-    brings back the last one this tabpage showed: one window again.
-  `,q` in a chat ends it and shows the next chat in its window, and
-  CodeCompanion may leave that chat's buffer in a window of another tabpage
-  too; `<leader>ac` there closes the copy (the chat stays on screen where it
-  is its own). `q` in a chat only hides it, as `<leader>ac` does.
-  `AI slot guard failed:` with a traceback means the guard itself raised
-  (usually a CodeCompanion update; see *A key fails* below).
-- **A key asked instead of acting** — "Add selection to", "Add file to",
-  "Compose prompt for", "Switch AI chat", "Which native agent?", "Whose
-  transcript?". Nothing is on the right of this tabpage (or, from a CodeDiff
-  view, of the page the view came from), or several AI windows are there and
-  the current window is none of them. Nothing is ever delivered to a hidden
-  chat or another tabpage's without asking, and no provider stands in for the
-  chat on the right; "Which native agent?" lists the installed terminals in
-  the order of `lua/ai/config.lua`. Cancel delivers nothing and, from a
-  CodeDiff view, goes back to it.
-- **Where did the selection (or the buffer) go?** To the chat on the right of
-  the tabpage the key was pressed in — from a CodeDiff view, of the page the
-  view came from, which becomes current. When that meant going to another
-  tabpage the notice says so: `Sent to Codex (tab 2)`. Nothing is submitted:
-  - Claude Code gets a file mention of the selected lines (`<leader>as`) or
-    of the file (`<leader>ab`), through claudecode as `:ClaudeCodeSend` and
-    `:ClaudeCodeAdd` would. It reads the saved file: a buffer with unsaved
-    changes is sent with a warning, a buffer with no file is refused
-    (`<leader>ai` takes the selected text itself).
-  - Codex gets `@path lines X-Y ` (or `@path ` for `<leader>ab`) typed into
-    its input box; from a buffer with no file or with unsaved changes
-    `<leader>as` types the exact selection instead, fenced (saying so for the
-    unsaved changes), and `<leader>ab` warns that Codex reads the saved file.
-  - A chat gets the selection as a fenced block at the end of its prompt.
-    `The chat is replying: nothing was added` while it is mid-turn (a tool
-    loop included). `<leader>ab` adds the file to a chat as its own
-    `/buffer` does: an entry in its Context list and a hidden message, sent
-    with the next prompt. An API chat is sent the buffer's text; an agent
-    chat only `Sharing the following file as context: <path>`, and its agent
-    reads the saved file (`An agent chat reads the saved file` for a buffer
-    with unsaved changes). `Current buffer is not a file` from a terminal, a
-    panel or the chat itself.
-  A Visual selection in oil goes only to Claude Code on the right, and
-  nowhere when anything else is there: a listing's selection cannot wait for
-  a question.
-- **`<leader>ar`, `aR` or `am` only showed the agent.** Each native agent has
-  one session per Nvim (claudecode keeps one terminal, and so does the Codex
-  backend), so a running one is shown and left as it is: `Claude Code is
-  already running: use /resume in it, or exit it first` (`use /model in it`
-  for `am`, `this is its session` for `aR`; Codex: `A Codex session is
-  already active; exit it before resuming another` for `ar`, and the same
-  two for `am`/`aR`). Nothing is typed into its input box, which may hold a
-  draft or an approval an Enter would answer. `<leader>an` offers that
-  session too, labelled *running* or *● here*, and shows it rather than start
-  a second. Use `/resume` or `/model` inside, or exit the agent and press the
-  key again. A session these keys or `<leader>an` start is announced (`Started
-  Codex · terminal · subscription to resume a session`, `New chat: …`). A cold
-  start begins from the editor window, so the agent's root is the edited
-  file's; with none in this tabpage it refuses: `No editor window in this tab
-  to start the agent from`.
-- **The agent session is alive, but its panel disappeared after clicking a file
-  tab.** bufferline's default `:buffer` ran in the focused panel; Snacks' window
-  protection could close that window when no ordinary file window was available
-  to receive the file. File-tab clicks now focus the current tabpage's editor
-  area first, creating a split if needed, so Claude, Codex and chat panels stay
-  visible. In an older running Nvim, `<leader>af` restores the native panel;
-  restart Nvim to load the fix.
-- **`<leader>aa` / `<leader>ad` are missing.** They answer Claude's diffs and
-  exist once claudecode.nvim has loaded, whatever is on the right. Before
-  Claude was ever started there is no diff to answer.
-- **The statusline shows `󰌆 …`.** The key profile is pinned (`:AI key <name>`
-  or `NVIM_AI_KEY_PROFILE`); click it (or `<leader>ax`) to change it. It
-  disappears with `:AI key auto`.
-- **Inline prompts use the "wrong" key.** The key profile was pinned with
-  `:AI key <name>`; `:AI key auto` goes back to the first profile in
-  `lua/ai/config.lua` whose `NVIM_*` key is set (else the first).
-  An API chat keeps the profile its `<leader>an` entry named.
-- `:checkhealth config` — native CLIs plus `claude-agent-acp`/`codex-acp`
-- Keys: `<leader>an` new chat (every available backend: the native
-  terminals, ACP chats on the subscription, an API chat per key profile on API
-  credits, each group in provider order); `<leader>al` switch chat;
-  `<leader>ac` / `af` toggle / focus the chat on the right; `<leader>ae` inline; `<leader>ao` /
-  `:CodeCompanionHistory` auto-saved history (also `gh` inside a chat).
-- History restores the local transcript; use `/resume` in a fresh agent chat
-  to reload a stateful agent session.
-- **`<leader>an` shows no backend (`No AI backend is available here`), or
-  leaves one out.** The picker lists only what can start here, read from
-  this Nvim's `PATH` and environment each time it opens, and loads nothing to
-  decide: a native terminal needs its CLI (`claude`, `codex`), an ACP chat its
-  bridge, an API chat its profile's `NVIM_*` variable; a part a provider
-  leaves out of `lua/ai/config.lua` is never offered. `:checkhealth config`,
-  *AI backends*, names each one missing. A CLI installed later is found at
-  the next press; a variable exported in another shell is not, until Nvim is
-  started from a shell that has it. The keys that take only a native agent
-  (`ar`, `aR`, `am`, `at`, `aT`) say `No native agent is
-  installed (claude, codex)` instead. An entry ending in `⚠ ANTHROPIC_API_KEY
-  is set — it may bill the API` (or `OPENAI_API_KEY`) is listed, but its
-  "subscription" may not hold: see *The agent bills the API* below.
-- **An API chat is missing from `<leader>an`, or `<leader>ae` says
-  `NVIM_… is not set`.** The picker lists only backends that can start, and
-  an API chat needs its profile's variable; `<leader>ae` refuses before the
-  command line opens rather than end in a 401. Set it as in
-  [README → API keys](../README.md#api-keys) and restart Nvim from a new
-  shell, or `:AI key <profile>` to one whose key is set (`:AI info` lists
-  which). ACP chats and the native terminals are unaffected: they use the
-  agent's own login. A chat restored from history, the action palette
-  (`:CodeCompanionActions`, whose *Inline prompt* runs on the key profile) and
-  `:CodeCompanion` / `:CodeCompanionCmd` typed by hand skip this check and can
-  still end in a 401.
-- **An ACP chat is missing from `<leader>an`.** Its bridge
-  (`claude-agent-acp` or `codex-acp`) is not on `PATH`; reinstall it (last
-  item of this section). Codex's ACP chat uses the ChatGPT login:
-  CodeCompanion's `codex` ACP adapter is given `auth_method = "chat-gpt"`
-  whatever the providers list holds (a restored chat or a typed
-  `:CodeCompanionChat` can name it), since codex-acp's own default bills
-  `OPENAI_API_KEY`; a provider's `acp.auth_method` overrides it.
-- **Which chat is this?** The switcher (`<leader>al`) and `:AI info` label
-  each chat with its backend and billing, and a reply header says the kind:
-  `CodeCompanion (Claude Code · ACP)` or `CodeCompanion (Anthropic · API)`. A
-  chat keeps the adapter it was created with.
-- **Did the chat get my prompt?** If the end of the chat says `⠋ Waiting
-  for … · Ns`, it did: the line starts the moment a prompt is sent
-  (`lua/ai/progress.lua`, from the chat's `on_submitted`), before anything
-  that can take a while — an ACP chat's first connection and session, or an
-  API adapter fetching its model list, which blocks Nvim for up to 3 s on the
-  first request of each half hour. It is hidden while the reply streams in,
-  says `… is working` once the buffer has been still for 1.5 s, and goes when
-  the turn ends; `<C-c>` stops the request. A chat with no line after `<CR>`
-  sent nothing: an empty prompt, or one still mid-turn.
-- **A key fails with `AI chat … failed` and a traceback.**
-  `lua/ai/companion.lua` reaches into CodeCompanion's chat internals, and an
-  update changed one. Nothing falls back to an upstream command, which would
-  aim at its last chat instead; the error names what to fix.
-- **Claude Code still sees the selection while it is hidden.** Expected.
-  claudecode's selection tracking (its `track_selection`, on by default and
-  not changed here) reports the editor's selection to a running Claude over
-  its IDE connection whatever the right shows, as it does for a shown panel,
-  so a prompt sent to Claude may refer to it. That is Claude's own editor
-  context, not a delivery: nothing is typed into its input box, and with
-  Codex or a chat on the right the `<leader>a` keys never send it to Claude.
-  Only a Claude session that runs has it; quitting Claude ends it.
-- **Nvim refuses to start: `AI key profile "…" must read an NVIM_* variable`.**
-  A provider's `api` in `lua/ai/config.lua` names a CLI's own variable (or
-  something not `NVIM_*`) as its `api_key`. Give it an `NVIM_*` variable of
-  its own.
-- **The agent bills the API although you have a subscription.** Check
-  `:checkhealth config` for *ANTHROPIC_API_KEY is set* (or `OPENAI_API_KEY`).
-  Those are the CLIs' own variables and can take precedence over the login;
-  this config never needs them, so unset them in the shell that starts Nvim.
-- Native Claude and Codex TUIs use provider-specific tmux wrappers when tmux is
-  installed. Set `CLAUDE_WRAP_TMUX=0` or `CODEX_WRAP_TMUX=0` for an A/B test.
-- Both wrappers keep tmux mouse support enabled for scrolling, but disable its
-  pane menu on right-click and Alt-right-click.
-- Quitting Nvim or closing the panel tears the wrapper server down through
-  `scripts/agent-teardown`, which also ends the processes the agent spawned into
-  their own groups (Codex `exec_command` sessions, background Bash jobs). If a
-  dev server the agent started is still running after Nvim exits, check
-  `~/.local/state/nvim/agent-teardown.log`; if something you wanted kept was
-  killed, add it to `NVIM_AGENT_TEARDOWN_IGNORE` (awk regex; the default spares
-  emulator/qemu, Gradle/Kotlin daemons, adb, OrbStack/Docker, CoreSimulator).
-- Native Codex uses `--yolo`, bypassing Codex approvals and its built-in
-  sandbox. It also uses `--no-alt-screen` so its wrapper tmux retains the
-  transcript. In terminal-input mode, the mouse wheel or `<PageUp>` enters tmux
-  copy-mode; use `q` or `<Esc>` to return. Leaving terminal input and entering
-  it again through `i`, `a`, or any other input-mode transition also cancels
-  copy-mode and follows the live bottom. Scroll keys pressed from
-  terminal-Normal mode are forwarded to tmux automatically. With
-  `CODEX_WRAP_TMUX=0`, leave terminal input first and use Nvim's normal scroll
-  commands.
-- **Text from an agent panel is left painted over the window to its left** —
-  typically after scrolling the panel's history over Devanagari (Hindi i18n
-  strings). Nvim gives every Devanagari grapheme cluster one cell, while
-  Ghostty widens any cluster containing a spacing vowel sign (gc=Mc) or a
-  virama conjunct to two cells (`grapheme-width-method = legacy` is no
-  closer). The TUI does not reposition the cursor within a row, so the row
-  drifts right, overflows the screen edge and wraps onto column 0 of the next
-  row, where Nvim never redraws it. Return the panel to live output (`q` in
-  copy-mode), then press `<leader>ur` (`:mode`); while the Devanagari rows are
-  still on screen the repaint spills them again. `:redraw!` does not help:
-  it re-sends only cells Nvim thinks changed. `<C-S-l>` and `<leader>md`
-  repair the panel's own content, not these cells.
-- Reinstall ACP bridges with
-  `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`.
+Public native APIs/provider lifecycle and a minimal host example are documented
+in [agent-workbench.nvim](../local-plugin/agent-workbench.nvim/README.md).
 
 ### Inline completion (ghost text)
 
-minuet (`lua/plugins/ai/minuet.lua`) draws the grey suggestions; they come from
-a local `llama-server` that `util.llama` starts on the first Insert in a
+minuet (`lua/plugin/ai/minuet.lua`) draws the grey suggestions; they come from
+a local `llama-server` that `llama_service` starts on the first Insert in a
 buffer that can show them, and that every Nvim shares. None of it depends on
-the providers in `lua/ai/config.lua` or on the chat on the right.
+the providers in `lua/config/ai.lua` or on the chat on the right.
 
 - **No suggestions anywhere.** `:checkhealth config` → *inline completion*
   names the missing piece: `llama-server` itself (`brew install llama.cpp`) or
@@ -623,7 +413,7 @@ the providers in `lua/ai/config.lua` or on the chat on the right.
 - **Memory.** Loaded, the server shows ~8 GB resident, which is mostly the
   memory-mapped model file; its own footprint is ~0.6 GB. Asleep it is ~70 MB.
 - **Lifecycle.** Each Nvim registers as `~/.local/state/nvim/llama/clients/<pid>`;
-  the copy of `scripts/llama-supervise` holding `lock/` runs the server and
+  the copy of `local-plugin/llama-service.nvim/scripts/llama-supervise` holding `lock/` runs the server and
   stops it about five seconds after the last registered Nvim is gone, crashed
   ones included. To stop it by hand, signal that copy:
   `kill "$(cat ~/.local/state/nvim/llama/lock/pid)"` (not `pkill -f`, which
@@ -633,7 +423,7 @@ the providers in `lua/ai/config.lua` or on the chat on the right.
   seconds.
 - **Port.** The server listens on `127.0.0.1:8012`. If something else holds
   that port, the server cannot start, while whatever does answer there gets
-  the requests; change `port` in `lua/util/llama.lua`.
+  the requests; change `port` in `local-plugin/llama-service.nvim/lua/llama_service/init.lua`.
 - **Updating the model.** `--offline` never fetches; `llama-server
   --fim-qwen-7b-default` without it checks Hugging Face for a newer revision.
 - **Request-level detail.** `:lua require("minuet").config.notify = "debug"`
@@ -645,7 +435,7 @@ The viewer reads the CLI's own JSONL records, not the terminal:
 
 | Provider | Location |
 |----------|----------|
-| Claude | `~/.claude/projects/<cwd-slug>/*.jsonl`, slug = cwd with `/` and `.` both replaced by `-` |
+| Claude (historical records only) | `~/.claude/projects/<cwd-slug>/*.jsonl`, slug = cwd with `/` and `.` both replaced by `-` |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, matched on `session_meta.payload.cwd` |
 
 Both formats are undocumented implementation details of tools that ship often,
@@ -658,13 +448,13 @@ rather than a broken viewer.
   path derivation is wrong. Check the directory the notification names against
   the table above.
 - **Buffer opens but content is missing** — the record shapes changed. Compare a
-  real file against the mapping in `lua/ai/transcript/<provider>.lua`:
+  real file against the mapping in `local-plugin/agent-workbench.nvim/lua/agent_workbench/transcript/<provider>.lua`:
   ```sh
   jq -r '.type' ~/.claude/projects/<slug>/<id>.jsonl | sort | uniq -c
   jq -r '.payload.type' ~/.codex/sessions/<date>/<file>.jsonl | sort | uniq -c
   ```
 - **A baseline in `<Space>gM` / `<Space>gk` shows no session name or end** —
-  the labels read the same records (`ai.transcript.marks`): Claude's
+  the labels read the same records (`agent_workbench.transcript.marks`): Claude's
   `ai-title` / `custom-title` and `turn_duration` records in
   `~/.claude/projects/*/<session>.jsonl`, Codex's `thread_name` in
   `~/.codex/session_index.jsonl` and `task_complete` / `turn_aborted` in its
@@ -708,169 +498,68 @@ rather than a broken viewer.
 
 ### Prompt editor (`<leader>ai`, `ctrl+g`)
 
-- **`:q` refuses to close** — intended. The prompt buffer is the agent's own
-  temp file with `bufhidden=wipe`, which a modified buffer cannot be abandoned
-  under, so `:q` raises `E37` and a notice says
-  `:wq keeps the edit · :q! or <C-c> leaves the box unchanged`. Use `<C-d>` or
-  `:wq` to send, `<C-c>` or `:q!` to discard.
-- **`<C-s>` pressed once does nothing in Nvim** — expected. `C-s` is the tmux prefix
-  here (`~/.config/tmux/tmux.conf`), so tmux consumes it before Nvim can see it.
-  There is no `<C-s>` save mapping — use `:w`. Nvim's own Insert-mode
-  default on that key, `i_CTRL-S` for `vim.lsp.buf.signature_help()`, is
-  unreachable for the same reason; `gK` is the working path. CodeCompanion's own `<C-s>` (send) was
-  moved for the same reason: a chat and the `:CodeCompanion` prompt float send
-  with `<CR>`, or `<C-d>` from Insert mode. The pickers', oil's and the
-  outline's `<C-s>` (open below) reach Nvim as `C-s C-s`, which that tmux
-  config passes through (`bind C-s send-prefix`).
-- **`ctrl+v` in the agent TUI attaches nothing** — the clipboard holds text, not
-  an image. The agent CLIs read the clipboard themselves; Nvim is not involved.
-  Check with:
-  ```sh
-  osascript -e 'clipboard info'   # an image shows «class PNGf»
-  ```
-- **The Claude pane clears while the prompt buffer is open** — expected, not a
-  hang. The CLI clears the terminal before handing it to `$EDITOR`, the way
-  `git commit` does, and this editor draws in a float instead of on that canvas.
-  `scripts/agent-editor` prints a note into the cleared pane so it says what is
-  happening; the TUI redraws itself when the prompt is returned.
+`agent-editor` is the CLI's $EDITOR and sends an RPC request into its originating
+Nvim. `<leader>ai` and native ctrl+g follow this exact path. EDITOR, VISUAL and
+NVIM must be injected at terminal creation and explicitly forwarded through
+tmux new-session -e. Missing variables silently create a nested Nvim terminal.
+The script resolves from the plugin package, so a separate checkout never calls
+the original configuration's helper.
 
-  Neither `/tui` nor `CLAUDE_CODE_NO_FLICKER` changes this — measured blank with
-  the env var set, unset, and on the `default` main-screen renderer alike, so it
-  is the handoff and not the alternate screen. It is also specific to Claude
-  Code: across the same edit its pane went 17 non-blank lines → 0 → 17, while
-  Codex held at 18 → 18 → 18 and kept its TUI on screen throughout.
-- **`<leader>ai` appears to do nothing** — the agent was not running. It starts
-  the CLI and waits, up to 45 s, for its input box before sending `ctrl+g`,
-  because a `ctrl+g` aimed at a TUI that is still booting is swallowed
-  silently. A box that never shows (a trust or login prompt still waiting for
-  an answer) ends in `… did not reach its prompt — press <leader>ai again`.
-  With nothing on the right it asks first (*Compose prompt for*); on a
-  CodeCompanion chat it opens no float at all and puts the cursor in the
-  chat's own prompt, in Insert mode unless the chat is replying (`The chat is
-  replying: type once it is done`).
-- **The float's title is just ` Prompt `, and `<C-v>` refuses** (`No agent is
-  known to have handed over this prompt`). The file's path names neither
-  agent — Claude Code's are `claude-prompt-*.md`, Codex's
-  `$CODEX_HOME/editor/*.md` — typically a `git commit` run in an agent's pane,
-  which uses the same `$EDITOR`. It is edited and returned like any other, but
-  takes no staged text (a `<leader>ai` selection, review feedback) and
-  attaches no image: either would go to an agent guessed at.
-- **The prompt opens in a second Nvim inside the terminal** — the `$EDITOR`
-  handoff did not reach the pane, so the CLI fell back to running `nvim` itself.
-  Check `:checkhealth config` for the wrapper, then inside the agent terminal:
-  ```sh
-  echo "$EDITOR"   # should be <config>/scripts/agent-editor
-  echo "$NVIM"     # should be the host's RPC socket
-  ```
-  Under the tmux wrappers both are forwarded explicitly with `new-session -e`; a
-  tmux pane does not inherit them otherwise.
-- **The agent TUI stays blocked after the prompt buffer closes** — the wrapper
-  waits on a sentinel file next to the CLI's temp `.md`. Every exit path writes
-  it, including `VimLeavePre`, and the wrapper gives up on its own once the host
-  stops answering RPC. A genuine hang means the buffer is still open somewhere —
-  find it with `:ls` and close it.
+`<C-d>` saves/returns the draft, cancellation preserves the previous input.
+`<C-v>` captures a clipboard image for this prompt and attaches through Codex's
+own paste path after closing. Owner recognition uses `$CODEX_HOME/editor/*.md`;
+a git-commit or other unowned editor request has a plain Prompt title and takes
+no agent seed/image. Unsaved selection seeds are captured before any picker.
+
+If Codex is mid-turn, it may not accept ctrl+g. Staged review text expires after
+seed_ttl_ms and its draft stays intact. A plain compose that replaces a pending
+review seed also keeps that draft. Never submit /model or an Enter into a running
+box to recover an editor request; it may contain an approval or another draft.
+The editor/feedback specs reproduce exact consumption, cancellation and timeout.
 
 ### Review rounds and agent hooks
 
-A round is a baseline — a snapshot of the working tree, kept as a parentless
-commit under `refs/nvim-review/` — taken when a prompt is submitted
-(`lua/ai/review/`, `lua/util/baseline.lua`; the workflow is in the
-[manual](MANUAL.md#reviewing-a-round-of-agent-changes)). Native Claude is
-started with `--settings <json>` carrying a `UserPromptSubmit` hook and an
-async `SessionStart` hook; native Codex with `-c hooks=…` carrying a
-`UserPromptSubmit` hook and its trust hash. Both run `scripts/agent-hook`,
-which hands the event to this Nvim through `$NVIM` and holds a submit until
-the baseline is written, at most `hook_wait_ms` (2.5 s). Only agents started
-from this Nvim's panel have the hooks; nothing is written to `~/.claude` or
-`~/.codex`. CodeCompanion chats take the baseline from a callback instead.
+Codex gets a per-process `-c hooks=...` UserPromptSubmit hook and matching trust
+hash. The bundled agent-hook hands JSON to this Nvim over NVIM and waits for the
+baseline up to hook_wait_ms. It never prints and always exits 0. User config,
+notify and other hooks are preserved. CodeCompanion uses a submit callback.
 
-- **`<leader>av` says there is no review round, though a prompt was sent.**
-  In order:
-  1. `:checkhealth config`, *review hooks*: is the hook script executable, do
-     the injected settings carry the hook, does Codex's trust hash match?
-  2. Which repository: rounds belong to the conversation's root, the Git root
-     the agent started in. `<leader>av` from a file of another repository looks
-     there. List what exists:
-     `git -C <repo> for-each-ref --format='%(refname) %(subject)' refs/nvim-review/`.
-  3. Was the agent started from this Nvim with its source on
-     (`vim.g.ai_review.sources`)? A CLI started in a shell has no hook, and
-     a source turned on after Claude's first start needs a restart.
-  4. Claude: its `/hooks` menu does not list hooks given through
-     `--settings` (checked with Claude Code 2.1), so ours never show there.
-     Nvim shows instead whether they run: with Claude in this root on the
-     right of the tabpage, `<leader>aV` from a file (or in its panel) names
-     `Conversation: Claude Code session …` once the `SessionStart` hook has
-     reported, and "No conversation yet" when it has not — or when Claude is
-     hidden, since a file's round goes to the chat on the right only. Not
-     running: Claude was started with `--bare` (which skips hooks), managed
-     settings set `disableAllHooks` or `allowManagedHooksOnly`, or the
-     folder's trust prompt has not been accepted — Claude holds hooks back
-     until it is. For a log, quit Claude and start it from Nvim with
-     `:ClaudeCode --debug=hooks --debug-file /tmp/claude-hooks.log`.
-  5. Codex: `/hooks` → `UserPromptSubmit` lists ours with source *Session
-     flags* and trust *Trusted*. Listed as needing review ("hooks need review
-     before they can run") means the trust hash no longer matches what this
-     Codex computes — expected after a Codex update that changed how it hashes
-     hooks. The hash comes from `codex_trust_hash` in `lua/ai/review/hook.lua`,
-     pinned by `tests/agent_hook_spec.lua`.
-  6. Outside a Git worktree, in a bare repository, or with `GIT_DIR` /
-     `GIT_WORK_TREE` set in Nvim's environment, nothing is snapshotted.
-  7. Prompts of subagents (Claude's Task agents, Codex's spawned threads) open
-     no round by design, and the later steps of a chat's tool loop open none
-     of their own. Nor does Claude waking itself to go on with the work — a
-     `<task-notification>` when a background task it started finishes, or a
-     background agent's `[Subagent hand-back]`: what it changes then belongs
-     to the session's newest round.
-- **Codex warns at startup: `Running without the shared background server:
-  command-line configuration overrides (-c, --enable, --disable, or --search)
-  requires embedded mode`.** That is the review hook's `-c hooks=…`: a Codex
-  given any `-c` runs its own server for the session instead of the shared
-  background one. `vim.g.ai_review = { sources = { codex = false } }` drops
-  the `-c`, and with it the warning and Codex's review rounds.
-- **`Late: the baseline landed after the prompt went out`** in the view's
-  notice (a `Late: 1` trailer on the commit) — the snapshot took longer than
-  `hook_wait_ms`, so the prompt went ahead and the agent's first edits may be
-  in the baseline. Usually many untracked files (one warning when a repository
-  has over 5000: a missing `.gitignore` entry) or a busy Nvim. Raise
-  `hook_wait_ms`, or add what needs no comparing to `.gitignore`.
-- **`Missed a Claude Code prompt submit (Nvim was busy)`** (or Codex) — Nvim's
-  main loop was blocked for the whole wait, the hook gave up, and the prompt
-  went ahead without a baseline. If it was Claude waking itself (a finished
-  background task or agent), no baseline was due. It may also pass
-  unreported: once the hook has given up, Nvim may never see the request.
-  Either way no late baseline is taken; `<leader>aV` takes one now.
-- **`No review baseline for this <source> prompt:`** — the snapshot failed;
-  git's reason is on the next line.
-- **`Agent hook receiver failed`** / **`Review round for a chat failed`** — an
-  error in `lua/ai/review/`, with its text. The prompt itself went ahead.
-- **`<agent> is working outside its root now:`** — the agent `cd`'d into
-  another repository. Its rounds are still recorded in the root it started in.
-- **Rounds by hand.** One worktree's baselines are
-  `refs/nvim-review/<wtid>/round/<id>` and `…/saved/<id>`;
-  `git log -1 --format=%B <ref>` shows the trailers (`Source`, `Conversation`,
-  `Root`, `Late`, a saved baseline's `Label`). After each save the oldest are
-  removed past `retention.rounds` (20) and `retention.saved` (10) per worktree,
-  and a removed saved baseline is named in a notice. A round whose draft still
-  holds feedback is never removed; a delivered draft is emptied and no longer
-  protects it. `git update-ref -d <ref>` deletes one by hand. A ref whose
-  commit has gone (deleted objects, a broken clone) is removed with a warning
-  the next time baselines are listed.
-- **Drafts** are files shared by every Nvim, under
-  `~/.local/state/nvim/ai-review/<12 hex digits of the repository path's
-  sha256>/`: `<round id>.md`, `unowned.md` for views that are no round's,
-  `<id>.last-sent.md` for the last delivery, and `<id>.conflict.md` (then
-  `.conflict-2.md`, …) when two Nvims changed the same lines of an entry, or
-  one typed into an entry the other has since delivered or deleted: the draft
-  keeps what its file has, the conflict file holds what was typed in the Nvim
-  that saved second, and a warning there names it. Edits to different lines
-  of one entry are both kept. A delivered or cleared draft is an empty file. A
-  draft that lost its first line is not delivered: `This draft lost its first
-  line`.
-- **Delivery refused.** The notice says why and the draft stays; the
-  [manual](MANUAL.md#who-receives-it) has each refusal and what to do about
-  it. `did not open its prompt editor (busy?)` means the agent took no
-  `ctrl+g` within `seed_ttl_ms` (10 s), usually because a turn was running;
-  deliver again once it is idle, or raise `seed_ttl_ms`.
+1. Check `:checkhealth config`: bundled scripts executable, enabled source,
+   injected command and trust hash. `/hooks` in Codex lists the hook under
+   Session flags / Trusted. An upstream trust-key/hash change is diagnosed by
+   `tests/agent_hook_spec.lua`, including its offline installed-CLI check.
+2. Check the conversation root, fixed at native launch/chat creation. A prompt
+   from another cwd still records the original root. `av` from another repo
+   checks that repo; list refs with
+   `git -C <repo> for-each-ref --format='%(refname) %(subject)' refs/nvim-review/`.
+3. Only a native session started by this Nvim receives the hook. sources.codex
+   and hook_wait_ms changes apply at next launch; disabling the source drops
+   received events immediately. A shell CLI has no hook. Spawned threads with
+   agent_id and repeated steers open no extra round.
+4. Outside a Git worktree, in bare repositories, or with GIT_DIR/GIT_WORK_TREE
+   set, snapshots are refused. Oversized untracked files and current ignored
+   files are excluded before hashing.
+
+**Late** means the snapshot outlasted the wait and could include the earliest
+writes. **Missed a Codex prompt submit (Nvim was busy)** means the hook gave up
+before delivery; no baseline is taken after the fact. `aV` captures one now.
+A busy Nvim can drop the late RPC without a notice. Snapshot/receiver failures
+show their reason on a new line and do not cancel the user's prompt.
+
+A CLI override may make Codex report it is running without its shared background
+server. Disabling sources.codex omits this hook override (other configured
+native-plugin overrides may still require embedded mode). Never bypass trust
+for every hook as a workaround.
+
+Drafts live under `state/ai-review/<root hash>/`: `<id>.md`, `unowned.md`,
+`<id>.last-sent.md`, and conflict copies for concurrent overlapping edits.
+Root/owner headers are mandatory. Delivery checks root, exact session/chat,
+busy state and explicit redirects in order; every refusal keeps the draft.
+A pending nonempty draft exempts its round from retention. Default rounds are
+20 in config.review; saved baselines 10, maximum file size and history limit
+are Git policy in config.git. Legacy live Git overrides in vim.g.ai_review remain.
+Claude-specific source/cwd options are removed. Historical Claude refs/labels
+are readable without enabling a backend.
 
 ### What review baselines leave in a repository
 
@@ -926,8 +615,8 @@ the only traces:
 - nvim-dap-ui opens automatically on session start (`<leader>dc`); `<leader>du`
   reopens it. Panels close when the last root session ends.
 - **Open tabpages are invisible / the `1`/`2` indicators are missing** -- the
-  tabline is permanent (`showtabline = 2` in `lua/config/options.lua`, kept by
-  `always_show_bufferline` in `lua/plugins/ui/bufferline.lua`). bufferline
+  tabline is permanent (`showtabline = 2` in `local-plugin/editor-core.nvim/lua/editor_core/options.lua`, kept by
+  `always_show_bufferline` in `lua/plugin/ui/bufferline.lua`). bufferline
   hides it on its own whenever
   it has at most one buffer to list, counting buffers only, so a diff opened
   with no files loaded used to take the tabpage indicators down with the
@@ -936,14 +625,14 @@ the only traces:
   closed with the last root session. `<leader>du` hides and restores it. A
   tabpage left behind means `close_panels` could not close it -- it refuses on
   the last remaining tabpage, since `tabclose` would fail there.
-- edgy places the debug panels (`lua/plugins/editor/edgy.lua`): scopes,
+- edgy places the debug panels (`lua/plugin/editor/edgy.lua`): scopes,
   breakpoints, stacks and watches on the left, `dap-repl` and `dapui_console`
   along the bottom with the terminal and quickfix. dapui still opens and
   closes them; only placement moved. A panel appearing in the wrong place
   means its filetype is not declared there -- dapui names every element
   separately and there is no `dapui` filetype.
 - **The stopped line is not highlighted** -- `DapStoppedLine` is defined in
-  `lua/plugins/coding/dap.lua` beside the `sign_define` calls that name it. A
+  `lua/plugin/coding/dap.lua` beside the `sign_define` calls that name it. A
   sign naming a highlight group nothing creates fails silently: the sign
   places, the `linehl` does nothing, and only the gutter arrow marks the
   pause. `tests/dap_actions_spec.lua` asserts every dap sign's `texthl`,
@@ -1008,7 +697,7 @@ breakpoints, variable evaluation and continued output after disconnect.
 ### Java
 
 JDK 25+ runs jdtls: since 1.63 its bundles require Java 25, and on an older
-JDK it exits with code 13 right after starting. `lua/plugins/lang/java.lua` takes the
+JDK it exits with code 13 right after starting. `lua/plugin/lang/java.lua` takes the
 first JDK 25+ among `$JAVA_HOME`, SDKMAN!'s `current`, the newest other
 SDKMAN! candidate and the `java` on PATH, so the default JDK may stay older;
 projects still build at the release level their build files set. Mason
@@ -1030,7 +719,7 @@ failure is reported instead of swallowed. After installing bundles, use
   loading and can answer `initialize` without the debug or test bundle's
   commands. It never lists them later, and every debug request then fails
   with `No LSP client found that supports vscode.java.resolveMainClass`. The
-  bundles are installed by then, so `lua/plugins/lang/java.lua` restarts that client
+  bundles are installed by then, so `lua/plugin/lang/java.lua` restarts that client
   once and the second start has them. A second miss for the same project
   only warns: run `:JdtRestart`.
 
@@ -1232,7 +921,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   configurations here use the `js-debug-webext` build described above to
   provide the DAP integration, source mapping and worker handling.
 - mason-nvim-dap ships no adapter definition for js-debug, so `pwa-node` and
-  `pwa-chrome` are registered in `lua/plugins/lang/typescript.lua`. Its `["js"]` handler
+  `pwa-chrome` are registered in `lua/plugin/lang/typescript.lua`. Its `["js"]` handler
   only makes mason install the package.
 
 ## Runtime errors & messages
@@ -1273,7 +962,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 
   `gx` and every multi-row yank from a terminal buffer now treat a full row
   followed by text in column 0 as one wrapped line
-  (`util.terminal.soft_wraps`). That covers `yi(`, `V…y`, `v…$y`, any
+  (`util.terminal_text.soft_wraps`). That covers `yi(`, `V…y`, `v…$y`, any
   register, the system clipboard and yanky's ring.
 
   These keep their newlines, because they fill a row on purpose:
@@ -1325,7 +1014,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   errors such as `E492`, Lua `print()` and tracebacks) are in `:messages`
   (`<leader>mna`). Plain `:echo` is never kept there: only `g<`
   (`<leader>mnl`) shows it again, and only while it is still the last
-  command's output. noice (`lua/plugins/ui/noice.lua`) shows both in a split,
+  command's output. noice (`lua/plugin/ui/noice.lua`) shows both in a split,
   where `q` closes. noice also pops those messages up through the snacks
   notifier, where anything sent through `vim.notify` -- plugins, LSP
   `window/showMessage`, this config's own warnings -- goes directly. Its
@@ -1359,17 +1048,17 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   grid. A message that never shows at all is one noice has no route for:
   Nvim 0.11+ gives messages kinds of their own (`:help ui-messages`), and
   noice drops a kind neither its defaults nor `routes` in
-  `lua/plugins/ui/noice.lua` name. Add it there; `g<` still shows it meanwhile.
+  `lua/plugin/ui/noice.lua` name. Add it there; `g<` still shows it meanwhile.
 - **A pending `2d` or a Visual selection's size is not under the cursor's
   line** — noice skips 'showcmd', so it is in the statusline (`showcmdloc`,
   lualine's `%S`), to the left of the language servers.
 - `K` on whitespace or a keyword stays quiet: hover runs with `silent = true`
-  (`lua/plugins/coding/lsp.lua`), which drops both "No information available" and
+  (`lua/plugin/coding/lsp.lua`), which drops both "No information available" and
   "Empty hover response". The hover and `gK` popups have a rounded border, and
   `<C-f>` / `<C-b>` scroll them from the code window. Only those two: with the
   diagnostic float from `]d` / `<leader>xd` open, the keys still page the
   buffer. Signature help while
-  typing is blink.cmp's (`signature` in `lua/plugins/coding/cmp.lua`).
+  typing is blink.cmp's (`signature` in `lua/plugin/coding/cmp.lua`).
 - LSP progress (indexing, workspace loading) is a spinner next to the server's
   name in the statusline (lualine's `lsp_status`); there is no progress
   message any more.
@@ -1377,7 +1066,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   current buffer; `:ColorizerToggle` toggles previews. Hex/RGB/HSL and CSS
   variable references are enabled; variable definitions must be in the same
   buffer. Tailwind previews are limited to the frontend filetypes in
-  `lua/plugins/lang/frontend.lua`; custom project colors also need an attached
+  `lua/plugin/lang/frontend.lua`; custom project colors also need an attached
   `tailwindcss` LSP (`:checkhealth vim.lsp`).
 - **A file is missing from search** — `;i` / `;?` respect `.gitignore` and have
   no extra directory exclusions; `;f` / `;/` include ignored files but exclude
@@ -1389,7 +1078,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
 - **A refactor key (`,ef`, `,ex`, `,i`, `,R`) errors with
   `attempt to call field 'wrap'`** — on Nvim 0.12 refactoring.nvim needs the
   async runtime from `lewis6991/async.nvim`, which
-  `lua/plugins/editor/refactoring.lua` hands it as `vim.async`. Its own fallback, `require("async")`, returns promise-async's
+  `lua/plugin/editor/refactoring.lua` hands it as `vim.async`. Its own fallback, `require("async")`, returns promise-async's
   module once nvim-ufo has loaded, and that API has no `wrap`. After the first
   refactor, `:lua =vim.async ~= nil` should print `true`; `:Lazy` should list
   async.nvim as loaded. `,i` asks the language server for the definition and
@@ -1422,7 +1111,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   (`,C`, and `,S`/`,U`/`,X` where the view can do them) beside the language
   section, and gives every key back on close. Section metadata lives in
   `lua/config/whichkey_spec.lua`; the rendering code in
-  `lua/plugins/editor/whichkey.lua` reads it generically.
+  `lua/plugin/editor/whichkey.lua` reads it generically.
   grug-far's `,S` subgroup appears only inside its search-and-replace panel;
   open it with `,F`, then use `g?` to inspect its action mappings.
 - **A popup row shows code instead of words** (`:<C-U>call
@@ -1431,7 +1120,7 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   filetype plugin's motion gets its desc from `filetype_descs` in
   `lua/config/whichkey_spec.lua`, written onto the buffer's mapping on `FileType`;
   add the filetype and key there. Nvim's LSP defaults (`gO`, `gr*`) are
-  described in `lua/config/keymaps.lua`.
+  described in `local-plugin/editor-core.nvim/lua/editor_core/keymaps.lua`.
 - **A row shows a global label where the buffer means something else** (`]c`
   read "Next class start" in a diff view, `gO` "[LSP] Document symbols" in
   markdown) — a description-only `whichkey_spec` entry outranks every
@@ -1485,13 +1174,13 @@ provider: none is chosen at launch.
 
 | Variable | Effect |
 |----------|--------|
-| `NVIM_AI_PLUGIN_DIR` | Comma-separated plugin directories or host distribution roots for native Claude/Codex. Claude uses `--plugin-dir`; Codex refreshes a local marketplace and enables plugins for that invocation. Replaces `CLAUDE_PLUGIN_DIR`; CodeCompanion ACP/API is deferred |
-| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile (`auto` by default: the first profile in `lua/ai/config.lua` whose `NVIM_*` key is set, else the first); an unknown name warns and falls back to `auto`; `:AI key` switches it |
+| `NVIM_AI_PLUGIN_DIR` | Comma-separated plugin directories or host distribution roots for native Codex. It refreshes a local marketplace and enables plugins for that invocation, without changing global configuration. `config.ai.plugin_dirs` is the data-file alternative; CodeCompanion ACP/API plugin injection is deferred |
+| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile (`auto` by default: the first profile in `lua/config/ai.lua` whose `NVIM_*` key is set, else the first); an unknown name warns and falls back to `auto`; `:AI key` switches it |
 | `NVIM_ANTHROPIC_API_KEY` / `NVIM_OPENAI_API_KEY` | Key of the default `anthropic` / `openai` profile, and of CodeCompanion's built-in `anthropic` / `openai` adapters even when no provider lists them, for CodeCompanion API chat and Inline/command prompts; unset, those keys refuse instead of sending |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Override the macOS keyboard layout used in Normal and Terminal-Normal modes |
 | `NVIM_MACISM_WAIT_TIME_MS` | Set macism's CJK workaround wait; `0` disables its temporary focus window |
-| `NVIM_LOG_LEVEL` | `util.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |
-| `NVIM_DEV=1` | `util.logger` defaults to `DEBUG` (more verbose) |
+| `NVIM_LOG_LEVEL` | `editor_core.logger` threshold (`DEBUG`/`INFO`/`WARN`/`ERROR`) |
+| `NVIM_DEV=1` | `editor_core.logger` defaults to `DEBUG` (more verbose) |
 | `VSCODE_DIFF_NO_AUTO_INSTALL` | Any non-empty value: CodeDiff never downloads its native library; a missing one is an error when the plugin loads. `tests/run.sh` sets it |
 | `CODEDIFF_WATCHER_NO_AUTO_INSTALL=1` | CodeDiff never downloads its file watcher; the views poll instead. `tests/run.sh` sets it |
 | `CODEDIFF_WATCHER_PATH` | A `codediff-watcher` binary to use instead of the downloaded one |

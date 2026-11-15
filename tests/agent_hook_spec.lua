@@ -1,5 +1,5 @@
--- Guards the native agents' review hooks (lua/ai/review/hook.lua and
--- scripts/agent-hook): what each CLI is given, that it reaches the CLI byte for
+-- Guards the native agents' review hooks (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/hook.lua and
+-- local-plugin/agent-workbench.nvim/scripts/agent-hook): what each CLI is given, that it reaches the CLI byte for
 -- byte through both launch paths of both wrappers, and that the script never
 -- prints, always exits 0 and keeps every wait bounded. The script runs end to
 -- end against a real headless Nvim over --listen, with ai.review.rounds stubbed
@@ -8,9 +8,9 @@
 -- the injected configuration offline, in isolated config homes.
 local t = dofile("tests/helper.lua")
 
-local hook = require("ai.review.hook")
-local ai_config = require("ai.config")
-local codex = require("ai.backend.codex")
+local hook = require("agent_workbench.review.hook")
+local ai_config = require("agent_workbench.state")
+local codex = require("agent_workbench.backend.codex")
 local saved_plugin_dirs = vim.env.NVIM_AI_PLUGIN_DIR
 vim.env.NVIM_AI_PLUGIN_DIR = nil
 
@@ -48,31 +48,8 @@ local function environ(drop, add)
   return env
 end
 
----claudecode's terminal_cmd exactly as lazy evaluates it, under `vars`.
-local function claude_terminal_cmd(vars)
-  return with_env(vars, function() return dofile("lua/plugins/ai/claudecode.lua")[1].opts.terminal_cmd end)
-end
-
----------------------------------------------------------------------------
--- What Claude is given: --settings JSON, exec form
----------------------------------------------------------------------------
-
-t.ok(script:sub(1, 1) == "/" and vim.fn.executable(script) == 1, "scripts/agent-hook is present, absolute and executable")
-
-local settings = vim.json.decode(hook.claude_settings())
-local events = vim.tbl_keys(settings.hooks or {})
-table.sort(events)
-t.eq(events, { "SessionStart", "UserPromptSubmit" }, "Claude gets UserPromptSubmit and SessionStart, nothing else")
-t.eq(settings.hooks.UserPromptSubmit, {
-  { hooks = { { type = "command", command = script, args = { "claude", "submit", "2500" }, timeout = 10 } } },
-}, "UserPromptSubmit runs the script in exec form, with the wait in argv and a 10 s hard cap")
-t.eq(settings.hooks.SessionStart, {
-  { hooks = { { type = "command", command = script, args = { "claude", "session", "2500" }, async = true } } },
-}, "SessionStart runs it async, so a session report never holds the TUI")
-with_review({ hook_wait_ms = 20000 }, function()
-  local ups = vim.json.decode(hook.claude_settings()).hooks.UserPromptSubmit[1].hooks[1]
-  t.eq({ ups.args[3], ups.timeout }, { "20000", 25 }, "hook_wait_ms travels in argv and the hard cap grows with it")
-end)
+t.ok(script:sub(1, 1) == "/" and vim.fn.executable(script) == 1,
+  "bundled agent-hook is absolute and executable")
 
 ---------------------------------------------------------------------------
 -- What Codex is given: -c hooks=..., with the trust hash
@@ -110,18 +87,14 @@ t.eq(codex._codex_command({ "resume", "--last" })[6], "resume", "and keeps the a
 -- The source toggles
 ---------------------------------------------------------------------------
 
-with_review({ sources = { claude = false } }, function()
-  for _, wrap in ipairs({ "0", "1" }) do
-    local cmd = claude_terminal_cmd({ CLAUDE_WRAP_TMUX = wrap })
-    t.ok(not cmd:find("--settings", 1, true), "sources.claude = false: no --settings (CLAUDE_WRAP_TMUX=" .. wrap .. ")")
-  end
-  t.eq(codex._codex_command({})[4], "-c", "sources.claude = false leaves Codex's hook in place")
-end)
 with_review({ sources = { codex = false } }, function()
   t.eq(codex._codex_command({ "resume" }), { "codex", "--no-alt-screen", "--yolo", "resume" },
-    "sources.codex = false: Codex starts exactly as before")
-  t.ok(claude_terminal_cmd({ CLAUDE_WRAP_TMUX = "0" }):find("--settings", 1, true) ~= nil,
-    "sources.codex = false leaves Claude's hook in place")
+    "sources.codex = false omits only the hook")
+end)
+with_review({ hook_wait_ms = 20000 }, function()
+  local value = hook.codex_override()
+  t.ok(value:find("codex submit 20000", 1, true) and value:find("timeout=25", 1, true),
+    "configured wait travels in argv and the CLI hard cap grows with it")
 end)
 
 ---------------------------------------------------------------------------
@@ -145,7 +118,7 @@ local function stand_in(name)
   vim.fn.setfperm(bin .. "/" .. name, "rwx------")
   return out
 end
-local recorded = { claude = stand_in("claude"), codex = stand_in("codex") }
+local recorded = { codex = stand_in("codex") }
 
 local function read_nul(path)
   local f = io.open(path, "rb")
@@ -167,7 +140,7 @@ local search_path = bin .. ":" .. vim.env.PATH
 ---Start `cmd` as the agent terminal would and return what the stand-in saw.
 ---Nothing starts unless `agent` resolves to the stand-in: jobstart looks a list
 ---command up on Nvim's own PATH, and the real CLI must never run here.
----@param agent "claude"|"codex"
+---@param agent "codex"
 ---@param cmd string|string[]
 ---@param socket string? the wrapper's tmux server, removed afterwards
 local function launch(agent, cmd, socket)
@@ -200,31 +173,17 @@ local function launch(agent, cmd, socket)
   return read_nul(out .. ".argv"), env
 end
 
-local wrapper = require("ai.editor").wrapper()
+local wrapper = require("agent_workbench.backend.launch").wrapper()
 local tmux = vim.fn.executable("tmux") == 1
-
--- Claude: claudecode appends its own arguments (--resume <id>) to terminal_cmd
--- and runs the string through the shell.
-local plugin_dir = scratch .. "/plug in"
-vim.fn.mkdir(plugin_dir .. "/.claude-plugin", "p")
-vim.fn.writefile({ '{"name":"hook-spec"}' }, plugin_dir .. "/.claude-plugin/plugin.json")
-local claude_want = { "--plugin-dir", plugin_dir, "--settings", hook.claude_settings(), "--resume", "abc-123" }
-for _, wrap in ipairs(tmux and { "0", "1" } or { "0" }) do
-  local cmd = claude_terminal_cmd({ CLAUDE_WRAP_TMUX = wrap, CLAUDE_CHROME = "0", NVIM_AI_PLUGIN_DIR = plugin_dir })
-  local path = wrap == "1" and "tmux" or "direct"
-  t.eq(ai_config.agent_of_command(cmd), "claude", "Claude (" .. path .. "): agent_of_command still finds the agent")
-  local argv, env = launch("claude", cmd .. " --resume abc-123", wrap == "1" and "claude-nvim-" .. vim.fn.getpid() or nil)
-  t.eq(argv, claude_want, "Claude (" .. path .. "): --settings arrives byte for byte, appended arguments after it")
-  t.eq(env, { EDITOR = wrapper, VISUAL = wrapper, NVIM = vim.v.servername },
-    "Claude (" .. path .. "): EDITOR, VISUAL and NVIM still reach the agent")
-end
 
 -- Codex: the list goes to jobstart without a shell, and under tmux as a
 -- multi-argument pane command.
 local codex_want = { "--no-alt-screen", "--yolo", "-c", override, "resume", "--last" }
 for _, wrap in ipairs(tmux and { "0", "1" } or { "0" }) do
-  local cmd = with_env({ CODEX_WRAP_TMUX = wrap }, function()
-    return codex._terminal_command(codex._codex_command({ "resume", "--last" }))
+  local cmd = with_env({ CODEX_WRAP_TMUX = wrap, TERM = "xterm-256color" }, function()
+    local argv = codex._codex_command({ "resume", "--last" })
+    argv[1] = bin .. "/codex" -- an absolute stand-in survives shell startup PATH changes
+    return codex._terminal_command(argv)
   end)
   local path = wrap == "1" and "tmux" or "direct"
   t.eq(ai_config.agent_of_command(cmd), "codex", "Codex (" .. path .. "): agent_of_command still finds the agent")
@@ -245,13 +204,14 @@ do
   local real_notify = vim.notify
   vim.notify = function(msg) notes[#notes + 1] = msg end
   local missing = scratch .. "/no-such-payload"
+  t.eq(hook.event("claude", "submit", missing, missing .. ".done"), "error:usage", "unimplemented Claude is refused")
   t.eq(hook.event("gemini", "submit", missing, missing .. ".done"), "error:usage", "an unknown agent is refused")
   t.eq(hook.event("codex", "session", missing, missing .. ".done"), "error:usage", "so is an event that was never injected")
-  t.eq(hook.event("claude", "submit", missing, missing .. ".done"), "missed",
+  t.eq(hook.event("codex", "submit", missing, missing .. ".done"), "missed",
     "a payload the script already removed is a missed submit")
   vim.wait(200, function() return #notes > 0 end, 10)
   vim.notify = real_notify
-  t.ok(#notes == 1 and notes[1]:find("Missed a Claude Code prompt submit", 1, true) ~= nil,
+  t.ok(#notes == 1 and notes[1]:find("Missed a Codex prompt submit", 1, true) ~= nil,
     "and says so, once: that prompt has no baseline")
   t.ok(vim.uv.fs_stat(missing .. ".done") == nil, "and leaves no release file behind")
 end
@@ -282,7 +242,7 @@ if chan then
   remote([[
     _G.hook_spec = { calls = {}, notes = {}, mode = "release" }
     vim.notify = function(msg) table.insert(_G.hook_spec.notes, msg) end
-    package.loaded["ai.review.rounds"] = {
+    package.loaded["agent_workbench.review.rounds"] = {
       native_event = function(ev)
         table.insert(_G.hook_spec.calls, {
           agent = ev.agent, event = ev.event, payload = ev.payload, waiting = not ev.gave_up(),
@@ -326,7 +286,7 @@ local submit = vim.json.encode({ session_id = "s-1", cwd = scratch, prompt = "hi
 
 -- Best of three here too: the first exec of a freshly written script pays a
 -- one-time scan on macOS (~0.4 s measured), which says nothing about the script.
-local res = fastest({ "claude", "submit", "2500" }, submit, nil)
+local res = fastest({ "codex", "submit", "2500" }, submit, nil)
 t.ok(silent_ok(res) and res.ms < 100, ("no NVIM: silent exit 0 at once (%.0f ms)"):format(res.ms))
 t.eq(leftovers(), {}, "and no payload file was made")
 
@@ -344,22 +304,22 @@ if chan then
   t.ok(silent_ok(res) and calls() == before, "an unknown agent never reaches Nvim")
 
   remote([[
-    _G.hook_spec.real_hook = package.loaded["ai.review.hook"]
-    package.loaded["ai.review.hook"] = { event = function() error("spec: the receiver raised") end }
+    _G.hook_spec.real_hook = package.loaded["agent_workbench.review.hook"]
+    package.loaded["agent_workbench.review.hook"] = { event = function() error("spec: the receiver raised") end }
   ]])
-  res = fastest({ "claude", "submit", "2500" }, submit, sock)
-  remote([[package.loaded["ai.review.hook"] = _G.hook_spec.real_hook]])
+  res = fastest({ "codex", "submit", "2500" }, submit, sock)
+  remote([[package.loaded["agent_workbench.review.hook"] = _G.hook_spec.real_hook]])
   t.ok(silent_ok(res) and res.ms < 100, ("a raising receiver: silent exit 0 within 100 ms (%.0f ms)"):format(res.ms))
   t.eq(leftovers(), {}, "and the payload is cleaned up")
 
   -- A submit is held until the baseline lands, and no longer.
   before = calls()
-  res = run_hook({ "claude", "submit", "2500" }, submit, sock)
+  res = run_hook({ "codex", "submit", "2500" }, submit, sock)
   local got = remote("return _G.hook_spec.calls")[before + 1]
   t.ok(silent_ok(res) and res.ms >= 150 and res.ms < 2000,
     ("a submit is held until the receiver releases it (%.0f ms), silently"):format(res.ms))
   t.eq(got and { got.agent, got.event, got.payload.session_id, got.payload.turn_id, got.waiting },
-    { "claude", "submit", "s-1", "t-1", true }, "rounds.native_event got the decoded payload while the hook waited")
+    { "codex", "submit", "s-1", "t-1", true }, "rounds.native_event got the decoded payload while the hook waited")
   t.eq(leftovers(), {}, "and the payload is cleaned up")
 
   -- Never released: the wait ends at the budget, and Nvim can tell it was late.
@@ -372,15 +332,8 @@ if chan then
   remote("_G.hook_spec.last.done()")
   t.eq(leftovers(), {}, "a release after the script gave up leaves nothing in TMPDIR")
 
-  res = run_hook({ "claude", "submit", "0" }, submit, sock)
+  res = run_hook({ "codex", "submit", "0" }, submit, sock)
   t.ok(silent_ok(res) and res.ms < 500, ("a zero wait only delivers (%.0f ms)"):format(res.ms))
-
-  -- A session event is released by the receiver itself.
-  before = calls()
-  res = run_hook({ "claude", "session", "2500" }, vim.json.encode({ session_id = "s-2", source = "resume" }), sock)
-  got = remote("return _G.hook_spec.calls")[before + 1]
-  t.ok(silent_ok(res) and res.ms < 500, ("a session event returns once delivered (%.0f ms)"):format(res.ms))
-  t.eq(got and { got.event, got.payload.source }, { "session", "resume" }, "and is forwarded as a session event")
 
   -- Subagents and spawned threads belong to the parent's turn.
   before = calls()
@@ -388,25 +341,12 @@ if chan then
     vim.json.encode({ session_id = "s-1", turn_id = "t-9", agent_id = "sub-1", agent_type = "worker" }), sock)
   t.ok(silent_ok(res) and res.ms < 500 and calls() == before,
     ("an event carrying agent_id is dropped and released at once (%.0f ms)"):format(res.ms))
-  before = calls()
-  res = run_hook({ "claude", "session", "2500" }, vim.json.encode({ session_id = "s-3", agent_id = "a" }), sock)
-  t.ok(silent_ok(res) and calls() == before, "for session events too")
-
-  -- The source toggles, read per event.
-  remote([[vim.g.ai_review = { sources = { claude = false } }]])
-  before = calls()
-  res = run_hook({ "claude", "submit", "2500" }, submit, sock)
-  t.ok(silent_ok(res) and res.ms < 500 and calls() == before,
-    ("sources.claude = false: a Claude submit is released and dropped (%.0f ms)"):format(res.ms))
-  remote([[_G.hook_spec.mode = "release"]])
-  res = run_hook({ "codex", "submit", "2500" }, submit, sock)
-  got = remote("return _G.hook_spec.calls")[before + 1]
-  t.ok(silent_ok(res) and got ~= nil and got.agent == "codex", "while Codex's still reaches the receiver")
+  -- Source settings are read again on every event.
   remote([[vim.g.ai_review = { sources = { codex = false } }]])
   before = calls()
   res = run_hook({ "codex", "submit", "2500" }, submit, sock)
-  t.ok(silent_ok(res) and calls() == before, "sources.codex = false: a Codex submit is dropped")
-  remote([[vim.g.ai_review = nil]])
+  t.ok(silent_ok(res) and calls() == before, "a disabled Codex source is acknowledged without a round")
+  remote([[vim.g.ai_review = nil; _G.hook_spec.mode = "release"]])
 
   -- A busy Nvim: the prompt goes ahead at the budget, and the late request
   -- never takes a baseline after the agent may already have written. Nvim may
@@ -416,20 +356,20 @@ if chan then
   local notes_before = #remote("return _G.hook_spec.notes")
   vim.rpcnotify(chan, "nvim_exec_lua", "vim.uv.sleep(1500)", {})
   vim.wait(50)
-  res = run_hook({ "claude", "submit", "300" }, submit, sock)
+  res = run_hook({ "codex", "submit", "300" }, submit, sock)
   t.ok(silent_ok(res) and res.ms < 1200,
     ("a blocked Nvim does not hold the prompt past the budget (%.0f ms)"):format(res.ms))
   remote("return 1") -- returns once the child is serving requests again
   vim.wait(300)
   local late = vim.list_slice(remote("return _G.hook_spec.notes"), notes_before + 1)
-  t.ok(calls() == before and (#late == 0 or late[1]:find("Missed a Claude Code prompt submit", 1, true) ~= nil),
+  t.ok(calls() == before and (#late == 0 or late[1]:find("Missed a Codex prompt submit", 1, true) ~= nil),
     "the late request takes no baseline (and, if served, reports the missed submit)")
   t.eq(leftovers(), {}, "and nothing is left in TMPDIR")
 
   -- Without ai.review.rounds the receiver acknowledges and drops the event.
-  if #remote([[return vim.loader.find("ai.review.rounds")]]) == 0 then
-    remote([[package.loaded["ai.review.rounds"] = nil]])
-    res = run_hook({ "claude", "submit", "2500" }, submit, sock)
+  if #remote([[return vim.loader.find("agent_workbench.review.rounds")]]) == 0 then
+    remote([[package.loaded["agent_workbench.review.rounds"] = nil]])
+    res = run_hook({ "codex", "submit", "2500" }, submit, sock)
     t.ok(silent_ok(res) and res.ms < 500, ("without ai.review.rounds a submit is released at once (%.0f ms)"):format(res.ms))
   end
 
@@ -444,24 +384,6 @@ pcall(vim.fn.jobstop, child)
 ---------------------------------------------------------------------------
 
 local BILLING = { "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY" }
-
--- `claude doctor` reports a settings file it cannot accept under "Invalid
--- settings" (and still exits 0). The broken control shows the check can fail.
-if vim.fn.executable("claude") == 1 then
-  local home = scratch .. "/claude-config"
-  vim.fn.mkdir(home, "p")
-  local function doctor(json)
-    local r = vim.system({ "claude", "--settings", json, "doctor" }, {
-      cwd = scratch, env = environ(BILLING, { CLAUDE_CONFIG_DIR = home }), clear_env = true, text = true,
-    }):wait(60000)
-    return r.code, (r.stdout or "") .. (r.stderr or "")
-  end
-  local code, out = doctor(hook.claude_settings())
-  t.ok(code == 0 and out:find("Claude Code doctor", 1, true) ~= nil and not out:find("Invalid settings", 1, true),
-    "claude doctor accepts the injected --settings")
-  local _, bad = doctor('{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"commandx","command":"x"}]}]}}')
-  t.ok(bad:find("Invalid settings", 1, true) ~= nil, "and rejects a broken one, so the check can fail")
-end
 
 -- `codex app-server` lists hooks with their trust status over JSON-RPC. In an
 -- isolated CODEX_HOME there is no login, so nothing can reach a model.

@@ -1,8 +1,8 @@
--- Review rounds (lua/ai/review/rounds.lua): the registry of native terminals
+-- Review rounds (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/rounds.lua): the registry of native terminals
 -- and CodeCompanion chats, the round rules every source goes through
 -- (submit), the CodeCompanion source, the delivery checks (resolve_sink), the
 -- <leader>av/aV facade keys and ai.feed's make_room; first of all, the review
--- loop's settings (lua/ai/review/config.lua).
+-- loop's settings (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/settings.lua).
 --
 -- Every repository is a scratch one under tempname(), with a space in its
 -- path. No agent is started: the "agent terminals" run `cat` and carry the
@@ -13,10 +13,10 @@
 -- dispatched directly -- so nothing is sent and no ACP bridge is spawned.
 local t = dofile("tests/helper.lua")
 
-t.eq(package.loaded["ai.review.rounds"], nil, "the round registry is not loaded at startup")
+t.eq(package.loaded["agent_workbench.review.rounds"], nil, "the round registry is not loaded at startup")
 
 ---------------------------------------------------------------------------
--- The review loop's settings (lua/ai/review/config.lua)
+-- The review loop's settings (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/settings.lua)
 ---------------------------------------------------------------------------
 
 -- vim.g.ai_review merged over the defaults on every get().
@@ -61,11 +61,32 @@ do
   local plugins_before = loaded_plugins()
   local saved_g = vim.g.ai_review
   vim.g.ai_review = nil
-  package.loaded["ai.review.config"] = nil
-  local config = require("ai.review.config")
-  config.get()
-  config.defaults()
-  config.overrides()
+  package.loaded["config.review"] = nil
+  local defaults = require("config.review")
+  -- The editable file is only data: it needs no vim, require, or other globals.
+  local plain_defaults = setfenv(assert(loadfile("lua/config/review.lua")), {})()
+  t.eq(plain_defaults, defaults, "the editable defaults load without any globals")
+
+  -- Exercise a changed editable default without changing the file on disk.
+  -- Runtime overrides take precedence, and removing one reveals that default.
+  local edited_defaults = vim.deepcopy(defaults)
+  edited_defaults.retention.rounds = 27
+  package.loaded["config.review"] = edited_defaults
+  package.loaded["agent_workbench.review.settings"] = nil
+  local edited = require("agent_workbench.review.settings")
+  edited_defaults.retention.rounds = 1
+  vim.g.ai_review = { retention = { rounds = 31, saved = 4 } }
+  t.eq(edited.get().retention, { rounds = 31, saved = 4 }, "runtime overrides win over editable defaults")
+  vim.g.ai_review = { retention = { saved = 4 } }
+  t.eq(edited.get().retention, { rounds = 20, saved = 4 }, "removing an override reveals the setup snapshot, independent of module cache edits")
+  t.eq(edited.defaults().retention, { rounds = 20, saved = 10 }, "defaults() reads the immutable setup snapshot")
+  package.loaded["config.review"] = defaults
+  package.loaded["agent_workbench.review.settings"] = nil
+  vim.g.ai_review = nil
+  local settings = require("agent_workbench.review.settings")
+  settings.get()
+  settings.defaults()
+  settings.overrides()
 
   vim.system, vim.fn.system, vim.fn.systemlist = real.system, real.fn_system, real.systemlist
   vim.fn.jobstart, io.popen, os.execute, vim.uv.spawn = real.jobstart, real.popen, real.execute, real.spawn
@@ -89,9 +110,8 @@ do
   local DEFAULTS = {
     retention = { rounds = 20, saved = 10 },
     max_file_size = 10 * 1024 * 1024,
-    sources = { claude = true, codex = true, codecompanion_acp = true, codecompanion_http = true },
+    sources = { codex = true, codecompanion_acp = true, codecompanion_http = true },
     hook_wait_ms = 2500,
-    claude_cwd = "git_root",
     unknown_session = "confirm",
     always_confirm = {},
     redirect = true,
@@ -103,46 +123,49 @@ do
   -- Defaults ---------------------------------------------------------------
 
   vim.g.ai_review = nil
-  t.eq(config.get(), DEFAULTS, "without vim.g.ai_review, get() is the §10.7 defaults")
-  t.eq(config.defaults(), DEFAULTS, "defaults() is the same table")
-  t.eq(config.overrides(), {}, "nothing is overridden")
+  local public_defaults = vim.deepcopy(DEFAULTS)
+  public_defaults.retention.saved, public_defaults.max_file_size, public_defaults.history_limit = nil, nil, nil
+  t.eq(defaults, public_defaults, "the editable review file declares only review-owned values; Git policy lives in config.git")
+  t.eq(settings.get(), DEFAULTS, "without vim.g.ai_review, get() is the §10.7 defaults")
+  t.eq(settings.defaults(), DEFAULTS, "defaults() is the same table")
+  t.eq(settings.overrides(), {}, "nothing is overridden")
   vim.g.ai_review = {}
-  t.eq(config.get(), DEFAULTS, "an empty vim.g.ai_review is the defaults")
+  t.eq(settings.get(), DEFAULTS, "an empty vim.g.ai_review is the defaults")
 
-  local copy = config.defaults()
+  local copy = settings.defaults()
   copy.retention.rounds, copy.always_confirm[1] = 1, "codex"
-  local got = config.get()
-  got.sources.claude = false
-  t.eq(config.defaults(), DEFAULTS, "defaults() is a deep copy: changing it leaves the next one alone")
-  t.eq(config.get(), DEFAULTS, "get() is a fresh table: changing it leaves the next one alone")
+  local got = settings.get()
+  got.sources.codex = false
+  t.eq(settings.defaults(), DEFAULTS, "defaults() is a deep copy: changing it leaves the next one alone")
+  t.eq(settings.get(), DEFAULTS, "get() is a fresh table: changing it leaves the next one alone")
   t.eq(warnings(), {}, "the defaults raise no warning")
 
   -- Overrides --------------------------------------------------------------
 
-  vim.g.ai_review = { claude_cwd = "cwd", sources = { codex = false }, always_confirm = { "codex" } }
-  t.eq(config.get(), with({ claude_cwd = "cwd", sources = { codex = false }, always_confirm = { "codex" } }),
+  vim.g.ai_review = { sources = { codex = false }, always_confirm = { "codex" } }
+  t.eq(settings.get(), with({ sources = { codex = false }, always_confirm = { "codex" } }),
     "a partial override changes only the keys it names; sibling sources stay true")
-  t.eq(config.overrides(), { claude_cwd = true, ["sources.codex"] = true, always_confirm = true },
+  t.eq(settings.overrides(), { ["sources.codex"] = true, always_confirm = true },
     "overrides() names each key that came from vim.g.ai_review")
 
   vim.g.ai_review = { retention = { rounds = 30 } }
-  local nested = config.get()
+  local nested = settings.get()
   t.eq(nested.retention, { rounds = 30, saved = 10 }, "retention.rounds alone keeps retention.saved at its default")
   t.eq(nested, with({ retention = { rounds = 30 } }), "a nested override touches nothing else")
-  t.eq(config.overrides(), { ["retention.rounds"] = true }, "overrides() names the nested key by its dotted path")
+  t.eq(settings.overrides(), { ["retention.rounds"] = true }, "overrides() names the nested key by its dotted path")
 
   vim.g.ai_review = { history_limit = false, redirect = false, hook_wait_ms = 0 }
-  local falsy = config.get()
+  local falsy = settings.get()
   t.eq({ falsy.history_limit, falsy.redirect, falsy.hook_wait_ms }, { false, false, 0 },
     "false and 0 are values, not a missing key")
 
   -- A list replaces the default; it is not merged entry by entry.
-  vim.g.ai_review = { always_confirm = { "claude", "codex" } }
-  t.eq(config.get().always_confirm, { "claude", "codex" }, "always_confirm takes the user's list")
+  vim.g.ai_review = { always_confirm = { "codex", "codex" } }
+  t.eq(settings.get().always_confirm, { "codex", "codex" }, "always_confirm takes the user's list")
 
   -- Vimscript spelling reaches the same table.
   vim.cmd([[let g:ai_review = {'retention': {'saved': 3}, 'unknown_session': 'refuse', 'redirect': v:false}]])
-  t.eq(config.get(), with({ retention = { saved = 3 }, unknown_session = "refuse", redirect = false }),
+  t.eq(settings.get(), with({ retention = { saved = 3 }, unknown_session = "refuse", redirect = false }),
     "a Vimscript dict with v:false works the same")
   t.eq(warnings(), {}, "valid overrides raise no warning")
 
@@ -150,7 +173,7 @@ do
 
   local function bad(case)
     vim.g.ai_review = case.input
-    local effective = config.get()
+    local effective = settings.get()
     t.eq(effective, case.want, case.what .. ": the bad value falls back to its default, the rest applies")
     local first = warnings()
     t.eq(#first, 1, case.what .. ": warns once")
@@ -160,10 +183,10 @@ do
     local msg = tostring(note.msg)
     t.eq(msg:find(case.mentions, 1, true) and case.mentions or msg, case.mentions,
       case.what .. ": the warning names the problem")
-    config.get()
-    config.overrides()
+    settings.get()
+    settings.overrides()
     t.eq(warnings(), {}, case.what .. ": the same problem does not warn again")
-    t.eq(config.overrides(), case.overrides or {}, case.what .. ": overrides() lists only what took effect")
+    t.eq(settings.overrides(), case.overrides or {}, case.what .. ": overrides() lists only what took effect")
   end
 
   bad({
@@ -192,15 +215,9 @@ do
   })
   bad({
     what = "wrong type for a boolean",
-    input = { sources = { claude = 1 } },
+    input = { sources = { codex = 1 } },
     want = DEFAULTS,
-    mentions = "sources.claude should be a boolean, not 1",
-  })
-  bad({
-    what = "out-of-enum value",
-    input = { claude_cwd = "home" },
-    want = DEFAULTS,
-    mentions = 'claude_cwd should be "git_root" or "cwd", not "home"; using "git_root"',
+    mentions = "sources.codex should be a boolean, not 1",
   })
   bad({
     what = "out-of-enum unknown_session",
@@ -242,7 +259,7 @@ do
     what = "always_confirm that is not a list",
     input = { always_confirm = "codex" },
     want = DEFAULTS,
-    mentions = 'always_confirm should be a list of "claude" or "codex", not "codex"; using {}',
+    mentions = 'always_confirm should be a list of "codex", not "codex"; using {}',
   })
   bad({
     what = "vim.g.ai_review that is not a table",
@@ -256,27 +273,27 @@ do
     what = "unknown agent in always_confirm",
     input = { always_confirm = { "codex", "claud" } },
     want = with({ always_confirm = { "codex" } }),
-    mentions = 'vim.g.ai_review.always_confirm[2] should be "claude" or "codex", not "claud"; ignored',
+    mentions = 'vim.g.ai_review.always_confirm[2] should be "codex", not "claud"; ignored',
     overrides = { always_confirm = true },
   })
   -- One bad key leaves its valid siblings in effect.
   bad({
     what = "a bad key beside good ones",
-    input = { retention = { rounds = 30, saved = -2 }, claude_cwd = "cwd" },
-    want = with({ retention = { rounds = 30 }, claude_cwd = "cwd" }),
+    input = { retention = { rounds = 30, saved = -2 } },
+    want = with({ retention = { rounds = 30 } }),
     mentions = "retention.saved should be a positive integer, not -2",
-    overrides = { ["retention.rounds"] = true, claude_cwd = true },
+    overrides = { ["retention.rounds"] = true },
   })
 
   -- Distinct problems are counted apart, and a fixed value stops warning.
-  vim.g.ai_review = { claude_cwd = "home", unknown_session = "allow", retention = { rounds = "30" } }
-  config.get()
+  vim.g.ai_review = { unknown_session = "allow", retention = { rounds = "30" } }
+  settings.get()
   t.eq(warnings(), {}, "problems already reported stay quiet when they come back together")
-  vim.g.ai_review = { claude_cwd = "nowhere" }
-  config.get()
+  vim.g.ai_review = { unknown_session = "nowhere" }
+  settings.get()
   t.eq(#warnings(), 1, "another bad value for the same key is a new problem and warns")
-  vim.g.ai_review = { claude_cwd = "cwd" }
-  t.eq(config.get().claude_cwd, "cwd", "once fixed, the value applies")
+  vim.g.ai_review = { unknown_session = "confirm" }
+  t.eq(settings.get().unknown_session, "confirm", "once fixed, the value applies")
   t.eq(warnings(), {}, "and nothing warns")
 
   -- util.baseline chains vim.system callbacks, fast events where vim.notify is
@@ -284,7 +301,7 @@ do
   vim.g.ai_review = { retention = { rounds = 7 }, hook_wait_ms = "soon" }
   local result
   real.system({ "true" }, {}, function()
-    local ok, value = pcall(config.get)
+    local ok, value = pcall(settings.get)
     result = { fast = vim.in_fast_event(), ok = ok }
     if ok then result.rounds, result.wait = value.retention.rounds, value.hook_wait_ms end
   end)
@@ -298,10 +315,10 @@ do
   vim.g.ai_review = saved_g
 end
 
-local rounds = require("ai.review.rounds")
-local hook = require("ai.review.hook")
-local baseline = require("util.baseline")
-local config = require("ai.config")
+local rounds = require("agent_workbench.review.rounds")
+local hook = require("agent_workbench.review.hook")
+local baseline = require("git_review.baseline")
+local config = require("agent_workbench.state")
 local uv = vim.uv
 local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 
@@ -310,7 +327,7 @@ local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 local notes, every_note, every_prompt = {}, {}, {}
 local function from_rounds()
   local caller = debug.getinfo(3, "S")
-  return caller ~= nil and caller.source:find("ai/review/rounds.lua", 1, true) ~= nil
+  return caller ~= nil and caller.source:find("agent_workbench/review/rounds.lua", 1, true) ~= nil
 end
 local real_notify = vim.notify
 vim.notify = function(msg, level, opts)
@@ -443,10 +460,10 @@ t.ok(rounds.nonce():match("^%d+%-%d+$") ~= nil, "the process nonce is <pid>-<hrt
 
 local fake_round = {
   kind = "round", id = "R-1", sha = "abc", root = R1, tree = "def",
-  trailers = { Source = "claude", Conversation = "claude:s", Root = R1, Late = "1" },
+  trailers = { Source = "codex", Conversation = "codex:s", Root = R1, Late = "1" },
 }
 t.eq(rounds.review_vars(fake_round),
-  { id = "R-1", sha = "abc", conversation = "claude:s", source = "claude", root = R1, late = true },
+  { id = "R-1", sha = "abc", conversation = "codex:s", source = "codex", root = R1, late = true },
   "review_vars: a round's metadata, Late as a boolean")
 t.eq(rounds.review_vars(vim.tbl_extend("force", fake_round, { trailers = { Source = "manual", Root = R1 } })),
   { id = "R-1", sha = "abc", source = "manual", root = R1, late = false }, "review_vars: no owner, not late")
@@ -463,8 +480,8 @@ local terminals = {}
 local function agent_terminal(agent, cwd)
   vim.cmd.enew()
   local buf = vim.api.nvim_get_current_buf()
+  t.agent_metadata(buf, agent, cwd)
   local job = vim.fn.jobstart({ "cat" }, { term = true, cwd = cwd })
-  vim.b[buf].snacks_terminal = { cmd = agent == "claude" and { "claude", "--settings", "{}" } or { "codex", "--yolo" }, cwd = cwd }
   terminals[#terminals + 1] = { buf = buf, job = job }
   vim.wait(1000, function()
     local e = rounds._state().native[agent]
@@ -474,23 +491,15 @@ local function agent_terminal(agent, cwd)
 end
 local native = rounds._state().native
 
-local claude_buf = agent_terminal("claude", R1)
-t.ok(native.claude ~= nil and native.claude.buf == claude_buf, "TermOpen registers a Claude panel")
-t.eq(native.claude.root, R1, "its root is the Git toplevel of its cwd")
-t.eq({ native.claude.session, native.claude.dirty }, { nil, false }, "with no session yet, and clean")
 local codex_buf = agent_terminal("codex", R1 .. "/sub dir")
-t.eq(native.codex and native.codex.root, R1, "a Codex panel started in a subdirectory belongs to the toplevel")
-
+t.ok(native.codex and native.codex.buf == codex_buf, "TermOpen registers the Codex panel")
+t.eq(native.codex.root, R1, "its root is the Git toplevel of its cwd")
+t.eq({ native.codex.session, native.codex.dirty }, { nil, false }, "before the first submit its session is unknown and clean")
 vim.cmd.enew()
+local plain_panel = vim.api.nvim_get_current_buf()
 local shell_job = vim.fn.jobstart({ "cat" }, { term = true })
 pause(50)
-t.ok(native.claude.buf == claude_buf and native.codex.buf == codex_buf, "a plain terminal registers nothing")
-vim.fn.jobstop(shell_job)
-
--- Claude's SessionStart reports the foreground session, except a fork.
-t.eq(hook_event("claude", "session", { session_id = "s1", source = "startup", cwd = R1 }), "ok", "SessionStart is accepted")
-vim.wait(1000, function() return native.claude.session == "s1" end, 10)
-t.eq(native.claude.session, "s1", "SessionStart(startup) sets the session")
+t.ok(native.codex.buf == codex_buf, "a plain terminal registers no native session")
 
 -- dirty: typed input in Terminal-mode on a registered agent panel.
 local real_mode = vim.api.nvim_get_mode
@@ -500,74 +509,71 @@ local function in_mode(mode, fn)
   vim.api.nvim_get_mode = real_mode
   assert(ok, err)
 end
-vim.api.nvim_set_current_buf(claude_buf)
+vim.api.nvim_set_current_buf(codex_buf)
 in_mode("t", function()
   rounds._on_key("j", "j")
   rounds._on_key("\128\253K", vim.keycode("<ScrollWheelUp>"))
   rounds._on_key("x", "")
 end)
-t.eq(native.claude.dirty, false, "dirty: the config's own Terminal-mode keys (jk), the wheel and untyped keys do not count")
+t.eq(native.codex.dirty, false, "dirty: the config's own Terminal-mode keys (jk), the wheel and untyped keys do not count")
 in_mode("n", function() rounds._on_key("a", "a") end)
-t.eq(native.claude.dirty, false, "dirty: nothing outside Terminal-mode")
-vim.api.nvim_set_current_buf(codex_buf)
+t.eq(native.codex.dirty, false, "dirty: nothing outside Terminal-mode")
+vim.api.nvim_set_current_buf(plain_panel)
 in_mode("t", function() rounds._on_key("a", "a") end)
-t.eq(native.claude.dirty, false, "dirty: input to another panel leaves this one alone")
-t.eq(native.codex.dirty, true, "dirty: ... and marks that one")
-native.codex.dirty = false
-vim.api.nvim_set_current_buf(claude_buf)
+t.eq(native.codex.dirty, false, "dirty: typing into an unrelated terminal leaves the agent alone")
+vim.api.nvim_set_current_buf(codex_buf)
 in_mode("t", function() rounds._on_key("/", "/") end)
-t.eq(native.claude.dirty, true, "dirty: typing into the agent's own panel marks it")
+t.eq(native.codex.dirty, true, "dirty: typing into the agent's own panel marks it")
 
-hook_event("claude", "session", { session_id = "s-fork", source = "fork", cwd = R1 })
-pause(100)
-t.eq({ native.claude.session, native.claude.dirty }, { "s1", true }, "SessionStart(fork) changes nothing")
-hook_event("claude", "session", { session_id = "s1", source = "resume", cwd = R1 })
-vim.wait(1000, function() return native.claude.dirty == false end, 10)
-t.eq({ native.claude.session, native.claude.dirty }, { "s1", false }, "SessionStart(resume) reports the session and clears dirty")
+t.eq(hook_event("claude", "submit", { session_id = "unsupported", cwd = R1 }), "error:usage",
+  "an unimplemented native backend is refused by the hook receiver")
+vim.fn.jobstop(shell_job)
 
 ---------------------------------------------------------------------------
 -- The round rules, through the hook receiver
 ---------------------------------------------------------------------------
 
-local function claude_submit(extra, give_up)
+local native_seq = 0
+local function native_submit(extra, give_up)
+  native_seq = native_seq + 1
   local n = #submits + 1
-  local _, path, done = hook_event("claude", "submit",
-    vim.tbl_extend("force", { session_id = "s1", cwd = R1, prompt = "x" }, extra or {}), give_up)
+  local _, path, done = hook_event("codex", "submit",
+    vim.tbl_extend("force", { session_id = "c1", turn_id = "native-" .. native_seq, cwd = R1, prompt = "x" }, extra or {}), give_up)
   return n, path, done
 end
 
--- A Claude prompt opens a round, owned by its session.
+-- A Codex prompt opens a round, owned by its session.
 edit()
-local n, _, done_path = claude_submit()
+local n, _, done_path = native_submit()
 local rec = settled(n, true)
-t.ok(rec.round ~= nil and rec.reused == false, "Claude UserPromptSubmit opens a round")
+t.ok(rec.round ~= nil and rec.reused == false, "Codex UserPromptSubmit opens a round")
 t.ok(rec.done_seq < rec.round_seq, "the hook is released when the tree is written, before the round is saved")
 t.ok(uv.fs_stat(done_path) ~= nil, "the waiting script is told through its done file")
 local first = find_round(R1, rec.round.id)
 t.ok(first ~= nil, "the round is a baseline under refs/nvim-review/")
-t.eq(first and first.trailers, { Source = "claude", Conversation = "claude:s1", Root = R1 },
+t.eq(first and first.trailers, { Source = "codex", Conversation = "codex:c1", Root = R1 },
   "with Source, Conversation and Root trailers, and no Late")
-t.ok(first and first.subject:match("^nvim review: Claude round %d%d:%d%d:%d%d$") ~= nil,
+t.ok(first and first.subject:match("^nvim review: Codex round %d%d:%d%d:%d%d$") ~= nil,
   "and a subject for pickers (" .. tostring(first and first.subject) .. ")")
 local count = #rounds_in(R1)
 
 -- Nothing changed: the round is kept.
-n = claude_submit()
+n = native_submit()
 rec = settled(n, true)
 t.ok(rec.reused == true and rec.round.id == first.id, "an unchanged tree keeps the conversation's last round")
 t.eq(#rounds_in(R1), count, "and saves nothing")
 
--- Every Claude prompt with changes opens one: there is no turn to dedupe by.
+-- Every fresh Codex turn with changes opens one.
 edit()
-n = claude_submit()
+n = native_submit()
 rec = settled(n, true)
-t.ok(rec.reused == false and rec.round.id ~= first.id, "the next Claude prompt with changes opens another round")
+t.ok(rec.reused == false and rec.round.id ~= first.id, "the next Codex prompt with changes opens another round")
 count = count + 1
 
 -- A hook that fires twice within the window opens nothing the second time.
 rounds._DEDUPE_MS = 60000
 edit()
-n = claude_submit()
+n = native_submit()
 rec = settled(n, false)
 t.ok(rec.done and rec.round == nil, "a repeat within a second is released and opens nothing")
 t.eq(#rounds_in(R1), count, "no round for the repeat")
@@ -595,81 +601,38 @@ t.ok(rec.round ~= nil and not rec.reused, "the next turn does")
 -- script and receiver), and native_event drops it again.
 local before = #submits
 local released = false
-rounds.native_event({ agent = "claude", event = "submit", payload = { session_id = "s-sub", agent_id = "x" },
+rounds.native_event({ agent = "codex", event = "submit", payload = { session_id = "s-sub", agent_id = "x" },
   done = function() released = true end, gave_up = function() return false end })
 pause(150)
 t.ok(released and #submits == before, "and by native_event: released, no submit")
-t.eq({ native.claude.session, native.codex.session }, { "s1", "c1" }, "neither changed a session")
+t.eq(native.codex.session, "c1", "a child thread changed no parent session")
 
--- Claude waking itself when a background task finishes goes on with the turn.
-local NOTIFICATION = "<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>"
-before = #submits
-local rounds_before = #rounds_in(R1)
-edit()
-local asked_before = os.time()
--- Only the notification can set these back.
-rounds._state().prompted["claude:s1"] = nil
-native.claude.session, native.claude.dirty = "s-other", true
-local _, _, notify_done = hook_event("claude", "submit", { session_id = "s1", cwd = R1, prompt = NOTIFICATION })
-vim.wait(3000, function() return uv.fs_stat(notify_done) ~= nil end, 10)
-pause(150)
-t.ok(uv.fs_stat(notify_done) ~= nil, "a background task's notification releases the hook at once")
-t.eq({ #submits, #rounds_in(R1) }, { before, rounds_before }, "and opens no round, though the tree changed")
-t.ok((rounds.prompted_at("claude:s1") or 0) >= asked_before, "but marks the session prompted")
-t.eq({ native.claude.session, native.claude.dirty }, { "s1", false }, "and still reports its session")
--- A background agent's hand-back, idle (framed) or queued during a turn (bare).
-local HANDBACK = '<agent-message from="a51adc1b9a1fa2e89">\n[Subagent hand-back] The text below is the final report.'
-for _, prompt in ipairs({
-  "Another Claude session sent a message:\n" .. HANDBACK,
-  "Another Claude session sent a message while you were working:\n" .. HANDBACK,
-  HANDBACK,
-}) do
-  n = claude_submit({ prompt = prompt })
-  pause(150)
-  t.eq(#submits, before, "a background agent's hand-back opens no round: " .. prompt:sub(1, 40):gsub("\n", " "))
-end
-for _, prompt in ipairs({
-  'Another Claude session sent a message:\n<agent-message from="teammate">\nPlease review the parser.',
-  '<cross-session-message from="x">\n[Subagent hand-back] quoted</cross-session-message>',
-  'please explain [Subagent hand-back] and <agent-message>',
-}) do
-  edit()
-  rec = settled(claude_submit({ prompt = prompt }), true)
-  t.ok(rec.round ~= nil and not rec.reused, "a request opens its round: " .. prompt:sub(1, 40):gsub("\n", " "))
-  before = #submits
-end
-n = claude_submit({ prompt = "  " .. NOTIFICATION })
-pause(150)
-t.eq(#submits, before, "leading blanks do not hide one")
-t.eq({ rounds._continues_turn(nil), rounds._continues_turn(42) }, { false, false }, "no prompt is no wake-up")
-edit()
-n = claude_submit({ prompt = "explain <task-notification> to me" })
-rec = settled(n, true)
-t.ok(rec.round ~= nil and not rec.reused, "a prompt that only mentions it opens a round as any other")
-count = #rounds_in(R1)
-edit()
-rec = settled(codex_submit("t-notify", { prompt = NOTIFICATION }), true)
-t.ok(rec.round ~= nil and not rec.reused, "Codex has no such prompt: its submits open rounds whatever they say")
+-- A spawned thread never changes the parent's reported session.
+t.eq(native.codex.session, "c1", "ignored child events leave the parent session unchanged")
+local unsupported_released = false
+rounds.native_event({ agent = "claude", event = "submit", payload = { session_id = "unimplemented", cwd = R1 },
+  done = function() unsupported_released = true end })
+t.ok(unsupported_released, "direct native_event also acknowledges an unimplemented backend")
 
 -- Late: the script stopped waiting before the tree was written.
 edit()
-n = claude_submit(nil, true)
+n = native_submit(nil, true)
 rec = settled(n, true)
 local late = rec.round and find_round(R1, rec.round.id)
 t.eq(late and late.trailers.Late, "1", "a baseline that lands after the script gave up is Late")
 t.eq(late and rounds.review_vars(late).late, true, "and review_vars says so")
 
--- Claude's Bash can leave the repository; the session's root stays.
+-- An agent can leave the repository; the session's root stays.
 notes = {}
 edit()
-n = claude_submit({ cwd = R2 })
+n = native_submit({ cwd = R2 })
 rec = settled(n, true)
 t.eq(rec.round and find_round(R1, rec.round.id).trailers.Root, R1, "a prompt from another cwd still rounds the session's root")
 local drift = noted("still recorded for")
 t.ok(drift ~= nil and drift.msg:find(vim.fn.fnamemodify(R2, ":~"), 1, true) ~= nil, "and says where the agent is, once")
 notes = {}
 edit()
-settled(claude_submit({ cwd = R2 }), true)
+settled(native_submit({ cwd = R2 }), true)
 t.eq(noted("still recorded for"), nil, "only once")
 
 -- Outside Git: the registry is updated, nothing else.
@@ -680,7 +643,7 @@ t.ok(rec.done and rec.round == nil, "a prompt there is released and opens no rou
 t.eq(native.codex.session, "c-plain", "but its session is recorded")
 notes = {}
 n = #submits + 1
-rounds.submit({ source = "claude", conversation = "claude:z", root = PLAIN })
+rounds.submit({ source = "codex", conversation = "codex:z", root = PLAIN })
 rec = settled(n, false)
 t.ok(rec.done and rec.round == nil and #notes == 0, "submit outside Git: released, silent, no round")
 
@@ -691,14 +654,14 @@ do
     baseline[field] = stub
     notes = {}
     n = #submits + 1
-    rounds.submit({ source = "claude", conversation = "claude:failing", root = R1 })
+    rounds.submit({ source = "codex", conversation = "codex:failing", root = R1 })
     rec = settled(n, false)
     baseline.snapshot, baseline.save, baseline.locate = real_snapshot, real_save, real_locate
     t.ok(rec.done and rec.round == nil, what .. ": the source is released, no round")
     return notes[1] and notes[1].level == WARN and notes[1].msg or ""
   end
   local said = failing("no snapshot", "snapshot", function(_, cb) cb(nil, "spec: no snapshot") end)
-  t.ok(said:find("^No review baseline for this Claude prompt:\nspec: no snapshot$") ~= nil, "and says why: " .. vim.inspect(said))
+  t.ok(said:find("^No review baseline for this Codex prompt:\nspec: no snapshot$") ~= nil, "and says why: " .. vim.inspect(said))
   edit()
   said = failing("the round not saved", "save", function(_, _, _, cb) cb(nil, "spec: not saved") end)
   t.ok(said:find("^Could not save the review round:\nspec: not saved$") ~= nil, "and says why: " .. vim.inspect(said))
@@ -737,7 +700,7 @@ local oldest = all[#all]
 vim.fn.writefile({ "> feedback in progress" }, rounds.draft_path(R1, oldest.id))
 vim.g.ai_review = { retention = { rounds = 1 } }
 edit()
-local newest = settled(claude_submit(), true).round
+local newest = settled(native_submit(), true).round
 vim.wait(5000, function() return #rounds_in(R1) == 2 end, 50)
 local kept = vim.tbl_map(function(e) return e.id end, rounds_in(R1))
 t.eq(kept, { newest.id, oldest.id }, "retention keeps the newest round and the one with a draft, nothing else")
@@ -755,8 +718,8 @@ local function fake_chat(id, adapter_type, cwd)
   local chat = {
     id = id,
     bufnr = vim.api.nvim_create_buf(false, true),
-    adapter = { type = adapter_type, name = adapter_type == "acp" and "claude_code" or "anthropic",
-      formatted_name = adapter_type == "acp" and "Claude Code" or "Anthropic" },
+    adapter = { type = adapter_type, name = adapter_type == "acp" and "codex" or "openai",
+      formatted_name = adapter_type == "acp" and "Codex" or "OpenAI" },
     callbacks = {},
   }
   function chat:add_callback(event, fn)
@@ -860,25 +823,25 @@ local function kinds() return vim.tbl_map(function(s) return s.kind end, selects
 local r2_chat = fake_chat(6161, "http", R2)
 local r2_conv = ("cc:%s:6161"):format(rounds.nonce())
 
-local target, reason = resolve("claude:s1", R1)
-t.ok(target and target.kind == "native" and target.agent == "claude" and target.conversation == "claude:s1",
+local target, reason = resolve("codex:c1", R1)
+t.ok(target and target.kind == "native" and target.agent == "codex" and target.conversation == "codex:c1",
   "owner running the round's session, clean: delivered to it")
 t.eq(#selects, 0, "without asking")
-t.ok(target and target.redirected == false and target.owner == "claude:s1", "not redirected")
+t.ok(target and target.redirected == false and target.owner == "codex:c1", "not redirected")
 
-native.claude.dirty = true
-target = resolve("claude:s1", R1, choose("Deliver"))
+native.codex.dirty = true
+target = resolve("codex:c1", R1, choose("Deliver"))
 t.eq(kinds(), { "ai_review_confirm" }, "dirty: asks first")
 t.ok(noted("/new, /resume or /fork") ~= nil, "saying why")
 t.ok(selects[1] and selects[1].prompt:find("Deliver anyway?", 1, true) ~= nil, "in a notice beside the question")
-t.ok(target and target.agent == "claude", "and delivers once confirmed")
-target, reason = resolve("claude:s1", R1, choose("Cancel"))
+t.ok(target and target.agent == "codex", "and delivers once confirmed")
+target, reason = resolve("codex:c1", R1, choose("Cancel"))
 t.ok(target == nil and reason == "cancelled", "cancelling refuses")
 vim.g.ai_review = { unknown_session = "refuse" }
-target, reason = resolve("claude:s1", R1)
+target, reason = resolve("codex:c1", R1)
 t.ok(target == nil and reason == "unknown-session" and #selects == 0, "unknown_session = refuse: refused without asking")
 vim.g.ai_review = nil
-native.claude.dirty = false
+native.codex.dirty = false
 
 native.codex.session = nil
 target = resolve("codex:c1", R1, choose("Deliver"))
@@ -886,50 +849,46 @@ t.eq(kinds(), { "ai_review_confirm" }, "a session not reported yet: asks first")
 t.ok(noted("first prompt") ~= nil, "explaining Codex reports it at the first prompt")
 t.ok(target and target.agent == "codex", "and delivers once confirmed")
 native.codex.session = "c1"
-native.claude.session = nil
-target = resolve("claude:s1", R1, choose("Deliver"))
-t.ok(kinds()[1] == "ai_review_confirm" and noted("Claude Code has not reported its session") ~= nil and target ~= nil,
-  "a Claude panel that has not reported its session asks the same way")
-native.claude.session = "s1"
 
-vim.g.ai_review = { always_confirm = { "claude" } }
-target = resolve("claude:s1", R1, choose("Deliver"))
+vim.g.ai_review = { always_confirm = { "codex" } }
+target = resolve("codex:c1", R1, choose("Deliver"))
 t.ok(#selects == 1 and target ~= nil, "always_confirm: asks even when the session is known")
+vim.g.ai_review = { always_confirm = {} }
 target = resolve("codex:c1", R1)
-t.ok(#selects == 0 and target ~= nil, "but only for the agents it names")
+t.ok(#selects == 0 and target ~= nil, "an empty confirmation list allows the known clean owner")
 vim.g.ai_review = nil
 
 -- Rule 1, which nothing bypasses.
-target, reason = resolve("claude:s1", R2)
+target, reason = resolve("codex:c1", R2)
 t.ok(target == nil and reason == "root" and #selects == 0, "another root: refused, nothing asked")
 t.ok(#notes == 1 and notes[1].level == WARN and notes[1].title == "AI review", "with a warning")
 target, reason = resolve(r2_conv, R1)
 t.ok(target == nil and reason == "root" and #selects == 0, "a chat in another root: refused the same way")
-target, reason = resolve("claude:s1", { R1, R2 })
+target, reason = resolve("codex:c1", { R1, R2 })
 t.ok(target == nil and reason == "root" and #selects == 0, "view and draft disagreeing about the root: refused")
-target = resolve("claude:s1", { R1 .. "/sub dir/..", R1 })
+target = resolve("codex:c1", { R1 .. "/sub dir/..", R1 })
 t.ok(target ~= nil, "roots are compared as realpaths")
 
 -- Rule 4: the owner is gone.
-target, reason = resolve("claude:other", R1, choose("Keep the draft"))
+target, reason = resolve("codex:other", R1, choose("Keep the draft"))
 t.ok(target == nil and reason == "owner-gone", "another session in the owner's terminal: refused")
 t.eq(kinds(), { "ai_review_redirect" }, "offering to send it to a current session")
 t.ok(notes[1] and notes[1].msg:find("/resume", 1, true) ~= nil, "and saying how to get the owner back")
 t.ok(selects[1] and notes[1] and selects[1].prompt == vim.split(notes[1].msg, "\n")[1],
   "the offer is headed by the notice's first line (" .. tostring(selects[1] and selects[1].prompt) .. ")")
-target = resolve("claude:other", R1, choose("current session"), choose("Codex"), choose("Send"))
+target = resolve("codex:other", R1, choose("current session"), choose("Codex"), choose("Send"))
 t.eq(kinds(), { "ai_review_redirect", "ai_review_target", "ai_review_confirm" }, "redirect: offer, pick, confirm")
 local labels = selects[2] and table.concat(selects[2].labels, " | ") or ""
-t.ok(labels:find("Claude Code · session s1", 1, true) and labels:find("Codex · session c1", 1, true)
+t.ok(labels:find("Codex · session c1", 1, true)
   and labels:find("#" .. http.bufnr, 1, true) and not labels:find("#" .. r2_chat.bufnr, 1, true),
-  "of this root only: both panels and the chats (" .. labels .. ")")
-t.ok(selects[3] and selects[3].prompt:find("belongs to Claude Code session other", 1, true)
+  "of this root only: the native panel and this root's chats (" .. labels .. ")")
+t.ok(selects[3] and selects[3].prompt:find("belongs to Codex session other", 1, true)
   and selects[3].labels[1]:find("Codex · session c1", 1, true), "the confirmation names the owner and the new target")
-t.ok(target and target.agent == "codex" and target.redirected == true and target.owner == "claude:other",
+t.ok(target and target.agent == "codex" and target.redirected == true and target.owner == "codex:other",
   "confirmed: delivered to the new target, marked redirected")
 
 vim.g.ai_review = { redirect = false }
-target, reason = resolve("claude:other", R1)
+target, reason = resolve("codex:other", R1)
 t.ok(target == nil and reason == "owner-gone" and #selects == 0, "redirect = false: refused, nothing offered")
 vim.g.ai_review = nil
 
@@ -941,14 +900,6 @@ t.ok(target == nil and reason == "owner-gone" and kinds()[1] == "ai_review_redir
 t.ok(notes[1] and notes[1].msg:find("not running", 1, true) and notes[1].msg:find("codex resume", 1, true),
   "telling how to resume Codex")
 native.codex = saved_codex
-local saved_claude = native.claude
-native.claude = nil
-target, reason = resolve("claude:s1", R1, choose("Keep"))
-t.ok(target == nil and reason == "owner-gone" and notes[1]
-  and notes[1].msg:find("resume session s1 with <leader>ar", 1, true) ~= nil,
-  "a Claude owner not running: refused, telling which session to resume")
-native.claude = saved_claude
-
 -- The owner's agent relaunched in another root. Whether that terminal still
 -- runs the owner is asked first: another session there, or one not reported
 -- yet, is the owner gone (with the same-root offer); only the owner's own
@@ -959,40 +910,32 @@ local function not_listed(agent)
   end
   return selects[2] ~= nil
 end
-local claude_was = { root = native.claude.root, session = native.claude.session }
-native.claude.root, native.claude.session = R2, "b2"
-target, reason = resolve("claude:s1", R1, choose("Keep the draft"))
+local native_was = { root = native.codex.root, session = native.codex.session }
+native.codex.root, native.codex.session = R2, "b2"
+target, reason = resolve("codex:c1", R1, choose("Keep the draft"))
 t.ok(target == nil and reason == "owner-gone", "owner's agent now in another root and another session: the owner is gone")
 t.eq(kinds(), { "ai_review_redirect" }, "so the redirect is offered, not a root refusal")
 t.ok(notes[1] and notes[1].msg:find(vim.fn.fnamemodify(R2, ":~"), 1, true) ~= nil
   and notes[1].msg:find("session b2", 1, true) ~= nil and notes[1].msg:find("<leader>ar", 1, true) ~= nil,
   "saying where and in which session the agent runs now, and how to get the owner back")
-target = resolve("claude:s1", R1, choose("current session"), choose("Codex"), choose("Send"))
+target = resolve("codex:c1", R1, choose("current session"), choose("API chat"), choose("Send"))
 t.eq(kinds(), { "ai_review_redirect", "ai_review_target", "ai_review_confirm" }, "redirect: offer, pick, confirm")
-t.ok(not_listed("claude"), "the picker lists this root's sessions, not the panel in the other root")
-t.ok(target and target.agent == "codex" and target.root == R1 and target.redirected == true,
-  "confirmed: delivered to this root's Codex, marked redirected")
-native.claude.session = nil
-target, reason = resolve("claude:s1", R1, choose("Keep the draft"))
+t.ok(not_listed("codex"), "the picker lists this root's sessions, not the panel in the other root")
+t.ok(target and target.chat == http and target.root == R1 and target.redirected == true,
+  "confirmed: delivered to this root's chat, marked redirected")
+native.codex.session = nil
+target, reason = resolve("codex:c1", R1, choose("Keep the draft"))
 t.ok(target == nil and reason == "owner-gone" and kinds()[1] == "ai_review_redirect",
   "in another root with its session not reported yet: the owner is gone too, with the offer")
 t.ok(notes[1] and notes[1].msg:find("has not reported its session", 1, true) ~= nil, "saying so")
-native.claude.session = "s1"
-target, reason = resolve("claude:s1", R1)
+native.codex.session = "c1"
+target, reason = resolve("codex:c1", R1)
 t.ok(target == nil and reason == "root" and #selects == 0, "the owner's own session in another root: refused, nothing offered")
-native.claude.dirty = true
-target, reason = resolve("claude:s1", R1)
+native.codex.dirty = true
+target, reason = resolve("codex:c1", R1)
 t.ok(target == nil and reason == "root" and #selects == 0, "also when it was typed into since it said so")
-native.claude.dirty = false
-native.claude.root, native.claude.session = claude_was.root, claude_was.session
-
-local codex_was = { root = native.codex.root, session = native.codex.session }
-native.codex.root, native.codex.session = R2, nil
-target, reason = resolve("codex:c1", R1, choose("current session"), choose("Claude Code · session"), choose("Send"))
-t.ok(selects[1] and selects[1].kind == "ai_review_redirect" and not_listed("codex"),
-  "a Codex panel relaunched in another root before its first prompt: the owner is gone, with the offer")
-t.ok(target and target.agent == "claude" and target.redirected == true, "and the redirect delivers to this root's Claude")
-native.codex.root, native.codex.session = codex_was.root, codex_was.session
+native.codex.dirty = false
+native.codex.root, native.codex.session = native_was.root, native_was.session
 
 -- Chats.
 target = resolve(http_conv, R1)
@@ -1005,7 +948,7 @@ target, reason = resolve("cc:1-2:4242", R1, choose("Keep"))
 t.ok(target == nil and reason == "owner-gone" and kinds()[1] == "ai_review_redirect",
   "a chat id from another Nvim (other nonce): refused, with the offer")
 http.current_request = {}
-target, reason = resolve("claude:gone", R1, choose("current session"), choose("API chat"), choose("Send"))
+target, reason = resolve("codex:gone", R1, choose("current session"), choose("API chat"), choose("Send"))
 t.ok(target == nil and reason == "busy", "a redirect to a busy chat is still refused")
 http.current_request = nil
 
@@ -1040,20 +983,19 @@ local function owner_of(rec_)
 end
 
 edit()
-rec = start(claude_buf)
+rec = start(codex_buf)
 local owner, entry = owner_of(rec)
-t.eq({ owner, entry and entry.trailers.Source }, { "claude:s1", "manual" }, "aV in an agent panel: owned by its session")
+t.eq({ owner, entry and entry.trailers.Source }, { "codex:c1", "manual" }, "aV in an agent panel: owned by its session")
 t.ok(noted("started") ~= nil, "and says it started")
-rec = start(claude_buf)
+rec = start(codex_buf)
 t.ok(rec.reused == true and noted("already the current state") ~= nil, "aV again with nothing changed only says so")
 
 -- Outside an agent's own buffer, the owner is the chat on the right: what
 -- ai.slot reads off this tabpage's windows. The slot knows a native agent by
 -- its backend, so the stand-in panels are its terminals for these cases.
-local backends = { claude = require("ai.backend.claude"), codex = require("ai.backend.codex") }
+local backends = { codex = require("agent_workbench.backend.codex") }
 local slot_saved = {}
 for name, b in pairs(backends) do slot_saved[name] = { running = b.running, buf = b.buf } end
-backends.claude.running, backends.claude.buf = function() return true end, function() return claude_buf end
 backends.codex.running, backends.codex.buf = function() return true end, function() return codex_buf end
 local function unstand()
   for name, fns in pairs(slot_saved) do
@@ -1075,17 +1017,32 @@ local file_buf = vim.api.nvim_get_current_buf()
 edit()
 owner, entry = owner_of(start(file_buf))
 t.ok(entry ~= nil and owner == nil, "aV in a file with nothing on the right: no owner, whatever runs elsewhere")
-local right_win = on_right(claude_buf)
+local right_win = on_right(codex_buf)
 edit()
-t.eq((owner_of(start(file_buf))), "claude:s1", "aV in a file: the agent on the right, working in this root, owns it")
-vim.api.nvim_win_set_buf(right_win, codex_buf)
-edit()
-t.eq((owner_of(start(file_buf))), "codex:c1", "with Codex on the right instead, Codex's session")
-local second = on_right(claude_buf)
+t.eq((owner_of(start(file_buf))), "codex:c1", "aV in a file: the agent on the right, working in this root, owns it")
+-- Showing another chat alongside the native panel makes the owner ambiguous.
+local previous_cc = require("agent_workbench.companion")
+local real_chats = previous_cc.chats
+local previous_events = vim.o.eventignore
+vim.o.eventignore = "BufWinEnter"
+previous_cc.chats = function() return { { chat = http } } end
+local real_buf_get = previous_cc.chat_of
+previous_cc.chat_of = function(buf)
+  if buf == http.bufnr then return http end
+  return real_buf_get(buf)
+end
+-- A stub chat needs no UI machinery: the slot reads its live buffer directly.
+http.ui = { winnr = nil }
+function http.ui:is_visible() return self.winnr and vim.api.nvim_win_is_valid(self.winnr) or false end
+local second = on_right(http.bufnr)
+http.ui.winnr = second
 edit()
 owner, entry = owner_of(start(file_buf))
-t.ok(entry ~= nil and owner == nil, "two agents on the right and a file current: no guess, no owner")
+t.ok(entry ~= nil and owner == nil, "two chat targets from a file: no guessed owner")
 vim.api.nvim_win_close(second, true)
+http.ui.winnr = nil
+previous_cc.chat_of, previous_cc.chats = real_buf_get, real_chats
+vim.o.eventignore = previous_events
 
 vim.cmd.edit(vim.fn.fnameescape(R2 .. "/a.txt"))
 edit(R2)
@@ -1124,22 +1081,14 @@ local function newest_of(root, conversation)
   end
 end
 local scratch_buf = vim.api.nvim_create_buf(false, true)
-local picked, why = select_round(R1, claude_buf)
-t.ok(picked and why == "buffer" and picked.id == newest_of(R1, "claude:s1").id,
+local picked, why = select_round(R1, codex_buf)
+t.ok(picked and why == "buffer" and picked.id == newest_of(R1, "codex:c1").id,
   "select_round: from an agent panel, that session's newest round")
-vim.api.nvim_win_set_buf(right_win, codex_buf)
-picked, why = select_round(R1, scratch_buf)
-t.ok(picked and why == "right" and picked.id == newest_of(R1, "codex:c1").id,
-  "select_round: elsewhere, the newest round of the chat on the right (codex:c1)")
-vim.api.nvim_win_set_buf(right_win, claude_buf)
-picked, why = select_round(R1, scratch_buf)
-t.ok(picked and why == "right" and picked.id == newest_of(R1, "claude:s1").id,
-  "and Claude's once Claude is on the right")
-t.eq(vim.tbl_map(function(c) return c.conversation end, rounds.live_conversations(R1))[1], "claude:s1",
-  "live_conversations lists the chat on the right first")
-vim.api.nvim_win_set_buf(right_win, codex_buf)
+picked, why = select_round(R1, http.bufnr)
+t.ok(picked and why == "buffer" and picked.id == newest_of(R1, http_conv).id,
+  "a chat buffer's owner takes precedence over the native agent on the right")
 t.eq(vim.tbl_map(function(c) return c.conversation end, rounds.live_conversations(R1))[1], "codex:c1",
-  "whichever it is")
+  "live_conversations lists the native session shown on the right first")
 vim.api.nvim_win_close(right_win, true)
 unstand()
 picked, why = select_round(R2, scratch_buf)
@@ -1211,41 +1160,12 @@ t.eq(store_listing(), stores_before, "no chat history or session was written")
 for _, var in ipairs(VARS) do vim.env[var] = saved_keys[var] end
 
 ---------------------------------------------------------------------------
--- ai.feed makes room for the agent it feeds
+-- ai.feed rejects unimplemented kinds without constructing a backend.
 ---------------------------------------------------------------------------
-
-local ai = require("ai")
-local saved_fns, shown, hidden, fed = {}, {}, {}, {}
-for name, b in pairs(backends) do
-  saved_fns[name] = { window = b.window, visible = b.visible, hide = b.hide, edit_prompt = b.edit_prompt }
-  -- A window id no tabpage has: 1000 is Nvim's first window, which the slot
-  -- would rightly refuse to hide as the tabpage's last one.
-  b.window = function() return shown[name] and 999999 or nil end
-  b.visible = function() return shown[name] == "here" end
-  b.hide = function() hidden[#hidden + 1] = name; shown[name] = nil end
-  b.edit_prompt = function(opts) fed[#fed + 1] = { name, opts and opts.seed } end
-end
-local function feed_case(state, target)
-  shown, hidden, fed = vim.deepcopy(state), {}, {}
-  ai.feed(target, "edit_prompt", { seed = "feedback" })
-  return hidden, fed
-end
-local h, f = feed_case({ claude = "here" }, "codex")
-t.eq({ h, f }, { { "claude" }, { { "codex", "feedback" } } },
-  "feeding Codex with Claude's panel here hides Claude's panel, and feeds Codex")
-h, f = feed_case({ codex = "here" }, "claude")
-t.eq({ h, f }, { { "codex" }, { { "claude", "feedback" } } }, "and the other way round")
-h = feed_case({ claude = "here", codex = "elsewhere" }, "codex")
-t.eq(h, {}, "a target already shown in another tabpage makes nothing yield")
-shown, hidden = { claude = "here" }, {}
-ai.feed("codex", "running")
-t.eq(hidden, {}, "a method that reveals nothing hides nothing")
-notes, fed = {}, {}
-ai.feed("nope", "edit_prompt")
-t.ok(#notes == 1 and notes[1].level == WARN and #fed == 0, "an unknown agent is refused")
-for name, b in pairs(backends) do
-  for k, fn in pairs(saved_fns[name]) do b[k] = fn end
-end
+local ai = require("agent_workbench")
+notes = {}
+ai.feed("claude", "edit_prompt")
+t.ok(#notes == 1 and notes[1].level == WARN, "an unimplemented native kind refuses through the public facade")
 
 ---------------------------------------------------------------------------
 -- <leader>av / <leader>aV
@@ -1253,12 +1173,12 @@ end
 
 local function keymap(lhs) return vim.fn.maparg(lhs, "n", false, true) end
 local calls = {}
-local real_view, real_start = package.loaded["ai.review"], rounds.start
-package.loaded["ai.review"] = { open = function() calls[#calls + 1] = "open" end }
+local real_view, real_start = package.loaded["agent_workbench.review"], rounds.start
+package.loaded["agent_workbench.review"] = { open = function() calls[#calls + 1] = "open" end }
 rounds.start = function() calls[#calls + 1] = "start" end
 keymap(" av").callback()
 keymap(" aV").callback()
-package.loaded["ai.review"], rounds.start = real_view, real_start
+package.loaded["agent_workbench.review"], rounds.start = real_view, real_start
 t.eq(calls, { "open", "start" }, "<leader>av opens the review, <leader>aV starts a round")
 
 ---------------------------------------------------------------------------

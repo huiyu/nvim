@@ -1,5 +1,5 @@
 local t = dofile("tests/helper.lua")
-local input_method = require("util.input_method")
+local input_method = require("editor_core.input_method")
 
 if vim.fn.has("macunix") == 1 and vim.fn.executable("macism") == 1 then
   local registered = vim.api.nvim_get_autocmds({ group = "input_method" })

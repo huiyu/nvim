@@ -1,0 +1,25 @@
+*agent-workbench.txt*  Codex-first native CLI workbench
+
+                                                        *agent-workbench*
+Neovim 0.12.5+. require("agent_workbench") is inert; setup(opts) runs once.
+Native terminal is built in. Snacks is optional and explicitly selected.
+Claude native integration is deferred. No Claude-only keys are installed.
+
+:AI                  Switch chat
+:AI new              New native/ACP/API entry, as configured by the host
+:AI info             Providers, billing, open chats and HTTP profile
+:AI key [name]       Switch the live HTTP profile (optional integration)
+:AIInfo              Same information as :AI info
+
+Public Lua operations, supported options, terminal contract and independent
+lazy.nvim example are documented in README.md shipped beside this help file.
+
+  require("agent_workbench").open("codex")
+  require("agent_workbench").send_context("codex", {text = "draft"})
+  require("agent_workbench").hide("codex")
+  require("agent_workbench").show("codex")
+  require("agent_workbench").stop("codex")
+
+Hide keeps the session; stop tears it down. Sending context never submits it.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

@@ -1,0 +1,476 @@
+local M = {}
+
+local vim_error = require("editor_core.vim_error")
+
+local SPECIAL_BUFTYPES = {
+  'help', 'quickfix', 'terminal', 'prompt', 'nofile', 'acwrite', 'nowrite'
+}
+
+local SPECIAL_FILETYPES = {
+  'aerial',                                                  -- Outline view
+  'git', 'gitcommit',                                        -- Git related
+  'help',                                                    -- Help documentation
+  'qf',                                                      -- Quickfix/Location list
+  'snacks_picker_input', 'snacks_picker_list', 'snacks_picker_preview', -- Fuzzy finder
+  'mason', 'lazy',                                           -- Plugin/LSP management
+  -- dapui names each element separately; there is no `dapui` filetype.
+  'dap-repl', 'dapui_scopes', 'dapui_breakpoints',           -- Debugging
+  'dapui_stacks', 'dapui_watches', 'dapui_console',
+}
+
+--- Nil once the window is gone: the list `close_others` walks is a snapshot,
+--- and closing one window can take a paired one with it (a picker's list and
+--- input, an edgy relayout), so a later entry may no longer exist.
+local function get_win_info(win_id)
+  if not vim.api.nvim_win_is_valid(win_id) then return nil end
+  local buf_id = vim.api.nvim_win_get_buf(win_id)
+
+  return {
+    is_current = (win_id == vim.api.nvim_get_current_win()),
+    is_preview = vim.wo[win_id].previewwindow,
+    is_modifiable = vim.bo[buf_id].modifiable,
+    filetype = vim.bo[buf_id].filetype,
+    buftype = vim.bo[buf_id].buftype,
+  }
+end
+
+--- Close the current window. Nvim refuses over the last window (E444) or a
+--- modified buffer that cannot be hidden (E37); that refusal is one warning
+--- here, not a traceback out of :WindowCloseCurrent.
+function M.close_current()
+  local ok, err = pcall(vim.api.nvim_win_close, vim.api.nvim_get_current_win(), false)
+  if not ok then vim_error.notify(err) end
+end
+
+-- Function to close all windows except the current one and special windows
+function M.close_others()
+  -- A window belongs to exactly one tab page.  nvim_list_wins() spans every
+  -- tab, which made this command unexpectedly close windows in background tabs.
+  local wins = vim.api.nvim_tabpage_list_wins(0)
+
+  for _, win in ipairs(wins) do
+    local info = get_win_info(win)
+
+    -- Check if the window should be closed:
+    -- - Is modifiable
+    -- - Is not the current window
+    -- - Is not a preview window
+    -- - Does not have a special buffer type
+    -- - Does not have a special file type
+    if info and info.is_modifiable and
+        not info.is_current and
+        not info.is_preview and
+        not vim.list_contains(SPECIAL_BUFTYPES, info.buftype) and
+        not vim.list_contains(SPECIAL_FILETYPES, info.filetype) then
+      -- Nvim refuses over the last ordinary window, as when this runs from a
+      -- float above a single split. One warning, and the rest of the loop.
+      local ok, err = pcall(vim.api.nvim_win_close, win, false)
+      if not ok then vim_error.notify(err) end
+    end
+  end
+end
+
+--- Iterate non-floating windows with winfixwidth/winfixheight, yielding {win, width?, height?}
+--- Uses stored target (_fixed_width_target / _fixed_height_target) when available,
+--- otherwise records current size as the target for future use.
+local function get_fixed_panels()
+  local panels = {}
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_config(win).relative == "" then
+      local entry = {}
+      if vim.wo[win].winfixwidth then
+        local target = vim.w[win]._fixed_width_target
+        if not target then
+          target = vim.api.nvim_win_get_width(win)
+          vim.w[win]._fixed_width_target = target
+        end
+        entry.width = target
+      end
+      if vim.wo[win].winfixheight then
+        local target = vim.w[win]._fixed_height_target
+        if not target then
+          target = vim.api.nvim_win_get_height(win)
+          vim.w[win]._fixed_height_target = target
+        end
+        entry.height = target
+      end
+      if entry.width or entry.height then
+        entry.win = win
+        panels[#panels + 1] = entry
+      end
+    end
+  end
+  return panels
+end
+
+--- The edgy windows in the current tabpage, and edgy's handle for one window.
+---
+--- Gated on edgy already being loaded rather than requiring it: edgy is a
+--- `VeryLazy` spec, and pulling it in from a window command would load it ahead
+--- of its trigger. Before it loads there are no edgy windows to find anyway.
+local function edgy_editor()
+  return package.loaded["edgy"] and require("edgy.editor") or nil
+end
+
+local function edgy_win(win)
+  local editor = edgy_editor()
+  return editor and editor.get_win(win) or nil
+end
+
+--- edgy's resolved edgebars, or nil before it has loaded.
+local function edgy_layout()
+  return edgy_editor() and require("edgy.config").layout or nil
+end
+
+--- edgy distinguishes two directions, and only one of them is per-window.
+--- An edgebar's *thickness* -- a left/right bar's width, a bottom bar's height
+--- -- is the bar's own `size`; the other axis is divided between its windows.
+--- `Window:resize` reaches only the second: on the thickness it can never
+--- shrink the bar, because that is a max over `options.<pos>.size` and the
+--- views' own sizes (`edgy/edgebar.lua`, `bounds[short]`).
+local function edgy_thickness(edgebar)
+  return edgebar.vertical and "width" or "height"
+end
+
+--- Resize the current window, through whichever system owns it.
+---
+--- `:resize` alone stops working once edgy has a panel in the tabpage. On a
+--- panel, edgy re-applies its own geometry on WinResized and the change is gone
+--- a tick later; on an editor window beside one there is nothing to take the
+--- space from, since every edgy panel is winfixwidth/winfixheight -- measured
+--- as a plain no-op, not even a flicker. So hand edgy's windows to edgy: the
+--- bar's own size for the thickness, its per-window override for the rest.
+---@param dim "width"|"height"
+---@param delta integer
+function M.resize(dim, delta)
+  local win = edgy_win(vim.api.nvim_get_current_win())
+  if not win then
+    vim.cmd((dim == "width" and "vertical resize " or "resize ")
+      .. (delta > 0 and "+" or "") .. delta)
+    return
+  end
+  local edgebar = win.view.edgebar
+  if dim == edgy_thickness(edgebar) then
+    local current = dim == "width" and vim.api.nvim_win_get_width(win.win)
+      or vim.api.nvim_win_get_height(win.win)
+    edgebar.size = math.max(1, current + delta)
+    require("edgy.layout").update()
+  else
+    win:resize(dim, delta)
+  end
+end
+
+--- Shrink every edgebar except the one owning `keep_win`, remembering enough to
+--- put them back. Shrinking rather than hiding: edgy's `hide` drops a
+--- non-pinned window from its edgebar outright -- measured, the window is gone
+--- on the next tick -- and `open()` restores only pinned views, of which this
+--- config has none, so the agent panel would not come back.
+---
+--- Both the bar's size and its views' own thickness have to go: the bar is as
+--- thick as the larger of the two, so leaving the views at `height = 0.25`
+--- would hold the bottom bar open at a quarter of the screen.
+local function collapse_edgebars(keep_win)
+  local layout = edgy_layout()
+  if not layout then return end
+  local bars, views = {}, {}
+  for pos, edgebar in pairs(layout) do
+    local owns_current = false
+    for _, win in ipairs(edgebar.wins or {}) do
+      if win.win == keep_win then owns_current = true end
+    end
+    if not owns_current and #(edgebar.wins or {}) > 0 then
+      local thickness = edgy_thickness(edgebar)
+      bars[pos] = edgebar.size
+      edgebar.size = 1
+      for i, view in ipairs(edgebar.views or {}) do
+        if view.size and view.size[thickness] then
+          views[pos .. "\0" .. i] = view.size[thickness]
+          view.size[thickness] = nil
+        end
+      end
+    end
+  end
+  vim.t.edgy_zoom = { bars = bars, views = views }
+  require("edgy.layout").update()
+end
+
+local function restore_edgebars()
+  local saved, layout = vim.t.edgy_zoom, edgy_layout()
+  vim.t.edgy_zoom = nil
+  if not saved or not layout then return end
+  for pos, size in pairs(saved.bars or {}) do
+    if layout[pos] then layout[pos].size = size end
+  end
+  for key, size in pairs(saved.views or {}) do
+    local pos, i = key:match("^(.-)%z(%d+)$")
+    local edgebar = pos and layout[pos]
+    local view = edgebar and (edgebar.views or {})[tonumber(i)]
+    if view then
+      view.size = view.size or {}
+      view.size[edgy_thickness(edgebar)] = size
+    end
+  end
+  require("edgy.layout").update()
+end
+
+--- Give the current window the whole tabpage, and put the layout back.
+---
+--- `wincmd _` on its own was undone a tick later, for the same reason `:resize`
+--- is: edgy's panels are winfix and it re-applies their geometry. Collapsing
+--- the bars first is what leaves any space to take.
+function M.toggle_zoom()
+  local win = vim.api.nvim_get_current_win()
+  if vim.w[win].zoomed then
+    restore_edgebars()
+    M.equalize_respecting_fixed()
+    vim.w[win].zoomed = false
+    return
+  end
+  collapse_edgebars(win)
+  vim.cmd.wincmd("_")
+  vim.cmd.wincmd("|")
+  vim.w[win].zoomed = true
+end
+
+--- Filetypes that occupy the editor area without holding a real file buffer.
+--- The dashboard qualifies: on a fresh session it is the only thing in the
+--- editing area, so it has to be reachable as a jump target.
+local EDITOR_FILETYPES = { 'snacks_dashboard' }
+
+--- Directory and GitHub reading views occupy the editor area, even though
+--- their buffers use `acwrite`. They are navigation targets and can receive a
+--- file while unmodified. Pending edits must stay visible in their own window.
+local NAVIGABLE_FILETYPES = { 'oil', 'markdown.gh' }
+
+--- A window counts as "the editor" when it shows a normal file buffer.
+--- Sidebars, terminals, pickers, quickfix, and help all carry a non-empty
+--- buftype, which excludes them without needing a filetype denylist.
+---
+--- `file_target` protects pending edits without treating an unmodified Oil
+--- listing or GitHub reading view as a sidebar: ;f can replace either in place.
+---@param win integer
+---@param file_target boolean|nil
+local function is_editor_win(win, file_target)
+  if not vim.api.nvim_win_is_valid(win) then return false end
+  if vim.api.nvim_win_get_config(win).relative ~= "" then return false end
+  local buf = vim.api.nvim_win_get_buf(win)
+  if vim.bo[buf].buftype == "" then return true end
+  local ft = vim.bo[buf].filetype
+  if vim.list_contains(EDITOR_FILETYPES, ft) then return true end
+  return vim.list_contains(NAVIGABLE_FILETYPES, ft)
+    and (not file_target or not vim.bo[buf].modified)
+end
+
+--- Pick the editor window to jump into, scoped to the current tab.
+---@param file_target boolean|nil restrict to windows a file can be opened into
+local function pick_editor_win(file_target)
+  local wins = {}
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if is_editor_win(win, file_target) then wins[#wins + 1] = win end
+  end
+  if #wins == 0 then return nil end
+
+  -- Prefer the editor window the cursor last sat in: with two files split
+  -- side by side, "go to the editor" means the one you were just working in.
+  local last = vim.t.editor_win_last
+  if last and vim.list_contains(wins, last) then return last end
+
+  -- No usable record, so fall back to the widest window, which is what reads
+  -- visually as the main editing area.
+  local best, best_width = wins[1], vim.api.nvim_win_get_width(wins[1])
+  for _, win in ipairs(wins) do
+    local width = vim.api.nvim_win_get_width(win)
+    if width > best_width then
+      best, best_width = win, width
+    end
+  end
+  return best
+end
+
+--- The editor window of the current tabpage, without moving to it: the
+--- current window when it is one, else the one the cursor last left, else the
+--- widest. `focus_editor` is the key, and it toggles -- pressed inside the
+--- editor it jumps back out, usually to a side panel -- so code that needs
+--- "the edited file's window" asks here instead.
+---
+--- With `file_target`, only a window a file can be opened into counts, as for
+--- `ensure_editor_win`, but nil comes back instead of a new split.
+---@param file_target boolean|nil
+---@return integer|nil win
+function M.editor_win(file_target)
+  local cur = vim.api.nvim_get_current_win()
+  if is_editor_win(cur, file_target) then return cur end
+  return pick_editor_win(file_target)
+end
+
+--- Guarantee a window a file can be opened into, and return it.
+---
+--- snacks' picker picks its target window in snacks/picker/core/main.lua. That
+--- filter excludes non-file buffers correctly, but records a `non_float`
+--- fallback *before* the filter runs and returns it when nothing qualifies --
+--- so a layout of only an oil listing and an agent panel has the picked file
+--- land on top of one of them. No window variable prevents that; the fallback
+--- is unconditional.
+---
+--- Reuse the editor area, including unmodified Oil and GitHub reading views.
+--- Only when no eligible window remains, create an empty horizontal split.
+--- Terminal panels and pending edits stay in place. Starting with a blank buffer
+--- also lets Oil's close restore an editor instead of a copied terminal.
+---@return integer win
+function M.ensure_editor_win()
+  local win = pick_editor_win(true)
+  if win then return win end
+  -- Split from a real layout window, not whatever is current: this runs from
+  -- the picker's on_show, when the current window is the picker's own float.
+  local base
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(w).relative == "" then base = w; break end
+  end
+  local created
+  vim.api.nvim_win_call(base or 0, function()
+    vim.cmd("belowright new")
+    created = vim.api.nvim_get_current_win()
+  end)
+  return created
+end
+
+--- Panels of views that own a whole tabpage *and* disable the global prefixes
+--- inside it: CodeDiff's explorer and history lists.
+---
+--- The test has to name the view rather than inspect the windows. CodeDiff's
+--- diff panes hold ordinary file buffers, so every window-level check says its
+--- tabpage is perfectly editable -- while `;f` and the rest are mapped to a
+--- disabled hint throughout it. The debug view is deliberately absent: its
+--- keys stay global and it carries a file window, so it is a fine first page.
+local PREFIX_BLOCKING_FILETYPES = { 'codediff-explorer', 'codediff-history' }
+
+--- Whether `tabpage` is such a view.
+---
+--- The view says so itself: git_review.view sets `vim.t.blocks_global_prefixes`
+--- while CodeDiff has a session there, and a new prefix-blocking view has to
+--- set it too. The panel filetypes remain a second test, for a tabpage CodeDiff
+--- has let go of while its panel is still on screen (git_review.view then closes
+--- it). A single-file `:CodeDiff file` has no panel at all, which is why the
+--- variable comes first.
+---@param tabpage integer
+---@return boolean
+function M.blocks_global_prefixes(tabpage)
+  if not vim.api.nvim_tabpage_is_valid(tabpage) then return false end
+  if vim.t[tabpage].blocks_global_prefixes then return true end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tabpage)) do
+    local ft = vim.bo[vim.api.nvim_win_get_buf(win)].filetype
+    if vim.list_contains(PREFIX_BLOCKING_FILETYPES, ft) then return true end
+  end
+  return false
+end
+
+--- The tabpage a prefix-blocking view was opened from: the nearest one before
+--- `tabpage` that is not such a view itself. Views open right after the page
+--- they come from (`tab split`), so walking back -- rather than taking the
+--- page numbered one less -- also finds it behind a second view opened from
+--- the first. protect_first_tab keeps tabpage 1 an ordinary page, so there is
+--- normally one; nil when there is not, or when `tabpage` is no view at all.
+---@param tabpage integer
+---@return integer|nil
+function M.origin_tab(tabpage)
+  if not M.blocks_global_prefixes(tabpage) then return nil end
+  local tabs = vim.api.nvim_list_tabpages()
+  for i = vim.api.nvim_tabpage_get_number(tabpage) - 1, 1, -1 do
+    if not M.blocks_global_prefixes(tabs[i]) then return tabs[i] end
+  end
+  return nil
+end
+
+--- Keep the first tabpage a page the global prefixes still work in.
+---
+--- Views open after it already: `tab split` inserts after the current tabpage,
+--- so CodeDiff and the debug view both land on tabpage 2 from a standing start.
+--- The invariant breaks only when the pages in front of a view go away, and
+--- then there is nowhere left to run `;f` from at all. Rather than enumerate
+--- the routes into that state, restore the invariant whenever it holds false:
+--- put a fresh page in front and leave the cursor where it was, so the repair
+--- is something found later rather than something that interrupts.
+function M.protect_first_tab()
+  local first = vim.api.nvim_list_tabpages()[1]
+  if not first or not M.blocks_global_prefixes(first) then return end
+  local current = vim.api.nvim_get_current_tabpage()
+  -- `0tabnew` inserts before every existing tabpage. noautocmd so the new page
+  -- cannot re-enter this guard while the layout is still settling.
+  vim.cmd("noautocmd 0tabnew")
+  if vim.api.nvim_tabpage_is_valid(current) then
+    vim.api.nvim_set_current_tabpage(current)
+  end
+end
+
+--- Returns win if it is still a usable jump target in the current tab.
+local function resolve_win(win)
+  if not win or not vim.api.nvim_win_is_valid(win) then return nil end
+  if not vim.list_contains(vim.api.nvim_tabpage_list_wins(0), win) then return nil end
+  return win
+end
+
+--- Record the current window when it is an editor window.
+--- Driven by a WinLeave autocmd, where the window's buffer has settled, so
+--- focus_editor returns to the file the cursor actually left rather than a
+--- fixed position in the layout.
+function M.track_editor_win()
+  local win = vim.api.nvim_get_current_win()
+  if is_editor_win(win) then
+    vim.t.editor_win_last = win
+  end
+end
+
+--- Jump to the editor area from anywhere, and back again.
+--- A layout with a side panel (aerial, a diff view) on one side and a
+--- terminal or agent panel on the other needs up to three <C-h>/<C-l> hops to
+--- cross back to the middle; this collapses that into one key. Pressing it
+--- inside the editor returns to the window it came from, so the same key
+--- travels in both directions.
+function M.focus_editor()
+  local cur = vim.api.nvim_get_current_win()
+
+  if is_editor_win(cur) then
+    local origin = resolve_win(vim.t.editor_win_origin)
+    if origin == cur then origin = nil end
+    -- Nothing recorded yet (the key was first pressed inside the editor), so
+    -- behave like `sw` and hand focus to the previous window.
+    if not origin then
+      local prev = resolve_win(vim.fn.win_getid(vim.fn.winnr('#')))
+      if prev ~= cur then origin = prev end
+    end
+    if origin then
+      vim.api.nvim_set_current_win(origin)
+    else
+      vim.notify('No window to jump back to', vim.log.levels.INFO)
+    end
+    return
+  end
+
+  local target = pick_editor_win()
+  if not target then
+    vim.notify('No editor window in this tab', vim.log.levels.WARN)
+    return
+  end
+  vim.t.editor_win_origin = cur
+  vim.api.nvim_set_current_win(target)
+end
+
+--- Equalize window sizes while preserving winfixwidth/winfixheight windows.
+--- Runs wincmd = then restores fixed panels to their target sizes.
+--- Use on VimResized to redistribute editor space proportionally.
+function M.equalize_respecting_fixed()
+  local panels = get_fixed_panels()
+  vim.cmd("wincmd =")
+  for _, entry in ipairs(panels) do
+    if vim.api.nvim_win_is_valid(entry.win) then
+      if entry.width then
+        vim.api.nvim_win_set_width(entry.win, entry.width)
+      end
+      if entry.height then
+        vim.api.nvim_win_set_height(entry.win, entry.height)
+      end
+    end
+  end
+end
+
+return M

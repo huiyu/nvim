@@ -1,14 +1,14 @@
--- Inline completion: minuet (lua/plugins/ai/minuet.lua) in front of the
--- llama-server that util.llama shares between Nvims (scripts/llama-supervise).
+-- Inline completion: minuet (lua/plugin/ai/minuet.lua) in front of the
+-- llama-server that util.llama shares between Nvims (local-plugin/llama-service.nvim/scripts/llama-supervise).
 -- tests/fixtures/llama_fake.lua stands in for the server -- an 8 GB model is
 -- not a test dependency -- and rejects any /infill body that real llama-server
 -- would read differently, so everything short of the model runs here.
 local t = dofile("tests/helper.lua")
 local Config = require("lazy.core.config")
-local llama = require("util.llama")
+local llama = require("llama_service")
 
 local fake = vim.fn.fnamemodify("tests/fixtures/llama_fake.lua", ":p")
-local supervisor = vim.fn.stdpath("config") .. "/scripts/llama-supervise"
+local supervisor = t.root .. "/local-plugin/llama-service.nvim/scripts/llama-supervise"
 vim.env.LLAMA_SUPERVISE_INTERVAL = "1"
 
 local function loaded(name)
@@ -47,8 +47,8 @@ end
 -- `extra` flags. `share` reuses another instance's directory and port, which
 -- is what a second Nvim looks like.
 local function fresh_llama(extra, share)
-  package.loaded["util.llama"] = nil
-  local fresh = require("util.llama")
+  package.loaded["llama_service"] = nil
+  local fresh = require("llama_service")
   fresh.config.dir = share and share.config.dir or vim.fn.tempname()
   fresh.config.port = share and share.config.port or free_port()
   fresh.config.server = vim.v.progpath
@@ -72,7 +72,7 @@ local function failures() return reports("^Inline completion") end
 
 t.ok(not loaded("minuet-ai.nvim"), "minuet stays unloaded until the first Insert")
 
-vim.cmd.edit("lua/util/llama.lua")
+vim.cmd.edit("local-plugin/llama-service.nvim/lua/llama_service/init.lua")
 local lua_buf = vim.api.nvim_get_current_buf()
 -- Neither a language server nor a Treesitter parser knows `conf`, so nothing
 -- else reacts to this buffer (a parser would be downloaded on demand).

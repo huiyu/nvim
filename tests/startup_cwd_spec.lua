@@ -19,7 +19,7 @@ local probe = base .. "/probe.lua"
 vim.fn.writefile(vim.split([[
 local result = {
   cwd = vim.fn.getcwd(), file = vim.api.nvim_buf_get_name(0),
-  agent_root = require("ai.config").project_root(),
+  agent_root = require("util.cwd").project_root(),
   oil_dir = package.loaded.oil and package.loaded.oil.get_current_dir(),
 }
 if vim.env.CWD_NEXT == "1" then
@@ -74,6 +74,17 @@ t.eq(child({ "-" }, { stdin = "text\n" }).cwd, base, "stdin keeps the shell dire
 -- applied (lua/config/cwd.lua), so the path cases call it in this process
 -- rather than each starting a child Nvim.
 local cwd = require("util.cwd")
+do
+  local previous = vim.fn.getcwd()
+  vim.fn.chdir(repo .. "/src")
+  t.eq(cwd.project_root(file), repo, "a file uses its Git root")
+  t.eq(cwd.project_root(other), worktree, "project lookup recognizes a worktree's .git file")
+  t.eq(cwd.project_root(), repo, "project lookup without a file starts at the working directory")
+  t.eq(cwd.project_root(""), repo, "an empty project path also starts at the working directory")
+  t.eq(cwd.project_root(loose .. "/plain.txt"), vim.uv.cwd(),
+    "a non-Git file falls back to the working directory, unlike startup resolution")
+  vim.fn.chdir(previous)
+end
 t.eq(cwd.startup_dir(repo .. "/src/new/deeper/file.txt"), repo, "a new file with missing parents finds its repository")
 t.eq(cwd.startup_dir(other), worktree, "a .git file identifies a worktree or submodule root")
 t.eq(cwd.startup_dir(loose .. "/plain.txt"), loose, "a non-Git file uses its parent directory")

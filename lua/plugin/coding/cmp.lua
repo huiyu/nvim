@@ -1,0 +1,59 @@
+return {
+  {
+    "saghen/blink.cmp",
+    version = "1.*",
+    -- nvim-lspconfig's config also requires it for client capabilities, so it
+    -- is already loaded by the time a file has been read.
+    event = { "InsertEnter", "CmdlineEnter" },
+    dependencies = { "rafamadriz/friendly-snippets" },
+
+    ---@module 'blink.cmp'
+    ---@type blink.cmp.Config
+    opts = {
+      keymap = {
+        preset = "enter",
+        ["<C-k>"] = { "select_prev", "fallback" },
+        ["<C-j>"] = { "select_next", "fallback" },
+        ["<C-b>"] = { "scroll_documentation_up", "fallback" },
+        ["<C-f>"] = { "scroll_documentation_down", "fallback" },
+      },
+      appearance = {
+        nerd_font_variant = "mono",
+      },
+      -- Signature help while typing a call: opens on the server's trigger
+      -- characters (`(`, `,`) and follows the active parameter. `gK` still
+      -- asks for it on demand in Normal mode.
+      signature = { enabled = true, window = { border = "rounded" } },
+      completion = {
+        documentation = { auto_show = true, auto_show_delay_ms = 200 },
+        menu = {
+          draw = {
+            columns = { { "kind_icon" }, { "label", "label_description", gap = 1 }, { "source_name" } },
+          },
+        },
+      },
+      sources = {
+        default = { "lazydev", "lsp", "path", "snippets", "buffer", "ai_mention" },
+        providers = {
+          lazydev = {
+            name = "LazyDev",
+            module = "lazydev.integrations.blink",
+            score_offset = 100,
+          },
+          -- `@` project-file mentions, only inside the agent prompt buffer
+          -- (local-plugin/agent-workbench.nvim/lua/agent_workbench/editor.lua sets the mark). Scored above buffer words so a
+          -- file path wins while an @-token is being typed; the source returns
+          -- nothing anywhere else on the line.
+          ai_mention = {
+            name = "Files",
+            module = "agent_workbench.mention",
+            enabled = function() return vim.b.ai_prompt == true end,
+            score_offset = 90,
+          },
+        },
+      },
+      fuzzy = { implementation = "prefer_rust_with_warning" },
+    },
+    opts_extend = { "sources.default" },
+  },
+}

@@ -1,0 +1,411 @@
+-- CodeCompanion chats, for the facade (local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua) and the AI slot
+-- (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua). Two kinds, by transport and billing:
+--
+--   acp   agent chat  an agent CLI over ACP, on the subscription
+--   http  API chat    a key profile over HTTP, on API credits
+--
+-- A chat is created by backend (create: one of ai.state.backends(), from
+-- <leader>an, hidden at first) and then put on screen as exactly that chat
+-- (the slot's show_chat, which opens it through open() here). Upstream's
+-- Toggle and Add cannot be aimed at one chat: they only know `last_chat`.
+--
+-- open() never calls upstream's Chat.open without a window. That path closes
+-- `last_chat` wherever it is shown, another tabpage included. Instead: a chat
+-- shown in another tabpage is gone to, not moved here; a chat window here is
+-- handed over in place (the shown chat's ui:hide({ keep_window = true }), then
+-- Chat.open({ ui, winnr }), which is ui:show_in_win); with none, ui:open()
+-- splits a window of its own after the slot has hidden what else is shown
+-- here. Chats are created with `hidden = true` for the same reason -- upstream
+-- opens a visible new chat through that same window-less Chat.open -- which
+-- also means one is not upstream's last_chat until it is first entered.
+--
+-- That reaches into CodeCompanion's chat internals: `chat.adapter`, `chat.ui`
+-- (is_visible / is_visible_non_curtab / open / hide / winnr), `chat.title`,
+-- `chat.bufnr`, `chat.id`, `chat.prompt:add`, `interactions.chat.open`, the
+-- `hidden` chat argument and buf_get_chat()'s entries. This module is the one
+-- reader: the slot asks it (chats, chat_of, key, buf, label, name, win,
+-- win_here, where, busy, hide, open, create, focus_prompt) rather than
+-- reading a chat itself, and the facade reports any failure as an error
+-- rather than falling back to an upstream command aimed at some other chat.
+-- tests/companion_spec.lua pins the behaviour. Text goes to one exact chat
+-- through add_text (review feedback, a captured selection), which also reads
+-- `chat.current_request` and the private `chat._turn_in_progress` (busy), and
+-- refuses rather than raise when they have changed. A file goes to one exact
+-- chat through add_buffer, which calls the output of upstream's /buffer
+-- (`interactions.shared.slash_commands.buffer`, new and output) on it and
+-- reads `chat.messages` to tell whether it took.
+--
+-- Nothing here requires CodeCompanion at the top level. The first call that
+-- needs it does, and lazy's module autoload loads the plugin then -- so the
+-- keys can be defined at startup without loading anything.
+
+local config = require("agent_workbench.state")
+
+local M = {}
+
+local INFO, ERROR, WARN = vim.log.levels.INFO, vim.log.levels.ERROR, vim.log.levels.WARN
+
+---Has CodeCompanion loaded? Before it has, no chat can exist, so nothing needs
+---to load it to find out.
+local function loaded()
+  return package.loaded["codecompanion"] ~= nil
+end
+
+local function valid_buf(buf)
+  return type(buf) == "number" and vim.api.nvim_buf_is_valid(buf)
+end
+
+---The API chat backend (ai.state.backends) of the key profile's HTTP
+---adapter; nil when no provider offers `api`.
+---@return ai.Backend|nil
+local function http_spec()
+  local name = config.codecompanion.http_adapter
+  if not name then return nil end
+  local id = "api:" .. name
+  for _, b in ipairs(config.backends()) do
+    if b.id == id then return b end
+  end
+  error(("no AI backend %s"):format(id))
+end
+
+---Refuse before CodeCompanion turns a missing key into a 401, or a missing ACP
+---bridge into an asynchronous connection error. Only what starts something is
+---checked here: creating a chat (an agent chat spawns its bridge at once, an
+---API chat may fetch the model list with the key) and the inline prompt.
+---@param what "http"|ai.Backend the key profile's HTTP adapter, or one backend
+---@return boolean ok
+function M.preflight(what)
+  local spec = type(what) == "table" and what or http_spec()
+  local problem
+  if not spec then
+    problem = "no provider offers an API key\nsee lua/config/ai.lua"
+  elseif spec.kind == "http" then
+    if (vim.env[spec.api_key] or "") == "" then
+      problem = ("%s is not set\nnothing sent: export it, or :AI key <profile>"):format(spec.api_key)
+    end
+  elseif vim.fn.executable(spec.command) ~= 1 then
+    problem = ("%s not found — no agent chat\nsee :checkhealth config"):format(spec.command)
+  end
+  if problem then
+    -- Two short lines: the notifier cuts a long one off at its width.
+    -- Scheduled: <leader>ae asks from an expr mapping, under textlock, where
+    -- opening the notifier's float is not allowed.
+    vim.schedule(function() vim.notify(problem, ERROR, { title = "AI" }) end)
+  end
+  return problem == nil
+end
+
+local function nonfloat(win)
+  return vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_config(win).relative == ""
+end
+
+---The chat's own window -- `chat.ui.winnr`, while it still shows the chat --
+---in whichever tabpage; nil while it is hidden. Read in a pcall and checked,
+---so a chat whose ui has changed shape upstream counts as hidden.
+---@param chat table a CodeCompanion.Chat
+---@return integer|nil
+function M.win(chat)
+  local ok, win = pcall(function() return chat.ui.winnr end)
+  if not (ok and type(win) == "number" and vim.api.nvim_win_is_valid(win)) then return nil end
+  if not valid_buf(chat.bufnr) or vim.api.nvim_win_get_buf(win) ~= chat.bufnr then return nil end
+  return win
+end
+
+---Where the chat's own window is: in this tabpage, in another one, or nowhere,
+---as upstream's ui:is_visible() and ui:is_visible_non_curtab() say -- never
+---raising.
+---@param chat table
+---@return "here"|"elsewhere"|"hidden"
+function M.where(chat)
+  local ok, visible, other = pcall(function() return chat.ui:is_visible(), chat.ui:is_visible_non_curtab() end)
+  if not (ok and visible) then return "hidden" end
+  return other and "elsewhere" or "here"
+end
+
+---A window of this tabpage showing the chat: its own, else another one.
+---,q shows its successor in the closed chat's window, which becomes the
+---successor's own, and leaves the successor's buffer in the window that
+---showed it before -- in another tabpage, a window that is not its own.
+---@param chat table
+---@return integer|nil
+function M.win_here(chat)
+  if M.where(chat) == "here" and M.win(chat) then return M.win(chat) end
+  if not valid_buf(chat.bufnr) then return nil end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if nonfloat(win) and vim.api.nvim_win_get_buf(win) == chat.bufnr then return win end
+  end
+end
+
+---Hide the chat's own window through its ui (ui:hide), never raising.
+---@param chat table
+---@param opts? { keep_window?: boolean } leave the window for the next chat
+---@return boolean ok, any err
+function M.hide(chat, opts)
+  return pcall(function() chat.ui:hide(opts) end)
+end
+
+---The slot's id for a chat: its buffer and its chat id, since a buffer number
+---alone can be reused by a later chat.
+---@param chat table
+---@return string
+function M.key(chat)
+  return ("cc:%s:%s"):format(tostring(chat.bufnr), tostring(chat.id))
+end
+
+---The chat's buffer, while it is still this chat's (see live).
+---@param chat table
+---@return integer|nil
+function M.buf(chat)
+  local live = M.live(chat)
+  return live and live.bufnr or nil
+end
+
+---The chat's adapter as a sentence names it.
+---@param chat table
+---@return string
+function M.name(chat)
+  local adapter = type(chat) == "table" and type(chat.adapter) == "table" and chat.adapter or {}
+  return adapter.formatted_name or adapter.name or "The chat"
+end
+
+---Every live chat, whatever its adapter or however it was opened, oldest
+---first, each with what buf_get_chat() knows of it. Empty before CodeCompanion
+---has loaded, which is not loaded to answer.
+---@return { chat: table, title?: string, description?: string }[]
+function M.chats()
+  if not loaded() then return {} end
+  local ok, list = pcall(function() return require("codecompanion").buf_get_chat() end)
+  local out = {}
+  for _, entry in ipairs(ok and type(list) == "table" and list or {}) do
+    local chat = entry.chat
+    if type(chat) == "table" and valid_buf(chat.bufnr) and chat.ui then
+      out[#out + 1] = { chat = chat, title = entry.title, description = entry.description }
+    end
+  end
+  table.sort(out, function(a, b) return a.chat.bufnr < b.chat.bufnr end)
+  return out
+end
+
+---The chat shown in `buf`, if it is one. Loads nothing.
+---@param buf integer
+---@return table|nil
+function M.chat_of(buf)
+  if not loaded() or not valid_buf(buf) then return nil end
+  local ok, chat = pcall(function() return require("codecompanion").buf_get_chat(buf) end)
+  if ok and type(chat) == "table" and chat.bufnr == buf and chat.ui then return chat end
+  return nil
+end
+
+---What a chat is called in a picker: its backend, its kind and billing, and a
+---name -- its title, else what the registry or codecompanion-history calls it,
+---else its buffer number.
+---@param chat table
+---@param entry? { title?: string, description?: string }
+---@return string
+function M.label(chat, entry)
+  local adapter = chat.adapter or {}
+  local kind = adapter.type == "acp" and "ACP · subscription" or "API · API credits"
+  local name = chat.title or (entry and entry.title)
+  if not name and entry and entry.description and entry.description ~= "[No messages]" then name = entry.description end
+  if not name and valid_buf(chat.bufnr) then
+    local bufname = vim.fs.basename(vim.api.nvim_buf_get_name(chat.bufnr))
+    -- Upstream's own "[CodeCompanion] <n>", which codecompanion-history
+    -- renames "✨ [CodeCompanion] <id>" until it has a title, names nothing.
+    -- History pads it with a non-ASCII space, which %s does not match.
+    local bare = bufname:gsub("^✨%s*", "")
+    if bufname ~= "" and not bare:match("^%[CodeCompanion%]%D*%d+$") then name = bufname end
+  end
+  return ("%s · %s · %s"):format(adapter.formatted_name or adapter.name or "?", kind, name or ("#" .. chat.bufnr))
+end
+
+---Open `chat`'s window in this tabpage: in `opts.win`, a chat window handed
+---over (Chat.open({ ui, winnr }), which is ui:show_in_win), else a split of
+---its own from the current window (ui:open). Which one, and what makes way
+---for it, is the slot's (show_chat in local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua).
+---@param chat table a CodeCompanion.Chat
+---@param opts? { win?: integer, toggled?: boolean }
+function M.open(chat, opts)
+  opts = opts or {}
+  if opts.win then
+    require("codecompanion.interactions.chat").open({ ui = chat.ui, winnr = opts.win, toggled = opts.toggled })
+  else
+    chat.ui:open({ toggled = opts.toggled })
+  end
+end
+
+---Start a chat on one backend (an "acp" or "http" entry of
+---ai.state.backends()), hidden: ai.slot.show_chat puts it on screen.
+---Refused before anything starts when its key or bridge is missing. The chat
+---is created from the editor window, so its context and its review root are
+---the edited file's.
+---@param spec ai.Backend
+---@param extra table? more CodeCompanion.chat() arguments
+---@return table|nil chat
+function M.create(spec, extra)
+  if not M.preflight(spec) then return nil end
+  local win = require("agent_workbench.context").editor_win()
+  if win and win ~= vim.api.nvim_get_current_win() then vim.api.nvim_set_current_win(win) end
+  local args = vim.tbl_extend("force", { params = { adapter = spec.adapter, model = spec.model } }, extra or {})
+  args.hidden = true
+  local chat = require("codecompanion").chat(args)
+  if chat then vim.notify("New chat: " .. spec.label, INFO, { title = "AI" }) end
+  return chat
+end
+
+---A captured selection (ai.selection.capture) as chat text: fenced, with its
+---source -- what :'<,'>CodeCompanionChat Add writes. Nothing is submitted.
+---@param chat table a CodeCompanion.Chat
+---@param cap ai.Capture
+---@return boolean ok, string? why "disabled", or add_text's reason
+function M.add_capture(chat, cap)
+  if not require("codecompanion.config").can_send_code() then return false, "disabled" end
+  local code = require("codecompanion.utils.markdown").form_codeblock(table.concat(cap.lines, "\n"), { ft = cap.filetype })
+  local source = cap.path ~= "" and cap.path or "[No Name]"
+  return M.add_text(chat, ("\nHere is some code from %s:\n%s\n"):format(source, code))
+end
+
+---Say why add_capture or add_text took nothing.
+---@param why string?
+function M.refused(why)
+  local msg = ({
+    disabled = "Sending code to CodeCompanion is disabled",
+    busy = "The chat is replying: nothing was added",
+    gone = "That chat no longer exists: nothing was added",
+  })[why] or ("Could not add to the chat: " .. tostring(why))
+  vim.notify(msg, WARN, { title = "AI" })
+end
+
+---Is `chat` in the middle of a turn, where text added to its prompt would land
+---inside the reply? A request in flight, or a tool loop between two of its
+---steps: there Chat:done has already cleared `current_request` and the next
+---step's ready_for_input made the buffer editable again, and only the private
+---`_turn_in_progress` is still set (interactions/chat/init.lua, done and
+---ready_for_input). A buffer that is not modifiable is mid-turn too. A chat
+---whose buffer is gone is not busy; it is gone.
+---@param chat table a CodeCompanion.Chat
+---@return boolean
+function M.busy(chat)
+  if type(chat) ~= "table" then return false end
+  if chat.current_request ~= nil then return true end
+  -- Private: read defensively, so a rename upstream drops this signal only.
+  local ok, in_turn = pcall(function() return chat._turn_in_progress end)
+  if ok and in_turn == true then return true end
+  return valid_buf(chat.bufnr) and not vim.bo[chat.bufnr].modifiable
+end
+
+---The live chat `chat` still is: its buffer valid and, once CodeCompanion has
+---loaded, the chat CodeCompanion keeps for that buffer, with the same id. No
+---other chat stands in for it -- not upstream's last chat, not a newer chat
+---that reuses the buffer.
+---@param chat table
+---@return table|nil
+local function exact(chat)
+  if type(chat) ~= "table" or chat.id == nil or not valid_buf(chat.bufnr) then return nil end
+  if not loaded() then return chat end
+  local ok, live = pcall(function() return require("codecompanion").buf_get_chat(chat.bufnr) end)
+  if ok and type(live) == "table" and live.id == chat.id and live.bufnr == chat.bufnr then return live end
+  return nil
+end
+M.live = exact
+
+---Append `text` to the prompt of exactly `chat`, without submitting it.
+---prompt:add writes at the buffer's last column, so text that is to follow
+---what the user already typed should start with "\n" -- without it, a second
+---add glued itself to the end of the half-typed line. At the start of a new
+---user block the newline is dropped by prompt:add itself.
+---
+---Refused while the chat is busy (mid-turn, see busy) or gone; nothing has
+---changed then.
+---@param chat table a CodeCompanion.Chat
+---@param text string
+---@return boolean ok, "gone"|"busy"|"failed"|nil why, string? err
+function M.add_text(chat, text)
+  local live = exact(chat)
+  if not live then return false, "gone" end
+  if M.busy(live) then return false, "busy" end
+  local ok, err = pcall(function() live.prompt:add({ content = text }) end)
+  if not ok then return false, "failed", tostring(err) end
+  return true
+end
+
+---Is `chat` an agent chat (an agent CLI over ACP) rather than an API chat?
+---@param chat table a CodeCompanion.Chat
+---@return boolean
+function M.is_acp(chat)
+  return type(chat) == "table" and type(chat.adapter) == "table" and chat.adapter.type == "acp"
+end
+
+---Add the file in `buf` to exactly `chat` as context, through the output of
+---CodeCompanion's own /buffer (interactions/shared/slash_commands/buffer.lua):
+---a hidden message and an entry in the chat's Context list. Nothing is
+---submitted. What the next turn carries is upstream's choice by transport: an
+---API chat sends the buffer's text, unsaved edits included; an ACP chat sends
+---only "Sharing the following file as context: <path>" (build_messages in
+---adapters/acp/helpers.lua), and its agent reads the saved file.
+---
+---Refused while the chat is busy or gone, as add_text is. output() reports
+---its own failures through CodeCompanion's log and returns nothing, so success
+---is read off the hidden message it adds.
+---@param chat table a CodeCompanion.Chat
+---@param buf integer a buffer with a file name
+---@return boolean ok, "disabled"|"gone"|"busy"|"failed"|nil why, string? err
+function M.add_buffer(chat, buf)
+  if not require("codecompanion.config").can_send_code() then return false, "disabled" end
+  local live = exact(chat)
+  if not live then return false, "gone" end
+  if M.busy(live) then return false, "busy" end
+  local before = #live.messages
+  local ok, err = pcall(function()
+    local cc_config = require("codecompanion.config")
+    require("codecompanion.interactions.shared.slash_commands.buffer")
+      .new({ Chat = live, config = cc_config.interactions.chat.slash_commands.buffer, context = {} })
+      :output({ bufnr = buf, path = vim.api.nvim_buf_get_name(buf), name = vim.fn.bufname(buf) }, { silent = true })
+  end)
+  if not ok then return false, "failed", tostring(err) end
+  if #live.messages == before then return false, "failed" end
+  return true
+end
+
+---The cursor at the end of `chat`'s prompt, in its window in this tabpage
+---(the slot's focus_chat_prompt puts it on screen first). With `insert`, in
+---Insert mode too -- unless the chat is mid-turn, whose buffer is locked: the
+---first key typed would be E21, so it says so instead.
+---@param chat table a CodeCompanion.Chat
+---@param insert boolean?
+function M.focus_prompt(chat, insert)
+  local win = M.win_here(chat)
+  if not win then return end
+  vim.api.nvim_set_current_win(win)
+  vim.api.nvim_win_set_cursor(win, { vim.api.nvim_buf_line_count(chat.bufnr), 0 })
+  if not insert then return end
+  if M.busy(chat) then
+    vim.notify("The chat is replying: type once it is done", INFO, { title = "AI" })
+    return
+  end
+  vim.cmd("startinsert!")
+end
+
+---Keys for <leader>ae: the inline prompt's command line, or nothing when the
+---key is missing. An expr mapping, so the refusal comes before the command
+---line opens rather than after a prompt has been typed.
+---@return string
+function M.inline_keys()
+  return M.preflight("http") and ":CodeCompanion " or "<Ignore>"
+end
+
+---Point CodeCompanion's inline and command prompts at the current key
+---profile, after :AI key. A no-op until the plugin has loaded: its `opts` read
+---the same state at load time (lua/plugin/ai/codecompanion.lua). The chat
+---adapter is not touched: it is the first `acp` in provider order (else the
+---first `api`), fixed at load, and only CodeCompanion's own paths that name no
+---adapter use it. The live config is written directly, never
+---`vim.g.codecompanion_adapter`, which v20's cmd.lua resolves through
+---`config.adapters[name]` -- nil -- and so falls back to the chat adapter.
+function M.sync()
+  if not loaded() then return end
+  local cc = require("codecompanion.config")
+  cc.interactions.inline.adapter = config.http_adapter_spec()
+  cc.interactions.cmd.adapter = config.http_adapter_spec()
+end
+
+return M

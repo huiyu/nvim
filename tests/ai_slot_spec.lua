@@ -1,30 +1,23 @@
--- One AI chat slot per tabpage (lua/ai/slot.lua, issue #28).
+-- One AI chat slot per tabpage (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua, issue #28).
 --
 -- What is pinned: the right of a tabpage shows at most one AI window --
--- native Claude, native Codex or a CodeCompanion chat -- and showing one hides
+-- native Codex or a CodeCompanion chat -- and showing one hides
 -- the others there through their owner's hide, never stopping them and never
 -- touching another tabpage; the keys act on the chat on the right, asking when
 -- there is none and never delivering to a hidden chat, another tabpage's or
 -- a provider picked for the user silently; a CodeDiff view hands the keys to the page it
 -- came from; a guard holds the rule for upstream's own paths.
 --
--- The agents are stand-ins: scripts named after each CLI that run `cat`, ahead
--- of the real ones on PATH. Codex runs through its real backend (unwrapped);
--- Claude through stand-ins of claudecode's modules around a real Snacks
--- terminal, so the plugin, its WebSocket server and lockfile stay out of it.
--- Chats are real API chats on fake NVIM_* keys with CodeCompanion's curl layer
--- stubbed; none is submitted, and no ACP chat is ever created (that spawns the
--- bridge). Questions are answered by a stand-in vim.ui.select. There is no
--- default backend: where the provider order shows, the list is reordered
--- in-process (ai.config._set_providers) and put back.
+-- Codex uses its real backend with an offline cat process. Real HTTP chat UIs
+-- use fake keys and a stubbed curl layer; no ACP connection or turn starts.
 local t = dofile("tests/helper.lua")
 
 local api = vim.api
-local config = require("ai.config")
+local config = require("agent_workbench.state")
 local Config = require("lazy.core.config")
 local INFO, WARN, ERROR = vim.log.levels.INFO, vim.log.levels.WARN, vim.log.levels.ERROR
 
-local function loaded(name) return Config.plugins[name]._.loaded ~= nil end
+local function loaded(name) return Config.plugins[name] ~= nil and Config.plugins[name]._.loaded ~= nil end
 local function settle(ms) vim.wait(ms or 80, function() return false end, 10) end
 
 -- `notes` is what a case reads, reset as it likes; `all_notes` keeps every
@@ -46,24 +39,22 @@ end
 -- Before anything opens
 ---------------------------------------------------------------------------
 
-t.eq(type(package.loaded["ai.slot"]), "table", "the slot is set up at startup")
+t.eq(type(package.loaded["agent_workbench.slot"]), "table", "the slot is set up at startup")
 t.ok(#api.nvim_get_autocmds({ group = "ai_slot", event = "BufWinEnter" }) == 1, "with its BufWinEnter guard")
 t.ok(not loaded("claudecode.nvim") and not loaded("codecompanion.nvim"), "and loads neither AI plugin")
-t.ok(vim.tbl_contains(Config.plugins["claudecode.nvim"].cmd or {}, "ClaudeCodeOpen"),
-  ":ClaudeCodeOpen is a lazy trigger: the slot reveals Claude through it before claudecode has loaded")
+t.eq(Config.plugins["claudecode.nvim"], nil, "Claude integration is not declared in the Codex release")
 
 -- Stand-in agents, a repository with a space in its path, fake API keys.
 local scratch = vim.fn.tempname()
 local bin = scratch .. "/bin"
 vim.fn.mkdir(bin, "p")
-for _, name in ipairs({ "claude", "codex" }) do
+for _, name in ipairs({ "codex" }) do
   vim.fn.writefile({ "#!/bin/sh", "exec cat" }, bin .. "/" .. name)
   vim.fn.setfperm(bin .. "/" .. name, "rwx------")
 end
 local saved = {
   path = vim.env.PATH, wrap = vim.env.CODEX_WRAP_TMUX, select = vim.ui.select,
   anthropic = vim.env.NVIM_ANTHROPIC_API_KEY, openai = vim.env.NVIM_OPENAI_API_KEY,
-  cc = package.loaded["claudecode"], cc_terminal = package.loaded["claudecode.terminal"],
   chan_send = api.nvim_chan_send,
 }
 vim.env.PATH = bin .. ":" .. saved.path
@@ -76,8 +67,7 @@ vim.fn.mkdir(repo .. "/src", "p")
 local file = repo .. "/src/app.lua"
 vim.fn.writefile({ "local a = 1", "local bc = 2", "local d = 3", "return a" }, file)
 
-t.ok(vim.fn.exepath("codex") == bin .. "/codex" and vim.fn.exepath("claude") == bin .. "/claude",
-  "both CLIs resolve to the stand-ins")
+t.eq(vim.fn.exepath("codex"), bin .. "/codex", "Codex resolves to the offline stand-in")
 
 -- Questions: each answered by the next function queued, which gets the items
 -- and how the picker formats them. With nothing queued, a question cancels.
@@ -144,56 +134,13 @@ local function sent(buf, data)
   return false
 end
 
--- claudecode, standing in: one Snacks terminal running the stand-in, opened,
--- shown and hidden the way the backend drives claudecode's.
-local Snacks = require("snacks")
-local claude_term
--- open: the arguments of each call, and the window it was called from.
-local cc_calls = { open = {}, open_win = {}, mentions = {}, texts = {}, sends = {}, tree_adds = {} }
-package.loaded["claudecode"] = {
-  send_at_mention = function(path, s, e)
-    cc_calls.mentions[#cc_calls.mentions + 1] = { path, s, e }
-    return true
-  end,
-}
-package.loaded["claudecode.terminal"] = {
-  get_active_terminal_bufnr = function() return claude_term and claude_term:buf_valid() and claude_term.buf or nil end,
-  open = function(_, args)
-    cc_calls.open[#cc_calls.open + 1] = args or ""
-    cc_calls.open_win[#cc_calls.open_win + 1] = api.nvim_get_current_win()
-    if claude_term and claude_term:buf_valid() then
-      claude_term:show()
-      claude_term:focus()
-    else
-      claude_term = Snacks.terminal.open({ bin .. "/claude" },
-        { win = { position = "right", width = config.panel.width, wo = { winbar = "" }, keys = { term_normal = false } } })
-    end
-  end,
-  ensure_visible = function() end,
-  send_to_terminal = function(text, opts)
-    cc_calls.texts[#cc_calls.texts + 1] = { text, opts }
-    return true
-  end,
-}
--- A directory listing's selection goes through :ClaudeCodeSend, which reads
--- the live Visual selection. Defining it replaces lazy's stub, which would load
--- the real plugin.
-api.nvim_create_user_command("ClaudeCodeSend", function(o)
-  cc_calls.sends[#cc_calls.sends + 1] = { buf = api.nvim_get_current_buf(), mode = vim.fn.mode() }
-end, { range = true })
--- oil's <leader>aS goes through :ClaudeCodeTreeAdd, which reads the listing's
--- cursor.
-api.nvim_create_user_command("ClaudeCodeTreeAdd", function()
-  cc_calls.tree_adds[#cc_calls.tree_adds + 1] = { buf = api.nvim_get_current_buf(), line = api.nvim_win_get_cursor(0)[1] }
-end, {})
-
-local ai, slot, companion = require("ai"), require("ai.slot"), require("ai.companion")
-local claude, codex = require("ai.backend.claude"), require("ai.backend.codex")
+local ai, slot, companion = require("agent_workbench"), require("agent_workbench.slot"), require("agent_workbench.companion")
+local codex = require("agent_workbench.backend.codex")
 
 ---Run `fn` with the transcript views stood in; return whose transcript each
 ---was asked for, in order.
 local function transcripts_read(fn)
-  local view = require("ai.transcript")
+  local view = require("agent_workbench.transcript")
   local real = { open_current = view.open_current, pick = view.pick }
   local read = {}
   view.open_current = function(agent) read[#read + 1] = "open_current " .. tostring(agent) end
@@ -233,17 +180,22 @@ local root = vim.fs.dirname(vim.fs.dirname(file))
 ---------------------------------------------------------------------------
 
 local ids = function(list) return vim.tbl_map(function(b) return b.id end, list) end
-local PROVIDERS = vim.deepcopy(config.providers)
+-- An additional HTTP profile exercises multi-chat routing without enabling a second native agent.
+local ORIGINAL_PROVIDERS = vim.deepcopy(config.providers)
+local PROVIDERS = vim.deepcopy(ORIGINAL_PROVIDERS)
+PROVIDERS[#PROVIDERS + 1] = { name = "anthropic", label = "Anthropic",
+  api = { adapter = "anthropic", api_key = "NVIM_ANTHROPIC_API_KEY" } }
+config._set_providers(PROVIDERS)
 local REVERSED = { vim.deepcopy(PROVIDERS[2]), vim.deepcopy(PROVIDERS[1]) }
-t.eq(ids(config.backends()), { "claude", "codex", "acp:claude_code", "acp:codex", "api:anthropic", "api:openai" },
-  "terminals, ACP chats, API chats, each in provider order: Claude's first")
+t.eq(ids(config.backends()), { "codex", "acp:codex", "api:openai", "api:anthropic" },
+  "native, ACP, then HTTP profiles in declaration order")
 config._set_providers(REVERSED)
-t.eq(ids(config.backends()), { "codex", "claude", "acp:codex", "acp:claude_code", "api:openai", "api:anthropic" },
-  "and Codex's first when it is listed first")
+t.eq(ids(config.backends()), { "codex", "acp:codex", "api:anthropic", "api:openai" },
+  "reordering profiles changes HTTP order while the sole native agent remains Codex")
 config._set_providers(PROVIDERS)
 local by_id = {}
 for _, b in ipairs(config.backends()) do by_id[b.id] = b end
-t.eq(by_id.claude.label, "Claude Code · terminal · subscription", "a terminal says what it is and who bills it")
+t.eq(by_id.codex.label, "Codex · terminal · subscription", "a terminal says what it is and who bills it")
 t.eq(by_id["acp:codex"].label, "Codex · CodeCompanion ACP · subscription", "an agent chat too")
 t.eq(by_id["api:openai"].label, "OpenAI · CodeCompanion API · API credits", "and an API chat")
 vim.env.NVIM_OPENAI_API_KEY = nil
@@ -252,21 +204,16 @@ t.eq({ openai_off.available, openai_off.why }, { false, "NVIM_OPENAI_API_KEY is 
   "an API profile without its key is unavailable, saying why")
 vim.env.NVIM_OPENAI_API_KEY = "sk-spec-not-a-key"
 
--- Only available backends are offered: with a PATH that holds the Claude
--- stand-in alone -- not prepended to the real one, where the CLIs may be --
--- neither Codex entry is, nor an ACP chat whose bridge is missing.
-local only_claude = scratch .. "/only-claude"
-vim.fn.mkdir(only_claude, "p")
-vim.fn.writefile({ "#!/bin/sh", "exec cat" }, only_claude .. "/claude")
-vim.fn.setfperm(only_claude .. "/claude", "rwx------")
-vim.env.PATH = only_claude
+-- With no CLI or bridge in PATH, only HTTP entries can start.
+local no_cli = scratch .. "/no-cli"
+vim.fn.mkdir(no_cli, "p")
+vim.env.PATH = no_cli
 asked = {}
 ai.new_chat()
 vim.env.PATH = bin .. ":" .. saved.path
 local offered = asked[1] and asked[1].shown or {}
-t.ok(#vim.tbl_filter(function(s) return s:find("^Claude Code · terminal") ~= nil end, offered) == 1
-  and #vim.tbl_filter(function(s) return s:find("Codex", 1, true) or s:find("ACP", 1, true) end, offered) == 0,
-  "the new-chat picker lists only the backends that can start (" .. table.concat(offered, " | ") .. ")")
+t.ok(#offered == 2 and #vim.tbl_filter(function(line) return line:find("API credits", 1, true) end, offered) == 2,
+  "unavailable CLI and ACP entries are omitted from the picker")
 t.ok(not loaded("claudecode.nvim") and not loaded("codecompanion.nvim"), "asking loads nothing")
 
 ---------------------------------------------------------------------------
@@ -435,7 +382,7 @@ ai.new_chat()
 vim.cmd("stopinsert")
 local codex_buf = codex.buf()
 t.ok(codex_buf ~= nil and alive(codex_buf), "<leader>an starts Codex")
-t.eq(codex_buf and vim.b[codex_buf].snacks_terminal.cwd, root, "from the editor window: its root is the edited file's")
+t.eq(codex_buf and vim.b[codex_buf].agent_workbench.cwd, root, "from the editor window: its root is the edited file's")
 t.ok(codex.visible() and not anthropic.ui:is_visible(), "the chat makes way for it")
 t.ok(api.nvim_buf_is_valid(anthropic.bufnr), "hidden, not closed")
 t.eq(#wins(), 2, "one AI window")
@@ -467,44 +414,22 @@ ai.new_chat()
 t.ok(offered_as("Codex · terminal"):find("Codex · terminal · subscription · running", 1, true) == 1,
   "a hidden one is marked running (" .. offered_as("Codex · terminal") .. ")")
 
--- Claude, the other native agent, through claudecode's open.
+-- Native focus and toggle preserve the one running process.
 editor()
-backend_choice("claude")
-ai.new_chat()
-vim.cmd("stopinsert")
-settle()
-t.ok(claude.visible() and not anthropic.ui:is_visible() and not codex.visible(), "<leader>an shows Claude Code, alone")
-t.eq(cc_calls.open, { "" }, "through claudecode's open, which never hides it")
-t.ok(noted("New chat: Claude Code · terminal · subscription") ~= nil, "announced like Codex")
-
--- Native to native.
 choose("Codex")
 ai.switch_chat()
-vim.cmd("stopinsert")
-settle()
-t.ok(codex.visible() and not claude.visible() and alive(claude.buf()), "Codex replaces Claude, which keeps running")
-choose("Claude Code")
-ai.switch_chat()
-vim.cmd("stopinsert")
-settle()
-t.ok(claude.visible() and not codex.visible() and alive(codex_buf), "and the other way round")
-
--- <leader>af goes in and never hides; <leader>ac hides and brings back.
+vim.cmd.stopinsert()
 editor()
 ai.focus()
-vim.cmd("stopinsert")
-t.eq(api.nvim_get_current_buf(), claude.buf(), "<leader>af goes into the chat on the right")
-ai.focus()
-vim.cmd("stopinsert")
-t.ok(claude.visible(), "and pressed in it, leaves it shown")
-editor()
+vim.cmd.stopinsert()
+t.eq(api.nvim_get_current_buf(), codex.buf(), "focus reaches the native session on the right")
 ai.toggle()
-t.ok(not claude.visible() and alive(claude.buf()), "<leader>ac hides Claude, which keeps running")
+settle()
+t.ok(not codex.visible() and alive(codex_buf), "toggle hides Codex without stopping it")
 ai.toggle()
-vim.cmd("stopinsert")
-t.ok(claude.visible(), "and brings it back")
+vim.cmd.stopinsert()
+t.ok(codex.visible(), "toggle restores the last native session")
 
----------------------------------------------------------------------------
 -- The guard: upstream's own paths
 ---------------------------------------------------------------------------
 
@@ -513,7 +438,7 @@ editor()
 local upstream = real_chat({ params = { adapter = "anthropic" } })
 settle()
 t.ok(upstream and upstream.ui:is_visible(), "a chat opened by upstream is shown")
-t.ok(not claude.visible() and alive(claude.buf()), "and the guard hides Claude for it, without stopping it")
+t.ok(not codex.visible() and alive(codex.buf()), "and the guard hides Codex for it without stopping it")
 t.eq(#wins(), 2, "one AI window")
 t.eq(vim.t.ai_slot_last, upstream and slot.chat_item(upstream).id, "the guard remembers it as the last chat")
 if upstream then upstream:close() end
@@ -541,10 +466,27 @@ api.nvim_win_set_cursor(0, { 2, 0 })
 asked, typed = {}, {}
 api.nvim_feedkeys("Vj", "x", false)
 ai.send_selection()
-t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@src/app.lua lines 2-3 ") end, 20),
+t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@" .. file .. " lines 2-3 ") end, 20),
   "<leader>as types the selection into Codex on the right")
 t.eq(#asked, 0, "without asking")
 vim.cmd("stopinsert")
+-- Selection capture precedes asynchronous chat selection. Its file reference
+-- must remain correct even when the recipient runs in another project.
+editor()
+local other_repo = scratch .. "/another repo"
+vim.fn.mkdir(other_repo .. "/.git", "p")
+vim.fn.mkdir(other_repo .. "/src", "p")
+vim.fn.writefile({ "other project" }, other_repo .. "/src/app.lua")
+vim.cmd.edit(vim.fn.fnameescape(other_repo .. "/src/app.lua"))
+local other_file = api.nvim_buf_get_name(0)
+typed = {}
+api.nvim_feedkeys("ggV", "x", false)
+ai.send_selection()
+t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@" .. other_file .. " lines 1-1 ") end, 20),
+  "a saved selection identifies its actual file across project roots")
+vim.cmd.stopinsert()
+api.nvim_set_current_win(editor_win)
+vim.cmd.edit(vim.fn.fnameescape(file))
 editor()
 typed = {}
 ai.add_buffer()
@@ -637,25 +579,24 @@ t.ok(noted("The chat is replying") ~= nil and vim.fn.mode() == "n", "a chat that
 anthropic._turn_in_progress = nil
 
 -- A native agent on the right gets <leader>ai, whichever it is.
-local other = config.agent_names()[2]
+local other = "codex"
 editor()
 choose(config.agents[other].label .. " · terminal")
 ai.switch_chat()
 vim.cmd("stopinsert")
 settle()
-local prompts = { claude = {}, codex = {} }
-local real_edit = { claude = claude.edit_prompt, codex = codex.edit_prompt }
-claude.edit_prompt = function(o) table.insert(prompts.claude, o) end
+local prompts = { codex = {} }
+local real_edit = codex.edit_prompt
 codex.edit_prompt = function(o) table.insert(prompts.codex, o) end
 editor()
 api.nvim_win_set_cursor(0, { 1, 0 })
 api.nvim_feedkeys("V", "x", false)
 ai.compose()
-claude.edit_prompt, codex.edit_prompt = real_edit.claude, real_edit.codex
-t.eq({ #prompts[other], #prompts[config.agent_names()[1]] }, { 1, 0 },
-  "<leader>ai opens the prompt of the agent on the right (" .. other .. "), not the first listed")
-t.eq(prompts[other][1] and prompts[other][1].seed, "@src/app.lua lines 1-1 ", "seeded with the selection")
--- So do the transcript keys: the agent on the right, unasked, not the first listed.
+codex.edit_prompt = real_edit
+t.eq(#prompts[other], 1,
+  "<leader>ai opens the prompt of the agent on the right (" .. other .. "), without a question")
+t.eq(prompts[other][1] and prompts[other][1].seed, "@" .. file .. " lines 1-1 ", "seeded with the selection")
+-- So do the transcript keys: the agent on the right, unasked, without a question.
 editor()
 asked = {}
 local read = transcripts_read(function()
@@ -664,108 +605,6 @@ local read = transcripts_read(function()
 end)
 t.eq({ read, #asked }, { { "open_current " .. other, "pick " .. other }, 0 },
   "<leader>at/aT read the transcript of the agent on the right (" .. other .. "), unasked")
-
--- Claude running but hidden, picked for <leader>ai: shown here through
--- claudecode's open, then asked for its prompt editor.
-editor()
-ai.toggle()
-cc_calls.open = {}
-choose("Claude Code")
-ai.compose()
-vim.cmd("stopinsert")
-settle()
-t.ok(#cc_calls.open == 1 and claude.visible(), "<leader>ai shows a hidden Claude here before asking for its prompt")
-require("ai.editor").stage_seed(nil, { agent = "claude" })
-
----------------------------------------------------------------------------
--- Claude on the right: a mention of the captured lines; its own session keys
----------------------------------------------------------------------------
-
-editor()
-choose("Claude Code")
-ai.switch_chat()
-vim.cmd("stopinsert")
-settle()
-editor()
-api.nvim_win_set_cursor(0, { 2, 0 })
-cc_calls.mentions = {}
-api.nvim_feedkeys("Vj", "x", false)
-ai.send_selection()
-t.eq(cc_calls.mentions, { { file, 1, 2 } }, "<leader>as mentions the captured lines to Claude Code (0-based, as claudecode takes them)")
-t.eq(api.nvim_get_current_win(), editor_win, "and the cursor stays in the file")
-
--- <leader>ab: the file, through claudecode's API -- :ClaudeCodeAdd would split
--- "a repo/src/app.lua" at its space.
-editor()
-cc_calls.mentions = {}
-ai.add_buffer()
-t.eq(cc_calls.mentions, { { file } }, "<leader>ab mentions the file to Claude Code, its path whole")
-
--- A mention is of the file on disk, so an unsaved edit is not in it: the
--- lines selected still go, and the user is told.
-editor()
-api.nvim_buf_set_lines(0, 0, 0, false, { "local unsaved = 42" })
-api.nvim_win_set_cursor(0, { 1, 0 })
-cc_calls.mentions, notes = {}, {}
-api.nvim_feedkeys("V", "x", false)
-ai.send_selection()
-local unsaved_note = noted("Claude Code reads the saved file; this buffer has unsaved changes")
-t.eq(cc_calls.mentions, { { file, 0, 0 } }, "<leader>as on a buffer with unsaved changes still mentions the lines selected")
-t.eq(unsaved_note and unsaved_note.level, WARN, "warning that Claude Code reads them from the saved file")
-editor()
-notes = {}
-ai.add_buffer()
-unsaved_note = noted("Claude Code reads the saved file; this buffer has unsaved changes")
-t.eq(unsaved_note and unsaved_note.level, WARN, "<leader>ab warns the same way")
-editor()
-vim.cmd("silent edit!")
-
--- A buffer with no file has nothing to mention.
-editor()
-vim.cmd("enew")
-local no_file = api.nvim_get_current_buf()
-api.nvim_buf_set_lines(no_file, 0, -1, false, { "scratch" })
-cc_calls.mentions, notes = {}, {}
-api.nvim_feedkeys("V", "x", false)
-ai.send_selection()
-t.ok(noted("This buffer has no file") ~= nil and #cc_calls.mentions == 0,
-  "a selection in a buffer with no file is refused for Claude Code, saying why")
-api.nvim_win_set_buf(0, vim.fn.bufnr(file))
-api.nvim_buf_delete(no_file, { force = true })
-
--- Claude hidden and picked in the question: shown first, then mentioned.
-editor()
-ai.toggle()
-t.ok(not claude.visible() and alive(claude.buf()), "Claude hidden")
-cc_calls.open, cc_calls.mentions = {}, {}
-choose("Claude Code")
-api.nvim_win_set_cursor(0, { 2, 0 })
-api.nvim_feedkeys("Vj", "x", false)
-ai.send_selection()
-vim.cmd("stopinsert")
-t.ok(#cc_calls.open == 1 and claude.visible(), "<leader>as shows a hidden Claude picked in the question")
-t.eq(cc_calls.mentions, { { file, 1, 2 } }, "then mentions the lines")
-
--- A running session is shown and left as it is: no toggle, no arguments.
-editor()
-cc_calls.open, notes = {}, {}
-ai.resume()
-vim.cmd("stopinsert")
-t.ok(claude.visible(), "<leader>ar on a running Claude leaves it shown")
-t.ok(noted("Claude Code is already running: use /resume in it") ~= nil, "and says how to resume from it")
-t.eq(cc_calls.open, {}, "into its window: no toggle, no --resume")
-editor()
-notes = {}
-ai.continue()
-vim.cmd("stopinsert")
-t.ok(claude.visible() and noted("Claude Code is already running") ~= nil, "<leader>aR too")
-editor()
-cc_calls.texts, notes = {}, {}
-ai.select_model()
-vim.cmd("stopinsert")
-t.ok(claude.visible() and noted("Claude Code is already running: use /model in it") ~= nil,
-  "<leader>am on a running Claude shows it and says how")
-t.eq(cc_calls.texts, {}, "typing nothing: its box may hold a draft, which an Enter would submit")
 
 -- Codex the same way.
 editor()
@@ -788,40 +627,21 @@ t.ok(codex.visible() and noted("Codex is already running: use /model in it") ~= 
   "<leader>am on a running Codex shows it and says how")
 t.eq(#writes(codex_buf), 0, "typing nothing into its box")
 
--- No native agent on the right: the native keys ask which, in provider order.
+-- With one installed native agent, session and transcript keys resolve it without a question.
 editor()
 choose("Anthropic")
 ai.switch_chat()
 settle()
 editor()
 asked = {}
+local only_read = transcripts_read(function() ai.transcript(); ai.transcript_pick() end)
+t.eq({ only_read, #asked }, { { "open_current codex", "pick codex" }, 0 },
+  "transcript keys resolve the only installed native agent without hiding the chat")
+t.ok(anthropic.ui:is_visible(), "reading records leaves the chat visible")
 ai.resume()
-t.eq(asked[1] and asked[1].prompt, "Which native agent?", "with a chat on the right, <leader>ar asks which agent")
-t.eq(asked[1] and asked[1].shown, { "Claude Code", "Codex" }, "the first provider's agent first")
-config._set_providers(REVERSED)
-asked = {}
-ai.resume()
-t.eq(asked[1] and asked[1].shown, { "Codex", "Claude Code" }, "and Codex's when it is listed first")
-config._set_providers(PROVIDERS)
-t.ok(anthropic.ui:is_visible(), "cancelled, the chat stays")
-asked = {}
-choose(config.agents[other].label)
-read = transcripts_read(function() ai.transcript() end)
-t.eq({ read, asked[1] and asked[1].prompt }, { { "open_current " .. other }, "Whose transcript?" },
-  "<leader>at with a chat on the right asks whose, and reads the one picked (" .. other .. ")")
-asked = {}
-choose(config.agents[other].label)
-read = transcripts_read(function() ai.transcript_pick() end)
-t.eq(read, { "pick " .. other }, "<leader>aT too")
-t.ok(anthropic.ui:is_visible(), "neither touches the chat on the right")
--- With one agent installed there is nothing to ask.
-vim.env.PATH = only_claude
-asked = {}
-ai.resume()
-vim.env.PATH = bin .. ":" .. saved.path
-vim.cmd("stopinsert")
-t.eq(#asked, 0, "with one native agent installed, <leader>ar asks nothing")
-t.ok(claude.visible() and not anthropic.ui:is_visible(), "and shows that one, the chat hidden for it")
+vim.cmd.stopinsert()
+t.eq(#asked, 0, "resume resolves the only installed native agent without a question")
+t.ok(codex.visible() and not anthropic.ui:is_visible(), "resume reveals it in place of the chat")
 editor()
 choose("Anthropic")
 ai.switch_chat()
@@ -892,7 +712,7 @@ local codex_layout = layout(first_tab)
 for _, key in ipairs({ { "<leader>ar", ai.resume }, { "<leader>al", ai.switch_chat } }) do
   api.nvim_set_current_tabpage(second_tab)
   notes = {}
-  choose("Codex")
+  if key[2] == ai.switch_chat then choose("Codex") end
   key[2]()
   vim.cmd("stopinsert")
   settle()
@@ -981,7 +801,7 @@ end
 info_says("Codex · terminal · subscription · ● here", "the chat on the right here")
 info_says(("Anthropic · API · API credits · #%d · tab 1"):format(anthropic.bufnr), "a chat shown in another tabpage")
 info_says(("OpenAI · API · API credits · #%d · tab 2"):format(openai.bufnr), "and in a third")
-info_says("Claude Code · terminal · subscription · hidden", "a session no tabpage shows")
+t.ok(not info:find("Claude Code · terminal", 1, true), ":AI info offers no unimplemented Claude terminal")
 
 vim.cmd("only")
 t.eq(#wins(), 1, "a tabpage with only the Codex panel")
@@ -1019,7 +839,7 @@ vim.t.blocks_global_prefixes = true
 vim.cmd("tabnew")
 local view_b = api.nvim_get_current_tabpage()
 vim.t.blocks_global_prefixes = true
-local util_window = require("util.window")
+local util_window = require("editor_core.window")
 t.eq({ util_window.origin_tab(view_b), util_window.origin_tab(view_a), util_window.origin_tab(first_tab) },
   { first_tab, first_tab, nil }, "a view's origin is the first page before it that is no view")
 vim.cmd.edit(vim.fn.fnameescape(file))
@@ -1040,11 +860,11 @@ t.ok(noted("Sent to Anthropic (tab 1)") ~= nil, "saying where it went")
 t.eq(layout(view_b), view_layout, "the view opened nothing")
 -- The pickers too: what is picked opens in that page, never in the view.
 api.nvim_set_current_tabpage(view_b)
-choose("Claude Code")
+choose("Codex")
 ai.switch_chat()
 vim.cmd("stopinsert")
 t.eq(api.nvim_get_current_tabpage(), first_tab, "<leader>al from a view shows a hidden chat in the page it came from")
-t.ok(claude.visible() and not anthropic.ui:is_visible(), "in place of the one there")
+t.ok(codex.visible() and not anthropic.ui:is_visible(), "in place of the one there")
 t.eq(layout(view_b), view_layout, "and the view keeps its windows")
 pick(anthropic)
 ai.switch_chat()
@@ -1073,7 +893,9 @@ t.eq({ asked[1] and asked[1].prompt, api.nvim_get_current_tabpage() }, { "Add se
 ai.switch_chat()
 t.eq({ #asked, api.nvim_get_current_tabpage() }, { 2, view_b }, "<leader>al too")
 ai.resume()
-t.eq({ #asked, api.nvim_get_current_tabpage() }, { 3, view_b }, "and <leader>ar")
+vim.cmd.stopinsert()
+t.eq({ #asked, api.nvim_get_current_tabpage() }, { 2, first_tab },
+  "resume resolves the sole native agent and returns to the origin tab without a question")
 t.eq(layout(view_b), view_layout, "the view opened nothing")
 api.nvim_set_current_tabpage(first_tab)
 pick(anthropic)
@@ -1137,7 +959,7 @@ ai.switch_chat()
 settle()
 
 ---------------------------------------------------------------------------
--- The guard leaves other tabpages, and claudecode's diff copy, alone
+-- The guard leaves other tabpages and unowned terminal copies alone
 ---------------------------------------------------------------------------
 
 -- A chat buffer put into a window of another tabpage: the event is that
@@ -1154,89 +976,48 @@ t.ok(third_chat.ui:is_visible() and api.nvim_win_get_buf(third_plain) == openai.
   "a buffer set into another tabpage's window makes the guard touch nothing there")
 t.eq(#api.nvim_tabpage_list_wins(third_tab), third_layout_before, "not a window")
 
--- claudecode's diff tabpage shows a copy of its terminal, which is not its own
--- window (display_terminal_in_new_tab: a split given the terminal's buffer):
--- the target there, but nothing the slot can hide. Claude's own window is
--- hidden meanwhile.
-t.ok(claude.running() and not claude.window(), "Claude runs, its own window hidden")
-vim.cmd("tabnew")
-local diff_tab = api.nvim_get_current_tabpage()
-vim.cmd.edit(vim.fn.fnameescape(file))
-local diff_file_win = api.nvim_get_current_win()
-vim.cmd("vsplit")
-api.nvim_win_set_buf(0, claude.buf())
+-- A terminal copy in a separate tab stays the target where it is visible.
+editor()
+choose("Codex")
+ai.switch_chat()
+vim.cmd.stopinsert()
 settle()
-t.eq(shown_ids(diff_tab), { "native:claude" }, "Claude's copy in a diff tabpage is the chat on the right there")
--- claudecode diffthis'es the proposal's panes; a copy beside no diff is only
--- a window the slot cannot hide, and is not called a diff tabpage.
+local owner = api.nvim_get_current_tabpage()
+vim.cmd.tabnew()
+local copy_tab = api.nvim_get_current_tabpage()
+vim.cmd.edit(vim.fn.fnameescape(file))
+local copy_editor = api.nvim_get_current_win()
+vim.cmd.vsplit()
+api.nvim_win_set_buf(0, codex.buf())
+settle()
+t.eq(shown_ids(), { "native:codex" }, "terminal copy is the native target in this tab")
 notes = {}
 ai.toggle()
-t.eq(#wins(), 2, "<leader>ac cannot hide a copy")
-t.ok(noted("diff tabpage") == nil and noted("in a window it cannot hide") ~= nil,
-  "beside no diff, it is not called Claude's diff tabpage")
-vim.wo[diff_file_win].diff = true
-notes = {}
-ai.toggle()
-t.eq(#wins(), 2, "<leader>ac cannot hide it")
-t.ok(noted("answer it with <leader>aa / <leader>ad") ~= nil, "and says what to do instead")
-vim.wo[diff_file_win].diff = false
--- Everything that reaches Claude there goes to that copy: claudecode's own
--- open judges by its own window, and would split a second Claude beside it.
-local function claude_wins()
-  return #vim.tbl_filter(function(w) return api.nvim_win_get_buf(w) == claude.buf() end, api.nvim_tabpage_list_wins(diff_tab))
-end
-local function in_diff_tab(what)
-  t.eq({ api.nvim_get_current_tabpage(), claude_wins(), #cc_calls.open }, { diff_tab, 1, 0 },
-    what .. " in claudecode's diff tabpage goes to its copy: one Claude window, nothing opened")
-  api.nvim_set_current_win(diff_file_win)
-  vim.cmd("stopinsert")
-end
-api.nvim_set_current_win(diff_file_win)
-cc_calls.open, cc_calls.mentions = {}, {}
+t.eq(#wins(), 2, "toggle leaves an unowned terminal copy intact")
+t.ok(noted("in a window it cannot hide") ~= nil, "the refusal explains ownership")
+api.nvim_set_current_win(copy_editor)
+typed = {}
 api.nvim_win_set_cursor(0, { 2, 0 })
 api.nvim_feedkeys("V", "x", false)
 ai.send_selection()
-in_diff_tab("<leader>as")
-ai.add_buffer()
-in_diff_tab("<leader>ab")
-t.eq(cc_calls.mentions, { { file, 1, 1 }, { file } }, "both mentioned")
-notes = {}
+t.ok(vim.wait(1500, function() return typed_into(codex_buf, "@" .. file .. " lines 2-2 ") end, 10),
+  "selection reaches the visible terminal copy")
+t.eq(api.nvim_get_current_tabpage(), copy_tab, "delivery stays in the copy's tab")
+api.nvim_set_current_win(copy_editor)
 ai.resume()
-in_diff_tab("<leader>ar")
-t.ok(noted("Claude Code is already running") ~= nil, "<leader>ar says so")
-ai.compose()
-in_diff_tab("<leader>ai")
-ai.feed("claude", "edit_prompt", { seed = "review feedback" })
-in_diff_tab("Review feedback for Claude")
-require("ai.editor").stage_seed(nil, { agent = "claude" })
--- Claude's own window in the first tabpage, the copy here: still here, no jump.
-api.nvim_set_current_tabpage(first_tab)
-editor()
-choose("Claude Code")
-ai.switch_chat()
-vim.cmd("stopinsert")
-settle()
-t.ok(claude.visible(), "Claude's own window in the first tabpage")
-api.nvim_set_current_tabpage(diff_tab)
-api.nvim_set_current_win(diff_file_win)
-cc_calls.open, cc_calls.mentions, notes = {}, {}, {}
-api.nvim_feedkeys("V", "x", false)
-ai.send_selection()
-in_diff_tab("<leader>as with its own window in another tabpage")
-ai.add_buffer()
-in_diff_tab("<leader>ab with its own window in another tabpage")
-t.eq({ #cc_calls.mentions, noted("went there") }, { 2 }, "delivered to the copy, never gone from it")
-vim.cmd("tabclose")
-api.nvim_set_current_tabpage(first_tab)
+vim.cmd.stopinsert()
+t.eq(api.nvim_get_current_tabpage(), copy_tab, "resume focuses the visible copy without jumping to its owner")
+t.eq(#wins(), 2, "no second terminal window opens beside the copy")
+vim.cmd.tabclose()
+api.nvim_set_current_tabpage(owner)
 editor()
 pick(anthropic)
 ai.switch_chat()
 settle()
 
 ---------------------------------------------------------------------------
--- A directory listing's selection, and the commands
+-- Directory listings offer no Claude-only command in this release.
 ---------------------------------------------------------------------------
-
 api.nvim_set_current_tabpage(second_tab)
 for _, w in ipairs(wins()) do
   if api.nvim_win_get_buf(w) ~= openai.bufnr then api.nvim_set_current_win(w) end
@@ -1245,62 +1026,13 @@ vim.cmd.enew()
 local listing = api.nvim_get_current_buf()
 api.nvim_buf_set_lines(listing, 0, -1, false, { "a.lua", "b.lua" })
 vim.bo[listing].filetype = "oil"
-local listing_win = api.nvim_get_current_win()
 notes = {}
 api.nvim_feedkeys("Vj", "x", false)
 ai.send_selection()
-t.eq(vim.fn.mode(), "n", "a directory selection leaves Visual")
-t.ok(noted("Only Claude Code takes files from a directory listing") ~= nil, "and refuses a chat on the right")
--- oil's <leader>aS is in every listing, whatever the provider list holds, and
--- only Claude Code on the right takes the file under the cursor: the cursor is
--- read where it is, so nothing asks.
-local tree_key = vim.fn.maparg(" aS", "n", false, true)
-t.ok(tree_key.buffer == 1 and tree_key.desc == "Add file under cursor to Claude",
-  "<leader>aS is mapped in the listing, naming Claude")
-notes = {}
-tree_key.callback()
-t.ok(noted("Only Claude Code takes files from a directory listing") ~= nil and #cc_calls.tree_adds == 0,
-  "<leader>aS with a chat on the right refuses")
--- Nothing on the right: it cannot wait for a question, Visual being gone by
--- the answer.
-ai.toggle()
-asked, notes = {}, {}
-api.nvim_feedkeys("Vj", "x", false)
-ai.send_selection()
-t.ok(noted("A directory listing cannot wait for a question") ~= nil and #asked == 0 and vim.fn.mode() == "n",
-  "with nothing on the right, a directory selection is refused unasked")
-notes = {}
-tree_key.callback()
-t.ok(noted("A directory listing cannot wait for a question") ~= nil and #asked == 0 and #cc_calls.tree_adds == 0,
-  "and so is <leader>aS")
--- Claude Code on the right takes it, through :ClaudeCodeSend on the live
--- selection.
-choose("Claude Code")
-ai.switch_chat()
-vim.cmd("stopinsert")
-api.nvim_set_current_win(listing_win)
-cc_calls.sends = {}
-api.nvim_feedkeys("Vj", "x", false)
-ai.send_selection()
-vim.cmd("normal! \27")
-t.eq(#cc_calls.sends, 1, "Claude Code on the right takes a directory selection")
-t.ok(cc_calls.sends[1] and cc_calls.sends[1].buf == listing and cc_calls.sends[1].mode:find("^[vV]") ~= nil,
-  "through :ClaudeCodeSend, on the listing's live Visual selection")
-api.nvim_win_set_cursor(listing_win, { 2, 0 })
-tree_key.callback()
-t.eq(cc_calls.tree_adds, { { buf = listing, line = 2 } },
-  "<leader>aS hands it the file under the listing's cursor, through :ClaudeCodeTreeAdd")
--- A native agent that takes no files from a listing is refused too.
-choose("Codex")
-ai.switch_chat()
-vim.cmd("stopinsert")
-api.nvim_set_current_win(listing_win)
-notes, cc_calls.tree_adds = {}, {}
-tree_key.callback()
-t.ok(codex.visible() and noted("Only Claude Code takes files from a directory listing") ~= nil
-  and #cc_calls.tree_adds == 0, "<leader>aS with Codex on the right refuses")
+t.eq(vim.fn.mode(), "n", "directory selection leaves Visual mode")
+t.ok(noted("directory listing") ~= nil, "unsupported directory selection is explicitly refused")
+t.eq(vim.fn.maparg(" aS", "n"), "", "no Claude-only listing key is installed")
 vim.bo[listing].filetype = ""
-
 asked = {}
 vim.cmd("AI new")
 t.eq(asked[1] and asked[1].prompt, "New AI chat", ":AI new opens the new-chat picker")
@@ -1315,7 +1047,7 @@ choose("Codex")
 api.nvim_feedkeys("V", "x", false)
 ai.switch_chat()
 vim.cmd("stopinsert")
-t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@src/app.lua lines 1-1 ") end, 20),
+t.ok(vim.wait(2000, function() return typed_into(codex_buf, "@" .. file .. " lines 1-1 ") end, 20),
   "Visual <leader>al shows Codex and types the selection into it")
 t.ok(codex.visible(), "Codex is on the right here now")
 
@@ -1357,11 +1089,10 @@ vim.cmd("botright new")
 vim.bo.buftype = "nofile"
 local scratch_win = api.nvim_get_current_win()
 typed = {}
-choose("Codex")
 ai.select_model()
 vim.cmd("stopinsert")
 local codex_again = codex.buf()
-t.eq(codex_again and vim.b[codex_again].snacks_terminal.cwd, root,
+t.eq(codex_again and vim.b[codex_again].agent_workbench.cwd, root,
   "<leader>am starts a stopped Codex from the editor window, not the scratch one: the file's root")
 t.ok(vim.wait(2000, function() return sent(codex_again, "/model\r") end, 20), "and submits /model into its box")
 t.ok(noted("Started Codex · terminal · subscription to pick a model") ~= nil, "a session it starts is announced, billing too")
@@ -1381,82 +1112,8 @@ vim.cmd("stopinsert")
 settle()
 t.ok(codex.visible() and not openai.ui:is_visible() and api.nvim_buf_is_valid(openai.bufnr),
   "ai.feed hides the chat for the agent it feeds")
-require("ai.editor").stage_seed(nil, { agent = "codex" })
+require("agent_workbench.editor").stage_seed(nil, { agent = "codex" })
 
--- Claude stopped: <leader>ar and <leader>aR start it with their arguments,
--- from the editor window even when pressed in a chat.
-for _, case in ipairs({
-  { "<leader>ar", ai.resume, "--resume", "to resume a session" },
-  { "<leader>aR", ai.continue, "--continue", "to continue its last session" },
-}) do
-  local old = claude.buf()
-  if old then
-    -- Hidden first: a window whose buffer is wiped shows another one, here
-    -- Codex's terminal, which would read as a second AI window.
-    claude.hide()
-    pcall(vim.fn.jobstop, vim.bo[old].channel)
-    pcall(api.nvim_buf_delete, old, { force = true })
-  end
-  claude_term = nil
-  editor()
-  choose("OpenAI")
-  ai.switch_chat()
-  settle()
-  local file_win = editor()
-  api.nvim_set_current_win(openai.ui.winnr)
-  cc_calls.open, cc_calls.open_win, notes = {}, {}, {}
-  choose("Claude Code")
-  case[2]()
-  vim.cmd("stopinsert")
-  settle()
-  t.eq(cc_calls.open, { case[3] }, case[1] .. " starts a stopped Claude with " .. case[3])
-  t.eq(cc_calls.open_win[1], file_win, case[1] .. ": from the editor window, not the chat")
-  t.ok(claude.visible() and not openai.ui:is_visible(), case[1] .. ": shown in place of the chat")
-  t.ok(noted("Started Claude Code · terminal · subscription " .. case[4]) ~= nil, case[1] .. ": announced, billing too")
-end
-
--- Claude stopped and picked for <leader>am: claudecode asks for a model before
--- it starts anything (its open_with_model). Cancelled, nothing was hidden for
--- it; answered, Claude starts and the chat on the right gives way then.
-api.nvim_create_user_command("ClaudeCodeSelectModel", function()
-  vim.ui.select({ "opus", "sonnet" }, { prompt = "Select Claude model:" }, function(model)
-    if model then package.loaded["claudecode.terminal"].open({}, "--model " .. model) end
-  end)
-end, {})
-for _, model in ipairs({ false, "opus" }) do
-  local old = claude.buf()
-  if old then
-    -- Hidden first: a window whose buffer is wiped shows another one, here
-    -- Codex's terminal, which would read as a second AI window.
-    claude.hide()
-    pcall(vim.fn.jobstop, vim.bo[old].channel)
-    pcall(api.nvim_buf_delete, old, { force = true })
-  end
-  claude_term = nil
-  editor()
-  choose("OpenAI")
-  ai.switch_chat()
-  settle()
-  editor()
-  cc_calls.open, asked = {}, {}
-  choose("Claude Code")
-  if model then choose(model) end
-  ai.select_model()
-  vim.cmd("stopinsert")
-  settle()
-  t.eq(asked[2] and asked[2].prompt, "Select Claude model:", "<leader>am on a stopped Claude: claudecode asks for a model")
-  if model then
-    t.eq(cc_calls.open, { "--model opus" }, "answered, Claude starts on it")
-    t.ok(claude.visible() and not openai.ui:is_visible() and api.nvim_buf_is_valid(openai.bufnr),
-      "and the chat gives way to it once it shows, hidden, not closed")
-    t.eq(shown_ids(), { "native:claude" }, "one AI window")
-  else
-    t.ok(not claude.running() and #cc_calls.open == 0, "cancelled, nothing starts")
-    t.eq(shown_ids(), { slot.chat_item(openai).id }, "and the chat on the right was never hidden for it")
-  end
-end
-
----------------------------------------------------------------------------
 -- Cleanup
 ---------------------------------------------------------------------------
 
@@ -1471,12 +1128,12 @@ local expected = {
   "Buffer has unsaved changes",
   "Sending code to CodeCompanion is disabled",
   "This buffer has no file",
-  "Claude Code reads the saved file",
   "An agent chat reads the saved file",
   "Current buffer is not a file",
-  "Only Claude Code takes files from a directory listing",
+  "directory listing",
   "A directory listing cannot wait for a question",
   "is this tabpage's only window",
+  "in a window it cannot hide",
   "Terminal exited with code", -- Snacks, for the Codex stopped on purpose
 }
 local unexpected = vim.tbl_filter(function(n)
@@ -1487,12 +1144,12 @@ local unexpected = vim.tbl_filter(function(n)
   return true
 end, all_notes)
 t.eq(unexpected, {}, "and nothing went wrong on the way")
-t.ok(not loaded("claudecode.nvim"), "claudecode.nvim was never loaded: its stand-ins took every call")
+t.ok(not loaded("claudecode.nvim"), "claudecode.nvim was never loaded")
 
 require("codecompanion").chat = real_chat
 for _, entry in ipairs(companion.chats()) do entry.chat:close() end
 vim.cmd("silent! tabonly")
-for _, buf in ipairs({ first_codex, codex_buf, claude.buf() }) do
+for _, buf in ipairs({ first_codex, codex_buf }) do
   if buf and api.nvim_buf_is_valid(buf) then
     pcall(vim.fn.jobstop, vim.bo[buf].channel)
     pcall(api.nvim_buf_delete, buf, { force = true })
@@ -1500,7 +1157,7 @@ for _, buf in ipairs({ first_codex, codex_buf, claude.buf() }) do
 end
 api.nvim_chan_send = saved.chan_send
 vim.ui.select = saved.select
-package.loaded["claudecode"], package.loaded["claudecode.terminal"] = saved.cc, saved.cc_terminal
+config._set_providers(ORIGINAL_PROVIDERS)
 vim.env.PATH, vim.env.CODEX_WRAP_TMUX = saved.path, saved.wrap
 vim.env.NVIM_ANTHROPIC_API_KEY, vim.env.NVIM_OPENAI_API_KEY = saved.anthropic, saved.openai
 vim.notify = real_notify

@@ -6,7 +6,7 @@
 -- through util.window now hand edgy's windows to edgy.
 local t = dofile("tests/helper.lua")
 require("lazy").load({ plugins = { "edgy.nvim" } })
-local W = require("util.window")
+local W = require("editor_core.window")
 
 local function settle()
   local done = false

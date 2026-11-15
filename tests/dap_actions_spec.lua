@@ -1,6 +1,6 @@
 local t = dofile("tests/helper.lua")
 local dap = require("dap")
-local ui = require("util.dap")
+local ui = require("editor_core.dap")
 local watches = require("dapui").elements.watches
 
 -- Invoke real mappings in live Visual modes, not stale '< and '> marks.
@@ -177,7 +177,7 @@ end
 
 -- dapui's fallback prompts for a target window whenever the tab holds more
 -- than one file window, which is this layout's normal shape.
-t.eq(require("dapui.config").select_window, require("util.window").ensure_editor_win,
+t.eq(require("dapui.config").select_window, require("editor_core.window").ensure_editor_win,
   "stack frames open through the shared editor-window helper")
 
 local sessions = dap.sessions
@@ -204,7 +204,7 @@ for _, name in ipairs({ "DapStopped", "DapBreakpoint", "DapBreakpointCondition",
                         "DapBreakpointRejected", "DapLogPoint" }) do
   local sign = vim.fn.sign_getdefined(name)[1]
   t.ok(sign ~= nil, name .. " is defined")
-  -- The Dap sign segment in lua/plugins/ui/statuscol.lua sets `maxwidth = 1`,
+  -- The Dap sign segment in lua/plugin/ui/statuscol.lua sets `maxwidth = 1`,
   -- which truncates a wider glyph without saying so -- that is how the
   -- two-cell `.>` logpoint had been rendering as a bare dot.
   local text = sign and vim.trim(sign.text or "")

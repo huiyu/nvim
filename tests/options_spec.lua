@@ -36,7 +36,7 @@ t.ok(left(right) > left(origin) and top(right) == top(origin), ":vsplit opens to
 vim.cmd("close")
 
 -- ,x shares the plain split: its terminal lands below the file it runs.
-local run = require("util.run")
+local run = require("editor_core.run")
 run.register("options_probe", function() return "true" end)
 vim.cmd.edit(vim.fn.fnameescape(file("run.probe", { "x" })))
 vim.bo.filetype = "options_probe"

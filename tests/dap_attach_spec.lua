@@ -250,7 +250,7 @@ callback(project)
 t.eq(launched, nil, "a source-buffer switch cannot attach with the wrong context")
 
 local input = vim.fn.input
-local util = require("util.dap")
+local util = require("editor_core.dap")
 for _, value in ipairs({ "0", "65536", "42.5", "not a port", "" }) do
   vim.fn.input = function() return value end
   t.eq(util.port(5005), dap.ABORT, "invalid/empty attach port aborts: " .. value)

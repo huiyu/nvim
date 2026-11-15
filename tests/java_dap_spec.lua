@@ -22,7 +22,7 @@ local dap = require("dap")
 t.ok(vim.wait(45000, function() return dap.adapters.java ~= nil end, 100), "jdtls registers Java adapter after attaching")
 -- jdtls's first start on a fresh configuration area (every CI job) can come
 -- up without the debug bundle's commands, and then never lists them:
--- lua/plugins/lang/java.lua restarts it once. Take the client that has them, a
+-- lua/plugin/lang/java.lua restarts it once. Take the client that has them, a
 -- restarted one included; the first may already be stopping.
 local first = vim.lsp.get_clients({ name = "jdtls", bufnr = main })[1]
 local client
@@ -129,7 +129,7 @@ if client then
         function(err, body) result = err or body end)
       vim.wait(5000, function() return result ~= nil end, 50)
       t.eq(result and result.result, "42", "JDWP attach evaluates the target's local variable")
-      require("util.dap").disconnect()
+      require("editor_core.dap").disconnect()
       t.ok(vim.wait(5000, function() return output:find("42", 1, true) ~= nil end, 50), "JDWP disconnect resumes the standalone application")
     end
     local cleanup = t.process_cleanup()

@@ -160,7 +160,7 @@ local stand_in = root .. "/codediff stand-in"
 vim.fn.mkdir(stand_in, "p")
 vim.fn.writefile({ "9.9.9" }, stand_in .. "/VERSION")
 local ext = ({ OSX = "dylib", Windows = "dll" })[jit.os] or "so"
-local pinned = require("util.codediff").VERSION
+local pinned = require("git_review.view").VERSION
 local no_watcher_path = path_without("codediff-watcher")
 
 -- Run with the stand-in, then put both download switches back on.
@@ -261,7 +261,7 @@ t.ok(missing_ts and missing_ts.msg:find("not found", 1, true), "the error says i
 
 -- Hooks -------------------------------------------------------------------
 
-local hook = require("ai.review.hook")
+local hook = require("agent_workbench.review.hook")
 local real_script = hook.script
 local function with_script(path)
   hook.script = function() return path end
@@ -278,13 +278,13 @@ local hook_line = find(hooks, plain_hook .. " is not executable")
 t.eq(hook_line and hook_line.level, "warn", "a hook script that is not executable is a warning")
 t.ok(hook_line and hook_line.msg:find("open no review round", 1, true), "it says what stops working")
 t.ok(advice_with(hook_line, "chmod +x " .. vim.fn.shellescape(plain_hook)), "the hint is chmod +x on the script")
-t.eq(level_of(hooks, "Claude --settings is valid"), "ok", "the Claude settings still check out against the stand-in")
+t.eq(level_of(hooks, "Codex -c hooks= is valid"), "ok", "the Claude settings still check out against the stand-in")
 local absent = find(with_script(root .. "/no agent-hook"), "is missing")
 t.eq(absent and absent.level, "warn", "a missing hook script is a warning")
 
 -- Inside a repository -------------------------------------------------------
 
-local B = require("util.baseline")
+local B = require("git_review.baseline")
 local repo = root .. "/repo one"
 vim.fn.mkdir(repo, "p")
 must(repo, "init", "-q")
@@ -321,7 +321,7 @@ vim.g.ai_review = {
 }
 -- The drafts directory of this repository: one draft with feedback, one that
 -- delivery emptied, the last-sent copy and two conflict files.
-local draft_dir = vim.fs.dirname(require("ai.review.rounds").draft_path(repo, "unowned"))
+local draft_dir = vim.fs.dirname(require("agent_workbench.review.rounds").draft_path(repo, "unowned"))
 vim.fn.mkdir(draft_dir, "p")
 vim.fn.writefile({ "## a.txt:1 (working tree)", "> look" }, draft_dir .. "/held.md")
 vim.fn.writefile({}, draft_dir .. "/sent.md")
@@ -340,7 +340,7 @@ t.ok(counts and counts.msg:find("retention keeps the newest 30 and 10", 1, true)
 t.eq(level_of(baselines, "no baseline refs of removed worktrees"), "ok", "a live linked worktree is no orphan")
 local cc = find(baselines, "2 refs under refs/worktree/codecompanion/")
 t.eq(cc and cc.level, "warn", "CodeCompanion's leftover refs are a warning")
-local drafts = find(baselines, ("feedback drafts for this worktree live in %s/ai-review/"):format(vim.fn.stdpath("state")))
+local drafts = find(messages, ("feedback drafts for this worktree live in %s/ai-review/"):format(vim.fn.stdpath("state")))
 t.ok(drafts and drafts.msg:find(draft_dir, 1, true), "where the drafts live is named")
 t.ok(drafts and drafts.msg:find(": 1 draft with feedback, 1 last-sent copy, 2 conflict files", 1, true),
   "only a non-empty draft has feedback; last-sent copies and conflict files are counted apart")
@@ -359,7 +359,7 @@ t.eq(git_line and git_line.level, "ok", "git's version is checked against the ba
 
 local review_hooks = section(inside, "config: review hooks")
 t.eq(level_of(review_hooks, "agent-hook executable"), "ok", "the hook script is executable")
-t.eq(level_of(review_hooks, "Claude --settings is valid"), "ok", "the Claude --settings JSON checks out")
+t.eq(level_of(review_hooks, "Codex -c hooks= is valid"), "ok", "the Claude --settings JSON checks out")
 local codex = find(review_hooks, "Codex -c hooks= is valid")
 t.ok(codex and codex.level == "ok" and codex.msg:find("trusted_hash matches", 1, true),
   "the Codex trusted_hash matches")
@@ -384,7 +384,7 @@ local function setting_paths(node, prefix, out)
   end
   return out
 end
-local paths = setting_paths(require("ai.review.config").defaults(), "", {})
+local paths = setting_paths(require("agent_workbench.review.settings").defaults(), "", {})
 local unlisted = vim.tbl_filter(function(path) return find(settings, path .. " = ") == nil end, paths)
 t.eq(unlisted, {}, "every setting is listed")
 t.eq(#vim.tbl_filter(function(m) return m.level == "info" end, settings), #paths, "each one once")
@@ -435,14 +435,14 @@ t.ok(not_repo and not_repo.msg:find(outside, 1, true), "naming the directory")
 -- warning -- unavailable, not broken, and left out of the new-chat picker --
 -- whichever provider offers it. Only nothing at all to start a chat with is an
 -- error.
-local ai = require("ai.config")
+local ai = require("agent_workbench.state")
 local stand_ins = root .. "/no agents"
 vim.fn.mkdir(stand_ins, "p")
 local cut = stand_ins .. ":/usr/bin:/bin"
 local backends = section(run(cut, "with no agent on PATH"), "config: AI backends")
 t.ok(#backends > 0, "the AI backends section has lines")
 local head = backends[1]
-t.ok(head and head.level == "info" and head.msg:find("in the order of lua/ai/config.lua", 1, true) ~= nil,
+t.ok(head and head.level == "info" and head.msg:find("in the order of lua/config/ai.lua", 1, true) ~= nil,
   "it opens with the providers' order, naming no default: " .. tostring(head and head.msg))
 -- Judged on the same PATH the check ran on: a CLI in /usr/bin is found.
 local real_path = vim.env.PATH

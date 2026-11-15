@@ -1,5 +1,5 @@
--- CodeDiff as this config wires it (lua/plugins/git/codediff.lua and
--- lua/util/codediff.lua), driven through real views on temporary repositories.
+-- CodeDiff as this config wires it (the plugin spec, git.compare and
+-- util.codediff), driven through real views on temporary repositories.
 --
 -- Needs CodeDiff's native library in the plugin directory; tests/run.sh sets
 -- VSCODE_DIFF_NO_AUTO_INSTALL so a missing one fails here instead of being
@@ -14,7 +14,8 @@ t.ok(vim.wait(1000, function() return require("which-key.config").loaded end), "
 
 local plugin = Config.plugins["codediff.nvim"]
 t.ok(plugin ~= nil and plugin._.loaded == nil, "codediff.nvim is declared and waits for its first use")
-t.eq(package.loaded["util.codediff"], nil, "util.codediff is not loaded at startup")
+t.eq(package.loaded["git_review.compare"], nil, "Git comparison workflows wait for their first use")
+t.eq(package.loaded["git_review.view"], nil, "util.codediff is not loaded at startup")
 local libs = vim.fn.glob(plugin.dir .. "/libvscode_diff*", false, true)
 if #libs == 0 then
   t.ok(false, "CodeDiff's native library is installed in " .. plugin.dir .. " (see docs/DIAGNOSTICS.md)")
@@ -99,6 +100,7 @@ press("<leader>gv")
 t.ok(said("working tree is clean") ~= nil, "<leader>gv on a clean tree says so")
 t.eq(#vim.api.nvim_list_tabpages(), 1, "and opens no view")
 t.ok(plugin._.loaded == nil, "refusing a clean tree does not load CodeDiff")
+t.eq(package.loaded["git_review.view"], nil, "refusing a clean tree does not load its view adapter")
 
 -- Not a file: <leader>gh refuses before git or CodeDiff.
 press("<leader>gh")
@@ -122,7 +124,7 @@ local ordinary = vim.api.nvim_get_current_win()
 local function state(win) return vim.api.nvim_win_call(win, vim.fn.winsaveview) end
 local ordinary_state = state(ordinary)
 press("<leader>gv")
-local cd = require("util.codediff")
+local cd = require("git_review.view")
 
 --- A view in the current tabpage that has loaded its first file (`file`, if
 --- given, in the right pane) and carries this config's keys. A view opens on
@@ -737,7 +739,7 @@ do
   local item = item_at(pview, staged_move)
   t.eq(item and { item.panel, item.type, item.path, item.old_path, item.status, item.group },
     { "explorer", "file", "c.txt", "b.txt", "R", "staged" }, "panel_item reads the explorer entry from them")
-  -- Files show as a directory tree by default (lua/plugins/git/codediff.lua);
+  -- Files show as a directory tree by default (lua/plugin/git/codediff.lua);
   -- `i` toggles a flat list.
   local options = require("codediff.config").options
   t.eq({ options.explorer.view_mode, options.history.view_mode }, { "tree", "tree" },

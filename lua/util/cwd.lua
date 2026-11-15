@@ -38,6 +38,16 @@ function M.buffer_dir()
       or "/"
 end
 
+---The Git root for a file, or the working directory when no root is found.
+---Shared by agent launch, selection paths and recorded-session lookup.
+---@param path string? a file path; "" or nil means "use the working directory"
+---@return string
+function M.project_root(path)
+  local start = (path and path ~= "") and vim.fs.dirname(path)
+    or (vim.uv.cwd() or vim.fn.getcwd())
+  return vim.fs.root(start, ".git") or vim.uv.cwd() or vim.fn.getcwd()
+end
+
 --- Try to make `dir` the working directory.
 ---
 --- Checked through `vim.uv.cwd()` rather than chdir()'s return value: that is
