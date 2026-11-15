@@ -1,4 +1,4 @@
--- One AI chat slot per tabpage (lua/ai/slot.lua, issue #28).
+-- One AI chat slot per tabpage (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua, issue #28).
 --
 -- What is pinned: the right of a tabpage shows at most one AI window --
 -- native Claude, native Codex or a CodeCompanion chat -- and showing one hides
@@ -20,7 +20,7 @@
 local t = dofile("tests/helper.lua")
 
 local api = vim.api
-local config = require("ai.state")
+local config = require("agent_workbench.state")
 local Config = require("lazy.core.config")
 local INFO, WARN, ERROR = vim.log.levels.INFO, vim.log.levels.WARN, vim.log.levels.ERROR
 
@@ -46,7 +46,7 @@ end
 -- Before anything opens
 ---------------------------------------------------------------------------
 
-t.eq(type(package.loaded["ai.slot"]), "table", "the slot is set up at startup")
+t.eq(type(package.loaded["agent_workbench.slot"]), "table", "the slot is set up at startup")
 t.ok(#api.nvim_get_autocmds({ group = "ai_slot", event = "BufWinEnter" }) == 1, "with its BufWinEnter guard")
 t.ok(not loaded("claudecode.nvim") and not loaded("codecompanion.nvim"), "and loads neither AI plugin")
 t.ok(vim.tbl_contains(Config.plugins["claudecode.nvim"].cmd or {}, "ClaudeCodeOpen"),
@@ -187,13 +187,13 @@ api.nvim_create_user_command("ClaudeCodeTreeAdd", function()
   cc_calls.tree_adds[#cc_calls.tree_adds + 1] = { buf = api.nvim_get_current_buf(), line = api.nvim_win_get_cursor(0)[1] }
 end, {})
 
-local ai, slot, companion = require("ai"), require("ai.slot"), require("ai.companion")
-local claude, codex = require("ai.backend.claude"), require("ai.backend.codex")
+local ai, slot, companion = require("agent_workbench"), require("agent_workbench.slot"), require("agent_workbench.companion")
+local claude, codex = require("agent_workbench.backend.claude"), require("agent_workbench.backend.codex")
 
 ---Run `fn` with the transcript views stood in; return whose transcript each
 ---was asked for, in order.
 local function transcripts_read(fn)
-  local view = require("ai.transcript")
+  local view = require("agent_workbench.transcript")
   local real = { open_current = view.open_current, pick = view.pick }
   local read = {}
   view.open_current = function(agent) read[#read + 1] = "open_current " .. tostring(agent) end
@@ -675,7 +675,7 @@ ai.compose()
 vim.cmd("stopinsert")
 settle()
 t.ok(#cc_calls.open == 1 and claude.visible(), "<leader>ai shows a hidden Claude here before asking for its prompt")
-require("ai.editor").stage_seed(nil, { agent = "claude" })
+require("agent_workbench.editor").stage_seed(nil, { agent = "claude" })
 
 ---------------------------------------------------------------------------
 -- Claude on the right: a mention of the captured lines; its own session keys
@@ -1019,7 +1019,7 @@ vim.t.blocks_global_prefixes = true
 vim.cmd("tabnew")
 local view_b = api.nvim_get_current_tabpage()
 vim.t.blocks_global_prefixes = true
-local util_window = require("util.window")
+local util_window = require("editor_core.window")
 t.eq({ util_window.origin_tab(view_b), util_window.origin_tab(view_a), util_window.origin_tab(first_tab) },
   { first_tab, first_tab, nil }, "a view's origin is the first page before it that is no view")
 vim.cmd.edit(vim.fn.fnameescape(file))
@@ -1208,7 +1208,7 @@ ai.compose()
 in_diff_tab("<leader>ai")
 ai.feed("claude", "edit_prompt", { seed = "review feedback" })
 in_diff_tab("Review feedback for Claude")
-require("ai.editor").stage_seed(nil, { agent = "claude" })
+require("agent_workbench.editor").stage_seed(nil, { agent = "claude" })
 -- Claude's own window in the first tabpage, the copy here: still here, no jump.
 api.nvim_set_current_tabpage(first_tab)
 editor()
@@ -1381,7 +1381,7 @@ vim.cmd("stopinsert")
 settle()
 t.ok(codex.visible() and not openai.ui:is_visible() and api.nvim_buf_is_valid(openai.bufnr),
   "ai.feed hides the chat for the agent it feeds")
-require("ai.editor").stage_seed(nil, { agent = "codex" })
+require("agent_workbench.editor").stage_seed(nil, { agent = "codex" })
 
 -- Claude stopped: <leader>ar and <leader>aR start it with their arguments,
 -- from the editor window even when pressed in a chat.

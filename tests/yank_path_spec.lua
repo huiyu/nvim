@@ -129,7 +129,7 @@ vim.fn.delete(dir, "rf")
 ---------------------------------------------------------------------------
 -- Normal x
 ---------------------------------------------------------------------------
--- Normal-mode x deletes into the black hole register (lua/config/keymaps.lua). Under
+-- Normal-mode x deletes into the black hole register (local-plugin/editor-core.nvim/lua/editor_core/keymaps.lua). Under
 -- clipboard=unnamedplus a plain x otherwise replaced the system clipboard and
 -- pushed a one-character entry onto the yanky ring.
 --

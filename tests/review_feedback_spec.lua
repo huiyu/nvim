@@ -1,4 +1,4 @@
--- Review feedback (lua/ai/review/feedback.lua): the entries ,C writes from a
+-- Review feedback (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/feedback.lua): the entries ,C writes from a
 -- real CodeDiff view, the draft and its float, the staleness check, and
 -- delivery to a native agent (its prompt editor's seed) and to a chat. Also:
 -- the draft's structure is the header and markers carrying its nonce, so
@@ -16,7 +16,7 @@
 -- (rounds.draft_path is redirected). No agent is started: the "Claude panel"
 -- is a terminal running `cat` with the Snacks record an agent panel carries,
 -- claudecode.terminal is a stand-in, and the agent's prompt editor is opened
--- the way scripts/agent-editor opens it (editor.open on a temp file). The chat
+-- the way local-plugin/agent-workbench.nvim/scripts/agent-editor opens it (editor.open on a temp file). The chat
 -- is a stub object; CodeCompanion is never loaded and nothing is sent.
 -- vim.ui.select and vim.ui.input are stubbed throughout: a prompt nobody
 -- answers would hang the spec.
@@ -25,8 +25,8 @@ local Config = require("lazy.core.config")
 local api, uv = vim.api, vim.uv
 local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 
-t.eq(package.loaded["ai.review.feedback"], nil, "ai.review.feedback is not loaded at startup")
-t.eq(package.loaded["ai.review.draft"], nil, "the draft data model is not loaded at startup")
+t.eq(package.loaded["agent_workbench.review.feedback"], nil, "ai.review.feedback is not loaded at startup")
+t.eq(package.loaded["agent_workbench.review.draft"], nil, "the draft data model is not loaded at startup")
 local plugin = Config.plugins["codediff.nvim"]
 local libs = vim.fn.glob(plugin.dir .. "/libvscode_diff*", false, true)
 if #libs == 0 then
@@ -94,13 +94,13 @@ local function map(buf, lhs, mode)
   return api.nvim_buf_call(buf, function() return vim.fn.maparg(lhs, mode or "n", false, true) end)
 end
 
-local rounds = require("ai.review.rounds")
-local editor = require("ai.editor")
-local cd = require("util.codediff")
-local config = require("ai.state")
+local rounds = require("agent_workbench.review.rounds")
+local editor = require("agent_workbench.editor")
+local cd = require("git_review.view")
+local config = require("agent_workbench.state")
 -- Feedback here is for Claude alone. Were any to reach Codex, its real
 -- edit_prompt would start a Codex terminal in this Nvim: it only counts.
-local codex = require("ai.backend.codex")
+local codex = require("agent_workbench.backend.codex")
 local real_codex_edit_prompt, codex_fed = codex.edit_prompt, 0
 codex.edit_prompt = function() codex_fed = codex_fed + 1 end
 
@@ -132,7 +132,7 @@ assert(git("commit", "-qm", "fixture"))
 
 local function save_round(conversation, source)
   local entry
-  require("util.baseline").save(root, "round", {
+  require("git_review.baseline").save(root, "round", {
     subject = "spec round", Source = source, Conversation = conversation, Root = root,
   }, function(e, info)
     entry = e or false
@@ -198,8 +198,8 @@ local tab = api.nvim_get_current_tabpage()
 local s = cd.session(tab)
 t.eq(vim.t[tab].ai_review and vim.t[tab].ai_review.id, vars.id, "the view carries its round")
 
-local feedback = require("ai.review.feedback")
-local draft_model = require("ai.review.draft")
+local feedback = require("agent_workbench.review.feedback")
+local draft_model = require("agent_workbench.review.draft")
 local function draft_header(line) return draft_model.decode({ line }).head end
 local function draft_message(lines) return draft_model.message(draft_model.decode(lines)) end
 local draft = rounds.draft_path(root, vars.id)
@@ -519,10 +519,10 @@ hide_float()
 -- own, on the same files. Its float's buffer cannot take the draft's name
 -- while this one's has it; the module never reads that name.
 local other = (function()
-  local mine = package.loaded["ai.review.feedback"]
-  package.loaded["ai.review.feedback"] = nil
-  local mod = require("ai.review.feedback")
-  package.loaded["ai.review.feedback"] = mine
+  local mine = package.loaded["agent_workbench.review.feedback"]
+  package.loaded["agent_workbench.review.feedback"] = nil
+  local mod = require("agent_workbench.review.feedback")
+  package.loaded["agent_workbench.review.feedback"] = mine
   return mod
 end)()
 t.ok(other ~= feedback, "a second Nvim's module")
@@ -1407,7 +1407,7 @@ vim.fn.chdir(root)
 rounds.attach_chat(chat)
 vim.fn.chdir(spec_cwd)
 local cc_conv = ("cc:%s:777"):format(rounds.nonce())
-local companion = require("ai.companion")
+local companion = require("agent_workbench.companion")
 
 -- Busy is more than a request in flight.
 t.eq(companion.busy(chat), false, "an idle chat is not busy")

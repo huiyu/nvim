@@ -1,4 +1,4 @@
--- lua/util/baseline.lua: worktree snapshots kept as parentless commits under
+-- local-plugin/git-review.nvim/lua/git_review/baseline.lua: worktree snapshots kept as parentless commits under
 -- refs/nvim-review/<wtid>/{round,saved}/<id>.
 --
 -- What is pinned here, every case in a throwaway repository under a path with
@@ -31,10 +31,10 @@ local uv = vim.uv
 local CONFIG_DIR = vim.fn.getcwd()
 local WARN, INFO = vim.log.levels.WARN, vim.log.levels.INFO
 
-t.ok(package.loaded["util.baseline"] == nil, "startup does not load util.baseline")
+t.ok(package.loaded["git_review.baseline"] == nil, "startup does not load util.baseline")
 local config_refs = vim.split(vim.trim(vim.system({ "git", "for-each-ref", "--format=%(refname)", "refs/nvim-review/" },
   { cwd = CONFIG_DIR }):wait().stdout or ""), "\n", { plain = true, trimempty = true })
-local B = require("util.baseline")
+local B = require("git_review.baseline")
 
 local tmp_root = vim.fn.tempname() .. " baseline spec"
 vim.fn.mkdir(tmp_root, "p")
@@ -653,7 +653,7 @@ t.ok(results.urgent == results.second and results.third == results.second, "the 
 
 local child_script = tmp_root .. "/child.lua"
 vim.fn.writefile({
-  "local B = require('util.baseline')",
+  "local B = require('git_review.baseline')",
   "local trees, errors, ref = {}, {}, nil",
   "local function step(n)",
   "  if n == 0 then",

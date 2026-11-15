@@ -842,7 +842,7 @@ tabpage 上次显示的那个）就能把它找回来。右侧什么都没有时
 自作主张发给隐藏的 Chat。在 CodeDiff 视图里，这些键作用于打开该视图的那个页面。
 
 没有哪个 agent 是默认的，启动时也不选。*provider*——开箱即有 Claude 和 Codex——是
-`lua/ai/config.lua` 里的一个有序列表。这个文件只返回可编辑的配置表，`key_profile`
+`lua/config/ai.lua` 里的一个有序列表。这个文件只返回可编辑的配置表，`key_profile`
 设置启动时的 HTTP profile，`panel.width` 设置面板宽度；修改后重启 Nvim。运行中可用
 `:AI key <name>` 切换 HTTP profile，不用修改文件。
 provider 顺序是后端的唯一偏好：`<Space>an` 先列出所有
@@ -1229,7 +1229,7 @@ tree`：它显示的是从那时到现在的全部改动，和结束时间无关
 
 ### 设置：`vim.g.ai_review`
 
-默认值集中在 `lua/ai/review/config.lua` 的纯配置表中，修改后重启 Nvim 生效；
+默认值集中在 `lua/config/review.lua` 的纯配置表中，修改后重启 Nvim 生效；
 整体赋值 `vim.g.ai_review` 可在当前进程中覆盖指定设置。
 
 
@@ -1344,7 +1344,7 @@ gutter 的形状不依赖颜色也能分辨：`●` 断点、`◉` 条件断点�
 
 先用 `<Space>db` 打断点，把光标放进测试用例，再按 `<Space>tM`。
 这些直接入口会先保存当前文件；未命名 buffer 或保存失败时中止。
-各语言使用同一套键位，目标选择逻辑分别放在 `lua/plugins/lang/*.lua`。
+各语言使用同一套键位，目标选择逻辑分别放在 `lua/plugin/lang/*.lua`。
 
 | 语言 | `df` | `tM` / `tF` |
 |---|---|---|

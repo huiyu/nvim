@@ -1,11 +1,11 @@
 -- A terminal buffer keeps one line per grid row, so text the terminal wrapped
 -- -- Codex leaves a link longer than the pane for it to wrap -- was yanked with
 -- newlines the program never printed. util.terminal_text.soft_wraps reads the shape
--- a wrap leaves; the TextYankPost handler in lua/config/autocmds.lua joins those rows.
+-- a wrap leaves; the TextYankPost handler in local-plugin/editor-core.nvim/lua/editor_core/autocmds.lua joins those rows.
 -- gx, which joins the same rows to find a URL or file, follows at the end.
 local t = dofile("tests/helper.lua")
 local a = vim.api
-local terminal = require("util.terminal_text")
+local terminal = require("editor_core.terminal_text")
 
 vim.o.columns = 180
 vim.o.lines = 40
@@ -471,7 +471,7 @@ do
 
   -- A long wrapped line near the link costs about one look per row, not one per
   -- pair of rows: next to a 16 KB base64 or minified line gx took seconds.
-  local term_mod = require("util.terminal_text")
+  local term_mod = require("editor_core.terminal_text")
   local soft_wraps = term_mod.soft_wraps
   local calls = 0
   term_mod.soft_wraps = function(...) calls = calls + 1; return soft_wraps(...) end

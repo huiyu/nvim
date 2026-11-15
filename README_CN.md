@@ -38,7 +38,7 @@ llama-server --fim-qwen-7b-default                 # 一次性：下载灰色补
 - **Python >= 3.10** — `black` 需要（`pyenv` 或 `uv` 管理的解释器都可以）
 - **Node.js + npm** — `eslint-lsp`、`css-lsp`、`html-lsp`、`json-lsp`、`yaml-language-server`、`tailwindcss-language-server`、`vtsls`、`bash-language-server` 都依赖
 - **Rust（rustup）** — Mason 安装的 `rust-analyzer` 需要 `cargo`，格式化用的是工具链自带的 `rustfmt`（`rustup component add rustfmt`）；`rust-src` 由 rust-analyzer 自己通过 rustup 补装
-- **JDK 25+** — 用来运行 `jdtls`（Java）；项目本身仍可面向更早的版本。依次从 `$JAVA_HOME`、[SDKMAN!](https://sdkman.io/)（`~/.sdkman/candidates/java`）、PATH 中查找（见 [`lua/plugins/lang/java.lua`](lua/plugins/lang/java.lua)）
+- **JDK 25+** — 用来运行 `jdtls`（Java）；项目本身仍可面向更早的版本。依次从 `$JAVA_HOME`、[SDKMAN!](https://sdkman.io/)（`~/.sdkman/candidates/java`）、PATH 中查找（见 [`lua/plugin/lang/java.lua`](lua/plugin/lang/java.lua)）
 - **TeX Live + Skim**（LaTeX）— `brew install --cask mactex-no-gui` 提供 `latexmk`/`latexindent`/`chktex`，`brew install --cask skim` 提供支持 SyncTeX 的 PDF 阅读器；`texlab` 由 Mason 安装。反向跳转需在 Skim → 偏好设置 → Sync 中选 Custom：命令填 `nvim`，参数填 `--headless -c "VimtexInverseSearch %line '%file'"`
 
 如果 Mason 安装失败，运行 `:Mason`（UI）或 `:MasonLog`（原始日志）查看具体错误。最常见的原因是上面这些工具链没装。
@@ -70,7 +70,7 @@ nvim
 │   │   ├── keymaps.lua       # 命令式核心键位
 │   │   ├── autocmds.lua      # 自动命令
 │   │   ├── dashboard.lua     # 仪表盘内容和视口行为
-│   │   ├── lazy.lua          # lazy.nvim：安装，导入 lua/plugins/
+│   │   ├── lazy.lua          # lazy.nvim：安装，导入 lua/plugin/
 │   │   ├── whichkey_spec.lua # which-key 分组、弹窗分区、spec 键位（数据）
 │   │   └── health.lua        # `:checkhealth config` 提供者
 │   ├── plugins/              # lazy.nvim spec，按此顺序导入
@@ -116,7 +116,7 @@ nvim
 | `make profile` | headless 启动中最慢的步骤 |
 | `make deps` | 安装 spec 所需的一切：缺失的插件、Mason 工具包、CodeDiff 的原生库 |
 
-spec 刻意逐个运行：有些 spec 依赖同一时间只有一个 Nvim 在用的资源（`util.llama` 共享的 llama-server、git 与 gitsigns 的时序）。
+spec 刻意逐个运行：有些 spec 依赖同一时间只有一个 Nvim 在用的资源（`llama_service` 共享的 llama-server、git 与 gitsigns 的时序）。
 
 ### 插件列表
 
@@ -179,7 +179,7 @@ spec 刻意逐个运行：有些 spec 依赖同一时间只有一个 Nvim 在用
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code 集成（始终声明，首次使用时才加载） |
 | [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | 走 ACP、按订阅计费的 [Agent Chat](#codecompanion-的两种-chat)，以及走 HTTP、按 key profile 计费的 API Chat，都从 `<leader>an` 新建；另有用 key profile 的 Inline/命令 Prompt |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | 自动保存、按项目感知的 CodeCompanion Chat 历史 |
-| [minuet-ai](https://github.com/milanglacier/minuet-ai.nvim) | 边输入边出现的 AI 灰色补全，模型在本机运行（[行内 AI 补全](#行内-ai-补全)） |
+| [minuet-ai](https://github.com/milanglacier/minuet-agent_workbench.nvim) | 边输入边出现的 AI 灰色补全，模型在本机运行（[行内 AI 补全](#行内-ai-补全)） |
 
 #### 版本控制
 
@@ -441,7 +441,7 @@ buffer 里，长 prompt 就能用整个编辑器来写，而不是挤在 TUI 的
 
 这不是我们自建的 buffer，而是 agent 自带的 `ctrl+g`（「在 `$EDITOR` 里编辑当前
 prompt」），Claude Code 和 Codex 都实现了它。`$EDITOR` 指向
-`scripts/agent-editor`，它把 prompt 开在**当前这个** nvim 里，而不是在
+`local-plugin/agent-workbench.nvim/scripts/agent-editor`，它把 prompt 开在**当前这个** nvim 里，而不是在
 `:terminal` 里再套一个。`<leader>ai` 只是向 TUI 发送 `ctrl+g`，所以在 TUI 里直接
 按 `ctrl+g` 效果完全相同。
 
@@ -468,7 +468,7 @@ TUI 里**真换行和软换行渲染完全相同**（都是缩进两格的续行
 紧跟在英文单词字符后面的 `@` 不算引用，所以 `jeff@gmail.com` 仍是邮箱；其他文字算
 作边界，所以 `看看@init` 能补全。两个 agent 对这段文本的处理不同：Claude Code 在
 提交时把 `@path` 解析成真正的文件引用，Codex 把它当作路径、由 agent 自己去读——
-最终都会读到文件。补全源在 `lua/ai/mention.lua`，只对这类 prompt buffer 启用，普
+最终都会读到文件。补全源在 `local-plugin/agent-workbench.nvim/lua/agent_workbench/mention.lua`，只对这类 prompt buffer 启用，普
 通 markdown 完全不受影响。
 
 #### 附加图片
@@ -547,7 +547,7 @@ transcript 是唯一对两个 agent 都成立的方案，且重启 Nvim 后依�
 打字，因为那里可能有草稿。由它们启动的会话会弹出提示。`at`、`aT` 从磁盘读取 agent
 的记录，不管它是否在运行。
 
-**Provider** 是 `lua/ai/config.lua` 里的一个有序列表，写法和 CodeCompanion 的
+**Provider** 是 `lua/config/ai.lua` 里的一个有序列表，写法和 CodeCompanion 的
 adapter 类似。每个 provider 写明一家厂商以及它提供的部分；没写的部分就不提供：
 
 | 部分 | 提供什么 | 计费 |
@@ -557,7 +557,7 @@ adapter 类似。每个 provider 写明一家厂商以及它提供的部分；�
 | `api = { adapter, api_key, label?, model?, name? }` | 用内置 adapter `adapter` 走 HTTP 的 CodeCompanion API Chat，同时也是名为 `name`（默认为 `adapter`）的 key profile，名字不能重复 | API 额度，用 `api_key` 这个 `NVIM_*` 变量 |
 
 这个文件只返回配置表：`providers`、Inline/命令 Prompt 使用的 `key_profile`（默认
-`"auto"`），以及 `panel.width`。修改后重启 Nvim 生效。`lua/ai/state.lua` 负责校验和
+`"auto"`），以及 `panel.width`。修改后重启 Nvim 生效。`local-plugin/agent-workbench.nvim/lua/agent_workbench/state.lua` 负责校验和
 应用，插件 spec 再把结果接到 agent 和 CodeCompanion。`:AI key` 只切换当前进程的
 HTTP profile，不修改文件。启动时的优先级是 `NVIM_AI_KEY_PROFILE` >
 `vim.g.ai_key_profile` > 文件中的 `key_profile`。
@@ -593,7 +593,7 @@ agent：`NVIM_AI_PROVIDER` 和 `vim.g.ai_provider` 已不再读取，残留的�
 切换 key 只影响 Inline 编辑和命令 Prompt：不会启动、停止、显示或隐藏任何 Chat、
 终端或 ACP 连接，已打开的 Chat 保留创建时的 adapter。固定了 profile 时状态栏会显示
 它（`󰌆 OpenAI`），点击可以再次切换。`:AI provider` 已经没有了：新 Chat 在
-`<leader>an` 里选后端，顺序以 `lua/ai/config.lua` 为准。
+`<leader>an` 里选后端，顺序以 `lua/config/ai.lua` 为准。
 
 运行 `:checkhealth config` 可检查每个 provider 的 CLI、ACP bridge 和 HTTP 凭据。
 缺了 CLI 或 bridge 只是警告，因为选择器会直接不列出它；没设置的 `NVIM_*` key 只在
@@ -663,7 +663,7 @@ Settings → Profiles → Keys → Key Mappings → 添加：
 #### Native Agent 的 tmux 包裹
 
 Claude Code 和 Codex 默认分别在 provider 专属的 tmux server 中启动，见
-`lua/plugins/ai/claudecode.lua` 与 `lua/ai/backend/codex.lua`。
+`lua/plugin/ai/claudecode.lua` 与 `local-plugin/agent-workbench.nvim/lua/agent_workbench/backend/codex.lua`。
 
 **原因**：两个 TUI 都会发出 DEC mode 2026（Synchronized Output）序列来做
 原子帧更新。Neovim 的 `:terminal` buffer 不识别该协议，因此半帧可能留下
@@ -680,7 +680,7 @@ libvterm。
 tmux 不等 TUI 申请就保留修饰键，CSI u 则是 Claude Code 和 Codex 都能解析的
 格式。其他有传统编码的按键到 TUI 时不受影响。
 
-**收尾**：关闭面板或退出 Nvim 时会运行 `scripts/agent-teardown`：先杀掉 wrapper
+**收尾**：关闭面板或退出 Nvim 时会运行 `local-plugin/agent-workbench.nvim/scripts/agent-teardown`：先杀掉 wrapper
 的 tmux server，再清掉 agent 留在自己进程组里的东西——比如 Codex `exec_command`
 起的 dev server、后台 Bash 任务——因为 tmux 只会给 pane 自己的进程发信号。agent
 顺带拉起的共享守护进程（模拟器、Gradle daemon、容器运行时）会被放过；用
@@ -750,7 +750,7 @@ Inline 和命令 Prompt（`<leader>ae`、`:CodeCompanion`）用，它们直接�
 | `NVIM_ANTHROPIC_API_KEY` | `anthropic`，Claude 的 `api`（只要设置了就是 `auto`） | [Anthropic Console](https://platform.claude.com/) → API keys |
 | `NVIM_OPENAI_API_KEY` | `openai`，Codex 的 `api`（只设置了它时是 `auto`） | [OpenAI Platform](https://platform.openai.com/api-keys) |
 
-同一家 API 的第二把 key，就是在 `lua/ai/config.lua` 里再加一个只有 `api` 部分的
+同一家 API 的第二把 key，就是在 `lua/config/ai.lua` 里再加一个只有 `api` 部分的
 provider，配上自己的 `api.name` 和自己的 `NVIM_*` 变量（文件里有一个注释掉的示例）；
 之后它会作为 API Chat 出现在 `<leader>an` 里，也会出现在 `:AI key` 里。
 
@@ -791,13 +791,13 @@ CLI 的变量。
 
 | 变量 | 说明 |
 |------|------|
-| `NVIM_AI_KEY_PROFILE` | 启动时的 HTTP key profile：`auto`（默认，取第一个已设置 `NVIM_*` key 的 provider）、`anthropic`、`openai`，或 `lua/ai/config.lua` 里其他 provider 的 `api.name`；名字不存在时给出警告并退回 `auto`。运行中用 `:AI key` 切换 |
+| `NVIM_AI_KEY_PROFILE` | 启动时的 HTTP key profile：`auto`（默认，取第一个已设置 `NVIM_*` key 的 provider）、`anthropic`、`openai`，或 `lua/config/ai.lua` 里其他 provider 的 `api.name`；名字不存在时给出警告并退回 `auto`。运行中用 `:AI key` 切换 |
 | `NVIM_ANTHROPIC_API_KEY` | `anthropic` profile 的 key，供 CodeCompanion 的 API Chat 和 Inline/命令 Prompt 使用，见 [API key](#api-key) |
 | `NVIM_OPENAI_API_KEY` | `openai` profile 的 key |
 | `NVIM_ENGLISH_INPUT_SOURCE` | Normal 模式使用的 macOS 输入源 ID；未设置时使用 macOS 已启用的拉丁键盘布局 |
 | `NVIM_MACISM_WAIT_TIME_MS` | 可选的 macism CJK workaround 等待时间；设为 `0` 可去掉临时焦点窗口，但可能出现首字符竞态 |
-| `NVIM_LOG_LEVEL` | `util.logger` 日志级别：`DEBUG`/`INFO`/`WARN`/`ERROR`（默认 `WARN`） |
-| `NVIM_DEV=1` | 把 `util.logger` 设为 `DEBUG`（更详细的日志） |
+| `NVIM_LOG_LEVEL` | `editor_core.logger` 日志级别：`DEBUG`/`INFO`/`WARN`/`ERROR`（默认 `WARN`） |
+| `NVIM_DEV=1` | 把 `editor_core.logger` 设为 `DEBUG`（更详细的日志） |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — 覆盖 Claude Code 的 tmux 包裹默认行为。默认开。详见 [Native Agent 的 tmux 包裹](#native-agent-的-tmux-包裹)。 |
 | `CODEX_WRAP_TMUX` | `1`/`0` — 覆盖 Codex 的 tmux 包裹默认行为。默认开。详见 [Native Agent 的 tmux 包裹](#native-agent-的-tmux-包裹)。 |
 | `CLAUDE_CHROME` | `1`/`0` — 开关 Native Claude 进程的 Claude in Chrome。默认开。 |
@@ -812,20 +812,20 @@ CLI 的变量。
 `ai/review/config.lua`，运行状态与解析分别由 `ai/state.lua` 和
 `ai/review/settings.lua` 管理；插件 spec 负责装配，各语言模块负责对应语言的完整集成。
 
-**添加插件** — 在对应 `lua/plugins/*/` 目录下创建文件。
+**添加插件** — 在对应 `lua/plugin/*/` 目录下创建文件。
 
-**添加语言支持、LSP 服务器或格式化工具** — 在 `lua/plugins/lang/` 中创建或修改
+**添加语言支持、LSP 服务器或格式化工具** — 在 `lua/plugin/lang/` 中创建或修改
 对应语言贡献。语言文件负责扩展共享的 nvim-lspconfig、Conform、lint、
-Treesitter、DAP 和测试 spec；`lua/plugins/coding/` 只放编辑器级公共默认配置。
+Treesitter、DAP 和测试 spec；`lua/plugin/coding/` 只放编辑器级公共默认配置。
 
-**添加、删除或调整 AI provider 的顺序** — 修改 `lua/ai/config.lua` 里的
+**添加、删除或调整 AI provider 的顺序** — 修改 `lua/config/ai.lua` 里的
 `providers` 列表（见 [AI Chat 与 Provider](#ai-chat-与-provider)）。`acp` 和 `api`
 用的是 CodeCompanion 已有 adapter 的 provider，只需加一项配置；新 kind 的 Native
 终端需要写代码。
 
 **调整文件/grep 搜索范围** — `;f` 与 `;/` 默认显示隐藏和被
 gitignore 的文件；`.git/` 始终排除，`node_modules`、`target`、`.venv`、
-`Pods` 等重型目录由 `lua/plugins/editor/snacks.lua` 的 `search_exclude` 统一
+`Pods` 等重型目录由 `lua/plugin/editor/snacks.lua` 的 `search_exclude` 统一
 过滤。这个过滤不区分是否被 Git 跟踪，因此不要随意加入 `bin`、`out`、
 `vendor` 这类可能包含源码的通用目录名。
 

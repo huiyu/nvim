@@ -47,7 +47,7 @@ for _, case in ipairs(cases) do
         vim.wait(5000, function() return result ~= nil end, 50)
         t.eq(result and result.result, "42", case.ft .. ": attached process exposes local variables")
         local before = #output
-        require("util.dap").disconnect()
+        require("editor_core.dap").disconnect()
         t.ok(vim.wait(5000, function() return next(dap.sessions()) == nil and #output > before end, 50), case.ft .. ": detach resumes the externally started process")
       end
       local cleanup = t.process_cleanup()

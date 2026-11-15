@@ -139,7 +139,7 @@ end
 
 -- <leader>a. No key names an
 -- agent: the chat keys reach whatever the tabpage shows on its right
--- (lua/ai/slot.lua), the native keys the native agent there, else the one
+-- (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua), the native keys the native agent there, else the one
 -- asked for. n/l open a picker, from Visual mode taking the selection along.
 -- "…" marks a key that asks something of its own before it acts (a choice,
 -- typed input): not aR, whose only question is the shared which-agent one, nor

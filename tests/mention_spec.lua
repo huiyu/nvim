@@ -1,4 +1,4 @@
--- @file completion for the agent prompt buffer (lua/ai/mention.lua).
+-- @file completion for the agent prompt buffer (local-plugin/agent-workbench.nvim/lua/agent_workbench/mention.lua).
 --
 -- The blink.cmp plumbing (menu, fuzzy ranking, accept) is blink's own concern
 -- and is not exercised here. What matters in-process is the source contract:
@@ -7,7 +7,7 @@
 -- listers still gets silence instead of an error -- the prompt buffer must
 -- never break over an optional binary.
 local t = dofile("tests/helper.lua")
-local mention = require("ai.mention")
+local mention = require("agent_workbench.mention")
 
 -- Specs run from the repository root, so the project files the source should
 -- offer are this config's own.
@@ -41,10 +41,10 @@ end
 -- UC-1: `@` plus a fragment offers project files, and accepting inserts
 -- `@<relative path>` by replacing the whole token from the `@` on.
 local res = complete("see @edit")
-local item = find_item(res, "lua/ai/editor.lua")
-t.ok(item ~= nil, "UC-1: '@edit' offers lua/ai/editor.lua")
+local item = find_item(res, "local-plugin/agent-workbench.nvim/lua/agent_workbench/editor.lua")
+t.ok(item ~= nil, "UC-1: '@edit' offers local-plugin/agent-workbench.nvim/lua/agent_workbench/editor.lua")
 if item then
-  t.eq(item.textEdit.newText, "@lua/ai/editor.lua", "UC-1: accepting inserts the @-prefixed path")
+  t.eq(item.textEdit.newText, "@local-plugin/agent-workbench.nvim/lua/agent_workbench/editor.lua", "UC-1: accepting inserts the @-prefixed path")
   t.eq(item.textEdit.range, {
     start = { line = 0, character = 4 },
     ["end"] = { line = 0, character = 9 },

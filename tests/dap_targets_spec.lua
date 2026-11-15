@@ -1,6 +1,6 @@
 local t = dofile("tests/helper.lua")
 local dap = require("dap")
-local util = require("util.dap")
+local util = require("editor_core.dap")
 local root = vim.fn.tempname() .. " debug targets"
 vim.fn.mkdir(root .. "/node_modules/vitest", "p")
 vim.fn.writefile({ '{"version":"4.0.0"}' }, root .. "/node_modules/vitest/package.json")

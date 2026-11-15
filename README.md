@@ -38,7 +38,7 @@ llama-server --fim-qwen-7b-default                 # once: ghost-text model (~8 
 - **Python >= 3.10** — required for `black` (a `pyenv` or `uv`-managed interpreter works)
 - **Node.js + npm** — required for `eslint-lsp`, `css-lsp`, `html-lsp`, `json-lsp`, `yaml-language-server`, `tailwindcss-language-server`, `vtsls`, `bash-language-server`
 - **Rust (rustup)** — `rust-analyzer` (installed by Mason) needs `cargo`, and formats with the toolchain's `rustfmt` (`rustup component add rustfmt`); it adds `rust-src` through rustup itself
-- **JDK 25+** — runs `jdtls` (Java); projects may still target older releases. Found through `$JAVA_HOME`, then [SDKMAN!](https://sdkman.io/) (`~/.sdkman/candidates/java`), then PATH (see [`lua/plugins/lang/java.lua`](lua/plugins/lang/java.lua))
+- **JDK 25+** — runs `jdtls` (Java); projects may still target older releases. Found through `$JAVA_HOME`, then [SDKMAN!](https://sdkman.io/) (`~/.sdkman/candidates/java`), then PATH (see [`lua/plugin/lang/java.lua`](lua/plugin/lang/java.lua))
 - **TeX Live + Skim** (LaTeX) — `brew install --cask mactex-no-gui` for `latexmk`/`latexindent`/`chktex`, and `brew install --cask skim` for the SyncTeX PDF viewer. `texlab` is installed by Mason. For inverse search set Skim → Preferences → Sync → Custom: command `nvim`, arguments `--headless -c "VimtexInverseSearch %line '%file'"`
 
 If a Mason package fails to install, run `:Mason` (UI) or `:MasonLog` (raw log) to see the underlying error. The most common cause is a missing toolchain from the list above.
@@ -75,7 +75,7 @@ starting without arguments keeps the shell's cwd. See the [manual](docs/MANUAL.m
 │   │   ├── keymaps.lua       # Imperative core keymaps
 │   │   ├── autocmds.lua      # Autocommands
 │   │   ├── dashboard.lua     # Dashboard content and viewport wiring
-│   │   ├── lazy.lua          # lazy.nvim: install, import lua/plugins/
+│   │   ├── lazy.lua          # lazy.nvim: install, import lua/plugin/
 │   │   ├── whichkey_spec.lua # which-key groups, popup sections, spec keymaps (data)
 │   │   └── health.lua        # `:checkhealth config` provider
 │   ├── plugins/              # lazy.nvim specs, imported in this order
@@ -122,7 +122,7 @@ Run from `~/.config/nvim`; `make` lists them.
 | `make deps` | Installs what the specs need: missing plugins, Mason packages, CodeDiff's native library |
 
 The specs run one at a time on purpose: some share what one Nvim at a time
-expects (the llama-server `util.llama` shares, git and gitsigns timing).
+expects (the llama-server `llama_service` shares, git and gitsigns timing).
 
 ### Plugins
 
@@ -185,7 +185,7 @@ expects (the llama-server `util.llama` shares, git and gitsigns timing).
 | [claudecode](https://github.com/coder/claudecode.nvim) | Native Claude Code integration (always declared, loaded on first use) |
 | [CodeCompanion](https://github.com/olimorris/codecompanion.nvim) | [Agent chats](#codecompanion-agent-chat-and-api-chat) over ACP (on the subscription) and API chats over HTTP (on a key profile), started from `<leader>an`, plus inline/command prompts on the key profile |
 | [codecompanion-history](https://github.com/ravitemer/codecompanion-history.nvim) | Auto-saved, project-aware CodeCompanion chat history |
-| [minuet-ai](https://github.com/milanglacier/minuet-ai.nvim) | As-you-type AI ghost text from a local model ([inline AI completion](#inline-ai-completion)) |
+| [minuet-ai](https://github.com/milanglacier/minuet-agent_workbench.nvim) | As-you-type AI ghost text from a local model ([inline AI completion](#inline-ai-completion)) |
 
 #### Version Control
 
@@ -481,7 +481,7 @@ focus.
 
 This is not a buffer of ours: it is the agent's own `ctrl+g` ("edit this prompt
 in `$EDITOR`"), which both Claude Code and Codex implement. `$EDITOR` points at
-`scripts/agent-editor`, which opens the prompt in *this* Nvim instead of starting
+`local-plugin/agent-workbench.nvim/scripts/agent-editor`, which opens the prompt in *this* Nvim instead of starting
 a second one inside the `:terminal`. `<leader>ai` simply sends `ctrl+g` to the
 TUI, so pressing `ctrl+g` there directly does the same thing.
 
@@ -516,7 +516,7 @@ stays an email; other scripts do count as a boundary, so `看看@init` completes
 What the agent does with the text differs per agent: Claude Code parses the
 returned `@path` into a real file mention on submit, Codex treats it as a path
 its agent opens itself — both end up reading the file. The source lives in
-`lua/ai/mention.lua` and is enabled only for these prompt buffers, so ordinary
+`local-plugin/agent-workbench.nvim/lua/agent_workbench/mention.lua` and is enabled only for these prompt buffers, so ordinary
 markdown never sees it.
 
 #### Attaching images
@@ -614,7 +614,7 @@ nothing is typed into its box, which may hold a draft. A session they start
 is announced. `at` and `aT` read the agent's records from disk, running or
 not.
 
-**Providers** are an ordered list in `lua/ai/config.lua`, set up the way
+**Providers** are an ordered list in `lua/config/ai.lua`, set up the way
 CodeCompanion's adapters are. Each names a vendor and the parts it offers; a
 part left out is not offered:
 
@@ -626,7 +626,7 @@ part left out is not offered:
 
 That file only returns settings: `providers`, `key_profile` (default `"auto"`)
 for inline/command prompts, and `panel.width`. Edit it, then restart Nvim.
-`lua/ai/state.lua` validates and applies it; the plugin specs connect the
+`local-plugin/agent-workbench.nvim/lua/agent_workbench/state.lua` validates and applies it; the plugin specs connect the
 result to the agents and CodeCompanion. `:AI key` switches the live HTTP
 profile without editing the file. At startup, `NVIM_AI_KEY_PROFILE` overrides
 `vim.g.ai_key_profile`, which overrides the file's `key_profile`.
@@ -669,7 +669,7 @@ ACP connection starts, stops, shows or hides, and an open chat keeps the
 adapter it was created with. While a profile is pinned the statusline names it
 (`󰌆 OpenAI`); click it to switch again. There is no `:AI provider` any more:
 a new chat picks its backend in `<leader>an`, in the order of
-`lua/ai/config.lua`.
+`lua/config/ai.lua`.
 
 Run `:checkhealth config` to see missing CLIs, ACP bridges, or HTTP
 credentials, for every provider. A missing CLI or bridge is a warning, since
@@ -753,7 +753,7 @@ When running terminal apps inside Neovim (e.g. Claude Code), `Shift+Enter` requi
 #### Native-agent tmux wrappers
 
 Claude Code and Codex are launched inside provider-specific, dedicated tmux
-servers. See `lua/plugins/ai/claudecode.lua` and `lua/ai/backend/codex.lua`.
+servers. See `lua/plugin/ai/claudecode.lua` and `local-plugin/agent-workbench.nvim/lua/agent_workbench/backend/codex.lua`.
 
 **Why**: both TUIs emit DEC mode 2026 (Synchronized Output) escape sequences for
 atomic frame updates. Nvim's `:terminal` buffer does not understand this
@@ -773,7 +773,7 @@ instead of inserting a newline. `always` keeps the modifier without waiting for
 the TUI to request it, and CSI u is the form both Claude Code and Codex parse.
 Every key with a legacy encoding reaches the TUI unchanged.
 
-**Teardown**: closing the panel or quitting Nvim runs `scripts/agent-teardown`,
+**Teardown**: closing the panel or quitting Nvim runs `local-plugin/agent-workbench.nvim/scripts/agent-teardown`,
 which kills the wrapper server and then whatever the agent left running in
 process groups of its own -- a Codex `exec_command` dev server, a background
 Bash job -- since tmux only signals the pane's own process. Shared daemons the
@@ -860,7 +860,7 @@ another.
 | `NVIM_ANTHROPIC_API_KEY` | `anthropic`, Claude's `api` (`auto` whenever it is set) | [Anthropic Console](https://platform.claude.com/) → API keys |
 | `NVIM_OPENAI_API_KEY` | `openai`, Codex's `api` (`auto` when only this one is set) | [OpenAI Platform](https://platform.openai.com/api-keys) |
 
-A second key for the same API is one more provider in `lua/ai/config.lua`
+A second key for the same API is one more provider in `lua/config/ai.lua`
 with only an `api` part: its own `api.name` and an `NVIM_*` variable of its
 own (the file has a commented example). It then shows up in `<leader>an` as an
 API chat and in `:AI key`.
@@ -905,13 +905,13 @@ Set these in `init.lua` before plugins load.
 
 | Variable | Description |
 |----------|-------------|
-| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile: `auto` (default; the first provider whose `NVIM_*` key is set), `anthropic`, `openai`, or another provider's `api.name` in `lua/ai/config.lua`; an unknown name warns and falls back to `auto`. `:AI key` switches it |
+| `NVIM_AI_KEY_PROFILE` | Startup HTTP key profile: `auto` (default; the first provider whose `NVIM_*` key is set), `anthropic`, `openai`, or another provider's `api.name` in `lua/config/ai.lua`; an unknown name warns and falls back to `auto`. `:AI key` switches it |
 | `NVIM_ANTHROPIC_API_KEY` | Key of the `anthropic` profile, for CodeCompanion's API chats and inline/command prompts. See [API keys](#api-keys) |
 | `NVIM_OPENAI_API_KEY` | Key of the `openai` profile |
 | `NVIM_ENGLISH_INPUT_SOURCE` | macOS input-source ID used in Normal mode; falls back to an enabled keyboard layout reported by macOS, preferring a Latin one |
 | `NVIM_MACISM_WAIT_TIME_MS` | Optional macism CJK workaround wait; `0` removes the temporary focus window at the cost of possible first-character races |
-| `NVIM_LOG_LEVEL` | `util.logger` threshold: `DEBUG`/`INFO`/`WARN`/`ERROR` (default `WARN`) |
-| `NVIM_DEV=1` | Sets `util.logger` to `DEBUG` (verbose logging) |
+| `NVIM_LOG_LEVEL` | `editor_core.logger` threshold: `DEBUG`/`INFO`/`WARN`/`ERROR` (default `WARN`) |
+| `NVIM_DEV=1` | Sets `editor_core.logger` to `DEBUG` (verbose logging) |
 | `CLAUDE_WRAP_TMUX` | `1`/`0` — override default Claude Code tmux wrap. Default on. See [native-agent tmux wrappers](#native-agent-tmux-wrappers). |
 | `CODEX_WRAP_TMUX` | `1`/`0` — override default Codex tmux wrap. Default on. See [native-agent tmux wrappers](#native-agent-tmux-wrappers). |
 | `CLAUDE_CHROME` | `1`/`0` — enable or disable Claude in Chrome for the native Claude process. Default on. |
@@ -927,19 +927,19 @@ Each module owns one focused feature. Editable AI defaults live in
 in `ai/state.lua` and `ai/review/settings.lua`. Plugin specs wire feature
 modules together. Language modules own their complete language integration.
 
-**Add a plugin** — create a file in the appropriate `lua/plugins/*/` directory.
+**Add a plugin** — create a file in the appropriate `lua/plugin/*/` directory.
 
 **Add language support, an LSP server, or a formatter** — create or edit the
-matching contribution in `lua/plugins/lang/`. Language files extend the shared
+matching contribution in `lua/plugin/lang/`. Language files extend the shared
 `nvim-lspconfig`, Conform, lint, Treesitter, DAP, and test specs; the files in
-`lua/plugins/coding/` contain editor-wide defaults only.
+`lua/plugin/coding/` contain editor-wide defaults only.
 
 **Add, remove or reorder an AI provider** — edit the `providers` list in
-`lua/ai/config.lua` ([AI chats and providers](#ai-chats-and-providers)). A
+`lua/config/ai.lua` ([AI chats and providers](#ai-chats-and-providers)). A
 provider whose `acp` and `api` name adapters CodeCompanion already has needs
 only the entry; a native terminal of a new kind needs code.
 
-**Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugins/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
+**Tune file/grep search scope** — the file (`;f`) and grep (`;/`) pickers show hidden **and** gitignored files (`hidden`/`ignored` in `lua/plugin/editor/snacks.lua`). `.git/` is always excluded; heavy build/dependency dirs (`node_modules`, `target`, `.venv`, `Pods`, …) are skipped via the shared `search_exclude` list in the same file. Add a dir to that list to hide it, or remove one to search it. Note: `exclude` drops any dir of that name unconditionally — even git-tracked source — so generic names (`bin`, `out`, `vendor`) are intentionally left out.
 
 Use `;i` (files) or `;?` (text) to respect `.gitignore` instead, with hidden files
 still visible and no extra directory exclusions. Under Manage, `<leader>mf`

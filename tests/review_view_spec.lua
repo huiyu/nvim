@@ -1,4 +1,4 @@
--- The review view (lua/ai/review/init.lua): <leader>av and the ,C keys it
+-- The review view (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/init.lua): <leader>av and the ,C keys it
 -- installs in every CodeDiff view.
 --
 -- Real CodeDiff views of scratch repositories, so the native library is
@@ -42,7 +42,7 @@ local t = dofile("tests/helper.lua")
 local Config = require("lazy.core.config")
 local uv = vim.uv
 
-t.eq(package.loaded["ai.review"], nil, "the review view is not loaded at startup")
+t.eq(package.loaded["agent_workbench.review"], nil, "the review view is not loaded at startup")
 local plugin = Config.plugins["codediff.nvim"]
 local libs = vim.fn.glob(plugin.dir .. "/libvscode_diff*", false, true)
 if #libs == 0 then
@@ -117,10 +117,10 @@ local function edit(root)
   vim.fn.writefile({ "one", "two " .. writes, "three", "four " .. writes, "five" }, root .. "/a.txt")
 end
 
-local B = require("util.baseline")
-local rounds = require("ai.review.rounds")
-local cd = require("util.codediff")
-local config = require("ai.state")
+local B = require("git_review.baseline")
+local rounds = require("agent_workbench.review.rounds")
+local cd = require("git_review.view")
+local config = require("agent_workbench.state")
 
 ---A round as a source would save it: `trailers` are Source, Conversation,
 ---Late; Root is the repository.
@@ -156,7 +156,7 @@ end
 ---@return integer? tab
 local function review(id)
   notices = {}
-  require("ai.review").open()
+  require("agent_workbench.review").open()
   local tab
   vim.wait(20000, function()
     for _, tb in ipairs(vim.api.nvim_list_tabpages()) do
@@ -175,7 +175,7 @@ end
 local function review_nothing(text)
   notices = {}
   local tabs = #vim.api.nvim_list_tabpages()
-  require("ai.review").open()
+  require("agent_workbench.review").open()
   local ok = vim.wait(10000, function() return said(text) ~= nil end, 20)
   settle(300)
   return ok and #vim.api.nvim_list_tabpages() == tabs
@@ -296,7 +296,7 @@ t.eq(vim.api.nvim_tabpage_get_number(tab), vim.api.nvim_tabpage_get_number(edito
   "the review tab opens right after the tab it was asked from")
 t.eq(layout(editor_tab), before, "the tab it was asked from keeps its windows")
 t.eq(layout(bystander), bystander_layout, "another tabpage keeps its windows")
-t.eq(package.loaded["ai.review.feedback"], nil, "installing ,C does not load ai.review.feedback")
+t.eq(package.loaded["agent_workbench.review.feedback"], nil, "installing ,C does not load ai.review.feedback")
 
 -- A file outside any repository names none: the cwd's repository is
 -- reviewed, and its round is on screen.
@@ -304,7 +304,7 @@ vim.fn.writefile({ "notes" }, plain .. "/notes.md")
 vim.api.nvim_set_current_tabpage(editor_tab)
 vim.cmd.edit(vim.fn.fnameescape(plain .. "/notes.md"))
 notices = {}
-require("ai.review").open()
+require("agent_workbench.review").open()
 vim.wait(5000, function() return vim.api.nvim_get_current_tabpage() == tab end, 20)
 settle(200)
 t.eq(vim.api.nvim_get_current_tabpage(), tab, "<leader>av from a file outside any repository reviews the cwd's " .. heard())
@@ -316,7 +316,7 @@ vim.api.nvim_set_current_buf(file_buf)
 local tabs = #vim.api.nvim_list_tabpages()
 vim.api.nvim_set_current_tabpage(editor_tab)
 notices = {}
-require("ai.review").open()
+require("agent_workbench.review").open()
 vim.wait(5000, function() return vim.api.nvim_get_current_tabpage() == tab end, 20)
 settle(200)
 t.eq(vim.api.nvim_get_current_tabpage(), tab, "<leader>av for the round on screen goes to its tab")
@@ -397,9 +397,9 @@ local round_tab = tab
 -- ,C on a round view
 ---------------------------------------------------------------------------
 
-t.eq(package.loaded["ai.review.feedback"], nil, "ai.review.feedback is still not loaded")
+t.eq(package.loaded["agent_workbench.review.feedback"], nil, "ai.review.feedback is still not loaded")
 local calls = {}
-package.loaded["ai.review.feedback"] = { comment = function(opts) calls[#calls + 1] = opts end }
+package.loaded["agent_workbench.review.feedback"] = { comment = function(opts) calls[#calls + 1] = opts end }
 
 s = cd.session(round_tab)
 local panes = { modified = s.modified_bufnr, original = s.original_bufnr, explorer = s.panel_bufnr }
@@ -443,13 +443,13 @@ t.eq(visual(s.original_win, "4GVkk,C").range, { first = 2, last = 4 }, "a select
 t.eq(visual(s.modified_win, "3Gv,C").range, { first = 3, last = 3 }, "a characterwise one gives its lines")
 
 -- Every CodeDiffKeys pass runs attach() again.
-local view = require("ai.review")
+local view = require("agent_workbench.review")
 for _ = 1, 3 do view.attach(round_tab) end
 for _ = 1, 2 do
   vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffKeys", modeline = false, data = { tabpage = round_tab } })
 end
 settle(200)
-require("util.codediff_actions").attach(round_tab)
+require("git_review.actions").attach(round_tab)
 for where, buf in pairs(panes) do
   t.eq({ mappings(buf, ",C", "n"), mappings(buf, ",C", "x") }, { 1, 1 },
     "repeated passes keep exactly one ,C per mode on the " .. where)
@@ -468,12 +468,12 @@ vim.api.nvim_set_current_tabpage(round_tab)
 vim.wait(3000, function() return desc(file_buf, ",C") == DESC end, 20)
 t.eq(desc(file_buf, ",C"), DESC, "and gets it back in the view")
 
-package.loaded["ai.review.feedback"] = { comment = function() error("boom") end }
+package.loaded["agent_workbench.review.feedback"] = { comment = function() error("boom") end }
 notices = {}
 t.ok(pcall(map(s.modified_bufnr, ",C").callback), "a failing comment() does not escape the key")
 t.ok(said("Review feedback failed") ~= nil and said("Review feedback failed").level == vim.log.levels.WARN,
   "it warns instead " .. heard())
-package.loaded["ai.review.feedback"] = { comment = function(opts) calls[#calls + 1] = opts end }
+package.loaded["agent_workbench.review.feedback"] = { comment = function(opts) calls[#calls + 1] = opts end }
 
 ---------------------------------------------------------------------------
 -- ,C on a status view, a rev-vs-rev view and a history view
@@ -676,7 +676,7 @@ vim.api.nvim_set_current_tabpage(editor_tab)
 vim.cmd.edit(vim.fn.fnameescape(R7 .. "/a.txt"))
 local r7_tabs = #vim.api.nvim_list_tabpages()
 notices = {}
-require("ai.review").open()
+require("agent_workbench.review").open()
 vim.wait(5000, function() return said("No changes since round") ~= nil or said("No changes to show") ~= nil end, 20)
 settle(300)
 local quiet = said("No changes since round") or { msg = "" }
@@ -689,7 +689,7 @@ t.eq(said("No changes to show"), nil, "CodeDiff is not asked for a view it would
 t.eq(#vim.api.nvim_list_tabpages(), r7_tabs, "nothing opens")
 -- Nothing is left waiting: the next press answers the same at once.
 notices = {}
-require("ai.review").open()
+require("agent_workbench.review").open()
 vim.wait(5000, function() return said("No changes since round") ~= nil or said("still opening") ~= nil end, 20)
 t.eq(said("still opening"), nil, "a second press is not told the view is still opening " .. heard())
 t.ok(said("No changes since round") ~= nil, "it answers no changes again " .. heard())
@@ -775,7 +775,7 @@ end
 notices = {}
 vim.api.nvim_set_current_tabpage(editor_tab)
 vim.cmd.edit(vim.fn.fnameescape(RA .. "/a.txt"))
-require("ai.review").open()
+require("agent_workbench.review").open()
 vim.wait(10000, function() return #issued >= 1 end, 10)
 t.eq(issued[1] and issued[1].root, RA, "RA's review view is issued")
 vim.cmd.edit(vim.fn.fnameescape(RG .. "/a.txt"))
@@ -784,7 +784,7 @@ local status_tab = view_of(RG, "status")
 t.ok(status_tab ~= nil, "a status view opens while RA's review view is on its way")
 vim.api.nvim_set_current_tabpage(editor_tab)
 vim.cmd.edit(vim.fn.fnameescape(RB .. "/a.txt"))
-require("ai.review").open()
+require("agent_workbench.review").open()
 local tb_b
 vim.wait(10000, function()
   tb_b = review_of(GB)
@@ -822,9 +822,9 @@ notices = {}
 issued = {}
 hold = true
 vim.cmd.edit(vim.fn.fnameescape(RA .. "/a.txt"))
-require("ai.review").open()
+require("agent_workbench.review").open()
 vim.wait(10000, function() return #issued >= 1 end, 10)
-require("ai.review").open()
+require("agent_workbench.review").open()
 vim.wait(2000, function() return said("still opening") ~= nil end, 20)
 t.ok(said(("The review view of %s is still opening"):format(tilde(RA))) ~= nil,
   "a second press for RA while its view is on its way waits for it " .. heard())
@@ -860,7 +860,7 @@ t.eq(layout(bystander), bystander_layout, "and the bystander tabpage is as it wa
 -- Cleanup
 ---------------------------------------------------------------------------
 
-package.loaded["ai.review.feedback"] = nil
+package.loaded["agent_workbench.review.feedback"] = nil
 for _, term in ipairs(terminals) do pcall(vim.fn.jobstop, term.job) end
 settle(100)
 for _, term in ipairs(terminals) do pcall(vim.api.nvim_buf_delete, term.buf, { force = true }) end

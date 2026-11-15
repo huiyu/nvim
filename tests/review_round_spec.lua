@@ -1,8 +1,8 @@
--- Review rounds (lua/ai/review/rounds.lua): the registry of native terminals
+-- Review rounds (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/rounds.lua): the registry of native terminals
 -- and CodeCompanion chats, the round rules every source goes through
 -- (submit), the CodeCompanion source, the delivery checks (resolve_sink), the
 -- <leader>av/aV facade keys and ai.feed's make_room; first of all, the review
--- loop's settings (lua/ai/review/settings.lua).
+-- loop's settings (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/settings.lua).
 --
 -- Every repository is a scratch one under tempname(), with a space in its
 -- path. No agent is started: the "agent terminals" run `cat` and carry the
@@ -13,10 +13,10 @@
 -- dispatched directly -- so nothing is sent and no ACP bridge is spawned.
 local t = dofile("tests/helper.lua")
 
-t.eq(package.loaded["ai.review.rounds"], nil, "the round registry is not loaded at startup")
+t.eq(package.loaded["agent_workbench.review.rounds"], nil, "the round registry is not loaded at startup")
 
 ---------------------------------------------------------------------------
--- The review loop's settings (lua/ai/review/settings.lua)
+-- The review loop's settings (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/settings.lua)
 ---------------------------------------------------------------------------
 
 -- vim.g.ai_review merged over the defaults on every get().
@@ -61,29 +61,29 @@ do
   local plugins_before = loaded_plugins()
   local saved_g = vim.g.ai_review
   vim.g.ai_review = nil
-  package.loaded["ai.review.config"] = nil
-  local defaults = require("ai.review.config")
+  package.loaded["config.review"] = nil
+  local defaults = require("config.review")
   -- The editable file is only data: it needs no vim, require, or other globals.
-  local plain_defaults = setfenv(assert(loadfile("lua/ai/review/config.lua")), {})()
+  local plain_defaults = setfenv(assert(loadfile("lua/config/review.lua")), {})()
   t.eq(plain_defaults, defaults, "the editable defaults load without any globals")
 
   -- Exercise a changed editable default without changing the file on disk.
   -- Runtime overrides take precedence, and removing one reveals that default.
   local edited_defaults = vim.deepcopy(defaults)
   edited_defaults.retention.rounds = 27
-  package.loaded["ai.review.config"] = edited_defaults
-  package.loaded["ai.review.settings"] = nil
-  local edited = require("ai.review.settings")
+  package.loaded["config.review"] = edited_defaults
+  package.loaded["agent_workbench.review.settings"] = nil
+  local edited = require("agent_workbench.review.settings")
   edited_defaults.retention.rounds = 1
   vim.g.ai_review = { retention = { rounds = 31, saved = 4 } }
   t.eq(edited.get().retention, { rounds = 31, saved = 4 }, "runtime overrides win over editable defaults")
   vim.g.ai_review = { retention = { saved = 4 } }
   t.eq(edited.get().retention, { rounds = 27, saved = 4 }, "replacing the override reveals the copied editable default")
   t.eq(edited.defaults().retention, { rounds = 27, saved = 10 }, "defaults() reads the editable config, not the overrides")
-  package.loaded["ai.review.config"] = defaults
-  package.loaded["ai.review.settings"] = nil
+  package.loaded["config.review"] = defaults
+  package.loaded["agent_workbench.review.settings"] = nil
   vim.g.ai_review = nil
-  local settings = require("ai.review.settings")
+  local settings = require("agent_workbench.review.settings")
   settings.get()
   settings.defaults()
   settings.overrides()
@@ -320,10 +320,10 @@ do
   vim.g.ai_review = saved_g
 end
 
-local rounds = require("ai.review.rounds")
-local hook = require("ai.review.hook")
-local baseline = require("util.baseline")
-local config = require("ai.state")
+local rounds = require("agent_workbench.review.rounds")
+local hook = require("agent_workbench.review.hook")
+local baseline = require("git_review.baseline")
+local config = require("agent_workbench.state")
 local uv = vim.uv
 local INFO, WARN = vim.log.levels.INFO, vim.log.levels.WARN
 
@@ -1072,7 +1072,7 @@ t.ok(rec.reused == true and noted("already the current state") ~= nil, "aV again
 -- Outside an agent's own buffer, the owner is the chat on the right: what
 -- ai.slot reads off this tabpage's windows. The slot knows a native agent by
 -- its backend, so the stand-in panels are its terminals for these cases.
-local backends = { claude = require("ai.backend.claude"), codex = require("ai.backend.codex") }
+local backends = { claude = require("agent_workbench.backend.claude"), codex = require("agent_workbench.backend.codex") }
 local slot_saved = {}
 for name, b in pairs(backends) do slot_saved[name] = { running = b.running, buf = b.buf } end
 backends.claude.running, backends.claude.buf = function() return true end, function() return claude_buf end
@@ -1236,7 +1236,7 @@ for _, var in ipairs(VARS) do vim.env[var] = saved_keys[var] end
 -- ai.feed makes room for the agent it feeds
 ---------------------------------------------------------------------------
 
-local ai = require("ai")
+local ai = require("agent_workbench")
 local saved_fns, shown, hidden, fed = {}, {}, {}, {}
 for name, b in pairs(backends) do
   saved_fns[name] = { window = b.window, visible = b.visible, hide = b.hide, edit_prompt = b.edit_prompt }
@@ -1275,12 +1275,12 @@ end
 
 local function keymap(lhs) return vim.fn.maparg(lhs, "n", false, true) end
 local calls = {}
-local real_view, real_start = package.loaded["ai.review"], rounds.start
-package.loaded["ai.review"] = { open = function() calls[#calls + 1] = "open" end }
+local real_view, real_start = package.loaded["agent_workbench.review"], rounds.start
+package.loaded["agent_workbench.review"] = { open = function() calls[#calls + 1] = "open" end }
 rounds.start = function() calls[#calls + 1] = "start" end
 keymap(" av").callback()
 keymap(" aV").callback()
-package.loaded["ai.review"], rounds.start = real_view, real_start
+package.loaded["agent_workbench.review"], rounds.start = real_view, real_start
 t.eq(calls, { "open", "start" }, "<leader>av opens the review, <leader>aV starts a round")
 
 ---------------------------------------------------------------------------

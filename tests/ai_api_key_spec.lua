@@ -1,11 +1,11 @@
 -- CodeCompanion's HTTP adapters read keys of their own (NVIM_ANTHROPIC_API_KEY /
--- NVIM_OPENAI_API_KEY, lua/ai/config.lua), never the variables the agent CLIs
+-- NVIM_OPENAI_API_KEY, lua/config/ai.lua), never the variables the agent CLIs
 -- bill against: exporting ANTHROPIC_API_KEY or OPENAI_API_KEY for Nvim's sake
 -- would move Claude Code or Codex off the subscription.
 --
 -- Either key profile can be active after :AI key, and <leader>an starts an
 -- API chat on either, so BOTH HTTP adapters are checked under several
--- provider lists (lua/ai/config.lua), each in a fresh child Nvim -- the
+-- provider lists (lua/config/ai.lua), each in a fresh child Nvim -- the
 -- shipped one, Codex alone (the built-in anthropic adapter must still read
 -- its NVIM_* key) and Claude alone (the built-in openai adapter too) -- plus
 -- the Codex ACP adapter, which must stay on the ChatGPT login even when no
@@ -19,7 +19,7 @@ local t = dofile("tests/helper.lua")
 -- provider added: a second key on the anthropic adapter.
 local function resolve(env, order)
   local probe = [[
-    local ai = require("ai.state")
+    local ai = require("agent_workbench.state")
     local by_name = {}
     for _, p in ipairs(ai.providers) do by_name[p.name] = p end
     local list = {}

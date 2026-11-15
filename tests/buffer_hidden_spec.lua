@@ -53,7 +53,7 @@ local job_buf = vim.api.nvim_create_buf(true, false)
 vim.api.nvim_buf_call(job_buf, function() vim.fn.jobstart({ "sh", "-c", "cat" }, { term = true }) end)
 t.eq(vim.bo[job_buf].buftype, "terminal", "fixture: a hidden terminal buffer")
 
-local buffer = require("util.buffer")
+local buffer = require("editor_core.buffer")
 t.ok(buffer.is_hidden(hidden), "a file no window shows is hidden")
 t.ok(not buffer.is_hidden(shown) and not buffer.is_hidden(split), "files in this tabpage's windows are not")
 t.ok(not buffer.is_hidden(elsewhere), "a file shown only in another tabpage is not")

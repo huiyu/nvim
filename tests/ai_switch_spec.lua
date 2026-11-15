@@ -1,4 +1,4 @@
--- The AI providers (lua/ai/config.lua) and :AI (lua/ai/init.lua, ai.switch): an
+-- The AI providers (lua/config/ai.lua) and :AI (local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua, ai.switch): an
 -- ordered provider list with no default backend, and an HTTP key profile
 -- :AI key switches.
 --
@@ -14,17 +14,17 @@
 -- no request is sent.
 local t = dofile("tests/helper.lua")
 
-local config = require("ai.state")
-local switch = require("ai.switch")
+local config = require("agent_workbench.state")
+local switch = require("agent_workbench.switch")
 local Config = require("lazy.core.config")
 local ERROR, WARN = vim.log.levels.ERROR, vim.log.levels.WARN
 
 -- The editable file is plain data: it can be read without Neovim or loading
 -- any runtime module. Applying it is ai.state's job.
-local settings_chunk = assert(loadfile("lua/ai/config.lua"))
+local settings_chunk = assert(loadfile("lua/config/ai.lua"))
 setfenv(settings_chunk, {})
 local settings = settings_chunk()
-t.eq(require("ai.config"), settings, "the editable settings are plain Lua data")
+t.eq(require("config.ai"), settings, "the editable settings are plain Lua data")
 t.eq(config.providers, settings.providers, "the runtime applies the configured providers")
 t.eq(config.panel, settings.panel, "the runtime applies the configured panel geometry")
 
@@ -111,7 +111,7 @@ for _, cmd in ipairs({ "AI provider", "AI provider codex", "AI provider nope" })
   notes = {}
   vim.cmd(cmd)
   t.ok(#notes == 1 and last().level == ERROR and last().msg:find(":AI new", 1, true) ~= nil
-    and last().msg:find("lua/ai/config.lua", 1, true) ~= nil,
+    and last().msg:find("lua/config/ai.lua", 1, true) ~= nil,
     (":%s is gone, and says where its job went: %s"):format(cmd, last().msg))
 end
 notes = {}
@@ -205,7 +205,7 @@ t.eq({ config.codecompanion.acp_adapter, config.codecompanion.chat_adapter, conf
 config._set_providers({ { name = "claude", label = "Claude Code", tui = { kind = "claude" } } })
 t.eq({ config.key.name, config.key_names() }, { nil, {} }, "with no api there is no key profile")
 notes = {}
-t.eq(require("ai.companion").preflight("http"), false, "an inline edit refuses")
+t.eq(require("agent_workbench.companion").preflight("http"), false, "an inline edit refuses")
 vim.wait(500, function() return #notes > 0 end)
 t.ok(last().level == ERROR and last().msg:find("no provider offers an API key", 1, true) ~= nil,
   "saying no provider offers an API key: " .. last().msg)
@@ -237,7 +237,7 @@ t.ok(pcall(config.build, DEFAULT_LIST), "the shipped list is accepted")
 -- NVIM_AI_PROVIDER or vim.g.ai_provider only earns a warning.
 local probe = [[
   vim.wait(200, function() return #_G.spec_notes > 0 end)
-  local c = require("ai.state")
+  local c = require("agent_workbench.state")
   local keys = {}
   for _, k in ipairs(vim.json.decode(vim.env.SPEC_LHS)) do keys[k] = vim.fn.maparg(k, "n", false, true).desc or vim.NIL end
   io.stdout:write(vim.json.encode({
@@ -275,11 +275,11 @@ local function has(lhs) return next(vim.fn.maparg(lhs, "n", false, true)) ~= nil
 t.ok(not has(" aa") and not has(" ad"), "<leader>aa/ad do not exist before claudecode.nvim loads")
 local real_cc = package.loaded["claudecode"]
 package.loaded["claudecode"] = {}
-require("ai").apply_keymaps()
+require("agent_workbench").apply_keymaps()
 t.ok(has(" aa") and has(" ad"), "and exist once it has, whatever is on the right")
 t.eq({ desc(" aa"), desc(" ad") }, { "Accept Claude diff", "Reject Claude diff" }, "naming whose diff they answer")
 package.loaded["claudecode"] = real_cc
-require("ai").apply_keymaps()
+require("agent_workbench").apply_keymaps()
 t.ok(not has(" aa"), "(gone again with the stand-in)")
 
 ---------------------------------------------------------------------------
@@ -334,14 +334,14 @@ t.ok(pcall(config.check_key_profile, "x", { adapter = "openai", label = "x", api
 
 -- NVIM_AI_KEY_PROFILE sets the startup key; a typo falls back to auto.
 local pinned_start = child({ NVIM_AI_KEY_PROFILE = pinned }, [[
-  local c = require("ai.state")
+  local c = require("agent_workbench.state")
   io.stdout:write(vim.json.encode({ name = c.key.name, auto = c.key.auto }))
   vim.cmd("qa!")
 ]])
 t.eq(pinned_start, { name = pinned, auto = false }, "NVIM_AI_KEY_PROFILE pins the startup key")
 local typo = child({ NVIM_AI_KEY_PROFILE = "anthropik" }, [[
   vim.wait(100, function() return #_G.spec_notes > 0 end)
-  local c = require("ai.state")
+  local c = require("agent_workbench.state")
   io.stdout:write(vim.json.encode({ name = c.key.name, auto = c.key.auto, notes = _G.spec_notes }))
   vim.cmd("qa!")
 ]])
@@ -352,14 +352,14 @@ t.ok(typo.notes and typo.notes[1] and typo.notes[1].level == WARN
 -- The editable default is applied at startup; globals and the environment
 -- retain their precedence. No real key or agent is needed to select a profile.
 local settings_pre = ([[lua
-  local s = dofile("lua/ai/config.lua")
+  local s = dofile("lua/config/ai.lua")
   s.key_profile = "openai"
-  package.loaded["ai.config"] = s
+  package.loaded["config.ai"] = s
   vim.env.NVIM_AI_KEY_PROFILE = nil
   vim.g.ai_key_profile = nil
 ]]):gsub("\n", " ")
 local key_probe = [[
-  local c = require("ai.state")
+  local c = require("agent_workbench.state")
   io.stdout:write(vim.json.encode({ name = c.key.name, auto = c.key.auto }))
   vim.cmd("qa!")
 ]]
@@ -371,7 +371,7 @@ for _, case in ipairs({
 }) do
   t.eq(child({}, key_probe, settings_pre .. case.pre), { name = case.name, auto = false }, case.what)
 end
-t.eq(require("ai.config"), settings, "runtime switches and provider overrides leave the editable settings alone")
+t.eq(require("config.ai"), settings, "runtime switches and provider overrides leave the editable settings alone")
 
 ---------------------------------------------------------------------------
 -- The key picker
@@ -401,7 +401,7 @@ vim.cmd("AI key auto")
 -- Without oil.nvim's own FileType handling: apply_keymaps finds the buffer.
 local oil_buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_buf_call(oil_buf, function() vim.cmd("noautocmd setlocal filetype=oil") end)
-require("ai").apply_keymaps()
+require("agent_workbench").apply_keymaps()
 local tree_key = vim.api.nvim_buf_call(oil_buf, function() return vim.fn.maparg(" aS", "n", false, true) end)
 t.ok(tree_key.buffer == 1 and tree_key.desc == "Add file under cursor to Claude",
   "<leader>aS is mapped in an oil buffer, naming Claude as aa/ad do")
@@ -431,7 +431,7 @@ t.eq(vim.g.codecompanion_adapter, nil, "vim.g.codecompanion_adapter is never set
 -- And with Codex first in the list, its ACP agent: what a typed
 -- :CodeCompanionChat opens there. Loading the plugin creates no chat.
 local reordered_cc = child({ NVIM_OPENAI_API_KEY = "spec" }, [[
-  local c = require("ai.state")
+  local c = require("agent_workbench.state")
   local list = vim.deepcopy(c.providers)
   list[1], list[2] = list[2], list[1]
   c._set_providers(list)

@@ -1,4 +1,4 @@
--- Host side of the agent TUI's ctrl+g handoff (lua/ai/editor.lua).
+-- Host side of the agent TUI's ctrl+g handoff (local-plugin/agent-workbench.nvim/lua/agent_workbench/editor.lua).
 --
 -- The wrapper's own half -- $EDITOR is invoked, the file comes back edited --
 -- is a shell/RPC concern and is not exercised here. What matters in-process is
@@ -9,8 +9,8 @@
 -- Before it, ai.selection's draft; after it, <leader>ai through the facade
 -- and the per-agent seeds.
 local t = dofile("tests/helper.lua")
-local editor = require("ai.editor")
-local sel = require("ai.selection")
+local editor = require("agent_workbench.editor")
+local sel = require("agent_workbench.selection")
 
 ---------------------------------------------------------------------------
 -- ai.selection.draft(): UC-3 (<leader>ai seeding), UC-R1 (<leader>as)
@@ -28,7 +28,7 @@ end
 
 -- draft() reads the *live* visual selection, so it has to be called from inside
 -- Visual mode. Driving it through an x-mode mapping is also the production path:
--- <leader>as is an x-mode mapping (M.send_selection in lua/ai/init.lua's KEYS,
+-- <leader>as is an x-mode mapping (M.send_selection in local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua's KEYS,
 -- applied by apply_keymaps), which captures through ai.selection.capture.
 -- An unsaved buffer has no path to @-mention, so the literal text must travel.
 do
@@ -103,7 +103,7 @@ t.eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false), exact, "UC-1: content arrive
 -- would run on the :w that hands it back and reflow the prompt first.
 t.eq(vim.b[buf].autoformat, false, "UC-1: opts out of format-on-save")
 t.eq(vim.bo[buf].bufhidden, "wipe", "UC-1: buffer goes when the window does")
--- The mark is what turns on @file completion (lua/ai/mention.lua); without it
+-- The mark is what turns on @file completion (local-plugin/agent-workbench.nvim/lua/agent_workbench/mention.lua); without it
 -- the blink provider stays disabled and the prompt loses the TUI's @ habit.
 t.eq(vim.b[buf].ai_prompt, true, "UC-1: the buffer is marked as an agent prompt")
 
@@ -177,7 +177,7 @@ t.eq(released, { path4 .. ".a" }, "UC-7: closing still releases the original wra
 -- UC-8: images. The clipboard is stubbed because the real one is shared with
 -- whatever the machine is doing, and ai.attach_images because it drives a live
 -- agent pty.
-local clipboard = require("ai.clipboard")
+local clipboard = require("agent_workbench.clipboard")
 local has_image = true
 -- Every file <C-v> wrote, so the assertions below look at this spec's images
 -- only and never glob the directory.
@@ -198,7 +198,7 @@ vim.fn.writefile({ "left by a dead Nvim" }, staging .. "/19-1.png")
 t.eq(clipboard.staging_dir(), staging, "UC-8: images are staged in this pid's directory")
 t.eq(vim.fn.readdir(staging), {}, "UC-8: a reused pid's directory starts out empty")
 
-local ai = require("ai")
+local ai = require("agent_workbench")
 local attached
 local real_attach_images = ai.attach_images
 ai.attach_images = function(paths) attached = paths end
@@ -322,7 +322,7 @@ t.eq(editor.tui_ready(nil), false, "UC-9: a missing buffer is not ready")
 
 -- UC-6: the wrapper the terminals are launched with has to exist and be
 -- runnable, or ctrl+g silently falls back to a nested nvim.
-local wrapper = require("ai.backend.launch").wrapper()
+local wrapper = require("agent_workbench.backend.launch").wrapper()
 t.eq(vim.fn.executable(wrapper), 1, "UC-6: the $EDITOR wrapper is executable")
 
 -- UC-10: the float is modal. The global <C-h/j/k/l> window keys work from a
@@ -377,15 +377,15 @@ vim.cmd("only")
 ---------------------------------------------------------------------------
 
 -- It opens no buffer of our own. It asks the agent's TUI to open the
--- prompt editor both CLIs already have on ctrl+g, which scripts/agent-editor
--- routes back into this Nvim (lua/ai/editor.lua). So what is under test here is
+-- prompt editor both CLIs already have on ctrl+g, which local-plugin/agent-workbench.nvim/scripts/agent-editor
+-- routes back into this Nvim (local-plugin/agent-workbench.nvim/lua/agent_workbench/editor.lua). So what is under test here is
 -- the keystroke payload and the facade wiring, not a buffer.
 --
 -- It runs on what the cases above left: editor._release still only records
 -- (no sentinel is written), the clipboard is still UC-8's stub, and
 -- ai.attach_images is the real one again.
-local config = require("ai.state")
-local backend = require("ai.backend." .. config.agent_names()[1])
+local config = require("agent_workbench.state")
+local backend = require("agent_workbench.backend." .. config.agent_names()[1])
 
 local function close_floats()
   for _, w in ipairs(vim.api.nvim_list_wins()) do
@@ -458,9 +458,9 @@ close_floats()
 
 -- UC-1/UC-3: the facade hands the backend a seed only when there is a selection.
 --
--- Nothing is on the right, so <leader>ai asks which chat (lua/ai/slot.lua):
+-- Nothing is on the right, so <leader>ai asks which chat (local-plugin/agent-workbench.nvim/lua/agent_workbench/slot.lua):
 -- with none open, the new-chat picker, whose first entry is the first listed
--- provider's terminal (lua/ai/config.lua). The answer is given here, and the
+-- provider's terminal (lua/config/ai.lua). The answer is given here, and the
 -- agents on PATH are stand-ins -- the stubbed edit_prompt below would start
 -- nothing anyway.
 local stand_ins = vim.fn.tempname()
@@ -545,7 +545,7 @@ t.ok(codex_win ~= nil, "a Codex prompt is titled for Codex, whichever agent is l
 
 -- <C-v> stages an image; :w returns the prompt; the image goes back to Codex.
 local routed = {}
-local backends = { claude = require("ai.backend.claude"), codex = require("ai.backend.codex") }
+local backends = { claude = require("agent_workbench.backend.claude"), codex = require("agent_workbench.backend.codex") }
 local real_attach = { claude = backends.claude.attach_images, codex = backends.codex.attach_images }
 for name, b in pairs(backends) do
   b.attach_images = function(paths) routed[#routed + 1] = { name, paths } end
@@ -585,7 +585,7 @@ close_floats()
 routed = {}
 local stray = dir .. "/stray.png"
 vim.fn.writefile({ "not really a png" }, stray)
-require("ai").attach_images({ stray }, nil)
+require("agent_workbench").attach_images({ stray }, nil)
 t.eq(routed, {}, "ai.attach_images with no agent attaches nothing")
 t.eq(vim.fn.filereadable(stray), 0, "and deletes the staged file rather than leave it behind")
 
@@ -733,7 +733,7 @@ package.loaded["claudecode.terminal"] = {
 calls = {}
 local opts = stager("backend")
 opts.seed, opts.ttl_ms = "from the backend", 5000
-require("ai.backend.claude").edit_prompt(opts)
+require("agent_workbench.backend.claude").edit_prompt(opts)
 package.loaded["claudecode.terminal"] = saved_terminal
 t.ok(editor._seed_pending("claude") and not editor._seed_pending("codex"), "Claude's edit_prompt stages into Claude's slot")
 local via_backend = prompt_file("claude", { "" })

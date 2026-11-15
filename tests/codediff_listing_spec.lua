@@ -1,6 +1,6 @@
--- The listing patch in lua/util/codediff.lua: what a revision-vs-working-tree
+-- The listing patch in local-plugin/git-review.nvim/lua/git_review/view.lua: what a revision-vs-working-tree
 -- view lists, through the replaced get_diff_revision and through real views
--- opened by <leader>gk and <leader>gM (lua/plugins/git/codediff.lua).
+-- opened by <leader>gk and <leader>gM (lua/plugin/git/codediff.lua).
 --
 -- Pinned here:
 --   * a baseline against the working tree lists A/M/D/R from the two trees:
@@ -96,7 +96,7 @@ end
 
 -- Load CodeDiff the way its first key does: the spec's config runs setup.
 require("lazy").load({ plugins = { "codediff.nvim" } })
-local cd = require("util.codediff")
+local cd = require("git_review.view")
 local lifecycle = require("codediff.ui.lifecycle")
 local changes = require("codediff.core.git.changes")
 t.ok(not cd.degraded(), "the installed CodeDiff is the version util.codediff was written against")
@@ -112,7 +112,7 @@ local function listing(rev, root, pathspec)
   return got and got.result and shown(got.result.unstaged), got and got.err
 end
 
-local B = require("util.baseline")
+local B = require("git_review.baseline")
 local function save(root, kind, meta)
   local entry, err
   B.save(root, kind, meta, function(e, info)

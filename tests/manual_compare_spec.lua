@@ -62,7 +62,7 @@ local records = vim.fn.tempname()
 vim.fn.mkdir(records .. "/claude/projects", "p")
 vim.fn.mkdir(records .. "/codex/sessions", "p")
 vim.env.CLAUDE_CONFIG_DIR, vim.env.CODEX_HOME = records .. "/claude", records .. "/codex"
-local stamp = require("ai.review.labels").stamp
+local stamp = require("agent_workbench.review.labels").stamp
 
 local notices = {}
 local real_notify = vim.notify
@@ -81,7 +81,7 @@ local function settle(ms) vim.wait(ms or 50, function() return false end, 10) en
 local opened, specs = {}, {}
 local real_codediff = rawget(vim.cmd, "CodeDiff")
 vim.cmd.CodeDiff = function(opts) opened[#opened + 1] = vim.deepcopy(opts.args) end
-local cd = require("util.codediff")
+local cd = require("git_review.view")
 local real_open = cd.open
 cd.open = function(spec)
   specs[#specs + 1] = vim.deepcopy(spec)
@@ -139,7 +139,7 @@ local function repo(name)
 end
 local function write(root, path, lines) vim.fn.writefile(lines, root .. "/" .. path) end
 
-local B = require("util.baseline")
+local B = require("git_review.baseline")
 local function baselines(root, kind)
   local got
   B.list(root, kind, function(entries) got = entries end)
@@ -345,10 +345,10 @@ args, spec = press("<leader>gk", { rev(before_refactor.sha), INDEX })
 t.eq(args, C("--staged", before_refactor.sha), "a baseline → index")
 t.eq(spec and spec.tab_vars, nil, "is not a baseline view")
 
-local saved_rounds = package.loaded["ai.review.rounds"]
+local saved_rounds = package.loaded["agent_workbench.review.rounds"]
 local REVIEW = { id = round.id, sha = round.sha, conversation = "claude:spec", source = "claude", root = root, late = false }
 local asked
-package.loaded["ai.review.rounds"] = {
+package.loaded["agent_workbench.review.rounds"] = {
   review_vars = function(entry)
     asked = entry
     return entry.kind == "round" and vim.deepcopy(REVIEW) or nil
@@ -362,24 +362,24 @@ t.ok(asked and asked.sha == round.sha and asked.ref == round.ref, "review_vars g
 asked = nil
 press("<leader>gk", { rev(before_refactor.sha), WORKING })
 t.eq(asked, nil, "a saved baseline does not consult ai.review.rounds")
-package.loaded["ai.review.rounds"] = { review_vars = function() error("spec: review_vars raised") end }
+package.loaded["agent_workbench.review.rounds"] = { review_vars = function() error("spec: review_vars raised") end }
 args, spec = press("<leader>gk", { rev(round.sha), WORKING })
 t.eq({ args, spec and spec.tab_vars }, { C(round.sha), { codediff_baseline = { sha = round.sha, kind = "round" } } },
   "a failing review_vars still opens the round, without ai_review")
-package.loaded["ai.review.rounds"] = nil
-package.preload["ai.review.rounds"] = function() error("spec: no such module") end
+package.loaded["agent_workbench.review.rounds"] = nil
+package.preload["agent_workbench.review.rounds"] = function() error("spec: no such module") end
 args, spec = press("<leader>gk", { rev(round.sha), WORKING })
 t.eq({ args, spec and spec.tab_vars }, { C(round.sha), { codediff_baseline = { sha = round.sha, kind = "round" } } },
   "and so does a missing ai.review.rounds")
-package.preload["ai.review.rounds"] = nil
+package.preload["agent_workbench.review.rounds"] = nil
 -- The real ai.review.rounds reads the round's own trailers.
-package.loaded["ai.review.rounds"] = nil
+package.loaded["agent_workbench.review.rounds"] = nil
 args, spec = press("<leader>gk", { rev(round.sha), WORKING })
 t.eq(spec and spec.tab_vars, {
   codediff_baseline = { sha = round.sha, kind = "round" },
   ai_review = { id = round.id, sha = round.sha, conversation = "claude:spec", source = "claude", root = root, late = false },
-}, "with lua/ai/review/rounds.lua the view carries the round its trailers name")
-package.loaded["ai.review.rounds"] = saved_rounds
+}, "with local-plugin/agent-workbench.nvim/lua/agent_workbench/review/rounds.lua the view carries the round its trailers name")
+package.loaded["agent_workbench.review.rounds"] = saved_rounds
 
 ---------------------------------------------------------------------------
 -- <leader>gk: typed revisions
@@ -476,14 +476,14 @@ t.eq(spec and spec.tab_vars, { codediff_baseline = { sha = before_refactor.sha, 
   "and marked as a baseline view")
 
 -- ai.review.labels failing leaves each baseline its subject and time.
-local real_labels = package.loaded["ai.review.labels"]
-package.loaded["ai.review.labels"] = { describe = function() error("labels broke") end }
+local real_labels = package.loaded["agent_workbench.review.labels"]
+package.loaded["agent_workbench.review.labels"] = { describe = function() error("labels broke") end }
 args, spec = press("<leader>gM", { rev(before_refactor.sha) })
 items = offered[1] or {}
 t.ok(position(display(" saved · before refactor · ")) ~= nil and position(display(" nvim review: Claude round 10:00:00 · ")) ~= nil,
   "with ai.review.labels failing, <leader>gM lists subjects and times")
 t.eq(spec and spec.label, "saved · before refactor → working tree", "and labels a view with the subject")
-package.loaded["ai.review.labels"] = real_labels
+package.loaded["agent_workbench.review.labels"] = real_labels
 args, spec = press("<leader>gM", { rev("old") })
 t.eq(args, C(OLD), "a branch diffs by sha")
 t.eq(spec and spec.label, "old → working tree", "labelled as before")

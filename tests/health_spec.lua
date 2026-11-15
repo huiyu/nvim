@@ -69,7 +69,7 @@ local function run(path, what)
   local saved = vim.env.PATH
   if path then vim.env.PATH = path end
   messages = {}
-  local ok, err = pcall(require("config.health").check)
+  local ok, err = pcall(require("editor_core.health").check)
   vim.env.PATH = saved
   t.ok(ok, (what or "the health check") .. " runs to completion" .. (ok and "" or (": " .. tostring(err))))
   return messages
@@ -160,7 +160,7 @@ local stand_in = root .. "/codediff stand-in"
 vim.fn.mkdir(stand_in, "p")
 vim.fn.writefile({ "9.9.9" }, stand_in .. "/VERSION")
 local ext = ({ OSX = "dylib", Windows = "dll" })[jit.os] or "so"
-local pinned = require("util.codediff").VERSION
+local pinned = require("git_review.view").VERSION
 local no_watcher_path = path_without("codediff-watcher")
 
 -- Run with the stand-in, then put both download switches back on.
@@ -261,7 +261,7 @@ t.ok(missing_ts and missing_ts.msg:find("not found", 1, true), "the error says i
 
 -- Hooks -------------------------------------------------------------------
 
-local hook = require("ai.review.hook")
+local hook = require("agent_workbench.review.hook")
 local real_script = hook.script
 local function with_script(path)
   hook.script = function() return path end
@@ -284,7 +284,7 @@ t.eq(absent and absent.level, "warn", "a missing hook script is a warning")
 
 -- Inside a repository -------------------------------------------------------
 
-local B = require("util.baseline")
+local B = require("git_review.baseline")
 local repo = root .. "/repo one"
 vim.fn.mkdir(repo, "p")
 must(repo, "init", "-q")
@@ -321,7 +321,7 @@ vim.g.ai_review = {
 }
 -- The drafts directory of this repository: one draft with feedback, one that
 -- delivery emptied, the last-sent copy and two conflict files.
-local draft_dir = vim.fs.dirname(require("ai.review.rounds").draft_path(repo, "unowned"))
+local draft_dir = vim.fs.dirname(require("agent_workbench.review.rounds").draft_path(repo, "unowned"))
 vim.fn.mkdir(draft_dir, "p")
 vim.fn.writefile({ "## a.txt:1 (working tree)", "> look" }, draft_dir .. "/held.md")
 vim.fn.writefile({}, draft_dir .. "/sent.md")
@@ -384,7 +384,7 @@ local function setting_paths(node, prefix, out)
   end
   return out
 end
-local paths = setting_paths(require("ai.review.settings").defaults(), "", {})
+local paths = setting_paths(require("agent_workbench.review.settings").defaults(), "", {})
 local unlisted = vim.tbl_filter(function(path) return find(settings, path .. " = ") == nil end, paths)
 t.eq(unlisted, {}, "every setting is listed")
 t.eq(#vim.tbl_filter(function(m) return m.level == "info" end, settings), #paths, "each one once")
@@ -435,14 +435,14 @@ t.ok(not_repo and not_repo.msg:find(outside, 1, true), "naming the directory")
 -- warning -- unavailable, not broken, and left out of the new-chat picker --
 -- whichever provider offers it. Only nothing at all to start a chat with is an
 -- error.
-local ai = require("ai.state")
+local ai = require("agent_workbench.state")
 local stand_ins = root .. "/no agents"
 vim.fn.mkdir(stand_ins, "p")
 local cut = stand_ins .. ":/usr/bin:/bin"
 local backends = section(run(cut, "with no agent on PATH"), "config: AI backends")
 t.ok(#backends > 0, "the AI backends section has lines")
 local head = backends[1]
-t.ok(head and head.level == "info" and head.msg:find("in the order of lua/ai/config.lua", 1, true) ~= nil,
+t.ok(head and head.level == "info" and head.msg:find("in the order of lua/config/ai.lua", 1, true) ~= nil,
   "it opens with the providers' order, naming no default: " .. tostring(head and head.msg))
 -- Judged on the same PATH the check ran on: a CLI in /usr/bin is found.
 local real_path = vim.env.PATH

@@ -111,7 +111,7 @@ end
 
 -- K is silent. Hovering a blank line is routine, and K asks hover() not to
 -- raise the "No information available" notice it would raise each time (noice's
--- own hover, which once filtered it out, is off: lua/plugins/ui/noice.lua). The
+-- own hover, which once filtered it out, is off: lua/plugin/ui/noice.lua). The
 -- unsilenced call first proves the server answers at that spot, so the
 -- silence below is not just a slow server.
 local notified = {}

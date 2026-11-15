@@ -13,20 +13,20 @@ The utility modules provide focused helpers for logging, debug inspection, LSP, 
 `lua/config/whichkey_spec.lua` exports `spec`, `sections`, `fallback_section` and
 `filetype_descs`. `spec` contains which-key mapping/group metadata.
 `sections[prefix]` is an ordered list of display sections, read by
-`lua/plugins/editor/whichkey.lua`. Filetype mappings remain in `lua/plugins/lang/`; view
-mappings remain with their plugins.
+`lua/plugin/editor/whichkey.lua`. Filetype mappings remain in `lua/plugin/lang/`; view
+mappings remain with their plugin.
 
 `filetype_descs[ft][lhs]` is the desc for a key that `ft`'s own plugin (a
 runtime ftplugin or VimTeX) maps in its buffers without one, or in words of
 its own: Python's `]]`/`]m`, Go's, Rust's and Vim's section motions, VimTeX's
 `]n`/`]r`/`]/` motions and `ac`/`id`/`a$` objects, and the heading outline
 `gO` of markdown, help, checkhealth and man buffers ("Show outline").
-`lua/plugins/editor/whichkey.lua` writes it onto the buffer's own mapping with
+`lua/plugin/editor/whichkey.lua` writes it onto the buffer's own mapping with
 `mapset()` on `FileType`, mode by mode, and only where the buffer maps the key
 itself: VimTeX maps nothing where a global map already holds the key
 (Nvim's Visual `]n`), and that one keeps its own desc; VimTeX's Normal
 `]r`/`[r`, which the global references hold, are mapped back by
-`lua/plugins/lang/tex.lua` on `VimtexEventInitPost`. It never adds a
+`lua/plugin/lang/tex.lua` on `VimtexEventInitPost`. It never adds a
 which-key entry, so the desc goes away when the filetype unmaps the key.
 
 | Section field | Meaning |
@@ -49,7 +49,7 @@ filters both apply when both are present. A heading joins single words with
 "/" and no spaces, as descs do (`AGENTS.md`): imports/environment,
 preview/tools, replace/sync, search/panel, format/replace. `labels.L`
 names the existing VimTeX group without registering an empty placeholder key.
-Headings add no keystrokes, register no mappings, and load no plugins. Only keys
+Headings add no keystrokes, register no mappings, and load no plugin. Only keys
 already present in the source buffer appear. Unclassified rows use
 `fallback_section` in a sectioned popup.
 
@@ -69,7 +69,7 @@ search/panel controls. Its implicit `S` group is labeled "Search panel" beside
 general keys; `tests/codediff_spec.lua` checks combined language/view actions
 and cleanup. Keep labels and categories in the data file when extending the menu.
 
-### Debugger actions (`util.dap`)
+### Debugger actions (`editor_core.dap`)
 
 `attach()` powers `<leader>dA` and `:DapAttach`. It reads the current filetype's
 static DAP configurations and the working directory's `.vscode/launch.json`
@@ -92,7 +92,7 @@ Language specs contribute `opts.targets[filetype]` to nvim-dap, with optional
 Callbacks receive `{ bufnr, path, filetype, line, col }`: the absolute buffer
 path, a one-based line and zero-based column captured after save hooks. Resolve
 project roots from this context before asynchronous work, rather than reading
-the subsequently focused buffer. Language behavior stays in `lua/plugins/lang/*.lua`.
+the subsequently focused buffer. Language behavior stays in `lua/plugin/lang/*.lua`.
 
 `syntax(ctx)` returns the parsed Treesitter root and language, or reports a
 missing parser. The language module supplies the query and target semantics.
@@ -132,7 +132,7 @@ of the last root session closes it. `jump(bufnr, line, column)` is nvim-dap's
 `switchbuf`: it places a stopped frame in `util.window.ensure_editor_win()` of
 the current tabpage, never another one.
 
-### URLs and local files (`util.url`)
+### URLs and local files (`editor_core.url`)
 
 `open()` implements Normal-mode `gx`: open the nearest HTTP(S) URL or existing
 local file on the current row. URLs use `vim.ui.open`; file references use
@@ -193,7 +193,7 @@ starts in for a file or directory argument. Requiring the module changes
 nothing; `lua/config/cwd.lua` applies both at startup. See
 [Working Directory](#working-directory-utilcwd).
 
-### 📝 Logger (`util.logger`)
+### 📝 Logger (`editor_core.logger`)
 
 Structured logging framework with level control and history.
 
@@ -207,7 +207,7 @@ Structured logging framework with level control and history.
 #### API Reference
 
 ```lua
-local logger = require("util.logger")
+local logger = require("editor_core.logger")
 
 -- Set log level
 logger.set_level("DEBUG")  -- DEBUG|INFO|WARN|ERROR
@@ -242,7 +242,7 @@ export NVIM_DEV=1              # Enable development logging
 ## Debug Inspection (`util.debug`)
 
 Throwaway helpers for working *on* this configuration. Distinct from
-`util.logger`, which carries messages a user of the config should see.
+`editor_core.logger`, which carries messages a user of the config should see.
 
 `lua/config/init.lua` wires the module into two globals, lazily, so a startup that never
 debugs never loads it:
@@ -277,7 +277,7 @@ against each other, not to trust a total.
 Because `dd` is a global, `.luarc.json` lists it in `diagnostics.globals`
 alongside `vim` and `Snacks`.
 
-## macOS Input Method (`util.input_method`)
+## macOS Input Method (`editor_core.input_method`)
 
 Keeps Normal and Terminal-Normal modes on an English keyboard layout while
 restoring the last captured input source in Insert and terminal-input modes.
@@ -285,10 +285,10 @@ The module serializes `macism` operations so a rapid `Esc`/`i` sequence cannot
 leave a stale switch as the final system state. It does nothing for headless
 Nvim or non-macOS processes.
 
-`setup()` is called by `lua/config/autocmds.lua`. The public inspection API is:
+`setup()` is called by `local-plugin/editor-core.nvim/lua/editor_core/autocmds.lua`. The public inspection API is:
 
 ```lua
-local input_method = require("util.input_method")
+local input_method = require("editor_core.input_method")
 
 local source, origin = input_method.default_source()
 -- source: e.g. "com.apple.keylayout.ABC"
@@ -328,21 +328,21 @@ set it to a positive millisecond value to shorten that wait, or set it to `0`
 to disable the temporary focus-stealing window. Disabling the workaround removes
 the Ghostty focus flash but can make the first CJK characters race on macOS 26.
 
-## LSP Utilities (`util.lsp`)
+## LSP Utilities (`editor_core.lsp`)
 
 LSP code actions with a client check and logging.
 
 #### API Reference
 
 ```lua
-local lsp = require("util.lsp")
+local lsp = require("editor_core.lsp")
 
 -- LSP actions (dynamic): one function per code action kind
 lsp.action["source.organizeImports"]()  -- Organize imports
 lsp.action["quickfix"]()                -- Apply quickfix
 ```
 
-## Vim Errors (`util.vim_error`)
+## Vim Errors (`editor_core.vim_error`)
 
 Nvim's own line for a refused Ex command or API call. `vim.cmd` and the
 `nvim_*` API turn a refusal -- last window, read-only file, no client attached
@@ -353,7 +353,7 @@ shows as one line.
 #### API Reference
 
 ```lua
-local vim_error = require("util.vim_error")
+local vim_error = require("editor_core.vim_error")
 
 -- The message Nvim would have printed, without Lua's wrapping:
 -- "vim/_core/editor.lua:0: nvim_exec2(), line 1: Vim(write):E45: ..." and
@@ -372,10 +372,10 @@ the refusal is known before the call -- `:GoplsRebuildIndex` with no client,
 repository, `<leader>at` when the view fails -- the entry point checks first
 and notifies, so none of them ends in a traceback.
 
-## Copying File Locations (`util.yank_path`)
+## Copying File Locations (`editor_core.yank_path`)
 
 ```lua
-local path = require("util.yank_path")
+local path = require("editor_core.yank_path")
 path.absolute()  -- <leader>ya
 path.relative()  -- <leader>yr, relative to the repository/cwd
 path.line()      -- <leader>yl, path:line or path:first-last
@@ -435,14 +435,14 @@ cwd.startup_dir(path)
 cwd.project_root(path)
 ```
 
-## Window Management (`util.window`)
+## Window Management (`editor_core.window`)
 
 Advanced window management utilities.
 
 #### API Reference
 
 ```lua
-local window = require("util.window")
+local window = require("editor_core.window")
 
 -- Window operations (via autocmds)
 -- :WindowCloseOthers  - Close eligible splits in the current tab only. A close
@@ -470,7 +470,7 @@ window.focus_editor()
 -- cold start, a new chat -- asks here instead. With `file_target`, only a
 -- window a file can be opened into counts (as for ensure_editor_win: a modified
 -- Oil or GitHub view does not), and nil comes back instead of a new split;
--- util.buffer (editor_target, the GitHub pickers) uses it.
+-- editor_core.buffer (editor_target, the GitHub pickers) uses it.
 window.editor_win(file_target?)  --> win | nil
 
 -- The tabpage a prefix-blocking view (CodeDiff) was opened from: the nearest
@@ -489,7 +489,7 @@ window.track_editor_win()
 -- listing or issue/PR reading view can receive the file in place; pending edits
 -- stay visible and untouched. Does not move focus; the caller decides when to
 -- enter it.
--- Used by util.buffer (editor_target, the location pickers) and
+-- Used by editor_core.buffer (editor_target, the location pickers) and
 -- both debug frame paths: nvim-dap's `switchbuf` (via `util.dap.jump`) and
 -- nvim-dap-ui's `select_window`. Being scoped to the current tabpage is what
 -- keeps a stopped frame in the tabpage the user is actually in.
@@ -514,7 +514,7 @@ window.toggle_zoom()
 window.equalize_respecting_fixed()
 
 -- Whether `tabpage` holds a view that disables the global prefixes: its
--- vim.t.blocks_global_prefixes is set (util.codediff sets it while CodeDiff
+-- vim.t.blocks_global_prefixes is set (git_review.view sets it while CodeDiff
 -- has a session there; a new prefix-blocking view sets it too), or one of its
 -- windows shows a CodeDiff panel (codediff-explorer, codediff-history), for a
 -- tabpage CodeDiff let go of with its panel still on screen. It names the
@@ -533,10 +533,10 @@ window.protect_first_tab()
 
 ```
 
-## Quitting (`util.quit`)
+## Quitting (`editor_core.quit`)
 
 ```lua
-local quit = require("util.quit")
+local quit = require("editor_core.quit")
 quit.all(force)  -- <leader>qq; force=true for <leader>qQ
 ```
 
@@ -550,14 +550,14 @@ Modified files and `acwrite` buffers block it; `nofile`, `nowrite`, terminal and
 prompt buffers do not. `force=true` issues `qall!`. Typed `:qa` still takes
 Neovim's own path; this policy belongs to the two mapped entry points.
 
-## Terminal (`util.terminal`)
+## Terminal (`editor_core.terminal`)
 
 Helpers for `:terminal` windows, including the native AI agents' panels.
 
 #### API Reference
 
 ```lua
-local terminal = require("util.terminal")
+local terminal = require("editor_core.terminal")
 
 -- Fix stale renders ("drift") in a TUI terminal by shrinking the window by one
 -- row and restoring it ~25ms later, which resizes the pty and makes the child
@@ -568,7 +568,7 @@ local terminal = require("util.terminal")
 terminal.fix_drift(win)   -- win defaults to the current window
 
 -- The test that tells an agent panel from any other terminal, fn(buf) ->
--- boolean. ai.terminal registers its is_agent_buf at startup; until then no
+-- boolean. agent_workbench.terminal registers its is_agent_buf at startup; until then no
 -- terminal is one. Agent panels get the drift repair after a docked terminal
 -- opens, and the numbered terminals never hide one.
 terminal.set_agent_test(fn)
@@ -593,14 +593,14 @@ a one-row flash whenever focus moves into the terminal. Opening a numbered
 bottom terminal still repairs the visible agent after the resulting layout
 change. Use `<leader>md` for a manual repair.
 
-## Terminal Text (`util.terminal_text`)
+## Terminal Text (`editor_core.terminal_text`)
 
 Text interpretation is independent of terminal-window placement and focus.
 URL opening and terminal copying share these rules; requiring the module
 installs no handler. `config.autocmds` wires `unwrap_yank` to `TextYankPost`.
 
 ```lua
-local text = require("util.terminal_text")
+local text = require("editor_core.terminal_text")
 
 -- Width in cells of the grid behind terminal buf: Nvim sizes the pty to the
 -- widest window showing it, less that window's textoff. nil when no window
@@ -627,7 +627,7 @@ text.grid_width(buf)
 -- and so does a program's own unindented word wrap at exactly the width.
 text.soft_wraps(line, next_line, width)
 
--- TextYankPost handler (lua/config/autocmds.lua, terminal buffers only): rewrite the
+-- TextYankPost handler (local-plugin/editor-core.nvim/lua/editor_core/autocmds.lua, terminal buffers only): rewrite the
 -- yanked register with the rows soft_wraps joins, before yanky's handler reads
 -- it. Characterwise (including one through the end of its last row, `v$y`)
 -- and linewise `y` only; blockwise, black-hole and appending (uppercase) yanks
@@ -637,18 +637,18 @@ text.soft_wraps(line, next_line, width)
 text.unwrap_yank(buf)
 ```
 
-## Buffers (`util.buffer`)
+## Buffers (`editor_core.buffer`)
 
 Where a buffer this config opens goes, and housekeeping for listed buffers
 that bufferline and Snacks do not cover. Every key, picker hook and callback
 here that puts a buffer in a window asks this module for the window, since the
 current one may be a panel (a chat, an agent terminal, aerial, quickfix). The
-editor-area model it applies is `util.window`'s.
+editor-area model it applies is `editor_core.window`'s.
 
 #### API Reference
 
 ```lua
-local buffer = require("util.buffer")
+local buffer = require("editor_core.buffer")
 
 -- The window a buffer opened from here goes into: the current one when it is
 -- a non-floating window showing a file, else util.window.ensure_editor_win()
@@ -659,7 +659,7 @@ local buffer = require("util.buffer")
 buffer.editor_target()  --> win
 
 -- Focus editor_target() only when the current window is a panel (a
--- non-floating window outside util.window's editor area: a chat, an agent
+-- non-floating window outside editor_core.window's editor area: a chat, an agent
 -- terminal, help, quickfix). For commands that read the buffer they start
 -- from: Oil (- and ;o) still lists a listing's directory from that listing.
 buffer.leave_panel()
@@ -708,7 +708,7 @@ buffer.is_hidden(buf)
 buffer.delete_hidden()
 ```
 
-## Diff Split (`util.diffsplit`)
+## Diff Split (`editor_core.diffsplit`)
 
 The split `:Gitsigns diffthis` opens (`<leader>gd`, and `<leader>gD` for a
 file with conflicts): a window per revision of the file -- the index, or ours
@@ -728,7 +728,7 @@ outside the split moves it rather than add a second file to the comparison.
 #### API Reference
 
 ```lua
-local diffsplit = require("util.diffsplit")
+local diffsplit = require("editor_core.diffsplit")
 
 -- The tabpage's split windows that show a gitsigns revision in diff mode.
 -- tab: a tabpage handle, 0 or nil for the current one.
@@ -755,7 +755,7 @@ diffsplit.close(tab)           --> boolean
 diffsplit.toggle(opts)
 ```
 
-## Baselines (`util.baseline`)
+## Baselines (`git_review.baseline`)
 
 Immutable snapshots of a worktree, kept as commits with no parent under
 `refs/nvim-review/<wtid>/{round,saved}/<id>`: the review loop's rounds and
@@ -765,7 +765,7 @@ to a temporary file of its own (`<gitdir>/nvim-review-index.XXXXXX`, mtime
 kept), adds the worktree to that copy and writes its tree, so HEAD, the real
 index, branches and stash stay as they were. AGENTS.md ("Review Baselines")
 gives the reason for each step. Trailers are opaque key/value pairs here;
-what `Source` or `Conversation` mean belongs to `ai.review.rounds`. So do the
+what `Source` or `Conversation` mean belongs to `agent_workbench.review.rounds`. So do the
 size cut-off and the retention counts: each call is given the one it needs
 (`max_file_size`, `keep`; the callers read them from `vim.g.ai_review`), and
 this module reads no settings.
@@ -773,14 +773,14 @@ this module reads no settings.
 #### API Reference
 
 ```lua
-local baseline = require("util.baseline")
+local baseline = require("git_review.baseline")
 
 baseline.NAMESPACE  -- "refs/nvim-review"
 baseline.KINDS      -- { round = true, saved = true }
 
 -- A git argv with the prefix every call here carries: --no-optional-locks
--- -c core.hooksPath=/dev/null -c core.splitIndex=false. util.codediff's
--- listing, util.codediff_actions and ai.review run theirs through it too.
+-- -c core.hooksPath=/dev/null -c core.splitIndex=false. git_review.view's
+-- listing, git_review.actions and agent_workbench.review run theirs through it too.
 baseline.git_cmd(args)            --> string[]
 
 -- The worktree that contains `path` (default: the cwd): { toplevel, gitdir,
@@ -823,7 +823,7 @@ baseline.delete(root, entries, cb)
 baseline.prune(root, kind, opts, cb)
 
 -- The retention exemption, fn(entry) -> boolean; nil clears it.
--- ai.review.rounds installs "this round's draft is a non-empty file". A
+-- agent_workbench.review.rounds installs "this round's draft is a non-empty file". A
 -- predicate that raises keeps the entry and warns once.
 baseline.set_exempt(fn)
 ```
@@ -850,14 +850,14 @@ reschedules itself. More than 5000 untracked files warn once per gitdir: every
 snapshot hashes them again. `tests/baseline_spec.lua` covers the user's state,
 ignored and large files, racy git, gc, linked worktrees, signing and hooks.
 
-## Git Comparison (`git.compare`)
+## Git Comparison (`git_review.compare`)
 
-`git.compare` owns the mapped Git workflows: `status`, `main`,
+`git_review.compare` owns the mapped Git workflows: `status`, `main`,
 `baseline_or_ref`, `two`, `save_baseline`, `file_history`, `repo_history` and
 `close`. Requiring it neither loads CodeDiff nor runs Git. The CodeDiff spec
 only declares lazy entry points/options and wires its setup hooks.
 Comparison planning, selection and saved-baseline retention stay here;
-CodeDiff internals remain behind `util.codediff`.
+CodeDiff internals remain behind `git_review.view`.
 
 ## Lazygit (`util.lazygit`)
 
@@ -866,14 +866,14 @@ that file's history. The floating terminal preserves immediate `j` and `jk`
 input. `plugins/git/lazygit.lua` declares `<leader>gg` and `<leader>gf`;
 requiring the helper starts nothing.
 
-## CodeDiff Views (`util.codediff`, `util.codediff_actions`)
+## CodeDiff Views (`git_review.view`, `git_review.actions`)
 
-`util.codediff` is the one module that reads CodeDiff's internals:
+`git_review.view` is the one module that reads CodeDiff's internals:
 codediff.nvim has no API for its session, its hunks or its keymaps (upstream
 #577). Its header lists each internal, and AGENTS.md says how they are
-guarded. Everything else -- `util.codediff_actions`, `ai.review`, the
+guarded. Everything else -- `git_review.actions`, `agent_workbench.review`, the
 `<leader>g` spec -- goes through the functions below. The one exception is
-`:checkhealth config` (`lua/config/health.lua`), which asks two things only
+`:checkhealth config` (`local-plugin/editor-core.nvim/lua/editor_core/health.lua`), which asks two things only
 CodeDiff knows: the native library's version, through `codediff.core.diff`'s
 `get_version`, once the library file is there and with
 `VSCODE_DIFF_NO_AUTO_INSTALL` held at 1 for the require; and the watcher
@@ -893,7 +893,7 @@ off. The lazy spec reads both hooks' values from `vim.g.ai_review`.
 #### API Reference
 
 ```lua
-local cd = require("util.codediff")
+local cd = require("git_review.view")
 
 cd.VERSION            -- "4.0.6", the release the hooks were written against
 cd.PANEL_FILETYPES    -- { "codediff-explorer", "codediff-history" }
@@ -1005,8 +1005,8 @@ focused; `]h`/`[h` on the panes, CodeDiff's own next / previous hunk (as its
 status view, the explorer's `-`/`S`/`U`/`X`; and a buffer-local which-key
 group `Conflict` where `,go` exists. Each pass then fires
 `User CodeDiffKeys` with `data.tabpage`, on which
-`util.codediff_actions.attach` (from the plugin spec) and `ai.review.attach`
-(from the AI facade, `lua/ai/init.lua`) install theirs. A pass runs after
+`util.codediff_actions.attach` (from the plugin spec) and `agent_workbench.review.attach`
+(from the AI facade, `local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua`) install theirs. A pass runs after
 `CodeDiffOpen`, `CodeDiffFileSelect` and every pane buffer swap (a file
 picked, a refresh, a layout toggle).
 
@@ -1014,10 +1014,10 @@ Tab variables, set when a view opens and cleared when it closes:
 
 | Variable | Set by | Read by |
 |---|---|---|
-| `blocks_global_prefixes` | util.codediff, on every view | `util.window.blocks_global_prefixes` |
+| `blocks_global_prefixes` | git_review.view, on every view | `util.window.blocks_global_prefixes` |
 | `codediff_label` | `open()`'s label, else a default (`index/HEAD ↔ working tree`, `<rev> → working tree`, ...) | the statusline |
-| `codediff_baseline` = `{ sha, kind }` | `<leader>av`, and `<leader>gk`/`<leader>gM` comparing a baseline with the working tree (`tab_vars`) | `util.codediff_actions` (`,X`), `ai.review.feedback` |
-| `ai_review` = `{ id, sha, conversation?, source?, root, late }` | the same, when that baseline is a round's (`rounds.review_vars`) | `ai.review` (one review tab per root), `ai.review.feedback` (which draft) |
+| `codediff_baseline` = `{ sha, kind }` | `<leader>av`, and `<leader>gk`/`<leader>gM` comparing a baseline with the working tree (`tab_vars`) | `git_review.actions` (`,X`), `agent_workbench.review.feedback` |
+| `ai_review` = `{ id, sha, conversation?, source?, root, late }` | the same, when that baseline is a round's (`rounds.review_vars`) | `agent_workbench.review` (one review tab per root), `agent_workbench.review.feedback` (which draft) |
 
 It also closes an orphaned tabpage -- one CodeDiff let go of with its panel
 still on screen, after `:e` in a revision pane, a closed pane, or a pane's
@@ -1029,7 +1029,7 @@ unsaved edits whose disk copy changed since (once per change on disk).
 
 `util.codediff_actions.attach(tab)` installs the hunk keys for the view's
 kind, under its own `"actions"` scope, on every `User CodeDiffKeys`. It
-reaches CodeDiff only through `util.codediff` and gitsigns only through its
+reaches CodeDiff only through `git_review.view` and gitsigns only through its
 public API. The letters are the status explorer's `S`/`U`/`X` (stage,
 unstage, discard), for one hunk.
 
@@ -1048,7 +1048,7 @@ regular file on both ends with no filter attribute); its header has the
 details. `,S`/`,U` change only the real index, `,X` only that one buffer,
 written once.
 
-## Move (`util.move`)
+## Move (`editor_core.move`)
 
 Moves the current line, or the selection, with `hjkl` — vertically by moving the
 line, horizontally by indenting it.
@@ -1056,7 +1056,7 @@ line, horizontally by indenting it.
 #### API Reference
 
 ```lua
-local move = require("util.move")
+local move = require("editor_core.move")
 
 move.run("down")   -- also "up", "left", "right"; bound to ,{h,j,k,l}
 ```
@@ -1070,7 +1070,7 @@ tmux claims `M-h/j/k/l` for pane navigation here, so those never reach Nvim at
 all — see huiyu/nvim#12. Putting it on `<leader>` alone would cost a keystroke
 per line, which the repeat loop is there to avoid.
 
-## Running Files (`util.run`)
+## Running Files (`editor_core.run`)
 
 Run the current file with a per-filetype command. See [DIAGNOSTICS.md](DIAGNOSTICS.md)
 for the broader diagnostic workflow.
@@ -1078,7 +1078,7 @@ for the broader diagnostic workflow.
 #### API Reference
 
 ```lua
-local run = require("util.run")
+local run = require("editor_core.run")
 
 -- Register a runner (in a lang/*.lua module). builder(path) -> shell command.
 run.register("python", function(path)
@@ -1095,11 +1095,11 @@ end)
 run.run_current()
 ```
 
-## Inline Completion Server (`util.llama`)
+## Inline Completion Server (`llama_service`)
 
 The local `llama-server` behind minuet's ghost text, started on demand and
 shared by every Nvim. Each Nvim registers as `<dir>/clients/<pid>`;
-`scripts/llama-supervise` owns the one server (`<dir>/lock`) and stops it once
+`local-plugin/llama-service.nvim/scripts/llama-supervise` owns the one server (`<dir>/lock`) and stops it once
 no registered Nvim is alive; its header lists the exit codes `ensure()` acts
 on. A server that never answered and then exited is reported once and not
 started again in that session; one that crashes after serving is restarted.
@@ -1112,7 +1112,7 @@ cursor waits at.
 #### API Reference
 
 ```lua
-local llama = require("util.llama")
+local llama = require("llama_service")
 
 -- port (8012), dir (stdpath("state") .. "/llama"), server ("llama-server"),
 -- args (the --fim-qwen-7b-default preset and its tuning), model (the Hugging
@@ -1138,16 +1138,16 @@ llama.url("/infill")   -- "http://127.0.0.1:8012/infill"
 llama.log()            -- <dir>/server.log, rewritten at each server start
 ```
 
-## AI Settings and State (`ai.config`, `ai.state`, `ai.switch`)
+## AI Settings and State (`config.ai`, `agent_workbench.state`, `agent_workbench.switch`)
 
-`ai.config` only returns the editable settings table: `providers`,
+`config.ai` only returns the editable settings table: `providers`,
 `key_profile` (default `"auto"`) and `panel.width`. Requiring it performs no
 validation, environment reads or setup. Edit it and restart Nvim to apply
-changes. `ai.state` reads a copy, validates the providers and derives the
-backends and live HTTP key state when required; consumers use `ai.state`.
+changes. `agent_workbench.state` reads a copy, validates the providers and derives the
+backends and live HTTP key state when required; consumers use `agent_workbench.state`.
 The plugin specs wire that state into the native agents and CodeCompanion.
 
-The ways to chat are an ordered `providers` list in `lua/ai/config.lua`,
+The ways to chat are an ordered `providers` list in `lua/config/ai.lua`,
 written like CodeCompanion's adapters; the HTTP **key profile** is the one
 setting `:AI key` switches in-process. Nothing is persisted. A provider has a
 `name`, a `label`, an optional `cli_api_key` (the variable its CLIs bill
@@ -1185,7 +1185,7 @@ name no adapter (a typed `:CodeCompanionChat`, the action palette) use the
 first `acp` in provider order, else the first `api`. The key profile is
 `auto` -- the first profile whose `NVIM_*` key is set, else the first --
 until `:AI key` pins one. Startup precedence is `NVIM_AI_KEY_PROFILE` >
-`vim.g.ai_key_profile` > `ai.config.key_profile` (default `"auto"`).
+`vim.g.ai_key_profile` > `agent_workbench.config.key_profile` (default `"auto"`).
 
 Some of CodeCompanion's built-in adapters are set up whatever the list holds,
 since a chat restored from history or an upstream path can name one that no
@@ -1197,13 +1197,13 @@ its own `NVIM_*` key there, and an `acp.auth_method` overrides the login.
 
 `NVIM_AI_PROVIDER` and `vim.g.ai_provider` are no longer read: a leftover
 value earns one warning, not a failed start. Every consumer holds the one
-`ai.state` table and reads it per call, so a key switch mutates it in place.
+`agent_workbench.state` table and reads it per call, so a key switch mutates it in place.
 The editable settings table is left alone.
 
 #### API Reference
 
 ```lua
-local state = require("ai.state")
+local state = require("agent_workbench.state")
 
 state.providers       -- the list, in order, as written
 state.agents          -- the native terminals offered, by kind: { name (the
@@ -1240,7 +1240,7 @@ state.panel.width     -- 90 columns, shared by both agent panels and the chat wi
 -- NVIM_*.
 state.build(list)  --> { providers, agents, agent_names, key_profiles, key_names, acp }
 
--- Specs only: run with another list in-process, as if lua/ai/config.lua held
+-- Specs only: run with another list in-process, as if lua/config/ai.lua held
 -- it. `auto` resolves again, and a pinned key the new list lacks falls back
 -- to it; what a plugin read at its load (CodeCompanion's adapters) stays.
 state._set_providers(list)
@@ -1270,19 +1270,19 @@ state.agent_of_command(cmd)     -- the TUI kind ("claude" / "codex") or nil
 state.agent_of_prompt(path)     -- the TUI kind ("claude" / "codex") or nil
 state.is_native_command(cmd)
 
-local switch = require("ai.switch")
+local switch = require("agent_workbench.switch")
 switch.key(name)            -- :AI key [name]; nil opens the picker
 switch.pick()               -- vim.ui.select over auto and every profile (<leader>ax)
 switch.info()               -- :AI info / :AIInfo
 switch.complete(arglead, cmdline)  -- :AI's completion
 ```
 
-`:AI` and `:AIInfo` are defined by the facade (`lua/ai/init.lua`), beside the
+`:AI` and `:AIInfo` are defined by the facade (`local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua`), beside the
 keys they are the typed twins of: `:AI` is the chat switcher (`<leader>al`),
 `:AI new` the new-chat picker (`<leader>an`), and `key`/`info` go to the
 functions above; `:AI provider` is gone and says so, pointing at `:AI new` and
-the order of `lua/ai/config.lua`. A key switch runs `use_key`, then
-`require("ai.companion").sync()` (CodeCompanion's live inline and cmd
+the order of `lua/config/ai.lua`. A key switch runs `use_key`, then
+`require("agent_workbench.companion").sync()` (CodeCompanion's live inline and cmd
 adapters), then fires `User AIStateChanged` with `data = { axis = "key",
 from, to }`: the facade relabels `<leader>ae` (the one key whose description
 names a profile) on it, and lualine listens too. An invalid name is an error
@@ -1298,7 +1298,7 @@ every open chat with where it is.
 Both native backends answer `running()`, `buf()`, `window()` (any tabpage),
 `visible()` (current tabpage), `hide()` (current tabpage only; the job stays)
 and `reveal()` (show here and focus, starting it when none runs; never
-hides), without loading claudecode.nvim -- what the slot (`ai.slot`, below)
+hides), without loading claudecode.nvim -- what the slot (`agent_workbench.slot`, below)
 is built on. `add_path(path, modified)` mentions a file, warning when the
 buffer has unsaved changes, since both agents read the saved file. Claude's
 `send_range(path, l1, l2)` mentions captured lines through claudecode's
@@ -1317,23 +1317,23 @@ local ai = require("ai")
 -- gives way to it (unless it is on screen somewhere already). Review feedback
 -- reaches the round's agent this way. An unknown agent or a method its
 -- backend lacks is a WARN; a method that raises, an ERROR.
-ai.feed(agent, method, ...)
+agent_workbench.feed(agent, method, ...)
 
 -- What review feedback sends: the backend stages `seed` for that agent
--- (ai.editor.stage_seed) and presses the TUI's own ctrl+g.
-ai.feed("claude", "edit_prompt", { seed = text, on_consumed = fn, on_expired = fn, ttl_ms = 10000 })
+-- (agent_workbench.editor.stage_seed) and presses the TUI's own ctrl+g.
+agent_workbench.feed("claude", "edit_prompt", { seed = text, on_consumed = fn, on_expired = fn, ttl_ms = 10000 })
 
 -- Images go to the agent that owns the prompt, never to one guessed at: a
 -- prompt that names no agent (nil) has its staged files deleted, attached to
 -- nothing, saying so.
-ai.attach_images(paths, agent)
+agent_workbench.attach_images(paths, agent)
 ```
 
 Both backends' `edit_prompt(opts)` take `{ seed?, on_consumed?, on_expired?,
 ttl_ms? }` and pass them to `stage_seed` with their own agent; `<leader>ai`
 passes only `seed`.
 
-## AI Slot (`ai.slot`)
+## AI Slot (`agent_workbench.slot`)
 
 Per tabpage the right shows at most one AI window: native Claude, native
 Codex or a CodeCompanion chat -- a "chat" in the keys' words. What is open is
@@ -1353,7 +1353,7 @@ window entered in a tick wins.
 #### API Reference
 
 ```lua
-local slot = require("ai.slot")
+local slot = require("agent_workbench.slot")
 
 -- Items: { id = "native:<agent>" | "cc:<buf>:<chat id>", kind = "native"|"chat",
 --          agent?, chat?, win? }
@@ -1380,7 +1380,7 @@ slot.native_target(cb, opts?) -- the native agent on the right, else asks which
 
 -- Asking.
 slot.pick_new(cb, opts?)  -- the new-chat picker: available backends in
-                          -- ai.state.backends() order; a native entry is that
+                          -- agent_workbench.state.backends() order; a native entry is that
                           -- agent's one session ("running", "● here"), never a
                           -- second
 slot.switch(cb, opts?)    -- the switcher: open chats (here first, then by use)
@@ -1433,7 +1433,7 @@ Hide comes first and show second, except when the windows to hide are all the
 tabpage has (E444), when the order turns round. `tests/ai_slot_spec.lua`
 pins it with stand-in agents and real API chats that never send.
 
-## AI Companion Chats (`ai.companion`)
+## AI Companion Chats (`agent_workbench.companion`)
 
 CodeCompanion's two chat kinds, as the slot puts them on screen: `acp` (an
 agent CLI over ACP, on the subscription) and `http` (a key profile over HTTP,
@@ -1447,15 +1447,15 @@ it does, and that is what loads the plugin.
 #### API Reference
 
 ```lua
-local companion = require("ai.companion")
+local companion = require("agent_workbench.companion")
 
 companion.preflight(what)      -- false (and an ERROR) when an "http" backend's
                                -- NVIM_* key is unset or an "acp" bridge is missing;
-                               -- `what` is one ai.state.backends() entry, or
+                               -- `what` is one agent_workbench.state.backends() entry, or
                                -- "http" for the key profile's HTTP adapter
                                -- (<leader>ae), refused when no provider offers an
                                -- API key
-companion.create(spec, extra?) -- a chat on one ai.state.backends() entry, created
+companion.create(spec, extra?) -- a chat on one agent_workbench.state.backends() entry, created
                                -- hidden from the editor window and announced
                                -- ("New chat: <label>"); nil when refused
 companion.open(chat, opts?)    -- open its window here: in opts.win (a chat window
@@ -1469,7 +1469,7 @@ companion.chat_of(buf), companion.key(chat), companion.buf(chat)
 companion.label(chat), companion.name(chat)
 companion.win(chat), companion.win_here(chat), companion.where(chat)
 companion.add_capture(chat, cap) --> true | false, why
-                               -- a captured selection (ai.selection.capture),
+                               -- a captured selection (agent_workbench.selection.capture),
                                -- fenced with its source; never submits
 companion.focus_prompt(chat, insert?) -- cursor at the end of its prompt, where it
                                -- is shown here; Insert mode unless it is replying
@@ -1528,7 +1528,7 @@ again, and only that flag is still set. Each is read in a pcall, so a rename
 upstream loses one signal rather than raising. `tests/companion_spec.lua`
 pins the module and `tests/review_feedback_spec.lua` the mid-loop refusal.
 
-## AI Chat Progress (`ai.progress`)
+## AI Chat Progress (`agent_workbench.progress`)
 
 The progress line of a CodeCompanion chat: from the moment a prompt is sent
 until the turn ends, the end of the chat's last line shows a spinner and the
@@ -1537,13 +1537,13 @@ and its `User CodeCompanionRequestStarted` comes only after an ACP chat's
 connection or an HTTP adapter's blocking setup, so this starts from the chat's
 `on_submitted` callback instead and redraws at once. While a reply streams in,
 the line is hidden; it comes back once the buffer has not changed for
-`STALL_MS`, and ends when `ai.companion.busy` turns false or the buffer goes.
+`STALL_MS`, and ends when `agent_workbench.companion.busy` turns false or the buffer goes.
 The facade hooks every chat on `User CodeCompanionChatCreated`.
 
 #### API Reference
 
 ```lua
-local progress = require("ai.progress")
+local progress = require("agent_workbench.progress")
 
 progress.chat_created(data)    -- the ChatCreated autocmd's data: hook that chat
 progress.attach(chat)          -- hook chat's on_submitted, once
@@ -1553,10 +1553,10 @@ progress.TICK_MS, progress.STALL_MS, progress.ns
 ```
 
 It reads a chat's `add_callback`, `bufnr` and adapter name (through
-`ai.companion.name`); one timer per chat buffer, stopped with the line.
+`agent_workbench.companion.name`); one timer per chat buffer, stopped with the line.
 `tests/companion_spec.lua` pins it.
 
-## AI Panel Input (`ai.terminal`)
+## AI Panel Input (`agent_workbench.terminal`)
 
 Buffer-local input rules for every native agent panel -- whichever agent
 runs in it -- applied through one `TermOpen` hook because both
@@ -1567,10 +1567,10 @@ terminal provider. Ordinary `:terminal` buffers are untouched.
 #### API Reference
 
 ```lua
-local panel = require("ai.terminal")
+local panel = require("agent_workbench.terminal")
 
 panel.setup()      -- install the TermOpen hook and register is_agent_buf with
-                   -- util.terminal; called when the ai module loads
+                   -- editor_core.terminal; called when the ai module loads
 panel.attach(buf)  -- apply the rules to one agent terminal buffer
 
 -- Which native agent buf runs ("claude" / "codex"), or nil for any other
@@ -1585,7 +1585,7 @@ for a shell and wrong for an agent TUI:
 
 `<Esc>` is mapped buffer-locally so it goes straight to the agent. Snacks maps
 `<esc>` on its terminal buffers as a 200ms double-tap to Normal mode, and
-`lua/config/keymaps.lua` maps `<Esc><Esc>` globally; between them, neither CLI ever
+`local-plugin/editor-core.nvim/lua/editor_core/keymaps.lua` maps `<Esc><Esc>` globally; between them, neither CLI ever
 received the quick double Esc that both read as "go back a message". The
 buffer-local single `<Esc>` is a complete match, so it wins over the longer
 global sequence without waiting out `timeoutlen`. Snacks' own entry is dropped
@@ -1619,7 +1619,7 @@ transition is marked for one event so it preserves copy-mode; any later
 automatic focus -- runs `tmux copy-mode -q` and returns the panel to its live
 bottom.
 
-## AI Selection (`ai.selection`)
+## AI Selection (`agent_workbench.selection`)
 
 Builds agent-ready text from the live visual selection. It sits outside the
 backends because the two agents attach selections through different channels:
@@ -1632,7 +1632,7 @@ after a question: Claude's lines, Codex's draft, a chat's fenced block.
 #### API Reference
 
 ```lua
-local selection = require("ai.selection")
+local selection = require("agent_workbench.selection")
 
 ---@return string|nil draft   nil when the selection could not be read
 ---@return string|nil err     reason, set only when draft is nil
@@ -1661,7 +1661,7 @@ also returns `notice` so the caller can explain the fallback. Nothing is
 notified from inside the module — `<leader>as` and `<leader>ai` surface failures
 differently.
 
-## AI Clipboard (`ai.clipboard`)
+## AI Clipboard (`agent_workbench.clipboard`)
 
 Moves clipboard images between the system, a staging file, and the agent TUI.
 macOS only — it shells out to `osascript`, the same way both agent CLIs do.
@@ -1669,7 +1669,7 @@ macOS only — it shells out to `osascript`, the same way both agent CLIs do.
 #### API Reference
 
 ```lua
-local clipboard = require("ai.clipboard")
+local clipboard = require("agent_workbench.clipboard")
 
 clipboard.has_image()            --> boolean
 clipboard.save_image(path)       --> ok, err   write the clipboard image as PNG
@@ -1700,17 +1700,17 @@ Every entry point returns `false, reason` off macOS rather than raising, and any
 path containing a quote, backslash or newline is refused — paths are
 interpolated into AppleScript source, which has no equivalent of `shellescape`.
 
-## Native Agent Launch (`ai.backend.launch`)
+## Native Agent Launch (`agent_workbench.backend.launch`)
 
 Native backends own process construction and lifecycle. Claude's backend
 provides `terminal_command()`, `cwd(ctx)` and `configure(opts)`; its plugin spec
 only wires those into claudecode. Both native backends share:
 
 ```lua
-local launch = require("ai.backend.launch")
-launch.wrapper()              -- scripts/agent-editor, the agents' $EDITOR
-launch.runner()               -- scripts/agent-run, preserves startup errors
-launch.teardown()             -- scripts/agent-teardown, cleans the process tree
+local launch = require("agent_workbench.backend.launch")
+launch.wrapper()              -- local-plugin/agent-workbench.nvim/scripts/agent-editor, the agents' $EDITOR
+launch.runner()               -- local-plugin/agent-workbench.nvim/scripts/agent-run, preserves startup errors
+launch.teardown()             -- local-plugin/agent-workbench.nvim/scripts/agent-teardown, cleans the process tree
 launch.teardown_hook(socket)  -- tmux client-detached command
 launch.editor_env()           -- EDITOR and VISUAL for the prompt handoff
 launch.enabled(env, global)   -- boolean preference: environment > vim.g > on
@@ -1731,7 +1731,7 @@ status 0. Nvim's `:terminal` job therefore reports success,
 Snacks' `auto_close` closes the window, and the agent's error text dies with the
 tmux server, leaving nothing in `:messages` either.
 
-The status cannot be recovered on nvim's side, so `scripts/agent-run` keeps the
+The status cannot be recovered on nvim's side, so `local-plugin/agent-workbench.nvim/scripts/agent-run` keeps the
 message where it was printed: on a non-zero exit it holds the pane, with the
 agent's own diagnostics still on screen, until the panel is dismissed. A clean
 exit passes straight through, so quitting an agent normally still closes the
@@ -1745,7 +1745,7 @@ only the pane's session leader, so anything the agent had spawned into a process
 group of its own -- a Codex `exec_command` background session, a Bash-tool job
 -- kept running with ppid 1 and no terminal (measured: a `pnpm dev:server` tree
 outlived its Nvim by three days). Both wrappers now end their server through
-`scripts/agent-teardown`: from the `client-detached` hook (`launch.teardown_hook`)
+`local-plugin/agent-workbench.nvim/scripts/agent-teardown`: from the `client-detached` hook (`launch.teardown_hook`)
 and from the watchdog. It records the process tree under every pane, kills the
 server, then SIGTERMs and after two seconds SIGKILLs whatever of that tree is
 still alive. Shared daemons -- emulator, Gradle daemon, container runtime -- are
@@ -1764,17 +1764,17 @@ server it kills, so the script hands the work to a detached copy of itself; the
 watchdog uses the synchronous `--wait` form and only removes the socket file
 afterwards.
 
-## AI Editor (`ai.editor`)
+## AI Editor (`agent_workbench.editor`)
 
 Host side of the agent TUI's `ctrl+g` handoff. Both native agents bind that key
-to "edit the input box in `$EDITOR`"; `scripts/agent-editor` is that `$EDITOR`,
+to "edit the input box in `$EDITOR`"; `local-plugin/agent-workbench.nvim/scripts/agent-editor` is that `$EDITOR`,
 and it forwards the file here over RPC rather than starting a nested Nvim inside
 the `:terminal`.
 
 #### API Reference
 
 ```lua
-local editor = require("ai.editor")
+local editor = require("agent_workbench.editor")
 
 ---@return string status  "opened", "focused", or "error: <reason>"
 editor.open(path, sentinel)  -- open the agent's temp prompt file in a float
@@ -1837,10 +1837,10 @@ expires and keeps its draft.
 
 ### Images
 
-`<C-v>` stages the clipboard image through `ai.clipboard` and nothing is written
+`<C-v>` stages the clipboard image through `agent_workbench.clipboard` and nothing is written
 into the buffer — the prompt file is plain markdown, and only the CLI can put
 image bytes into its request. On return, the staged files are replayed through
-the TUI's own `ctrl+v` (`ai.attach_images`), and the CLI writes its own
+the TUI's own `ctrl+v` (`agent_workbench.attach_images`), and the CLI writes its own
 `[Image #N]` marker. They go to the agent that owns the prompt, read from the
 temp path its CLI chose (`config.agent_of_prompt`: `claude-prompt-*.md` for
 Claude, `$CODEX_HOME/editor/*.md` for Codex), so a Codex prompt hands its images
@@ -1866,27 +1866,27 @@ same reason content extraction is not: a wrong answer costs one keystroke the
 user can repeat. A numbered line (`❯ 1. Yes, I trust this folder`) is one of the
 CLI's own choice lists, not an input box, and does not count as ready.
 
-## AI Review (`ai.review.*`)
+## AI Review (`agent_workbench.review.*`)
 
 The review loop's modules, as other modules call them: a round is a baseline
-(`util.baseline`, kind `"round"`) plus the conversation that owns it and the
+(`git_review.baseline`, kind `"round"`) plus the conversation that owns it and the
 root it was taken in; `<leader>av` shows what changed since, and `,C` /
 `<C-d>` send feedback back to that conversation. AGENTS.md ("Agent Hooks",
 "One Round Model") has the invariants and docs/MANUAL.md the workflow.
-At startup only the review defaults, their `ai.review.settings` resolver and
-`ai.review.hook` are needed; they load no plugin and run no git.
+At startup only the review defaults, their `agent_workbench.review.settings` resolver and
+`agent_workbench.review.hook` are needed; they load no plugin and run no git.
 
-### Settings (`ai.review.config`, `ai.review.settings`)
+### Settings (`config.review`, `agent_workbench.review.settings`)
 
 ```lua
-local cfg = require("ai.review.settings")
+local cfg = require("agent_workbench.review.settings")
 
 cfg.get()        -- the effective settings: vim.g.ai_review merged over the defaults
 cfg.defaults()   -- the defaults alone, a deep copy
 cfg.overrides()  -- { ["retention.rounds"] = true, ... }: what vim.g.ai_review set
 ```
 
-`ai.review.config` only returns the editable default values. The settings
+`config.review` only returns the editable default values. The settings
 resolver copies them at load; editing the file takes effect on the next Nvim
 start. Runtime `vim.g.ai_review` overrides apply through the resolver.
 
@@ -1902,30 +1902,30 @@ rejected value is not in `overrides()`.
 
 | Key | Default | Read by |
 |---|---|---|
-| `retention.rounds`, `retention.saved` | `20`, `10` | `util.baseline.save`'s `keep`, passed by `ai.review.rounds` / `<leader>gK` |
-| `max_file_size` | `10485760` (10 MiB) | every `util.baseline` snapshot (passed by `ai.review`, the git spec and util.codediff's `max_file_size` hook), util.codediff's notices |
-| `sources.claude`, `sources.codex` | `true` | the hook injection, `ai.review.hook.event` |
+| `retention.rounds`, `retention.saved` | `20`, `10` | `util.baseline.save`'s `keep`, passed by `agent_workbench.review.rounds` / `<leader>gK` |
+| `max_file_size` | `10485760` (10 MiB) | every `git_review.baseline` snapshot (passed by `agent_workbench.review`, the git spec and git_review.view's `max_file_size` hook), git_review.view's notices |
+| `sources.claude`, `sources.codex` | `true` | the hook injection, `agent_workbench.review.hook.event` |
 | `sources.codecompanion_acp`, `sources.codecompanion_http` | `true` | `rounds.attach_chat`, every chat submit |
-| `hook_wait_ms` | `2500` (`0`: never wait) | `scripts/agent-hook` (argv), the chat callback |
+| `hook_wait_ms` | `2500` (`0`: never wait) | `local-plugin/agent-workbench.nvim/scripts/agent-hook` (argv), the chat callback |
 | `claude_cwd` | `"git_root"` (or `"cwd"`) | claudecode's `cwd_provider` |
 | `unknown_session` | `"confirm"` (or `"refuse"`) | `rounds.resolve_sink` |
 | `always_confirm` | `{}` (entries `"claude"`, `"codex"`) | `rounds.resolve_sink` |
 | `redirect` | `true` | `rounds.resolve_sink` |
-| `seed_ttl_ms` | `10000` | `ai.review.feedback`, native delivery |
-| `history_limit` | `100` (`false`: no limit) | the `<leader>gh`/`gH` desc, util.codediff's history patch |
+| `seed_ttl_ms` | `10000` | `agent_workbench.review.feedback`, native delivery |
+| `history_limit` | `100` (`false`: no limit) | the `<leader>gh`/`gH` desc, git_review.view's history patch |
 
-### Native hooks (`ai.review.hook`)
+### Native hooks (`agent_workbench.review.hook`)
 
 ```lua
-local hook = require("ai.review.hook")
+local hook = require("agent_workbench.review.hook")
 
-hook.script()           -- absolute path of scripts/agent-hook
+hook.script()           -- absolute path of local-plugin/agent-workbench.nvim/scripts/agent-hook
 hook.claude_settings()  -- Claude's --settings JSON: UserPromptSubmit, async SessionStart
 hook.codex_override()   -- Codex's -c value: hooks={UserPromptSubmit=[...],state={...}}
 hook.codex_trust_hash(event_key, command, timeout)  --> "sha256:<hex>"
 hook.CODEX_TRUST_KEY    -- "/<session-flags>/config.toml:user_prompt_submit:0:0"
 
--- The RPC receiver scripts/agent-hook calls.
+-- The RPC receiver local-plugin/agent-workbench.nvim/scripts/agent-hook calls.
 hook.event(agent, event, payload_path, done_path)  --> status
 ```
 
@@ -1944,14 +1944,14 @@ calls `done` (once the baseline's tree is written) or the script stops
 waiting, which deletes the payload -- `gave_up()` reads that; a session event
 is released at once.
 
-### Rounds and delivery checks (`ai.review.rounds`)
+### Rounds and delivery checks (`agent_workbench.review.rounds`)
 
 ```lua
-local rounds = require("ai.review.rounds")
+local rounds = require("agent_workbench.review.rounds")
 
 -- Every source opens rounds here.
 rounds.submit(ev)        -- { source, conversation?, root, turn?, gave_up?, done?, force?, on_round? }
-rounds.native_event(ev)  -- from ai.review.hook: { agent, event, payload, done, gave_up };
+rounds.native_event(ev)  -- from agent_workbench.review.hook: { agent, event, payload, done, gave_up };
                          -- Claude waking itself (a task notification, an agent's
                          -- hand-back) opens no round
 rounds.start(opts)       -- <leader>aV; opts.buf (default: the current buffer)
@@ -1994,7 +1994,7 @@ always called, exactly once, also when the submit is dropped; `on_round(round,
 reused)` hears the round opened or kept.
 
 `select_round`: the newest round of the current buffer's conversation, then of
-the chat on the right's (`ai.slot.shown_here`), then the newest this process
+the chat on the right's (`agent_workbench.slot.shown_here`), then the newest this process
 opened in `root`, then the newest there at all; `why` is `"buffer"`,
 `"right"`, `"process"` or `"latest"`. `conversation_of` answers an agent terminal's
 current session or a chat's id, `bound` being true for such a buffer even
@@ -2015,10 +2015,10 @@ conversation?, agent?, chat?, buf, root, label, owner?, redirected }`, or
 `"busy"`, `"cancelled"`, `"no-session"` or `"unknown"`. Asynchronous whenever
 anything is asked.
 
-### Baseline labels (`ai.review.labels`)
+### Baseline labels (`agent_workbench.review.labels`)
 
 ```lua
-local labels = require("ai.review.labels")
+local labels = require("agent_workbench.review.labels")
 
 labels.describe(entries, cb, opts)    -- cb(labels): labels[i] = { label, display } or nil
 labels.current_name(root, cb, opts)   -- cb(name|nil): the session at work in root (<leader>gK)
@@ -2035,7 +2035,7 @@ view's, with the start alone, since a view shows everything since the start.
 `labels[i]` is nil where the caller keeps its own (a round with no `Source`,
 an unknown kind). A round's session is its `Conversation`; its name is the
 first title its records hold and its end the last turn end at or after its
-start and before the session's next round, both from `ai.transcript.marks`,
+start and before the session's next round, both from `agent_workbench.transcript.marks`,
 compared to the millisecond (`util.baseline.time_of`). `…` marks a session's
 newest round when the session was prompted after its last turn end -- by
 this round's own prompt (a non-Late round whose `Source` is the agent) or a
@@ -2045,18 +2045,18 @@ twice, once for the name alone, so a name is there even when the turns miss
 the budget; it waits up to `opts.budget_ms` (`BUDGET_MS`, 300) and labels
 without what is still being read; `cb` runs once, on the main loop.
 `current_name` takes the first native session `rounds.live_conversations(root)`
-lists, reads its name alone, loads nothing when `ai.review.rounds` was never
+lists, reads its name alone, loads nothing when `agent_workbench.review.rounds` was never
 loaded, and answers nil past the same budget. `opts.now` is the clock for the
 formatting and the liveness check.
 
-### The view and its feedback (`ai.review`, `ai.review.feedback`)
+### The view and its feedback (`agent_workbench.review`, `agent_workbench.review.feedback`)
 
 ```lua
-local review = require("ai.review")
+local review = require("agent_workbench.review")
 review.open()       -- <leader>av: the round's baseline against the working tree
 review.attach(tab)  -- ,C on every buffer of a Git CodeDiff view (User CodeDiffKeys)
 
-local feedback = require("ai.review.feedback")  -- loaded by the first ,C
+local feedback = require("agent_workbench.review.feedback")  -- loaded by the first ,C
 feedback.comment({ tab = ..., win = ..., buf = ..., mode = "n"|"v",
   range = { first = <line>, last = <line> } })  -- range: 1-based, inclusive, read only with mode = "v"
 feedback.deliver(buf)  -- <C-d> in the draft float
@@ -2067,18 +2067,18 @@ feedback.hide(buf)     -- q: hide the float in this tabpage; the draft stays
 view through `util.codediff.open` with `vim.t.ai_review` and
 `vim.t.codediff_baseline` once git has answered, or says why not. `attach`
 only hands `,C` to `util.codediff.set_keys` under its own `"review"` scope,
-so `util.codediff_actions`' keys on the same buffers stay alone; a directory
+so `git_review.actions`' keys on the same buffers stay alone; a directory
 or file diff without a repository gets none. `comment` and `deliver` never
 raise: every failure is a warning, and a refused or cancelled delivery keeps
 the draft.
 
-`ai.review.draft` owns the document format, atomic persistence, merging and
+`agent_workbench.review.draft` owns the document format, atomic persistence, merging and
 acknowledgment. It knows no window, buffer, notifier or delivery target.
 `feedback` captures code, owns its floats, presents storage outcomes and
 coordinates delivery through `rounds.resolve_sink`.
 
 ```lua
-local draft = require("ai.review.draft")
+local draft = require("agent_workbench.review.draft")
 local state = draft.open(path)
 local lines = draft.reload(state, previous_lines)
 lines, outcome = draft.save(state, edited_lines) -- nil lines when storage fails
@@ -2118,15 +2118,15 @@ goes to `<id>.conflict.md` (then `.conflict-2.md`, ...), with a warning. A
 draft with no feedback left is an empty file, which no longer spares its
 round from retention.
 
-## AI Transcript (`ai.transcript`)
+## AI Transcript (`agent_workbench.transcript`)
 
 Renders one native agent's recorded sessions into a read-only buffer: the
-agent on the right, else the one asked for (`ai.slot.native_target`).
+agent on the right, else the one asked for (`agent_workbench.slot.native_target`).
 
 #### API Reference
 
 ```lua
-local transcript = require("ai.transcript")
+local transcript = require("agent_workbench.transcript")
 
 -- `agent` is required ("claude" / "codex"); anything else is an error,
 -- "a transcript belongs to a native agent". Nothing falls back to a default.
@@ -2135,26 +2135,26 @@ transcript.pick(agent)          -- Snacks picker over this project's sessions (<
 transcript.refresh(buf)    -- re-read and re-render in place (`R` in the buffer)
 ```
 
-Provider knowledge lives in `ai.transcript.claude` and `ai.transcript.codex`,
+Provider knowledge lives in `agent_workbench.transcript.claude` and `agent_workbench.transcript.codex`,
 which share one `Adapter` contract: `sessions(root)` and `parse(path, cap)`.
-`ai.transcript.render` turns their common `Entry` list into lines plus a parallel
+`agent_workbench.transcript.render` turns their common `Entry` list into lines plus a parallel
 fold-level array, and never learns which provider produced them. Both read
 `$CLAUDE_CONFIG_DIR` / `$CODEX_HOME` when set, as the CLIs do, else
 `~/.claude` / `~/.codex`.
 
-#### Session marks (`ai.transcript.marks`)
+#### Session marks (`agent_workbench.transcript.marks`)
 
 ```lua
-local marks = require("ai.transcript.marks")
+local marks = require("agent_workbench.transcript.marks")
 -- agent "claude" or "codex": cb({ title?, ends, turns, mtime? }) | cb(nil)
 marks.read(agent, id, cb, opts)
 
-local time = require("ai.transcript.time")
+local time = require("agent_workbench.transcript.time")
 time.epoch("2026-11-10T03:43:18.085Z")  --> 1794282198.085 (UTC by arithmetic, offsets applied)
 time.hhmm(timestamp)                    --> local "HH:MM"
 ```
 
-A session's name and the ends of its turns, for `ai.review.labels`. The
+A session's name and the ends of its turns, for `agent_workbench.review.labels`. The
 adapters say where and what: `sources(id)` lists `{ path, patterns, mark,
 turns?, titles?, decompress? }` -- Claude's transcript, found as
 `projects/*/<id>.jsonl`; Codex's `session_index.jsonl` (names, `turns =
@@ -2186,7 +2186,7 @@ it answers as soon as the name is found. `cb` runs once, on the main loop.
 Always use safe operations for potentially failing code:
 
 ```lua
-local logger = require("util.logger")
+local logger = require("editor_core.logger")
 
 local success, result = logger.safe_call(function()
   -- Potentially failing operation
@@ -2204,13 +2204,13 @@ end
 Use structured logging for debugging:
 
 ```lua
-local logger = require("util.logger")
+local logger = require("editor_core.logger")
 
 function M.complex_operation(params)
   logger.debug("Starting complex operation with: %s", vim.inspect(params))
-  
+
   local result = do_work(params)
-  
+
   logger.info("Complex operation completed successfully")
   return result
 end

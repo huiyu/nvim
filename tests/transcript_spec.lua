@@ -23,7 +23,7 @@ do
   end
 
   for _, name in ipairs({ "claude", "codex" }) do
-    local adapter = require("ai.transcript." .. name)
+    local adapter = require("agent_workbench.transcript." .. name)
     local path = dir .. name .. "-sample.jsonl"
 
     -- UC-19: the fixture ends with a deliberately truncated line.
@@ -72,7 +72,7 @@ do
   end
 
   -- Claude exposes a session title; the picker uses it when present.
-  local claude_sessions = require("ai.transcript.claude")
+  local claude_sessions = require("agent_workbench.transcript.claude")
   t.ok(type(claude_sessions.sessions(vim.fn.getcwd())) == "table",
     "claude: sessions() resolves the cwd slug without raising")
 end
@@ -80,7 +80,7 @@ end
 -- Rendering. Covers UC-14 (prose visible, machinery folded) and UC-18
 -- (truncation stated).
 do
-  local render = require("ai.transcript.render")
+  local render = require("agent_workbench.transcript.render")
 
   local entries = {
     { role = "user",      kind = "text",        text = "有哪些Open issue",  time = "00:02" },
@@ -158,7 +158,7 @@ do
   vim.cmd("tabnew")
   vim.api.nvim_win_set_buf(0, big)
   vim.wo.foldmethod = "expr"
-  vim.wo.foldexpr = "v:lua.require'ai.transcript.render'.foldexpr()"
+  vim.wo.foldexpr = "v:lua.require'agent_workbench.transcript.render'.foldexpr()"
   local started = vim.uv.hrtime()
   vim.cmd("normal! zx")
   local took = (vim.uv.hrtime() - started) / 1e6
@@ -171,7 +171,7 @@ end
 
 -- The view. Covers UC-11 (open at the end), UC-12 (picker), UC-13 (refresh),
 -- UC-17 (no session), UC-R5 (read-only), UC-R6 (never writes).
-local view = require("ai.transcript")
+local view = require("agent_workbench.transcript")
 
 local parse_calls = 0
 local adapter_for = {}
@@ -224,7 +224,7 @@ t.eq(vim.bo[buf].swapfile, false, "UC-R5: transcript buffer has no swapfile")
 t.eq(vim.bo[buf].filetype, "ai-transcript", "uses its own filetype, not markdown")
 t.eq(vim.wo.foldmethod, "expr", "UC-14: folding is expression driven")
 t.eq(vim.wo.foldlevel, 0, "UC-14: opens with machinery folded")
-local folds = require("ai.transcript.render").folds(buf)
+local folds = require("agent_workbench.transcript.render").folds(buf)
 t.ok(type(folds) == "table", "fold levels are attached to the buffer")
 t.eq(folds and #folds, vim.api.nvim_buf_line_count(buf), "fold levels cover every line")
 t.eq(vim.b[buf].ai_transcript_folds, nil,

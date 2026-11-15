@@ -6,7 +6,7 @@
 -- running. The failure was silent: no error, no message, just an editor that
 -- did not quit.
 local t = dofile("tests/helper.lua")
-local quit = require("util.quit")
+local quit = require("editor_core.quit")
 
 -- The real quit would take the spec down with it, so the command is captured
 -- through the module's own indirection instead of being run.

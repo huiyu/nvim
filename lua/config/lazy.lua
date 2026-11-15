@@ -1,3 +1,4 @@
+local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
 -- lazy.nvim: install it on first start, then load every spec under
 -- lua/plugins/. Required last by lua/config/init.lua, so the specs see the
 -- options, keymaps and AI facade set up before them.
@@ -9,23 +10,24 @@ if not vim.uv.fs_stat(lazypath) then
     "https://github.com/folke/lazy.nvim.git", lazypath,
   })
   if vim.v.shell_error ~= 0 then
-    require("util.logger").error("Failed to install lazy.nvim: %s", out)
+    require("editor_core.logger").error("Failed to install lazy.nvim: %s", out)
     error("Failed to install lazy.nvim")
   end
 end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup({
+  lockfile = root .. "/lazy-lock.json",
   -- Import order is merge order: a lang spec extends the coding/ui specs of
   -- the same plugin (nvim-lspconfig, conform, nvim-dap, treesitter...), so
   -- plugins.lang stays last.
   spec = {
-    { import = "plugins.editor" }, -- editing, navigation, pickers, panels
-    { import = "plugins.coding" }, -- LSP, completion, formatting, linting, DAP, tests
-    { import = "plugins.ai" },     -- Claude Code, CodeCompanion, ghost text
-    { import = "plugins.ui" },     -- colorscheme, statusline, tabline, treesitter
-    { import = "plugins.git" },    -- CodeDiff, gitsigns, GitHub
-    { import = "plugins.lang" },   -- per-language servers, tools, adapters
+    { import = "plugin.editor" }, -- editing, navigation, pickers, panels
+    { import = "plugin.coding" }, -- LSP, completion, formatting, linting, DAP, tests
+    { import = "plugin.ai" },     -- Claude Code, CodeCompanion, ghost text
+    { import = "plugin.ui" },     -- colorscheme, statusline, tabline, treesitter
+    { import = "plugin.git" },    -- CodeDiff, gitsigns, GitHub
+    { import = "plugin.lang" },   -- per-language servers, tools, adapters
   },
   -- A spec with no event/cmd/keys/ft trigger stays unloaded until something
   -- requires it, so anything that must run at startup says `lazy = false`.
@@ -38,8 +40,10 @@ require("lazy").setup({
   performance = {
     cache = { enabled = true },
     rtp = {
+      reset = false,
+      paths = { root },
       -- netrw is disabled earlier, through vim.g.loaded_netrw* in
-      -- lua/config/options.lua.
+      -- local-plugin/editor-core.nvim/lua/editor_core/options.lua.
       disabled_plugins = { "gzip", "tarPlugin", "tohtml", "tutor", "zipPlugin" },
     },
   },

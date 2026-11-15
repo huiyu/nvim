@@ -9,7 +9,7 @@
 # failure -- a plain `-c qa` would exit 0 even after an uncaught Lua error.
 #
 # One at a time on purpose: several specs share what one Nvim at a time
-# expects -- the llama-server util.llama shares between Nvims, git index and
+# expects -- the llama-server llama_service shares between Nvims, git index and
 # gitsigns watcher timing -- and fail when run side by side.
 
 set -eu

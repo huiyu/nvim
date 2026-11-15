@@ -1,4 +1,4 @@
--- CodeCompanion chats behind the facade (lua/ai/companion.lua, lua/ai/init.lua):
+-- CodeCompanion chats behind the facade (local-plugin/agent-workbench.nvim/lua/agent_workbench/companion.lua, local-plugin/agent-workbench.nvim/lua/agent_workbench/init.lua):
 -- created by backend from the new-chat picker (<leader>an) -- an ACP agent on
 -- the subscription, or a key profile's API on API credits -- and shown as
 -- exactly that chat; plus the inline prompt on <leader>ae, which bills the key
@@ -25,8 +25,8 @@
 -- vim.ui.select.
 local t = dofile("tests/helper.lua")
 
-local config = require("ai.state")
-local companion = require("ai.companion")
+local config = require("agent_workbench.state")
+local companion = require("agent_workbench.companion")
 local Config = require("lazy.core.config")
 local INFO, WARN, ERROR = vim.log.levels.INFO, vim.log.levels.WARN, vim.log.levels.ERROR
 
@@ -233,11 +233,11 @@ local parser = require("codecompanion.interactions.chat.parser")
 t.eq(parser.messages(restored, parser.headers(restored) + 1), { content = "next question" },
   "and the next question still parses on its own")
 restored:close()
-require("ai.slot").show_chat(anthropic)
+require("agent_workbench.slot").show_chat(anthropic)
 t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
 
 ---------------------------------------------------------------------------
--- Upstream internals the slot relies on (lua/ai/companion.lua open/create)
+-- Upstream internals the slot relies on (local-plugin/agent-workbench.nvim/lua/agent_workbench/companion.lua open/create)
 ---------------------------------------------------------------------------
 
 -- A chat created hidden: rendered, announced, not on screen, and not
@@ -260,7 +260,7 @@ t.eq(Chats.last_chat(), last_before, "it is not upstream's last chat until it is
 -- The progress line: from on_submitted, which Chat:submit dispatches before
 -- the request (or an adapter's blocking setup), until the chat is not busy.
 -- Dispatched directly, as review rounds' on_before_submit is: no request.
-local progress = require("ai.progress")
+local progress = require("agent_workbench.progress")
 local function progress_text()
   local marks = vim.api.nvim_buf_get_extmarks(hidden.bufnr, progress.ns, 0, -1, { details = true })
   return marks[1] and marks[1][4].virt_text[1][1] or nil
@@ -305,12 +305,12 @@ t.eq(vim.api.nvim_win_get_cursor(hidden.ui.winnr)[1], vim.api.nvim_buf_line_coun
 vim.api.nvim_del_augroup_by_id(event_group)
 hidden:close()
 vim.api.nvim_set_current_win(editor_win)
-require("ai.slot").show_chat(anthropic)
+require("agent_workbench.slot").show_chat(anthropic)
 t.ok(shown(anthropic), "the Anthropic chat is back in the slot")
 
 ---------------------------------------------------------------------------
 -- Keys: upstream's defaults moved off keys that mean something else
--- everywhere (lua/plugins/ai/codecompanion.lua)
+-- everywhere (lua/plugin/ai/codecompanion.lua)
 ---------------------------------------------------------------------------
 
 -- As resolved in the live config.
@@ -405,7 +405,7 @@ vim.api.nvim_set_current_win(editor_win)
 -- last_chat is the Anthropic chat now. Upstream's Add would append there; the
 -- OpenAI chat on the right gets it instead.
 t.eq(Chats.last_chat(), anthropic, "upstream's last chat is the Anthropic one")
-require("ai.slot").show_chat(openai)
+require("agent_workbench.slot").show_chat(openai)
 vim.api.nvim_set_current_win(editor_win)
 vim.api.nvim_win_set_cursor(0, { 2, 0 })
 vim.api.nvim_feedkeys("Vj as", "x", false)
@@ -444,7 +444,7 @@ fresh:close()
 
 -- Upstream's :'<,'>CodeCompanionChat Add appends to last_chat, which need not
 -- be the chat on the right: nothing falls back to it.
-require("ai.slot").show_chat(anthropic)
+require("agent_workbench.slot").show_chat(anthropic)
 local real_capture, real_cmd = companion.add_capture, vim.cmd
 local ran = {}
 companion.add_capture = function() error("spec: add broke") end

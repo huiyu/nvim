@@ -2,7 +2,7 @@
 -- tmux here (#12), and repeats on bare j/k so a multi-line move is not one
 -- prefix press per line.
 local t = dofile("tests/helper.lua")
-local move = require("util.move")
+local move = require("editor_core.move")
 
 local function buffer(lines)
   local b = vim.api.nvim_create_buf(false, true)

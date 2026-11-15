@@ -972,7 +972,7 @@ sends to a hidden chat on its own. In a CodeDiff view the keys act on the page
 the view was opened from.
 
 No agent is the default, and nothing at startup picks one. The *providers* —
-Claude and Codex out of the box — are an ordered list in `lua/ai/config.lua`,
+Claude and Codex out of the box — are an ordered list in `lua/config/ai.lua`,
 which only returns editable settings. Set `key_profile` there for the startup
 HTTP profile and `panel.width` for the panel width; restart Nvim after editing.
 Use `:AI key <name>` to switch the live HTTP profile without editing the file.
@@ -1441,7 +1441,7 @@ conversation, once you send it.
 
 ### Settings: `vim.g.ai_review`
 
-Defaults live in `lua/ai/review/config.lua`, a plain settings table. Edit it
+Defaults live in `lua/config/review.lua`, a plain settings table. Edit it
 and restart Nvim to change the defaults; assigning `vim.g.ai_review` changes
 only the specified settings in the current process.
 
@@ -1581,7 +1581,7 @@ toggles the failures neotest shows as diagnostics.
 Set a breakpoint with `<Space>db`, put the cursor inside a test, then press
 `<Space>tM`. These direct entries save the current buffer first; an unsaved
 unnamed buffer or failed write aborts. They use the same keys in every supported
-language, with target logic in `lua/plugins/lang/*.lua`.
+language, with target logic in `lua/plugin/lang/*.lua`.
 
 | Language | `df` | `tM` / `tF` |
 |---|---|---|

@@ -1,0 +1,1 @@
+return { autoformat = true }

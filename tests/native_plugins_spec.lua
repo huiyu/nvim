@@ -3,7 +3,7 @@
 -- Codex wrappers is tests/agent_hook_spec.lua's. No conversation, model
 -- request, MCP server or plugin hook is started.
 local t = dofile("tests/helper.lua")
-local plugins = require("ai.plugins")
+local plugins = require("agent_workbench.plugins")
 local root = vim.fn.tempname() .. " plug in 'quoted'"
 vim.fn.mkdir(root, "p")
 local saved = { dirs = vim.env.NVIM_AI_PLUGIN_DIR, home = vim.env.CODEX_HOME, path = vim.env.PATH }

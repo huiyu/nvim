@@ -1,5 +1,5 @@
--- Guards the native agents' review hooks (lua/ai/review/hook.lua and
--- scripts/agent-hook): what each CLI is given, that it reaches the CLI byte for
+-- Guards the native agents' review hooks (local-plugin/agent-workbench.nvim/lua/agent_workbench/review/hook.lua and
+-- local-plugin/agent-workbench.nvim/scripts/agent-hook): what each CLI is given, that it reaches the CLI byte for
 -- byte through both launch paths of both wrappers, and that the script never
 -- prints, always exits 0 and keeps every wait bounded. The script runs end to
 -- end against a real headless Nvim over --listen, with ai.review.rounds stubbed
@@ -8,9 +8,9 @@
 -- the injected configuration offline, in isolated config homes.
 local t = dofile("tests/helper.lua")
 
-local hook = require("ai.review.hook")
-local ai_config = require("ai.state")
-local codex = require("ai.backend.codex")
+local hook = require("agent_workbench.review.hook")
+local ai_config = require("agent_workbench.state")
+local codex = require("agent_workbench.backend.codex")
 local saved_plugin_dirs = vim.env.NVIM_AI_PLUGIN_DIR
 vim.env.NVIM_AI_PLUGIN_DIR = nil
 
@@ -50,14 +50,14 @@ end
 
 ---claudecode's terminal_cmd exactly as lazy evaluates it, under `vars`.
 local function claude_terminal_cmd(vars)
-  return with_env(vars, function() return dofile("lua/plugins/ai/claudecode.lua")[1].opts.terminal_cmd end)
+  return with_env(vars, function() return dofile("lua/plugin/ai/claudecode.lua")[1].opts.terminal_cmd end)
 end
 
 ---------------------------------------------------------------------------
 -- What Claude is given: --settings JSON, exec form
 ---------------------------------------------------------------------------
 
-t.ok(script:sub(1, 1) == "/" and vim.fn.executable(script) == 1, "scripts/agent-hook is present, absolute and executable")
+t.ok(script:sub(1, 1) == "/" and vim.fn.executable(script) == 1, "local-plugin/agent-workbench.nvim/scripts/agent-hook is present, absolute and executable")
 
 local settings = vim.json.decode(hook.claude_settings())
 local events = vim.tbl_keys(settings.hooks or {})
@@ -81,7 +81,7 @@ end)
 -- Fixed vectors from the Python reference (json.dumps sort_keys, compact,
 -- ensure_ascii=False), which matched the trusted_hash values Codex itself wrote
 -- for five existing hooks. The second one pins the string escaping.
-t.eq(hook.codex_trust_hash("user_prompt_submit", "'/cfg dir/scripts/agent-hook' codex submit 2500", 10),
+t.eq(hook.codex_trust_hash("user_prompt_submit", "'/cfg dir/local-plugin/agent-workbench.nvim/scripts/agent-hook' codex submit 2500", 10),
   "sha256:6407f82ca445a970baea9f6c0305a6b249e7650c36473b2fbcf3cd6abb514e89",
   "the trust hash matches the reference for a plain command")
 t.eq(hook.codex_trust_hash("user_prompt_submit", "'/a/it'\\''s \"q\" \\ \u{e9}\t/agent-hook' codex submit 0", 15),
@@ -200,7 +200,7 @@ local function launch(agent, cmd, socket)
   return read_nul(out .. ".argv"), env
 end
 
-local wrapper = require("ai.backend.launch").wrapper()
+local wrapper = require("agent_workbench.backend.launch").wrapper()
 local tmux = vim.fn.executable("tmux") == 1
 
 -- Claude: claudecode appends its own arguments (--resume <id>) to terminal_cmd
@@ -282,7 +282,7 @@ if chan then
   remote([[
     _G.hook_spec = { calls = {}, notes = {}, mode = "release" }
     vim.notify = function(msg) table.insert(_G.hook_spec.notes, msg) end
-    package.loaded["ai.review.rounds"] = {
+    package.loaded["agent_workbench.review.rounds"] = {
       native_event = function(ev)
         table.insert(_G.hook_spec.calls, {
           agent = ev.agent, event = ev.event, payload = ev.payload, waiting = not ev.gave_up(),
@@ -344,11 +344,11 @@ if chan then
   t.ok(silent_ok(res) and calls() == before, "an unknown agent never reaches Nvim")
 
   remote([[
-    _G.hook_spec.real_hook = package.loaded["ai.review.hook"]
-    package.loaded["ai.review.hook"] = { event = function() error("spec: the receiver raised") end }
+    _G.hook_spec.real_hook = package.loaded["agent_workbench.review.hook"]
+    package.loaded["agent_workbench.review.hook"] = { event = function() error("spec: the receiver raised") end }
   ]])
   res = fastest({ "claude", "submit", "2500" }, submit, sock)
-  remote([[package.loaded["ai.review.hook"] = _G.hook_spec.real_hook]])
+  remote([[package.loaded["agent_workbench.review.hook"] = _G.hook_spec.real_hook]])
   t.ok(silent_ok(res) and res.ms < 100, ("a raising receiver: silent exit 0 within 100 ms (%.0f ms)"):format(res.ms))
   t.eq(leftovers(), {}, "and the payload is cleaned up")
 
@@ -427,8 +427,8 @@ if chan then
   t.eq(leftovers(), {}, "and nothing is left in TMPDIR")
 
   -- Without ai.review.rounds the receiver acknowledges and drops the event.
-  if #remote([[return vim.loader.find("ai.review.rounds")]]) == 0 then
-    remote([[package.loaded["ai.review.rounds"] = nil]])
+  if #remote([[return vim.loader.find("agent_workbench.review.rounds")]]) == 0 then
+    remote([[package.loaded["agent_workbench.review.rounds"] = nil]])
     res = run_hook({ "claude", "submit", "2500" }, submit, sock)
     t.ok(silent_ok(res) and res.ms < 500, ("without ai.review.rounds a submit is released at once (%.0f ms)"):format(res.ms))
   end

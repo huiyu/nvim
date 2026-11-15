@@ -1,4 +1,4 @@
--- Guards the agent panel's input rules (lua/ai/terminal.lua).
+-- Guards the agent panel's input rules (local-plugin/agent-workbench.nvim/lua/agent_workbench/terminal.lua).
 --
 -- Both were silent losses rather than errors, which is why they survived so
 -- long: a click inside the panel left Terminal-mode, so returning to the window
@@ -7,8 +7,8 @@
 -- global <Esc><Esc> before either agent could see it.
 local t = dofile("tests/helper.lua")
 
-local config = require("ai.state")
-local ai_term = require("ai.terminal")
+local config = require("agent_workbench.state")
+local ai_term = require("agent_workbench.terminal")
 
 -- A stand-in for the real CLI: identity is decided by the command's basename,
 -- so a script named after the provider is indistinguishable from the agent as
@@ -120,7 +120,7 @@ end
 -- The Claude wrapper is where mouse reporting is turned on for Claude.
 -- Without it the pane's clicks are Nvim's to handle, which is the Normal-mode
 -- surprise this spec exists for. Codex has always set it; the two must agree.
--- claudecode.nvim is declared whatever lua/ai/config.lua lists, with `opts` a
+-- claudecode.nvim is declared whatever lua/config/ai.lua lists, with `opts` a
 -- table built at startup, so its wrapper command is always checked here.
 local claude_spec = require("lazy.core.config").spec.plugins["claudecode.nvim"]
 t.ok(claude_spec ~= nil and type(claude_spec.opts) == "table" and type(claude_spec.opts.terminal_cmd) == "string",
@@ -152,7 +152,7 @@ do
     "and emits them as CSI u, the form both TUIs parse")
 end
 if vim.fn.executable("tmux") == 1 then
-  local joined = table.concat(require("ai.backend.codex")._terminal_command({ "codex" }), " ")
+  local joined = table.concat(require("agent_workbench.backend.codex")._terminal_command({ "codex" }), " ")
   t.ok(joined:find("set-option -g extended-keys always", 1, true) ~= nil,
     "the Codex wrapper keeps modified Enter chords (extended-keys always)")
   t.ok(joined:find("set-option -g extended-keys-format csi-u", 1, true) ~= nil,
@@ -163,8 +163,8 @@ end
 -- wrapper's teardown reports success to nvim whatever the pane's command did,
 -- so without the launcher a startup failure is indistinguishable from a clean
 -- exit and Snacks just closes the panel.
-local runner = require("ai.backend.launch").runner()
-t.eq(vim.fn.executable(runner), 1, "scripts/agent-run is present and executable")
+local runner = require("agent_workbench.backend.launch").runner()
+t.eq(vim.fn.executable(runner), 1, "local-plugin/agent-workbench.nvim/scripts/agent-run is present and executable")
 
 -- The script itself: a clean exit passes straight through, a failure reports
 -- the status and says why the panel is still there.
@@ -177,7 +177,7 @@ t.ok(failed:find("exited with status 7", 1, true) ~= nil, "and names the status"
 
 -- Both wrappers have to route the pane through it.
 if vim.fn.executable("tmux") == 1 then
-  local cmd = require("ai.backend.codex")._terminal_command({ "codex" })
+  local cmd = require("agent_workbench.backend.codex")._terminal_command({ "codex" })
   local at = vim.fn.index(cmd, runner)
   t.ok(at >= 0, "the Codex wrapper runs the pane through agent-run")
   t.eq(cmd[at + 2], "codex", "with the agent command right after it")
@@ -227,15 +227,15 @@ end
 -- into its own process group -- tmux only signals the pane's own process, and
 -- the kernel's hangup only its session leader -- so a Codex exec_command dev
 -- server outlived its Nvim by three days with ppid 1. The wrapper's
--- client-detached hook now runs scripts/agent-teardown, which records the
+-- client-detached hook now runs local-plugin/agent-workbench.nvim/scripts/agent-teardown, which records the
 -- pane's process tree before the server goes and sweeps the survivors after.
 -- destroy-unattached has to be off for that hook to run at all: with it on, the
 -- server was gone before the hook fired (measured).
-local teardown = require("ai.backend.launch").teardown()
-t.eq(vim.fn.executable(teardown), 1, "scripts/agent-teardown is present and executable")
+local teardown = require("agent_workbench.backend.launch").teardown()
+t.eq(vim.fn.executable(teardown), 1, "local-plugin/agent-workbench.nvim/scripts/agent-teardown is present and executable")
 
 if vim.fn.executable("tmux") == 1 then
-  local cmd = require("ai.backend.codex")._terminal_command({ "codex" })
+  local cmd = require("agent_workbench.backend.codex")._terminal_command({ "codex" })
   local joined = table.concat(cmd, " ")
   t.ok(joined:find("destroy-unattached off", 1, true) ~= nil,
     "the Codex wrapper keeps the session until its client-detached hook has run")
@@ -333,7 +333,7 @@ pcall(vim.api.nvim_buf_delete, codex_probe.buf, { force = true })
 t.eq(vim.tbl_get(claude_spec, "opts", "terminal", "snacks_win_opts", "wo", "winbar"), "",
   "the Claude panel has no winbar")
 do
-  local opts = require("ai.backend.codex")._terminal_opts(vim.fn.getcwd())
+  local opts = require("agent_workbench.backend.codex")._terminal_opts(vim.fn.getcwd())
   t.eq(opts.win.wo.winbar, "", "the Codex panel asks for no winbar")
   local term = Snacks.terminal.open({ "cat" }, opts)
   t.ok(term and term:win_valid() and vim.wo[term.win].winbar == "",
@@ -349,7 +349,7 @@ do
   end
 end
 
--- lua/ai/backend/claude.lua drives claudecode through a few of its module
+-- local-plugin/agent-workbench.nvim/lua/agent_workbench/backend/claude.lua drives claudecode through a few of its module
 -- functions (AGENTS.md lists them with the other internals readers), which
 -- tests/ai_slot_spec.lua stands in for so the plugin never loads. Pin them
 -- against the pinned plugin's source -- read, not required: a require would

@@ -19,7 +19,7 @@ local t = dofile("tests/helper.lua")
 local Config = require("lazy.core.config")
 local api, uv = vim.api, vim.uv
 
-t.eq(package.loaded["ai.review.feedback"], nil, "ai.review.feedback is not loaded at startup")
+t.eq(package.loaded["agent_workbench.review.feedback"], nil, "ai.review.feedback is not loaded at startup")
 local plugin = Config.plugins["codediff.nvim"]
 if #vim.fn.glob(plugin.dir .. "/libvscode_diff*", false, true) == 0 then
   t.ok(false, "CodeDiff's native library is installed in " .. plugin.dir .. " (see docs/DIAGNOSTICS.md)")
@@ -61,8 +61,8 @@ local function map(buf, lhs, mode)
   return api.nvim_buf_call(buf, function() return vim.fn.maparg(lhs, mode or "n", false, true) end)
 end
 
-local rounds = require("ai.review.rounds")
-local cd = require("util.codediff")
+local rounds = require("agent_workbench.review.rounds")
+local cd = require("git_review.view")
 local real_draft_path = rounds.draft_path
 rounds.draft_path = function(root, id)
   return ("%s/drafts/%s/%s.md"):format(scratch, vim.fn.sha256(uv.fs_realpath(root) or root):sub(1, 12), id)
@@ -127,7 +127,7 @@ vim.cmd("checktime")
 -- <leader>av, then the real ,C
 ---------------------------------------------------------------------------
 
-require("ai.review").open()
+require("agent_workbench.review").open()
 local tab
 t.ok(vim.wait(20000, function()
   for _, tp in ipairs(api.nvim_list_tabpages()) do
@@ -149,7 +149,7 @@ if not tab then
   return
 end
 local s = cd.session(tab)
-t.eq(package.loaded["ai.review.feedback"], nil, "the view does not load ai.review.feedback; ,C will")
+t.eq(package.loaded["agent_workbench.review.feedback"], nil, "the view does not load ai.review.feedback; ,C will")
 
 local draft = rounds.draft_path(root, round.id)
 local function draft_lines() return vim.fn.filereadable(draft) == 1 and vim.fn.readfile(draft) or {} end
@@ -177,7 +177,7 @@ api.nvim_create_autocmd("InsertEnter", {
 })
 -- The key, and then typing into the float it opens: one typeahead.
 api.nvim_feedkeys(vim.keycode(",Cmy comment<Esc>"), "xt", false)
-t.ok(package.loaded["ai.review.feedback"] ~= nil, ",C loads ai.review.feedback")
+t.ok(package.loaded["agent_workbench.review.feedback"] ~= nil, ",C loads ai.review.feedback")
 local lines = draft_lines()
 local nonce = lines[1] and lines[1]:match("^<!%-%- nvim%-review n=(%x+) ")
 t.eq(lines[1], ("<!-- nvim-review n=%s round=%s sha=%s conversation=claude:loop-1 root=%s -->")
@@ -222,7 +222,7 @@ rounds.resolve_sink = function(conversation, roots, cb)
     return cb(target, reason)
   end)
 end
-local claude = require("ai.backend.claude")
+local claude = require("agent_workbench.backend.claude")
 local real_edit_prompt = claude.edit_prompt
 local fed = {}
 claude.edit_prompt = function(opts)
@@ -233,7 +233,7 @@ end
 -- Feedback for Claude never reaches Codex. Were it to, Codex's real
 -- edit_prompt would start a Codex terminal in this Nvim: it is stubbed to
 -- record and do nothing.
-local codex = require("ai.backend.codex")
+local codex = require("agent_workbench.backend.codex")
 local real_codex_edit_prompt = codex.edit_prompt
 local codex_fed = 0
 codex.edit_prompt = function() codex_fed = codex_fed + 1 end
@@ -272,7 +272,7 @@ local seed = fed[1] and fed[1].opts.seed or ""
 t.ok(seed:match("^Review of changes since baseline") ~= nil, "the seed starts with the intro")
 t.ok(not seed:find("nvim-review", 1, true), "without the header or the markers")
 t.ok(seed:find("> my comment", 1, true) ~= nil and seed:find("> second comment", 1, true) ~= nil, "with both comments")
-t.eq(fed[1] and fed[1].opts.ttl_ms, require("ai.review.settings").get().seed_ttl_ms, "given seed_ttl_ms to arrive in")
+t.eq(fed[1] and fed[1].opts.ttl_ms, require("agent_workbench.review.settings").get().seed_ttl_ms, "given seed_ttl_ms to arrive in")
 t.eq(fed[1] and fed[1].tab, editor_tab, "fed from the tabpage that shows Claude's terminal")
 t.eq(vim.fn.getfsize(draft), 0, "on_consumed empties the draft")
 local last_sent = (draft:gsub("%.md$", "")) .. ".last-sent.md"

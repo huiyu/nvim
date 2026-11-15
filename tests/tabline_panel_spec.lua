@@ -4,7 +4,7 @@
 local t = dofile("tests/helper.lua")
 
 -- bufferline loads on VeryLazy, after the first frame. Until then the row
--- comes from lua/config/options.lua: a `1` there would leave the first frame without
+-- comes from local-plugin/editor-core.nvim/lua/editor_core/options.lua: a `1` there would leave the first frame without
 -- it, and the whole screen would move down a line once bufferline turned it on.
 t.eq(vim.o.showtabline, 2, "the tabline is on before bufferline loads")
 -- VeryLazy has not fired while a spec runs.
@@ -96,7 +96,7 @@ end
 -- then there is nowhere left to run `;f` from. The guard notices that
 -- state and puts a fresh page back in front.
 do
-  local win = require("util.window")
+  local win = require("editor_core.window")
 
   local function filetypes(tabpage)
     local fts = {}
@@ -209,7 +209,7 @@ do
     local editor = vim.api.nvim_get_current_win()
     local term = Snacks.terminal.open({ bin }, {
       interactive = false,
-      win = { position = "right", width = require("ai.state").panel.width },
+      win = { position = "right", width = require("agent_workbench.state").panel.width },
     })
     settle()
     local channel = vim.bo[term.buf].channel
@@ -258,7 +258,7 @@ do
   local elements = require("bufferline").get_elements().elements
   for _, case in ipairs({ { "]B", elements[#elements].id }, { "[B", elements[1].id }, { "]b" }, { "[b" } }) do
     vim.api.nvim_set_current_win(chat_win)
-    local before = vim.api.nvim_win_get_buf(require("util.window").ensure_editor_win())
+    local before = vim.api.nvim_win_get_buf(require("editor_core.window").ensure_editor_win())
     vim.api.nvim_feedkeys(vim.keycode(case[1]), "mx", false)
     settle()
     t.ok(vim.api.nvim_win_is_valid(chat_win) and vim.api.nvim_win_get_buf(chat_win) == chat,
@@ -314,10 +314,10 @@ do
 
   -- Use the same /usr/bin/env terminal name as the wrapper, without running a
   -- real agent or touching a session. Identity follows the first listed agent.
-  local bin = stand_in(dir, require("ai.state").agents[require("ai.state").agent_names()[1]].command)
+  local bin = stand_in(dir, require("agent_workbench.state").agents[require("agent_workbench.state").agent_names()[1]].command)
   local panel = Snacks.terminal.open({ "env", bin }, {
     interactive = false,
-    win = { position = "right", width = require("ai.state").panel.width },
+    win = { position = "right", width = require("agent_workbench.state").panel.width },
   })
   settle()
   t.ok(require("edgy.editor").get_win(panel.win) ~= nil, "edgy owns the agent panel")
@@ -367,7 +367,7 @@ do
   settle()
 
   -- Ordinary Snacks shells also have their own focus path (,1..,9 / Ctrl-/).
-  require("util.terminal").focus(1)
+  require("editor_core.terminal").focus(1)
   local shell = vim.api.nvim_get_current_buf()
   vim.bo[shell].buflisted = true
   settle()
