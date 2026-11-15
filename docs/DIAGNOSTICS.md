@@ -1134,9 +1134,14 @@ Electron 44.4.2 and the installed js-debug build, `--inspect-brk` stalled attach
 initialization without exposing a paused frame; the guide therefore uses
 `--inspect`. Use the combined launch configuration for startup breakpoints.
 
-React Native findings and the inspector transport probe are preserved in the
-[archived investigation](https://github.com/huiyu/nvim/blob/8fd9821ffd9e8ef9a9473456ebca0c6fd2f84e9a/spikes/react-native-dap/README.md). The probe does
-not claim Hermes breakpoint/source-map support.
+### React Native
+
+No React Native/Hermes DAP adapter is enabled in this configuration. Earlier
+checks against `@react-native/dev-middleware@0.87.1` verified inspector target
+discovery, the required WebSocket Origin header and message routing with a
+synthetic device. They did not verify a real Hermes application's TSX source
+breakpoints, source maps, stepping, reload/reconnect or DevTools coexistence.
+Use React Native DevTools until that complete workflow has been verified.
 
 ### JavaScript / TypeScript
 
@@ -1223,10 +1228,9 @@ sourcemap mapping is derived from. Nothing else needs configuring; a hand-set
   already uses for hot reload, just applied to the initial load. That fix is
   offered back as [noorez/vscode-js-debug#1](https://github.com/noorez/vscode-js-debug/pull/1);
   until it lands, launch mode works here and nowhere else.
-- Nothing about Chrome or CDP prevents extension debugging — raw CDP pauses an
-  MV3 service worker fine. The walls were js-debug's. See the
-  [archived investigation](https://github.com/huiyu/nvim/blob/8fd9821ffd9e8ef9a9473456ebca0c6fd2f84e9a/spikes/chrome-extension-dap/README.md)
-  for the measurements and the upstream history.
+- Earlier checks paused an MV3 service worker through raw CDP. The extension
+  configurations here use the `js-debug-webext` build described above to
+  provide the DAP integration, source mapping and worker handling.
 - mason-nvim-dap ships no adapter definition for js-debug, so `pwa-node` and
   `pwa-chrome` are registered in `lua/plugins/lang/typescript.lua`. Its `["js"]` handler
   only makes mason install the package.

@@ -119,7 +119,7 @@ end
 ---
 ---It is a superset -- ordinary page and Node debugging are unaffected -- so a
 ---machine that has not installed it simply loses extension support rather than
----breaking. See docs/DIAGNOSTICS.md for setup and the archived investigation.
+---breaking. See docs/DIAGNOSTICS.md.
 ---@return string[] command and its leading arguments
 local function js_debug_command()
   local webext = vim.fn.stdpath("data") .. "/js-debug-webext/src/dapDebugServer.js"
